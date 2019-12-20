@@ -47,26 +47,11 @@
     <Reference Include="BmFont">
       <HintPath>..\lib\BmFont.dll</HintPath>
     </Reference>
-    <Reference Include="CSteamworks">
-      <HintPath>..\lib\CSteamworks.dll</HintPath>
-    </Reference>
-    <Reference Include="Galaxy">
-      <HintPath>..\lib\Galaxy.dll</HintPath>
-    </Reference>
     <Reference Include="GalaxyCSharp">
       <HintPath>..\lib\GalaxyCSharp.dll</HintPath>
     </Reference>
-    <Reference Include="GalaxyCSharpGlue">
-      <HintPath>..\lib\GalaxyCSharpGlue.dll</HintPath>
-    </Reference>
-    <Reference Include="GalaxyPeer">
-      <HintPath>..\lib\GalaxyPeer.dll</HintPath>
-    </Reference>
     <Reference Include="Lidgren.Network">
       <HintPath>..\lib\Lidgren.Network.dll</HintPath>
-    </Reference>
-    <Reference Include="steam_api">
-      <HintPath>..\lib\steam_api.dll</HintPath>
     </Reference>
     <Reference Include="Steamworks.NET">
       <HintPath>..\lib\Steamworks.NET.dll</HintPath>
@@ -77,6 +62,24 @@
     <Reference Include="xTile">
       <HintPath>..\lib\xTile.dll</HintPath>
     </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\lib\CSteamworks.dll" Visible="false">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\lib\Galaxy.dll" Visible="false">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\lib\GalaxyCSharpGlue.dll" Visible="false">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\lib\GalaxyPeer.dll" Visible="false">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\lib\steam_api.dll" Visible="false">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
   <ItemGroup>
