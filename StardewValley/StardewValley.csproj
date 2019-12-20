@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup Label="Globals">
+    <TargetFramework>net40</TargetFramework>
+    <Platforms>x86</Platforms>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <AssemblyName>Stardew Valley</AssemblyName>
+    <RootNamespace>StardewValley</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <OutputType>WinExe</OutputType>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x86'">
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <Optimize>false</Optimize>
+    <OutputPath />
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x86'">
+    <DefineConstants>TRACE</DefineConstants>
+    <Optimize>true</Optimize>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\StardewValley.GameData\StardewValley.GameData.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="PresentationCore" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="Microsoft.Xna.Framework.Game">
+      <HintPath>..\lib\Microsoft.Xna.Framework.Game.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.Xna.Framework.Graphics">
+      <HintPath>..\lib\Microsoft.Xna.Framework.Graphics.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.Xna.Framework">
+      <HintPath>..\lib\Microsoft.Xna.Framework.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.Xna.Framework.Xact">
+      <HintPath>..\lib\Microsoft.Xna.Framework.Xact.dll</HintPath>
+    </Reference>
+    <Reference Include="BmFont">
+      <HintPath>..\lib\BmFont.dll</HintPath>
+    </Reference>
+    <Reference Include="CSteamworks">
+      <HintPath>..\lib\CSteamworks.dll</HintPath>
+    </Reference>
+    <Reference Include="Galaxy">
+      <HintPath>..\lib\Galaxy.dll</HintPath>
+    </Reference>
+    <Reference Include="GalaxyCSharp">
+      <HintPath>..\lib\GalaxyCSharp.dll</HintPath>
+    </Reference>
+    <Reference Include="GalaxyCSharpGlue">
+      <HintPath>..\lib\GalaxyCSharpGlue.dll</HintPath>
+    </Reference>
+    <Reference Include="GalaxyPeer">
+      <HintPath>..\lib\GalaxyPeer.dll</HintPath>
+    </Reference>
+    <Reference Include="Lidgren.Network">
+      <HintPath>..\lib\Lidgren.Network.dll</HintPath>
+    </Reference>
+    <Reference Include="steam_api">
+      <HintPath>..\lib\steam_api.dll</HintPath>
+    </Reference>
+    <Reference Include="Steamworks.NET">
+      <HintPath>..\lib\Steamworks.NET.dll</HintPath>
+    </Reference>
+    <Reference Include="Netcode">
+      <HintPath>..\lib\Netcode.dll</HintPath>
+    </Reference>
+    <Reference Include="xTile">
+      <HintPath>..\lib\xTile.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\Microsoft.Xna.Framework.Graphics\ViewportExtensions.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="..\Microsoft.Xna.Framework.RuntimeProfile">
+      <LogicalName>Microsoft.Xna.Framework.RuntimeProfile</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+</Project>
