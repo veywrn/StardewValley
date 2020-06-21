@@ -1557,6 +1557,10 @@ namespace StardewValley
 			if (dropInItem is Object)
 			{
 				Object dropIn = dropInItem as Object;
+				if (dropInItem is Wallpaper)
+				{
+					return false;
+				}
 				if (heldObject.Value != null && !name.Equals("Recycling Machine") && !name.Equals("Crystalarium"))
 				{
 					return false;
@@ -1568,6 +1572,10 @@ namespace StardewValley
 				if ((bool)bigCraftable && !probe && dropIn != null && heldObject.Value == null)
 				{
 					scale.X = 5f;
+				}
+				if (probe && MinutesUntilReady > 0)
+				{
+					return false;
 				}
 				if (name.Equals("Incubator"))
 				{
@@ -4235,7 +4243,7 @@ namespace StardewValley
 				}
 				return false;
 			}
-			if (((int)category == -74 || (int)category == -19) && !l.isTileHoeDirt(tile))
+			if (((int)category == -74 || (int)category == -19) && !l.isTileHoeDirt(tile) && !bigCraftable.Value)
 			{
 				switch ((int)parentSheetIndex)
 				{
@@ -4885,7 +4893,7 @@ namespace StardewValley
 					}
 					return false;
 				}
-				return true;
+				return false;
 			}
 			if (!performDropDownAction(who))
 			{
@@ -4946,7 +4954,7 @@ namespace StardewValley
 				}
 				return true;
 			}
-			if ((int)parentSheetIndex == 434)
+			if (Utility.IsNormalObjectAtParentSheetIndex(this, 434))
 			{
 				if (!Game1.isFestival())
 				{

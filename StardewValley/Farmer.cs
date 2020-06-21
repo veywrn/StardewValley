@@ -2985,7 +2985,7 @@ namespace StardewValley
 			{
 				item
 			}, itemSelectedCallback);
-			if (Game1.activeClickableMenu == null && (int)mostRecentlyGrabbedItem.parentSheetIndex != 434)
+			if (Game1.activeClickableMenu == null && !Utility.IsNormalObjectAtParentSheetIndex(mostRecentlyGrabbedItem, 434))
 			{
 				holdUpItemThenMessage(item);
 			}
@@ -3005,7 +3005,7 @@ namespace StardewValley
 			{
 				return;
 			}
-			if (itemsToAdd.Count > 0 && itemsToAdd[0] is Object && (int)(itemsToAdd[0] as Object).parentSheetIndex == 434)
+			if (itemsToAdd.Count > 0 && itemsToAdd[0] is Object && Utility.IsNormalObjectAtParentSheetIndex(itemsToAdd[0], 434))
 			{
 				eatObject(itemsToAdd[0] as Object, overrideFullness: true);
 				if (Game1.activeClickableMenu != null)
@@ -3118,7 +3118,7 @@ namespace StardewValley
 			{
 				mostRecentlyGrabbedItem = ActiveObject;
 			}
-			if (IsLocalPlayer && mostRecentlyGrabbedItem != null && mostRecentlyGrabbedItem is Object && (mostRecentlyGrabbedItem as Object).ParentSheetIndex == 434)
+			if (IsLocalPlayer && mostRecentlyGrabbedItem != null && mostRecentlyGrabbedItem is Object && Utility.IsNormalObjectAtParentSheetIndex(mostRecentlyGrabbedItem, 434))
 			{
 				eatHeldObject();
 			}
@@ -3357,10 +3357,10 @@ namespace StardewValley
 			switch (who.FarmerSprite.currentAnimationIndex)
 			{
 			case 1:
-				tempSprite2 = ((!who.IsLocalPlayer || who.itemToEat == null || !(who.itemToEat is Object) || (who.itemToEat as Object).ParentSheetIndex != 434) ? new TemporaryAnimatedSprite("Maps\\springobjects", Game1.getSourceRectForStandardTileSheet(Game1.objectSpriteSheet, (who.itemToEat as Object).parentSheetIndex, 16, 16), 254f, 1, 0, who.Position + new Vector2(-21f, -112f), flicker: false, flipped: false, (float)who.getStandingY() / 10000f + 0.01f, 0f, Color.White, 4f, 0f, 0f, 0f) : new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(368, 16, 16, 16), 62.75f, 8, 2, who.Position + new Vector2(-21f, -112f), flicker: false, flipped: false, (float)who.getStandingY() / 10000f + 0.01f, 0f, Color.White, 4f, 0f, 0f, 0f));
+				tempSprite2 = ((!who.IsLocalPlayer || who.itemToEat == null || !(who.itemToEat is Object) || !Utility.IsNormalObjectAtParentSheetIndex(who.itemToEat, 434)) ? new TemporaryAnimatedSprite("Maps\\springobjects", Game1.getSourceRectForStandardTileSheet(Game1.objectSpriteSheet, (who.itemToEat as Object).parentSheetIndex, 16, 16), 254f, 1, 0, who.Position + new Vector2(-21f, -112f), flicker: false, flipped: false, (float)who.getStandingY() / 10000f + 0.01f, 0f, Color.White, 4f, 0f, 0f, 0f) : new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(368, 16, 16, 16), 62.75f, 8, 2, who.Position + new Vector2(-21f, -112f), flicker: false, flipped: false, (float)who.getStandingY() / 10000f + 0.01f, 0f, Color.White, 4f, 0f, 0f, 0f));
 				break;
 			case 2:
-				if (who.IsLocalPlayer && who.itemToEat != null && who.itemToEat is Object && (who.itemToEat as Object).ParentSheetIndex == 434)
+				if (who.IsLocalPlayer && who.itemToEat != null && who.itemToEat is Object && Utility.IsNormalObjectAtParentSheetIndex(who.itemToEat, 434))
 				{
 					tempSprite2 = new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(368, 16, 16, 16), 81.25f, 8, 0, who.Position + new Vector2(-21f, -108f), flicker: false, flipped: false, (float)who.getStandingY() / 10000f + 0.01f, 0f, Color.White, 4f, -0.01f, 0f, 0f)
 					{
@@ -3497,7 +3497,7 @@ namespace StardewValley
 					scale = 4f,
 					layerDepth = 1f
 				});
-				if (who.IsLocalPlayer && (int)who.mostRecentlyGrabbedItem.parentSheetIndex == 434)
+				if (who.IsLocalPlayer && Utility.IsNormalObjectAtParentSheetIndex(who.mostRecentlyGrabbedItem, 434))
 				{
 					who.eatHeldObject();
 				}
@@ -7643,7 +7643,7 @@ namespace StardewValley
 
 		public void eatObject(Object o, bool overrideFullness = false)
 		{
-			if (o.ParentSheetIndex == 434)
+			if (Utility.IsNormalObjectAtParentSheetIndex(o, 434))
 			{
 				Game1.changeMusicTrack("none");
 				Game1.multiplayer.globalChatInfoMessage("Stardrop", base.Name);

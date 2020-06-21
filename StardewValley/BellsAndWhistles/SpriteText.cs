@@ -590,6 +590,7 @@ namespace StardewValley.BellsAndWhistles
 						position.Y += 18f * fontPixelZoom;
 						position.X = x;
 						accumulatedHorizontalSpaceBetweenCharacters = 0;
+						fontPixelZoom = tempzoom;
 						continue;
 					}
 					accumulatedHorizontalSpaceBetweenCharacters = (int)(0f * fontPixelZoom);
@@ -606,11 +607,11 @@ namespace StardewValley.BellsAndWhistles
 						position.X = x;
 						if (s[i] == ' ')
 						{
+							fontPixelZoom = tempzoom;
 							continue;
 						}
 					}
 					b.Draw((color != -1) ? coloredTexture : spriteTexture, position + spriteFontOffset * fontPixelZoom, getSourceRectForChar(s[i], junimoText), ((IsSpecialCharacter(s[i]) | junimoText) ? Color.White : getColorFromIndex(color)) * alpha, 0f, Vector2.Zero, fontPixelZoom, SpriteEffects.None, layerDepth);
-					fontPixelZoom = tempzoom;
 					if (i < s.Length - 1)
 					{
 						position.X += 8f * fontPixelZoom + (float)accumulatedHorizontalSpaceBetweenCharacters + (float)getWidthOffsetForChar(s[i + 1]) * fontPixelZoom;
@@ -619,6 +620,7 @@ namespace StardewValley.BellsAndWhistles
 					{
 						position.X += (float)getWidthOffsetForChar(s[i]) * fontPixelZoom;
 					}
+					fontPixelZoom = tempzoom;
 					continue;
 				}
 				if (s[i] == '^')

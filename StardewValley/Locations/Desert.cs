@@ -439,6 +439,10 @@ namespace StardewValley.Locations
 		public override void performTenMinuteUpdate(int timeOfDay)
 		{
 			base.performTenMinuteUpdate(timeOfDay);
+			if (Game1.currentLocation != this)
+			{
+				return;
+			}
 			if (isTravelingDeserteMerchantHere())
 			{
 				if (Game1.random.NextDouble() < 0.33)
@@ -730,6 +734,15 @@ namespace StardewValley.Locations
 				}
 			}
 			boughtMagicRockCandy = false;
+		}
+
+		public override bool isTilePlaceable(Vector2 v, Item item = null)
+		{
+			if (v.X >= 33f && v.X < 46f && v.Y >= 20f && v.Y < 25f)
+			{
+				return false;
+			}
+			return base.isTilePlaceable(v, item);
 		}
 
 		public override bool shouldHideCharacters()

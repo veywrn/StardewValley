@@ -970,7 +970,10 @@ namespace StardewValley.Tools
 			}
 			else
 			{
-				who.currentLocation.playSound("daggerswipe");
+				if (who.IsLocalPlayer)
+				{
+					who.currentLocation.playSound("daggerswipe");
+				}
 				swipeSpeed /= 4f;
 				switch (who.FacingDirection)
 				{

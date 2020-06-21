@@ -237,7 +237,11 @@ namespace StardewValley.Minigames
 				}
 				if (k == Keys.Escape)
 				{
-					if (Game1.activeClickableMenu == null)
+					if (gameEndTimer <= 0 && !gameDone)
+					{
+						EmergencyCancel();
+					}
+					else if (Game1.activeClickableMenu == null)
 					{
 						gameEndTimer = 1;
 					}
@@ -250,10 +254,6 @@ namespace StardewValley.Minigames
 			if (Game1.options.doesInputListContain(Game1.options.runButton, k) || Game1.isGamePadThumbstickInMotion())
 			{
 				Game1.player.setRunning(isRunning: true);
-			}
-			if (k == Keys.End)
-			{
-				gameEndTimer -= 10000;
 			}
 		}
 
@@ -286,6 +286,20 @@ namespace StardewValley.Minigames
 			if (Game1.options.doesInputListContain(Game1.options.useToolButton, k))
 			{
 				handleCastInputReleased();
+			}
+		}
+
+		public virtual void EmergencyCancel()
+		{
+			Game1.player.Halt();
+			Game1.player.isEating = false;
+			Game1.player.CanMove = true;
+			Game1.player.UsingTool = false;
+			Game1.player.usingSlingshot = false;
+			Game1.player.FarmerSprite.PauseForSingleAnimation = false;
+			if (Game1.player.CurrentTool is FishingRod)
+			{
+				(Game1.player.CurrentTool as FishingRod).resetState();
 			}
 		}
 

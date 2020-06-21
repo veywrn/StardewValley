@@ -314,7 +314,7 @@ namespace StardewValley.Objects
 			}
 			if (items.Count > 0 && !chestType.Equals("Monster") && items.Count >= 1 && (mutex.IsLockHeld() || !playerChest))
 			{
-				bool isStardrop = items[0] is Object && !(items[0] as Object).bigCraftable && (int)items[0].parentSheetIndex == 434;
+				bool isStardrop = Utility.IsNormalObjectAtParentSheetIndex(items[0], 434);
 				if (location is FarmHouse)
 				{
 					if ((location as FarmHouse).owner.UniqueMultiplayerID != Game1.player.UniqueMultiplayerID)

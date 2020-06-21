@@ -676,27 +676,78 @@ namespace StardewValley.Locations
 				switch (upgradeLevel)
 				{
 				case 1:
-					spouseRoomBounds = new Microsoft.Xna.Framework.Rectangle(29, 4, 6, 6);
+					spouseRoomBounds = new Microsoft.Xna.Framework.Rectangle(28, 4, 7, 6);
 					break;
 				case 2:
 				case 3:
-					spouseRoomBounds = new Microsoft.Xna.Framework.Rectangle(35, 13, 6, 6);
+					spouseRoomBounds = new Microsoft.Xna.Framework.Rectangle(34, 13, 7, 6);
 					break;
+				}
+				List<Item> collected_items = new List<Item>();
+				Microsoft.Xna.Framework.Rectangle room_bounds = new Microsoft.Xna.Framework.Rectangle(spouseRoomBounds.X * 64, spouseRoomBounds.Y * 64, spouseRoomBounds.Width * 64, spouseRoomBounds.Height * 64);
+				foreach (Furniture placed_furniture in new List<Furniture>(furniture))
+				{
+					if (placed_furniture.getBoundingBox(placed_furniture.tileLocation).Intersects(room_bounds))
+					{
+						if (placed_furniture is StorageFurniture)
+						{
+							StorageFurniture storage_furniture = placed_furniture as StorageFurniture;
+							collected_items.AddRange(storage_furniture.heldItems);
+							storage_furniture.heldItems.Clear();
+						}
+						if (placed_furniture.heldObject.Value != null)
+						{
+							collected_items.Add((Object)placed_furniture.heldObject);
+							placed_furniture.heldObject.Value = null;
+						}
+						collected_items.Add(placed_furniture);
+						furniture.Remove(placed_furniture);
+					}
 				}
 				for (int x = spouseRoomBounds.X - 1; x <= spouseRoomBounds.Right; x++)
 				{
 					for (int y = spouseRoomBounds.Y; y <= spouseRoomBounds.Bottom; y++)
 					{
-						Vector2 tile = new Vector2(x, y);
-						for (int i = furniture.Count - 1; i >= 0; i--)
+						Object tile_object = getObjectAtTile(x, y);
+						if (tile_object == null)
 						{
-							if (furniture[i].tileLocation.Equals(tile))
+							continue;
+						}
+						tile_object.performRemoveAction(new Vector2(x, y), this);
+						if (tile_object is IndoorPot)
+						{
+							IndoorPot garden_pot = tile_object as IndoorPot;
+							if (garden_pot.hoeDirt.Value != null && garden_pot.hoeDirt.Value.crop != null)
 							{
-								Game1.createItemDebris(furniture[i], new Vector2(spouseRoomBounds.X, spouseRoomBounds.Center.Y) * 64f, 3);
-								furniture.RemoveAt(i);
+								garden_pot.hoeDirt.Value.destroyCrop(garden_pot.tileLocation, showAnimation: false, this);
 							}
 						}
+						else if (tile_object is Chest)
+						{
+							Chest chest = tile_object as Chest;
+							collected_items.AddRange(chest.items);
+							chest.items.Clear();
+						}
+						if (tile_object.heldObject != null)
+						{
+							tile_object.heldObject.Value = null;
+						}
+						tile_object.minutesUntilReady.Value = -1;
+						if (tile_object.readyForHarvest.Value)
+						{
+							tile_object.readyForHarvest.Value = false;
+						}
+						collected_items.Add(getObjectAtTile(x, y));
+						objects.Remove(new Vector2(x, y));
 					}
+				}
+				if (upgradeLevel >= 2)
+				{
+					Utility.createOverflowChest(this, new Vector2(24f, 22f), collected_items);
+				}
+				else
+				{
+					Utility.createOverflowChest(this, new Vector2(21f, 10f), collected_items);
 				}
 			}
 			loadObjects();
@@ -936,7 +987,7 @@ namespace StardewValley.Locations
 							}
 							Object o2 = null;
 							o2 = getObjectAtTile(x, y);
-							if (o2 != null && !(o2 is Chest) && !(o2 is StorageFurniture))
+							if (o2 != null && !(o2 is Chest) && !(o2 is StorageFurniture) && !(o2 is IndoorPot))
 							{
 								if (o2.Name != null && o2.Name.Contains("Table") && o2.heldObject.Value != null)
 								{

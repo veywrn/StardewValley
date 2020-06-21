@@ -913,6 +913,10 @@ namespace StardewValley
 			CurrentCommand++;
 		}
 
+		public virtual void command_null(GameLocation location, GameTime time, string[] split)
+		{
+		}
+
 		public virtual void command_specificTemporarySprite(GameLocation location, GameTime time, string[] split)
 		{
 			addSpecificTemporarySprite(split[1], location, split);
@@ -3518,7 +3522,7 @@ namespace StardewValley
 		{
 			getActorByName("Sam").Sprite.currentFrame = 27;
 			farmer.faceDirection(0);
-			TemporaryAnimatedSprite temporarySpriteByID = Game1.currentLocation.getTemporarySpriteByID(1);
+			TemporaryAnimatedSprite temporarySpriteByID = Game1.currentLocation.getTemporarySpriteByID(92473);
 			temporarySpriteByID.xStopCoordinate = 1408;
 			temporarySpriteByID.reachedStopCoordinate = samOllie;
 			temporarySpriteByID.motion = new Vector2(2f, 0f);
@@ -3528,7 +3532,7 @@ namespace StardewValley
 		{
 			Game1.playSound("crafting");
 			getActorByName("Sam").Sprite.currentFrame = 26;
-			TemporaryAnimatedSprite temporarySpriteByID = Game1.currentLocation.getTemporarySpriteByID(1);
+			TemporaryAnimatedSprite temporarySpriteByID = Game1.currentLocation.getTemporarySpriteByID(92473);
 			temporarySpriteByID.currentNumberOfLoops = 0;
 			temporarySpriteByID.totalNumberOfLoops = 1;
 			temporarySpriteByID.motion.Y = -9f;
@@ -3545,7 +3549,7 @@ namespace StardewValley
 		{
 			Game1.playSound("hammer");
 			getActorByName("Sam").Sprite.currentFrame = 28;
-			TemporaryAnimatedSprite temporarySpriteByID = Game1.currentLocation.getTemporarySpriteByID(1);
+			TemporaryAnimatedSprite temporarySpriteByID = Game1.currentLocation.getTemporarySpriteByID(92473);
 			temporarySpriteByID.currentNumberOfLoops = 0;
 			temporarySpriteByID.totalNumberOfLoops = 9999;
 			temporarySpriteByID.motion.Y = 0f;
@@ -3563,7 +3567,7 @@ namespace StardewValley
 		{
 			NPC actorByName = getActorByName("Sam");
 			actorByName.Sprite.currentFrame = 31;
-			TemporaryAnimatedSprite temporarySpriteByID = Game1.currentLocation.getTemporarySpriteByID(1);
+			TemporaryAnimatedSprite temporarySpriteByID = Game1.currentLocation.getTemporarySpriteByID(92473);
 			temporarySpriteByID.currentNumberOfLoops = 9999;
 			temporarySpriteByID.totalNumberOfLoops = 0;
 			temporarySpriteByID.motion.Y = 0f;
@@ -3586,7 +3590,7 @@ namespace StardewValley
 
 		private void samGround(int extraInfo)
 		{
-			TemporaryAnimatedSprite temporarySpriteByID = Game1.currentLocation.getTemporarySpriteByID(1);
+			TemporaryAnimatedSprite temporarySpriteByID = Game1.currentLocation.getTemporarySpriteByID(92473);
 			Game1.playSound("thudStep");
 			temporarySpriteByID.attachedCharacter = null;
 			temporarySpriteByID.reachedStopCoordinate = null;
@@ -3598,7 +3602,7 @@ namespace StardewValley
 
 		private void catchFootball(int extraInfo)
 		{
-			TemporaryAnimatedSprite temporarySpriteByID = Game1.currentLocation.getTemporarySpriteByID(1);
+			TemporaryAnimatedSprite temporarySpriteByID = Game1.currentLocation.getTemporarySpriteByID(56232);
 			Game1.playSound("fishSlap");
 			temporarySpriteByID.motion = new Vector2(2f, -8f);
 			temporarySpriteByID.rotationChange = (float)Math.PI / 24f;
@@ -3609,7 +3613,7 @@ namespace StardewValley
 
 		private void footballLand(int extraInfo)
 		{
-			TemporaryAnimatedSprite temporarySpriteByID = Game1.currentLocation.getTemporarySpriteByID(1);
+			TemporaryAnimatedSprite temporarySpriteByID = Game1.currentLocation.getTemporarySpriteByID(56232);
 			Game1.playSound("sandyStep");
 			temporarySpriteByID.motion = new Vector2(0f, 0f);
 			temporarySpriteByID.rotationChange = 0f;
@@ -6342,7 +6346,7 @@ namespace StardewValley
 					xStopCoordinate = 1856,
 					reachedStopCoordinate = catchFootball,
 					layerDepth = 1f,
-					id = 1f
+					id = 56232f
 				});
 				break;
 			case "skateboardFly":
@@ -6364,7 +6368,7 @@ namespace StardewValley
 					xStopCoordinate = 1344,
 					reachedStopCoordinate = samPreOllie,
 					attachedCharacter = getActorByName("Sam"),
-					id = 1f
+					id = 92473f
 				});
 				break;
 			case "beachStuff":
@@ -7725,7 +7729,7 @@ namespace StardewValley
 			{
 				if (i != null && i is Object)
 				{
-					if ((int)(i as Object).parentSheetIndex == 789 || (int)(i as Object).parentSheetIndex == 71)
+					if (IsItemMayorShorts(i as Object))
 					{
 						purpleShorts = true;
 					}
@@ -8733,7 +8737,7 @@ namespace StardewValley
 			case "secretSanta":
 				if (answerChoice == 0)
 				{
-					Game1.activeClickableMenu = new ItemGrabMenu(null, reverseGrab: true, showReceivingMenu: false, Utility.highlightSmallObjects, chooseSecretSantaGift, Game1.content.LoadString("Strings\\StringsFromCSFiles:Event.cs.1788", secretSantaRecipient.displayName), null, snapToBottom: false, canBeExitedWithKey: false, playRightClickSound: true, allowRightClick: true, showOrganizeButton: false, 0, null, -1, this);
+					Game1.activeClickableMenu = new ItemGrabMenu(null, reverseGrab: true, showReceivingMenu: false, Utility.highlightSantaObjects, chooseSecretSantaGift, Game1.content.LoadString("Strings\\StringsFromCSFiles:Event.cs.1788", secretSantaRecipient.displayName), null, snapToBottom: false, canBeExitedWithKey: false, playRightClickSound: true, allowRightClick: true, showOrganizeButton: false, 0, null, -1, this);
 				}
 				break;
 			case "cave":
@@ -9002,6 +9006,15 @@ namespace StardewValley
 			}
 		}
 
+		public static bool IsItemMayorShorts(Item i)
+		{
+			if (!Utility.IsNormalObjectAtParentSheetIndex(i, 789))
+			{
+				return Utility.IsNormalObjectAtParentSheetIndex(i, 71);
+			}
+			return true;
+		}
+
 		public void addItemToLuauSoup(Item i, Farmer who)
 		{
 			if (i == null)
@@ -9012,12 +9025,13 @@ namespace StardewValley
 			if (who.IsLocalPlayer)
 			{
 				specialEventVariable2 = true;
-				if (i != null && i.Stack > 1 && (int)i.parentSheetIndex != 789 && (int)i.parentSheetIndex != 71)
+				bool is_shorts = IsItemMayorShorts(i);
+				if (i != null && i.Stack > 1 && !is_shorts)
 				{
 					i.Stack--;
 					who.addItemToInventory(i);
 				}
-				else if ((int)i.parentSheetIndex == 789 || (int)i.parentSheetIndex == 71)
+				else if (is_shorts)
 				{
 					who.addItemToInventory(i);
 				}
@@ -9043,7 +9057,7 @@ namespace StardewValley
 			{
 				Object o = luauIngredient as Object;
 				int itemLevel = 5;
-				if ((int)o.parentSheetIndex == 789 || (int)o.parentSheetIndex == 71)
+				if (IsItemMayorShorts(o))
 				{
 					likeLevel = 6;
 					break;

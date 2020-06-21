@@ -244,13 +244,20 @@ namespace StardewValley.Quests
 				}
 				targetMessage = messageBuilder;
 			}
-			else if ((int)id != 0)
+			else
 			{
+				if ((int)id == 0)
+				{
+					return;
+				}
 				Dictionary<int, string> questData = Game1.temporaryContent.Load<Dictionary<int, string>>("Data\\Quests");
 				if (questData != null && questData.ContainsKey(id))
 				{
 					string[] rawData = questData[id].Split('/');
-					targetMessage = rawData[9];
+					if (rawData != null && rawData.Length >= 9)
+					{
+						targetMessage = rawData[9];
+					}
 				}
 			}
 		}

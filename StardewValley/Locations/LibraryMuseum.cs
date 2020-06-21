@@ -315,6 +315,9 @@ namespace StardewValley.Locations
 			if (!who.specialItems.Contains(499) && museumItems.Contains(114))
 			{
 				AddRewardIfUncollected(who, rewards, new Object(499, 1));
+			}
+			if (!who.knowsRecipe("Ancient Seeds") && museumItems.Contains(114))
+			{
 				AddRewardIfUncollected(who, rewards, new Object(499, 1, isRecipe: true));
 			}
 			if (!who.specialBigCraftables.Contains(1301) && museumContainsTheseItems(new int[3]

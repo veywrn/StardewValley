@@ -1525,6 +1525,15 @@ namespace StardewValley
 			return false;
 		}
 
+		public static bool highlightSantaObjects(Item i)
+		{
+			if (!i.canBeTrashed() || !i.canBeGivenAsGift())
+			{
+				return false;
+			}
+			return highlightSmallObjects(i);
+		}
+
 		public static bool highlightShippableObjects(Item i)
 		{
 			if (i is Object)
@@ -6724,7 +6733,9 @@ namespace StardewValley
 				}
 				if (!found_chest_to_stash_in)
 				{
-					new Chest(playerChest: true).addItem(overflow_object);
+					Chest new_chest = new Chest(playerChest: true);
+					new_chest.addItem(overflow_object);
+					chests.Add(new_chest);
 				}
 			}
 			for (int i = 0; i < chests.Count; i++)

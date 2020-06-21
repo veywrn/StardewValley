@@ -458,6 +458,7 @@ namespace StardewValley.Menus
 
 		private void setUpPositions()
 		{
+			colorPickerCCs.Clear();
 			if (source == Source.ClothesDye && _itemToDye == null)
 			{
 				return;

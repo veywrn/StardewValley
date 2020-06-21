@@ -108,13 +108,12 @@ namespace StardewValley.Quests
 				}
 				case "winter":
 				{
-					int[] possiblefish8 = new int[10]
+					int[] possiblefish8 = new int[9]
 					{
 						130,
 						131,
 						136,
 						141,
-						143,
 						144,
 						146,
 						147,

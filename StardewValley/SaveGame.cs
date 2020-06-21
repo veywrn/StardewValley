@@ -40,6 +40,7 @@ namespace StardewValley
 			Level9PuddingFishingRecipe,
 			Level9PuddingFishingRecipe2,
 			quarryMineBushes,
+			MissingQisChallenge,
 			MAX
 		}
 
@@ -858,6 +859,22 @@ namespace StardewValley
 			Game1.updateWeatherIcon();
 			Game1.netWorldState.Value.LostBooksFound.Set(loaded.lostBooksFound);
 			Game1.player.team.farmhandsCanMoveBuildings.Value = (FarmerTeam.RemoteBuildingPermissions)loaded.moveBuildingPermissionMode;
+			if (Game1.multiplayerMode == 2)
+			{
+				if (Program.sdk.Networking != null && Game1.options.serverPrivacy == ServerPrivacy.InviteOnly)
+				{
+					Game1.options.setServerMode("invite");
+				}
+				else if (Program.sdk.Networking != null && Game1.options.serverPrivacy == ServerPrivacy.FriendsOnly)
+				{
+					Game1.options.setServerMode("friends");
+				}
+				else
+				{
+					Game1.options.serverPrivacy = ServerPrivacy.Public;
+					Game1.options.setServerMode("online");
+				}
+			}
 			Game1.bannedUsers = loaded.bannedUsers;
 			bool need_lost_book_recount = false;
 			if (loaded.lostBooksFound < 0)
@@ -924,7 +941,7 @@ namespace StardewValley
 				Game1.recalculateLostBookCount();
 			}
 			int current_save_fix = (int)Game1.lastAppliedSaveFix;
-			while (current_save_fix < 13)
+			while (current_save_fix < 14)
 			{
 				if (Enum.IsDefined(typeof(SaveFixes), current_save_fix))
 				{

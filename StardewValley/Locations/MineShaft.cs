@@ -2076,7 +2076,6 @@ namespace StardewValley.Locations
 					prepareElevator();
 				}
 			}
-			Utility.CollectGarbage();
 		}
 
 		public static void CheckForQiChallengeCompletion()

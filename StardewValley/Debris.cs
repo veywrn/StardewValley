@@ -193,6 +193,7 @@ namespace StardewValley
 		public Debris()
 		{
 			NetFields.AddFields(chunks, chunkType, sizeOfSourceRectSquares, netItemQuality, netChunkFinalYLevel, netChunkFinalYTarget, scale, floppingFish, debrisType, debrisMessage, nonSpriteChunkColor, chunksColor, spriteChunkSheetName, netItem, player.NetFields, DroppedByPlayerID);
+			player.Delayed(interpolationWait: false);
 		}
 
 		public Debris(int objectIndex, Vector2 debrisOrigin, Vector2 playerPosition)
@@ -537,16 +538,24 @@ namespace StardewValley
 			}
 			Vector2 position = approximatePosition();
 			Farmer farmer = player.Value;
-			if (chunksMoveTowardPlayer && shouldControlThis(location))
+			if (chunksMoveTowardPlayer)
 			{
-				if (player.Value != null && (player.Value.currentLocation != location || !playerInRange(position, player.Value)))
+				if (player.Value != null && player.Value == Game1.player && !playerInRange(position, player.Value))
 				{
 					player.Value = null;
 					farmer = null;
 				}
-				if (farmer == null)
+				if (shouldControlThis(location))
 				{
-					farmer = findBestPlayer(location);
+					if (player.Value != null && player.Value.currentLocation != location)
+					{
+						player.Value = null;
+						farmer = null;
+					}
+					if (farmer == null)
+					{
+						farmer = findBestPlayer(location);
+					}
 				}
 			}
 			bool anyCouldMove = false;
