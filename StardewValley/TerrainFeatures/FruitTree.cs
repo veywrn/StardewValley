@@ -425,8 +425,13 @@ namespace StardewValley.TerrainFeatures
 				bool isClearHoeDirt = environment.terrainFeatures.ContainsKey(v) && environment.terrainFeatures[v] is HoeDirt && (environment.terrainFeatures[v] as HoeDirt).crop == null;
 				if (environment.isTileOccupied(v, "", ignoreAllCharacters: true) && !isClearHoeDirt)
 				{
-					Object o = environment.getObjectAt((int)v.X, (int)v.Y);
-					if (o == null || o.isPassable())
+					Object o = environment.getObjectAtTile((int)v.X, (int)v.Y);
+					if (o == null)
+					{
+						foundSomething = true;
+						break;
+					}
+					if (!Utility.IsNormalObjectAtParentSheetIndex(o, 590))
 					{
 						foundSomething = true;
 						break;

@@ -1285,7 +1285,7 @@ namespace StardewValley
 					}
 				}
 				tmp6 = map.GetLayer("Buildings").PickTile(new Location(position.Right, position.Bottom), viewport.Size);
-				if (tmp6 != null && ((passable == null) | isFarmer))
+				if (tmp6 != null)
 				{
 					tmp6.TileIndexProperties.TryGetValue("Shadow", out passable);
 					if (passable == null)
@@ -1306,7 +1306,7 @@ namespace StardewValley
 					}
 				}
 				tmp6 = map.GetLayer("Buildings").PickTile(new Location(position.Left, position.Top), viewport.Size);
-				if (tmp6 != null && ((passable == null) | isFarmer))
+				if (tmp6 != null)
 				{
 					tmp6.TileIndexProperties.TryGetValue("Shadow", out passable);
 					if (passable == null)
@@ -1327,7 +1327,7 @@ namespace StardewValley
 					}
 				}
 				tmp6 = map.GetLayer("Buildings").PickTile(new Location(position.Left, position.Bottom), viewport.Size);
-				if (tmp6 != null && ((passable == null) | isFarmer))
+				if (tmp6 != null)
 				{
 					tmp6.TileIndexProperties.TryGetValue("Shadow", out passable);
 					if (passable == null)
@@ -1350,7 +1350,7 @@ namespace StardewValley
 				if (biggerThanTile)
 				{
 					tmp6 = map.GetLayer("Buildings").PickTile(new Location(position.Center.X, position.Top), viewport.Size);
-					if (tmp6 != null && ((passable == null) | isFarmer))
+					if (tmp6 != null)
 					{
 						tmp6.TileIndexProperties.TryGetValue("Shadow", out passable);
 						if (passable == null)
@@ -1371,7 +1371,7 @@ namespace StardewValley
 						}
 					}
 					tmp6 = map.GetLayer("Buildings").PickTile(new Location(position.Center.X, position.Bottom), viewport.Size);
-					if (tmp6 != null && ((passable == null) | isFarmer))
+					if (tmp6 != null)
 					{
 						tmp6.TileIndexProperties.TryGetValue("Shadow", out passable);
 						if (passable == null)
@@ -2521,7 +2521,7 @@ namespace StardewValley
 							pointInQuestion.X += Math.Sign(xDif);
 							xDif -= Math.Sign(xDif);
 						}
-						if (objects.ContainsKey(pointInQuestion) || getTileIndexAt((int)pointInQuestion.X, (int)pointInQuestion.Y, "Buildings") != -1)
+						if ((objects.ContainsKey(pointInQuestion) && !objects[pointInQuestion].isPassable()) || getTileIndexAt((int)pointInQuestion.X, (int)pointInQuestion.Y, "Buildings") != -1)
 						{
 							return false;
 						}
@@ -2534,169 +2534,168 @@ namespace StardewValley
 		public bool damageMonster(Microsoft.Xna.Framework.Rectangle areaOfEffect, int minDamage, int maxDamage, bool isBomb, float knockBackModifier, int addedPrecision, float critChance, float critMultiplier, bool triggerMonsterInvincibleTimer, Farmer who)
 		{
 			bool didAnyDamage = false;
-			int i;
-			for (i = characters.Count - 1; i >= 0; i--)
+			for (int i = characters.Count - 1; i >= 0; i--)
 			{
-				if (i >= characters.Count || !characters[i].GetBoundingBox().Intersects(areaOfEffect) || !characters[i].IsMonster || ((Monster)characters[i]).Health <= 0 || characters[i].IsInvisible || (characters[i] as Monster).isInvincible() || (characters[i] as Monster).isInvincible() || (!isBomb && !isMonsterDamageApplicable(who, characters[i] as Monster) && !isMonsterDamageApplicable(who, characters[i] as Monster, horizontalBias: false)))
+				Monster monster;
+				if (i < characters.Count && (monster = (characters[i] as Monster)) != null && monster.IsMonster && monster.Health > 0 && monster.GetBoundingBox().Intersects(areaOfEffect) && !monster.IsInvisible && !monster.isInvincible() && (isBomb || isMonsterDamageApplicable(who, monster) || isMonsterDamageApplicable(who, monster, horizontalBias: false)))
 				{
-					continue;
-				}
-				bool isDagger = who != null && who.CurrentTool != null && who.CurrentTool is MeleeWeapon && (int)(who.CurrentTool as MeleeWeapon).type == 1;
-				didAnyDamage = true;
-				if (Game1.currentLocation == this)
-				{
-					Rumble.rumble(0.1f + (float)(Game1.random.NextDouble() / 8.0), 200 + Game1.random.Next(-50, 50));
-				}
-				Microsoft.Xna.Framework.Rectangle monsterBox = characters[i].GetBoundingBox();
-				Vector2 trajectory = Utility.getAwayFromPlayerTrajectory(monsterBox, who);
-				if (!(knockBackModifier > 0f))
-				{
-					trajectory = new Vector2(characters[i].xVelocity, characters[i].yVelocity);
-				}
-				else
-				{
-					trajectory *= knockBackModifier;
-				}
-				if ((characters[i] as Monster).Slipperiness == -1)
-				{
-					trajectory = Vector2.Zero;
-				}
-				bool crit = false;
-				int damageAmount5 = 0;
-				if (who != null && who.CurrentTool != null && characters[i].hitWithTool(who.CurrentTool))
-				{
-					return false;
-				}
-				if (who.professions.Contains(25))
-				{
-					critChance += critChance * 0.5f;
-				}
-				if (maxDamage >= 0)
-				{
-					damageAmount5 = Game1.random.Next(minDamage, maxDamage + 1);
-					if (who != null && Game1.random.NextDouble() < (double)(critChance + (float)who.LuckLevel * (critChance / 40f)))
+					bool isDagger = who != null && who.CurrentTool != null && who.CurrentTool is MeleeWeapon && (int)(who.CurrentTool as MeleeWeapon).type == 1;
+					didAnyDamage = true;
+					if (Game1.currentLocation == this)
 					{
-						crit = true;
-						playSound("crit");
+						Rumble.rumble(0.1f + (float)(Game1.random.NextDouble() / 8.0), 200 + Game1.random.Next(-50, 50));
 					}
-					damageAmount5 = (crit ? ((int)((float)damageAmount5 * critMultiplier)) : damageAmount5);
-					damageAmount5 = Math.Max(1, damageAmount5 + ((who != null) ? (who.attack * 3) : 0));
-					if (who != null && who.professions.Contains(24))
+					Microsoft.Xna.Framework.Rectangle monsterBox = monster.GetBoundingBox();
+					Vector2 trajectory = Utility.getAwayFromPlayerTrajectory(monsterBox, who);
+					if (!(knockBackModifier > 0f))
 					{
-						damageAmount5 = (int)Math.Ceiling((float)damageAmount5 * 1.1f);
-					}
-					if (who != null && who.professions.Contains(26))
-					{
-						damageAmount5 = (int)Math.Ceiling((float)damageAmount5 * 1.15f);
-					}
-					if (who != null && crit && who.professions.Contains(29))
-					{
-						damageAmount5 *= 3;
-					}
-					damageAmount5 = ((Monster)characters[i]).takeDamage(damageAmount5, (int)trajectory.X, (int)trajectory.Y, isBomb, (double)addedPrecision / 10.0, who);
-					if (damageAmount5 == -1)
-					{
-						debris.Add(new Debris("Miss", 1, new Vector2(monsterBox.Center.X, monsterBox.Center.Y), Color.LightGray, 1f, 0f));
+						trajectory = new Vector2(monster.xVelocity, monster.yVelocity);
 					}
 					else
 					{
-						debris.Filter((Debris d) => d.toHover == null || !d.toHover.Equals(characters[i]) || d.nonSpriteChunkColor.Equals(Color.Yellow) || !(d.timeSinceDoneBouncing > 900f));
-						debris.Add(new Debris(damageAmount5, new Vector2(monsterBox.Center.X + 16, monsterBox.Center.Y), crit ? Color.Yellow : new Color(255, 130, 0), crit ? (1f + (float)damageAmount5 / 300f) : 1f, characters[i]));
+						trajectory *= knockBackModifier;
 					}
-					if (triggerMonsterInvincibleTimer)
+					if (monster.Slipperiness == -1)
 					{
-						(characters[i] as Monster).setInvincibleCountdown(450 / (isDagger ? 3 : 2));
+						trajectory = Vector2.Zero;
 					}
-				}
-				else
-				{
-					damageAmount5 = -2;
-					characters[i].setTrajectory(trajectory);
-					if (((Monster)characters[i]).Slipperiness > 10)
+					bool crit = false;
+					int damageAmount5 = 0;
+					if (who != null && who.CurrentTool != null && monster.hitWithTool(who.CurrentTool))
 					{
-						characters[i].xVelocity /= 2f;
-						characters[i].yVelocity /= 2f;
+						return false;
 					}
-				}
-				if (who != null && who.CurrentTool != null && who.CurrentTool.Name.Equals("Galaxy Sword"))
-				{
-					Game1.multiplayer.broadcastSprites(this, new TemporaryAnimatedSprite(362, Game1.random.Next(50, 120), 6, 1, new Vector2(monsterBox.Center.X - 32, monsterBox.Center.Y - 32), flicker: false, flipped: false));
-				}
-				if (((Monster)characters[i]).Health <= 0)
-				{
-					if (!isFarm)
+					if (who.professions.Contains(25))
 					{
-						who.checkForQuestComplete(null, 1, 1, null, characters[i].Name, 4);
+						critChance += critChance * 0.5f;
 					}
-					Monster monster = characters[i] as Monster;
-					if (who != null && who.leftRing.Value != null)
+					if (maxDamage >= 0)
 					{
-						who.leftRing.Value.onMonsterSlay(monster, this, who);
-					}
-					if (who != null && who.rightRing.Value != null)
-					{
-						who.rightRing.Value.onMonsterSlay(monster, this, who);
-					}
-					if (who != null && !isFarm && (!(monster is GreenSlime) || (bool)(monster as GreenSlime).firstGeneration))
-					{
-						if (who.IsLocalPlayer)
+						damageAmount5 = Game1.random.Next(minDamage, maxDamage + 1);
+						if (who != null && Game1.random.NextDouble() < (double)(critChance + (float)who.LuckLevel * (critChance / 40f)))
 						{
-							Game1.stats.monsterKilled(monster.Name);
+							crit = true;
+							playSound("crit");
 						}
-						else if (Game1.IsMasterGame)
+						damageAmount5 = (crit ? ((int)((float)damageAmount5 * critMultiplier)) : damageAmount5);
+						damageAmount5 = Math.Max(1, damageAmount5 + ((who != null) ? (who.attack * 3) : 0));
+						if (who != null && who.professions.Contains(24))
 						{
-							who.queueMessage(25, Game1.player, monster.Name);
+							damageAmount5 = (int)Math.Ceiling((float)damageAmount5 * 1.1f);
+						}
+						if (who != null && who.professions.Contains(26))
+						{
+							damageAmount5 = (int)Math.Ceiling((float)damageAmount5 * 1.15f);
+						}
+						if (who != null && crit && who.professions.Contains(29))
+						{
+							damageAmount5 *= 3;
+						}
+						damageAmount5 = monster.takeDamage(damageAmount5, (int)trajectory.X, (int)trajectory.Y, isBomb, (double)addedPrecision / 10.0, who);
+						if (damageAmount5 == -1)
+						{
+							debris.Add(new Debris("Miss", 1, new Vector2(monsterBox.Center.X, monsterBox.Center.Y), Color.LightGray, 1f, 0f));
+						}
+						else
+						{
+							debris.Filter((Debris d) => d.toHover == null || !d.toHover.Equals(monster) || d.nonSpriteChunkColor.Equals(Color.Yellow) || !(d.timeSinceDoneBouncing > 900f));
+							debris.Add(new Debris(damageAmount5, new Vector2(monsterBox.Center.X + 16, monsterBox.Center.Y), crit ? Color.Yellow : new Color(255, 130, 0), crit ? (1f + (float)damageAmount5 / 300f) : 1f, monster));
+						}
+						if (triggerMonsterInvincibleTimer)
+						{
+							monster.setInvincibleCountdown(450 / (isDagger ? 3 : 2));
 						}
 					}
-					monsterDrop(monster, monsterBox.Center.X, monsterBox.Center.Y, who);
-					if (who != null && !isFarm)
+					else
 					{
-						who.gainExperience(4, monster.ExperienceGained);
+						damageAmount5 = -2;
+						monster.setTrajectory(trajectory);
+						if (monster.Slipperiness > 10)
+						{
+							monster.xVelocity /= 2f;
+							monster.yVelocity /= 2f;
+						}
 					}
-					characters.Remove(monster);
-					Game1.stats.MonstersKilled++;
-				}
-				else if (damageAmount5 > 0)
-				{
-					((Monster)characters[i]).shedChunks(Game1.random.Next(1, 3));
-					if (crit)
+					if (who != null && who.CurrentTool != null && who.CurrentTool.Name.Equals("Galaxy Sword"))
 					{
-						Game1.multiplayer.broadcastSprites(this, new TemporaryAnimatedSprite(362, Game1.random.Next(15, 50), 6, 1, characters[i].getStandingPosition() - new Vector2(32f, 32f), flicker: false, (Game1.random.NextDouble() < 0.5) ? true : false)
-						{
-							scale = 0.75f,
-							alpha = (crit ? 0.75f : 0.5f)
-						});
-						Game1.multiplayer.broadcastSprites(this, new TemporaryAnimatedSprite(362, Game1.random.Next(15, 50), 6, 1, characters[i].getStandingPosition() - new Vector2(32 + Game1.random.Next(-21, 21) + 32, 32 + Game1.random.Next(-21, 21)), flicker: false, (Game1.random.NextDouble() < 0.5) ? true : false)
-						{
-							scale = 0.5f,
-							delayBeforeAnimationStart = 50,
-							alpha = (crit ? 0.75f : 0.5f)
-						});
-						Game1.multiplayer.broadcastSprites(this, new TemporaryAnimatedSprite(362, Game1.random.Next(15, 50), 6, 1, characters[i].getStandingPosition() - new Vector2(32 + Game1.random.Next(-21, 21) - 32, 32 + Game1.random.Next(-21, 21)), flicker: false, (Game1.random.NextDouble() < 0.5) ? true : false)
-						{
-							scale = 0.5f,
-							delayBeforeAnimationStart = 100,
-							alpha = (crit ? 0.75f : 0.5f)
-						});
-						Game1.multiplayer.broadcastSprites(this, new TemporaryAnimatedSprite(362, Game1.random.Next(15, 50), 6, 1, characters[i].getStandingPosition() - new Vector2(32 + Game1.random.Next(-21, 21) + 32, 32 + Game1.random.Next(-21, 21)), flicker: false, (Game1.random.NextDouble() < 0.5) ? true : false)
-						{
-							scale = 0.5f,
-							delayBeforeAnimationStart = 150,
-							alpha = (crit ? 0.75f : 0.5f)
-						});
-						Game1.multiplayer.broadcastSprites(this, new TemporaryAnimatedSprite(362, Game1.random.Next(15, 50), 6, 1, characters[i].getStandingPosition() - new Vector2(32 + Game1.random.Next(-21, 21) - 32, 32 + Game1.random.Next(-21, 21)), flicker: false, (Game1.random.NextDouble() < 0.5) ? true : false)
-						{
-							scale = 0.5f,
-							delayBeforeAnimationStart = 200,
-							alpha = (crit ? 0.75f : 0.5f)
-						});
+						Game1.multiplayer.broadcastSprites(this, new TemporaryAnimatedSprite(362, Game1.random.Next(50, 120), 6, 1, new Vector2(monsterBox.Center.X - 32, monsterBox.Center.Y - 32), flicker: false, flipped: false));
 					}
-				}
-				if (damageAmount5 > 0 && who != null && damageAmount5 > 1 && Game1.player.CurrentTool != null && Game1.player.CurrentTool.Name.Equals("Dark Sword") && Game1.random.NextDouble() < 0.08)
-				{
-					who.health = Math.Min(who.maxHealth, Game1.player.health + damageAmount5 / 2);
-					debris.Add(new Debris(damageAmount5 / 2, new Vector2(Game1.player.getStandingX(), Game1.player.getStandingY()), Color.Lime, 1f, who));
-					playSound("healSound");
+					if (monster.Health <= 0)
+					{
+						if (!isFarm)
+						{
+							who.checkForQuestComplete(null, 1, 1, null, monster.Name, 4);
+						}
+						if (who != null && who.leftRing.Value != null)
+						{
+							who.leftRing.Value.onMonsterSlay(monster, this, who);
+						}
+						if (who != null && who.rightRing.Value != null)
+						{
+							who.rightRing.Value.onMonsterSlay(monster, this, who);
+						}
+						if (who != null && !isFarm && (!(monster is GreenSlime) || (bool)(monster as GreenSlime).firstGeneration))
+						{
+							if (who.IsLocalPlayer)
+							{
+								Game1.stats.monsterKilled(monster.Name);
+							}
+							else if (Game1.IsMasterGame)
+							{
+								who.queueMessage(25, Game1.player, monster.Name);
+							}
+						}
+						monsterDrop(monster, monsterBox.Center.X, monsterBox.Center.Y, who);
+						if (who != null && !isFarm)
+						{
+							who.gainExperience(4, monster.ExperienceGained);
+						}
+						characters.Remove(monster);
+						Game1.stats.MonstersKilled++;
+					}
+					else if (damageAmount5 > 0)
+					{
+						monster.shedChunks(Game1.random.Next(1, 3));
+						if (crit)
+						{
+							Vector2 standPos = monster.getStandingPosition();
+							Game1.multiplayer.broadcastSprites(this, new TemporaryAnimatedSprite(362, Game1.random.Next(15, 50), 6, 1, standPos - new Vector2(32f, 32f), flicker: false, (Game1.random.NextDouble() < 0.5) ? true : false)
+							{
+								scale = 0.75f,
+								alpha = (crit ? 0.75f : 0.5f)
+							});
+							Game1.multiplayer.broadcastSprites(this, new TemporaryAnimatedSprite(362, Game1.random.Next(15, 50), 6, 1, standPos - new Vector2(32 + Game1.random.Next(-21, 21) + 32, 32 + Game1.random.Next(-21, 21)), flicker: false, (Game1.random.NextDouble() < 0.5) ? true : false)
+							{
+								scale = 0.5f,
+								delayBeforeAnimationStart = 50,
+								alpha = (crit ? 0.75f : 0.5f)
+							});
+							Game1.multiplayer.broadcastSprites(this, new TemporaryAnimatedSprite(362, Game1.random.Next(15, 50), 6, 1, standPos - new Vector2(32 + Game1.random.Next(-21, 21) - 32, 32 + Game1.random.Next(-21, 21)), flicker: false, (Game1.random.NextDouble() < 0.5) ? true : false)
+							{
+								scale = 0.5f,
+								delayBeforeAnimationStart = 100,
+								alpha = (crit ? 0.75f : 0.5f)
+							});
+							Game1.multiplayer.broadcastSprites(this, new TemporaryAnimatedSprite(362, Game1.random.Next(15, 50), 6, 1, standPos - new Vector2(32 + Game1.random.Next(-21, 21) + 32, 32 + Game1.random.Next(-21, 21)), flicker: false, (Game1.random.NextDouble() < 0.5) ? true : false)
+							{
+								scale = 0.5f,
+								delayBeforeAnimationStart = 150,
+								alpha = (crit ? 0.75f : 0.5f)
+							});
+							Game1.multiplayer.broadcastSprites(this, new TemporaryAnimatedSprite(362, Game1.random.Next(15, 50), 6, 1, standPos - new Vector2(32 + Game1.random.Next(-21, 21) - 32, 32 + Game1.random.Next(-21, 21)), flicker: false, (Game1.random.NextDouble() < 0.5) ? true : false)
+							{
+								scale = 0.5f,
+								delayBeforeAnimationStart = 200,
+								alpha = (crit ? 0.75f : 0.5f)
+							});
+						}
+					}
+					if (damageAmount5 > 0 && who != null && damageAmount5 > 1 && Game1.player.CurrentTool != null && Game1.player.CurrentTool.Name.Equals("Dark Sword") && Game1.random.NextDouble() < 0.08)
+					{
+						who.health = Math.Min(who.maxHealth, Game1.player.health + damageAmount5 / 2);
+						debris.Add(new Debris(damageAmount5 / 2, new Vector2(Game1.player.getStandingX(), Game1.player.getStandingY()), Color.Lime, 1f, who));
+						playSound("healSound");
+					}
 				}
 			}
 			return didAnyDamage;
@@ -11196,7 +11195,7 @@ namespace StardewValley
 						{
 							doors.Add(new Point(x, y), new NetString("Sunroom"));
 						}
-						else if ((!name.Equals("Mountain") || x != 8 || y != 20) && split.Length > 2)
+						else if ((!name.Equals("Mountain") || x != 8 || y != 20) && split.Length > 3)
 						{
 							doors.Add(new Point(x, y), new NetString(split[3]));
 						}

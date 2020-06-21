@@ -1681,7 +1681,7 @@ namespace StardewValley.Menus
 		{
 			Game1.playSound("yoba");
 			int zoom = (height < 800) ? 2 : 3;
-			tempSprites.Add(new TemporaryAnimatedSprite("Tilesheets\\Critters", new Rectangle(128, 96, 16, 16), new Vector2(width / 2 - 240 * zoom, -300 * zoom - (int)(viewportY / 3f) * zoom + 86 * zoom), flipped: false, 0f, Color.White)
+			tempSprites.Add(new TemporaryAnimatedSprite("TileSheets\\critters", new Rectangle(128, 96, 16, 16), new Vector2(width / 2 - 240 * zoom, -300 * zoom - (int)(viewportY / 3f) * zoom + 86 * zoom), flipped: false, 0f, Color.White)
 			{
 				scale = zoom,
 				animationLength = 4,
@@ -1705,7 +1705,7 @@ namespace StardewValley.Menus
 				item.scale = (float)zoom / 4f;
 			}
 			tempSprites.AddRange(l);
-			tempSprites.Add(new TemporaryAnimatedSprite("Tilesheets\\Critters", new Rectangle(192, 96, 16, 16), new Vector2(width / 2 + 220 * zoom, -300 * zoom - (int)(viewportY / 3f) * zoom + 15 * zoom), flipped: false, 0f, Color.White)
+			tempSprites.Add(new TemporaryAnimatedSprite("TileSheets\\critters", new Rectangle(192, 96, 16, 16), new Vector2(width / 2 + 220 * zoom, -300 * zoom - (int)(viewportY / 3f) * zoom + 15 * zoom), flipped: false, 0f, Color.White)
 			{
 				scale = zoom,
 				animationLength = 4,
@@ -1730,7 +1730,7 @@ namespace StardewValley.Menus
 				item2.scale = (float)zoom / 4f;
 			}
 			tempSprites.AddRange(l);
-			tempSprites.Add(new TemporaryAnimatedSprite("Tilesheets\\Critters", new Rectangle(256, 96, 16, 16), new Vector2(width / 2 - 250 * zoom, -300 * zoom - (int)(viewportY / 3f) * zoom + 35 * zoom), flipped: false, 0f, Color.White)
+			tempSprites.Add(new TemporaryAnimatedSprite("TileSheets\\critters", new Rectangle(256, 96, 16, 16), new Vector2(width / 2 - 250 * zoom, -300 * zoom - (int)(viewportY / 3f) * zoom + 35 * zoom), flipped: false, 0f, Color.White)
 			{
 				scale = zoom,
 				animationLength = 4,
@@ -1755,7 +1755,7 @@ namespace StardewValley.Menus
 				item3.scale = (float)zoom / 4f;
 			}
 			tempSprites.AddRange(l);
-			tempSprites.Add(new TemporaryAnimatedSprite("Tilesheets\\Critters", new Rectangle(256, 112, 16, 16), new Vector2(width / 2 + 250 * zoom, -300 * zoom - (int)(viewportY / 3f) * zoom + 60 * zoom), flipped: false, 0f, Color.White)
+			tempSprites.Add(new TemporaryAnimatedSprite("TileSheets\\critters", new Rectangle(256, 112, 16, 16), new Vector2(width / 2 + 250 * zoom, -300 * zoom - (int)(viewportY / 3f) * zoom + 60 * zoom), flipped: false, 0f, Color.White)
 			{
 				scale = zoom,
 				animationLength = 4,

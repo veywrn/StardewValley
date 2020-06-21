@@ -397,7 +397,7 @@ namespace StardewValley.Menus
 				}
 			}
 			setHeldItem(inventory.leftClick(x, y, takeHeldItem(), !Game1.oldKBState.IsKeyDown(Keys.LeftShift)));
-			if (checkHeldItem((Item i) => i != null && i is Object && (i as Object).ParentSheetIndex == 434))
+			if (checkHeldItem((Item i) => i != null && Utility.IsNormalObjectAtParentSheetIndex(i, 434)))
 			{
 				Game1.playSound("smallSelect");
 				Game1.player.eatObject(takeHeldItem() as Object, overrideFullness: true);

@@ -563,7 +563,7 @@ namespace StardewValley.Menus
 						(Game1.activeClickableMenu as ItemGrabMenu).snapCursorToCurrentSnappedComponent();
 					}
 				}
-				if (heldItem is Object && (int)(heldItem as Object).parentSheetIndex == 326)
+				if (Utility.IsNormalObjectAtParentSheetIndex(heldItem, 326))
 				{
 					heldItem = null;
 					Game1.player.canUnderstandDwarves = true;

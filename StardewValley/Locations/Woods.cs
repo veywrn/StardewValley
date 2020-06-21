@@ -72,7 +72,7 @@ namespace StardewValley.Locations
 				{
 					Game1.changeMusicTrack("rain");
 				}
-				else
+				else if (!Game1.isDarkOut())
 				{
 					Game1.changeMusicTrack(Game1.currentSeason + "_day_ambient");
 				}

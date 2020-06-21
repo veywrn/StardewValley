@@ -1704,7 +1704,7 @@ namespace StardewValley
 						who.reduceActiveItemByOne();
 						who.completelyStopAnimatingOrDoingAction();
 						faceTowardFarmerForPeriod(4000, 3, faceAway: false, who);
-						if ((bool)datable && who.spouse != null && !who.spouse.Contains(base.Name) && Utility.isMale(who.spouse) == Utility.isMale(base.Name) && Game1.random.NextDouble() < 0.3 - (double)((float)who.LuckLevel / 100f) - who.DailyLuck && !isBirthday(Game1.currentSeason, Game1.dayOfMonth) && who.friendshipData[base.Name].IsDating())
+						if ((bool)datable && who.spouse != null && !who.spouse.Contains(base.Name) && !who.spouse.Contains("Krobus") && Utility.isMale(who.spouse) == Utility.isMale(base.Name) && Game1.random.NextDouble() < 0.3 - (double)((float)who.LuckLevel / 100f) - who.DailyLuck && !isBirthday(Game1.currentSeason, Game1.dayOfMonth) && who.friendshipData[base.Name].IsDating())
 						{
 							NPC spouse = Game1.getCharacterFromName(who.spouse);
 							who.changeFriendship(-30, spouse);
@@ -5166,7 +5166,7 @@ namespace StardewValley
 								else
 								{
 									addMarriageDialogue("Strings\\StringsFromCSFiles", "NPC.cs.4466", false, "%endearment");
-									addMarriageDialogue("Strings\\StringsFromCSFiles", "NPC.cs.4462", false);
+									addMarriageDialogue("Strings\\StringsFromCSFiles", "NPC.cs.4462", true);
 									if (filledBowl)
 									{
 										addMarriageDialogue("Strings\\StringsFromCSFiles", "NPC.cs.4463", false, Game1.player.getPetDisplayName());

@@ -414,7 +414,6 @@ namespace StardewValley.Menus
 		private void clickCraftingRecipe(ClickableTextureComponent c, bool playSound = true)
 		{
 			Item crafted = pagesOfCraftingRecipes[currentCraftingPage][c].createItem();
-			Game1.player.checkForQuestComplete(null, -1, -1, crafted, null, 2);
 			if (heldItem == null)
 			{
 				pagesOfCraftingRecipes[currentCraftingPage][c].consumeIngredients(_materialContainers);
@@ -424,8 +423,12 @@ namespace StardewValley.Menus
 					Game1.playSound("coin");
 				}
 			}
-			else if (heldItem.Name.Equals(crafted.Name) && heldItem.Stack + pagesOfCraftingRecipes[currentCraftingPage][c].numberProducedPerCraft - 1 < heldItem.maximumStackSize())
+			else
 			{
+				if (!heldItem.Name.Equals(crafted.Name) || heldItem.Stack + pagesOfCraftingRecipes[currentCraftingPage][c].numberProducedPerCraft - 1 >= heldItem.maximumStackSize())
+				{
+					return;
+				}
 				heldItem.Stack += pagesOfCraftingRecipes[currentCraftingPage][c].numberProducedPerCraft;
 				pagesOfCraftingRecipes[currentCraftingPage][c].consumeIngredients(_materialContainers);
 				if (playSound)
@@ -433,6 +436,7 @@ namespace StardewValley.Menus
 					Game1.playSound("coin");
 				}
 			}
+			Game1.player.checkForQuestComplete(null, -1, -1, crafted, null, 2);
 			if (!cooking && Game1.player.craftingRecipes.ContainsKey(pagesOfCraftingRecipes[currentCraftingPage][c].name))
 			{
 				Game1.player.craftingRecipes[pagesOfCraftingRecipes[currentCraftingPage][c].name] += pagesOfCraftingRecipes[currentCraftingPage][c].numberProducedPerCraft;

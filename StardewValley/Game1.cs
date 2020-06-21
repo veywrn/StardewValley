@@ -146,7 +146,7 @@ namespace StardewValley
 
 		public const byte errorLogMode = 11;
 
-		public static readonly string version = "1.4.3";
+		public static readonly string version = "1.4.5";
 
 		public const float keyPollingThreshold = 650f;
 
@@ -2408,6 +2408,15 @@ namespace StardewValley
 				l.largeTerrainFeatures.Add(new Bush(new Vector2(105f, 18f), 0, l));
 				break;
 			}
+			case SaveGame.SaveFixes.MissingQisChallenge:
+				foreach (Farmer farmer in getAllFarmers())
+				{
+					if (farmer.mailReceived.Contains("skullCave") && !farmer.hasQuest(20) && !farmer.hasOrWillReceiveMail("QiChallengeComplete"))
+					{
+						farmer.addQuest(20);
+					}
+				}
+				break;
 			}
 		}
 
@@ -2734,7 +2743,7 @@ namespace StardewValley
 			currentCursorTile = Vector2.Zero;
 			if (!loadedGame)
 			{
-				lastAppliedSaveFix = SaveGame.SaveFixes.quarryMineBushes;
+				lastAppliedSaveFix = SaveGame.SaveFixes.MissingQisChallenge;
 			}
 			resetVariables();
 			chanceToRainTomorrow = 0.0;

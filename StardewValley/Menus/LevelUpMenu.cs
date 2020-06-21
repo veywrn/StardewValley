@@ -851,7 +851,7 @@ namespace StardewValley.Menus
 					}
 					okButton.draw(b);
 				}
-				if (!Game1.options.gamepadControls || !isProfessionChooser || hasMovedSelection)
+				if (!Game1.options.SnappyMenus || !isProfessionChooser || hasMovedSelection)
 				{
 					drawMouse(b);
 				}

@@ -83,8 +83,9 @@ namespace StardewValley.Characters
 				{
 					if (counter == position)
 					{
-						string[] split = v.Split('/');
-						itemWantedIndex = Convert.ToInt32(split[2]);
+						string craft_result2 = v.Split('/')[2];
+						craft_result2 = craft_result2.Split(' ')[0];
+						itemWantedIndex = Convert.ToInt32(craft_result2);
 						break;
 					}
 					counter++;

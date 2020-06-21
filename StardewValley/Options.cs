@@ -483,7 +483,7 @@ namespace StardewValley
 			invertScrollDirection = false;
 			ambientOnlyToggle = false;
 			showAdvancedCraftingInformation = false;
-			stowingMode = ItemStowingModes.GamepadOnly;
+			stowingMode = ItemStowingModes.Off;
 			gamepadMode = GamepadModes.Auto;
 			windowedBorderlessFullscreen = true;
 			showPlacementTileForGamepad = true;
