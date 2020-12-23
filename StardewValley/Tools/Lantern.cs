@@ -27,7 +27,9 @@ namespace StardewValley.Tools
 
 		public override Item getOne()
 		{
-			return new Lantern();
+			Lantern lantern = new Lantern();
+			lantern._GetOneFrom(this);
+			return lantern;
 		}
 
 		protected override string loadDescription()

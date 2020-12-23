@@ -140,7 +140,7 @@ namespace StardewValley.SDKs
 			Console.WriteLine("Starting Galaxy server");
 			host = GalaxyInstance.User().GetGalaxyID();
 			galaxyPersonaDataChangedListener = new GalaxyPersonaDataChangedListener(onPersonaDataChanged);
-			server = new GalaxySocket(Game1.multiplayer.protocolVersion);
+			server = new GalaxySocket("1.5");
 			server.CreateLobby(Game1.options.serverPrivacy, (uint)(Game1.multiplayer.playerLimit * 2));
 		}
 

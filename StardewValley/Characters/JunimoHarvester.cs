@@ -369,7 +369,7 @@ namespace StardewValley.Characters
 			if (Game1.IsMasterGame)
 			{
 				controller = new PathFindController(this, location, new Point((int)home.tileX + 1, (int)home.tileY + 1), 0, junimoReachedHut);
-				if (controller.pathToEndPoint == null || controller.pathToEndPoint.Count() == 0 || location.isCollidingPosition(nextPosition, Game1.viewport, isFarmer: false, 0, glider: false, this))
+				if (controller.pathToEndPoint == null || controller.pathToEndPoint.Count == 0 || location.isCollidingPosition(nextPosition, Game1.viewport, isFarmer: false, 0, glider: false, this))
 				{
 					destroy = true;
 				}
@@ -582,10 +582,10 @@ namespace StardewValley.Characters
 			}
 			else
 			{
-				moveLeft2 = (position.Field.IsInterpolating() && base.FacingDirection == 3);
-				moveRight2 = (position.Field.IsInterpolating() && base.FacingDirection == 1);
-				moveUp2 = (position.Field.IsInterpolating() && base.FacingDirection == 0);
-				moveDown2 = (position.Field.IsInterpolating() && base.FacingDirection == 2);
+				moveLeft2 = (IsRemoteMoving() && FacingDirection == 3);
+				moveRight2 = (IsRemoteMoving() && FacingDirection == 1);
+				moveUp2 = (IsRemoteMoving() && FacingDirection == 0);
+				moveDown2 = (IsRemoteMoving() && FacingDirection == 2);
 				if (!moveRight2 && !moveLeft2 && !moveUp2 && !moveDown2)
 				{
 					return;

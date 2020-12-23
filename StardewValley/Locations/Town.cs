@@ -5,6 +5,8 @@ using StardewValley.BellsAndWhistles;
 using StardewValley.Characters;
 using StardewValley.Network;
 using StardewValley.Objects;
+using StardewValley.TerrainFeatures;
+using StardewValley.Tools;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -27,6 +29,8 @@ namespace StardewValley.Locations
 		private bool isShowingDestroyedJoja;
 
 		private bool isShowingUpgradedPamHouse;
+
+		private bool isShowingSpecialOrdersBoard;
 
 		private LocalizedContentManager mapLoader;
 
@@ -75,6 +79,22 @@ namespace StardewValley.Locations
 				mapLoader = Game1.game1.xTileContent.CreateTemporary();
 			}
 			return mapLoader;
+		}
+
+		public override void UpdateMapSeats()
+		{
+			base.UpdateMapSeats();
+			if (!Game1.IsMasterGame)
+			{
+				return;
+			}
+			for (int i = mapSeats.Count - 1; i >= 0; i--)
+			{
+				if (mapSeats[i].tilePosition.Value.X == 24f && mapSeats[i].tilePosition.Value.Y == 13f && mapSeats[i].seatType.Value == "swings")
+				{
+					mapSeats.RemoveAt(i);
+				}
+			}
 		}
 
 		public override void performTenMinuteUpdate(int timeOfDay)
@@ -134,13 +154,21 @@ namespace StardewValley.Locations
 			{
 				objects.Add(new Vector2(57f, 16f), new Object(Vector2.Zero, 55));
 			}
-			if (daysUntilCommunityUpgrade.Value > 0)
+			if (daysUntilCommunityUpgrade.Value <= 0)
 			{
-				daysUntilCommunityUpgrade.Value--;
-				if (daysUntilCommunityUpgrade.Value <= 0)
+				return;
+			}
+			daysUntilCommunityUpgrade.Value--;
+			if (daysUntilCommunityUpgrade.Value <= 0)
+			{
+				if (!Game1.MasterPlayer.mailReceived.Contains("pamHouseUpgrade"))
 				{
 					Game1.MasterPlayer.mailReceived.Add("pamHouseUpgrade");
 					Game1.player.changeFriendship(1000, Game1.getCharacterFromName("Pam"));
+				}
+				else
+				{
+					Game1.MasterPlayer.mailReceived.Add("communityUpgradeShortcuts");
 				}
 			}
 		}
@@ -156,6 +184,15 @@ namespace StardewValley.Locations
 			return base.checkForBuriedItem(xLocation, yLocation, explosion, detectOnly, who);
 		}
 
+		public override bool CanPlantTreesHere(int sapling_index, int tile_x, int tile_y)
+		{
+			if (Object.isWildTreeSeed(sapling_index))
+			{
+				return doesTileHavePropertyNoNull(tile_x, tile_y, "Type", "Back") == "Dirt";
+			}
+			return false;
+		}
+
 		public override bool checkAction(Location tileLocation, xTile.Dimensions.Rectangle viewport, Farmer who)
 		{
 			if (map.GetLayer("Buildings").Tiles[tileLocation] != null && who.mount == null)
@@ -166,205 +203,209 @@ namespace StardewValley.Locations
 				{
 					string s = doesTileHaveProperty(tileLocation.X, tileLocation.Y, "Action", "Buildings");
 					int whichCan = (s != null) ? Convert.ToInt32(s.Split(' ')[1]) : (-1);
-					if (whichCan < 0 || whichCan >= garbageChecked.Length || garbageChecked[whichCan])
+					if (whichCan < 0 || whichCan >= garbageChecked.Length)
 					{
 						break;
 					}
-					garbageChecked[whichCan] = true;
-					Random garbageRandom = new Random((int)Game1.uniqueIDForThisGame / 2 + (int)Game1.stats.DaysPlayed + 777 + whichCan * 77);
-					int prewarm2 = garbageRandom.Next(0, 100);
-					for (int k = 0; k < prewarm2; k++)
+					if (!garbageChecked[whichCan])
 					{
-						garbageRandom.NextDouble();
-					}
-					prewarm2 = garbageRandom.Next(0, 100);
-					for (int j = 0; j < prewarm2; j++)
-					{
-						garbageRandom.NextDouble();
-					}
-					Game1.stats.incrementStat("trashCansChecked", 1);
-					int xSourceOffset = Utility.getSeasonNumber(Game1.currentSeason) * 17;
-					bool mega = Game1.stats.getStat("trashCansChecked") > 20 && garbageRandom.NextDouble() < 0.01;
-					bool doubleMega = Game1.stats.getStat("trashCansChecked") > 20 && garbageRandom.NextDouble() < 0.002;
-					if (doubleMega)
-					{
-						playSound("explosion");
-					}
-					else if (mega)
-					{
-						playSound("crit");
-					}
-					List<TemporaryAnimatedSprite> trashCanSprites = new List<TemporaryAnimatedSprite>();
-					trashCanSprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors2", new Microsoft.Xna.Framework.Rectangle(22 + xSourceOffset, 0, 16, 10), new Vector2(tileLocation.X, tileLocation.Y) * 64f + new Vector2(0f, -6f) * 4f, flipped: false, 0f, Color.White)
-					{
-						interval = (doubleMega ? 4000 : 1000),
-						motion = (doubleMega ? new Vector2(4f, -20f) : new Vector2(0f, -8f + (mega ? (-7f) : ((float)(Game1.random.Next(-1, 3) + ((Game1.random.NextDouble() < 0.1) ? (-2) : 0)))))),
-						rotationChange = (doubleMega ? 0.4f : 0f),
-						acceleration = new Vector2(0f, 0.7f),
-						yStopCoordinate = tileLocation.Y * 64 + -24,
-						layerDepth = (doubleMega ? 1f : ((float)((tileLocation.Y + 1) * 64 + 2) / 10000f)),
-						scale = 4f,
-						Parent = this,
-						shakeIntensity = (doubleMega ? 0f : 1f),
-						reachedStopCoordinate = delegate
+						garbageChecked[whichCan] = true;
+						Random garbageRandom = new Random((int)Game1.uniqueIDForThisGame / 2 + (int)Game1.stats.DaysPlayed + 777 + whichCan * 77);
+						int prewarm2 = garbageRandom.Next(0, 100);
+						for (int k = 0; k < prewarm2; k++)
 						{
-							removeTemporarySpritesWithID(97654);
-							playSound("thudStep");
-							for (int l = 0; l < 3; l++)
-							{
-								temporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(372, 1956, 10, 10), new Vector2(tileLocation.X, tileLocation.Y) * 64f + new Vector2(l * 6, -3 + Game1.random.Next(3)) * 4f, flipped: false, 0.02f, Color.DimGray)
-								{
-									alpha = 0.85f,
-									motion = new Vector2(-0.6f + (float)l * 0.3f, -1f),
-									acceleration = new Vector2(0.002f, 0f),
-									interval = 99999f,
-									layerDepth = (float)((tileLocation.Y + 1) * 64 + 3) / 10000f,
-									scale = 3f,
-									scaleChange = 0.02f,
-									rotationChange = (float)Game1.random.Next(-5, 6) * (float)Math.PI / 256f,
-									delayBeforeAnimationStart = 50
-								});
-							}
-						},
-						id = 97654f
-					});
-					if (doubleMega)
-					{
-						trashCanSprites.Last().reachedStopCoordinate = trashCanSprites.Last().bounce;
-					}
-					trashCanSprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors2", new Microsoft.Xna.Framework.Rectangle(22 + xSourceOffset, 11, 16, 16), new Vector2(tileLocation.X, tileLocation.Y) * 64f + new Vector2(0f, -5f) * 4f, flipped: false, 0f, Color.White)
-					{
-						interval = (doubleMega ? 999999 : 1000),
-						layerDepth = (float)((tileLocation.Y + 1) * 64 + 1) / 10000f,
-						scale = 4f,
-						id = 97654f
-					});
-					for (int i = 0; i < 5; i++)
-					{
-						trashCanSprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors2", new Microsoft.Xna.Framework.Rectangle(22 + Game1.random.Next(4) * 4, 32, 4, 4), new Vector2(tileLocation.X, tileLocation.Y) * 64f + new Vector2(Game1.random.Next(13), -3 + Game1.random.Next(3)) * 4f, flipped: false, 0f, Color.White)
+							garbageRandom.NextDouble();
+						}
+						prewarm2 = garbageRandom.Next(0, 100);
+						for (int j = 0; j < prewarm2; j++)
 						{
-							interval = 500f,
-							motion = new Vector2(Game1.random.Next(-2, 3), -5f),
-							acceleration = new Vector2(0f, 0.4f),
-							layerDepth = (float)((tileLocation.Y + 1) * 64 + 3) / 10000f,
+							garbageRandom.NextDouble();
+						}
+						Game1.stats.incrementStat("trashCansChecked", 1);
+						int xSourceOffset = Utility.getSeasonNumber(Game1.currentSeason) * 17;
+						bool mega = Game1.stats.getStat("trashCansChecked") > 20 && garbageRandom.NextDouble() < 0.01;
+						bool doubleMega = Game1.stats.getStat("trashCansChecked") > 20 && garbageRandom.NextDouble() < 0.002;
+						if (doubleMega)
+						{
+							playSound("explosion");
+						}
+						else if (mega)
+						{
+							playSound("crit");
+						}
+						List<TemporaryAnimatedSprite> trashCanSprites = new List<TemporaryAnimatedSprite>();
+						trashCanSprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors2", new Microsoft.Xna.Framework.Rectangle(22 + xSourceOffset, 0, 16, 10), new Vector2(tileLocation.X, tileLocation.Y) * 64f + new Vector2(0f, -6f) * 4f, flipped: false, 0f, Color.White)
+						{
+							interval = (doubleMega ? 4000 : 1000),
+							motion = (doubleMega ? new Vector2(4f, -20f) : new Vector2(0f, -8f + (mega ? (-7f) : ((float)(Game1.random.Next(-1, 3) + ((Game1.random.NextDouble() < 0.1) ? (-2) : 0)))))),
+							rotationChange = (doubleMega ? 0.4f : 0f),
+							acceleration = new Vector2(0f, 0.7f),
+							yStopCoordinate = tileLocation.Y * 64 + -24,
+							layerDepth = (doubleMega ? 1f : ((float)((tileLocation.Y + 1) * 64 + 2) / 10000f)),
 							scale = 4f,
-							color = Utility.getRandomRainbowColor(),
-							delayBeforeAnimationStart = Game1.random.Next(100)
+							Parent = this,
+							shakeIntensity = (doubleMega ? 0f : 1f),
+							reachedStopCoordinate = delegate
+							{
+								removeTemporarySpritesWithID(97654);
+								playSound("thudStep");
+								for (int l = 0; l < 3; l++)
+								{
+									temporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(372, 1956, 10, 10), new Vector2(tileLocation.X, tileLocation.Y) * 64f + new Vector2(l * 6, -3 + Game1.random.Next(3)) * 4f, flipped: false, 0.02f, Color.DimGray)
+									{
+										alpha = 0.85f,
+										motion = new Vector2(-0.6f + (float)l * 0.3f, -1f),
+										acceleration = new Vector2(0.002f, 0f),
+										interval = 99999f,
+										layerDepth = (float)((tileLocation.Y + 1) * 64 + 3) / 10000f,
+										scale = 3f,
+										scaleChange = 0.02f,
+										rotationChange = (float)Game1.random.Next(-5, 6) * (float)Math.PI / 256f,
+										delayBeforeAnimationStart = 50
+									});
+								}
+							},
+							id = 97654f
 						});
-					}
-					Game1.multiplayer.broadcastSprites(this, trashCanSprites);
-					playSound("trashcan");
-					Character c = Utility.isThereAFarmerOrCharacterWithinDistance(new Vector2(tileLocation.X, tileLocation.Y), 7, this);
-					if (c != null && c is NPC && !(c is Horse))
-					{
-						Game1.multiplayer.globalChatInfoMessage("TrashCan", Game1.player.Name, c.name);
-						if (c.name.Equals("Linus"))
+						if (doubleMega)
 						{
-							c.doEmote(32);
-							(c as NPC).setNewDialogue(Game1.content.LoadString("Data\\ExtraDialogue:Town_DumpsterDiveComment_Linus"), add: true, clearOnMovement: true);
-							who.changeFriendship(5, c as NPC);
-							Game1.multiplayer.globalChatInfoMessage("LinusTrashCan");
+							trashCanSprites.Last().reachedStopCoordinate = trashCanSprites.Last().bounce;
 						}
-						else if ((c as NPC).Age == 2)
+						trashCanSprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors2", new Microsoft.Xna.Framework.Rectangle(22 + xSourceOffset, 11, 16, 16), new Vector2(tileLocation.X, tileLocation.Y) * 64f + new Vector2(0f, -5f) * 4f, flipped: false, 0f, Color.White)
 						{
-							c.doEmote(28);
-							(c as NPC).setNewDialogue(Game1.content.LoadString("Data\\ExtraDialogue:Town_DumpsterDiveComment_Child"), add: true, clearOnMovement: true);
-							who.changeFriendship(-25, c as NPC);
-						}
-						else if ((c as NPC).Age == 1)
+							interval = (doubleMega ? 999999 : 1000),
+							layerDepth = (float)((tileLocation.Y + 1) * 64 + 1) / 10000f,
+							scale = 4f,
+							id = 97654f
+						});
+						for (int i = 0; i < 5; i++)
 						{
-							c.doEmote(8);
-							(c as NPC).setNewDialogue(Game1.content.LoadString("Data\\ExtraDialogue:Town_DumpsterDiveComment_Teen"), add: true, clearOnMovement: true);
-							who.changeFriendship(-25, c as NPC);
-						}
-						else
-						{
-							c.doEmote(12);
-							(c as NPC).setNewDialogue(Game1.content.LoadString("Data\\ExtraDialogue:Town_DumpsterDiveComment_Adult"), add: true, clearOnMovement: true);
-							who.changeFriendship(-25, c as NPC);
-						}
-						Game1.drawDialogue(c as NPC);
-					}
-					if (doubleMega)
-					{
-						who.addItemByMenuIfNecessary(new Hat(66));
-					}
-					else
-					{
-						if (!mega && !(garbageRandom.NextDouble() < 0.2 + who.DailyLuck))
-						{
-							break;
-						}
-						int item = 168;
-						switch (garbageRandom.Next(10))
-						{
-						case 0:
-							item = 168;
-							break;
-						case 1:
-							item = 167;
-							break;
-						case 2:
-							item = 170;
-							break;
-						case 3:
-							item = 171;
-							break;
-						case 4:
-							item = 172;
-							break;
-						case 5:
-							item = 216;
-							break;
-						case 6:
-							item = Utility.getRandomItemFromSeason(Game1.currentSeason, tileLocation.X * 653 + tileLocation.Y * 777, forQuest: false);
-							break;
-						case 7:
-							item = 403;
-							break;
-						case 8:
-							item = 309 + garbageRandom.Next(3);
-							break;
-						case 9:
-							item = 153;
-							break;
-						}
-						if (whichCan == 3 && garbageRandom.NextDouble() < 0.2 + who.DailyLuck)
-						{
-							item = 535;
-							if (garbageRandom.NextDouble() < 0.05)
+							trashCanSprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors2", new Microsoft.Xna.Framework.Rectangle(22 + Game1.random.Next(4) * 4, 32, 4, 4), new Vector2(tileLocation.X, tileLocation.Y) * 64f + new Vector2(Game1.random.Next(13), -3 + Game1.random.Next(3)) * 4f, flipped: false, 0f, Color.White)
 							{
-								item = 749;
+								interval = 500f,
+								motion = new Vector2(Game1.random.Next(-2, 3), -5f),
+								acceleration = new Vector2(0f, 0.4f),
+								layerDepth = (float)((tileLocation.Y + 1) * 64 + 3) / 10000f,
+								scale = 4f,
+								color = Utility.getRandomRainbowColor(),
+								delayBeforeAnimationStart = Game1.random.Next(100)
+							});
+						}
+						Game1.multiplayer.broadcastSprites(this, trashCanSprites);
+						playSound("trashcan");
+						Character c = Utility.isThereAFarmerOrCharacterWithinDistance(new Vector2(tileLocation.X, tileLocation.Y), 7, this);
+						if (c != null && c is NPC && !(c is Horse))
+						{
+							Game1.multiplayer.globalChatInfoMessage("TrashCan", Game1.player.Name, c.name);
+							if (c.name.Equals("Linus"))
+							{
+								c.doEmote(32);
+								(c as NPC).setNewDialogue(Game1.content.LoadString("Data\\ExtraDialogue:Town_DumpsterDiveComment_Linus"), add: true, clearOnMovement: true);
+								who.changeFriendship(5, c as NPC);
+								Game1.multiplayer.globalChatInfoMessage("LinusTrashCan");
 							}
-						}
-						if (whichCan == 4 && garbageRandom.NextDouble() < 0.2 + who.DailyLuck)
-						{
-							item = 378 + garbageRandom.Next(3) * 2;
-							garbageRandom.Next(1, 5);
-						}
-						if (whichCan == 5 && garbageRandom.NextDouble() < 0.2 + who.DailyLuck && Game1.dishOfTheDay != null)
-						{
-							item = (((int)Game1.dishOfTheDay.parentSheetIndex != 217) ? ((int)Game1.dishOfTheDay.parentSheetIndex) : 216);
-						}
-						if (whichCan == 6 && garbageRandom.NextDouble() < 0.2 + who.DailyLuck)
-						{
-							item = 223;
-						}
-						if (whichCan == 7 && garbageRandom.NextDouble() < 0.2)
-						{
-							if (!Utility.HasAnyPlayerSeenEvent(191393))
+							else if ((c as NPC).Age == 2)
 							{
+								c.doEmote(28);
+								(c as NPC).setNewDialogue(Game1.content.LoadString("Data\\ExtraDialogue:Town_DumpsterDiveComment_Child"), add: true, clearOnMovement: true);
+								who.changeFriendship(-25, c as NPC);
+							}
+							else if ((c as NPC).Age == 1)
+							{
+								c.doEmote(8);
+								(c as NPC).setNewDialogue(Game1.content.LoadString("Data\\ExtraDialogue:Town_DumpsterDiveComment_Teen"), add: true, clearOnMovement: true);
+								who.changeFriendship(-25, c as NPC);
+							}
+							else
+							{
+								c.doEmote(12);
+								(c as NPC).setNewDialogue(Game1.content.LoadString("Data\\ExtraDialogue:Town_DumpsterDiveComment_Adult"), add: true, clearOnMovement: true);
+								who.changeFriendship(-25, c as NPC);
+							}
+							Game1.drawDialogue(c as NPC);
+						}
+						if (doubleMega)
+						{
+							who.addItemByMenuIfNecessary(new Hat(66));
+						}
+						else if (mega || garbageRandom.NextDouble() < 0.2 + who.DailyLuck)
+						{
+							int item = 168;
+							switch (garbageRandom.Next(10))
+							{
+							case 0:
+								item = 168;
+								break;
+							case 1:
 								item = 167;
+								break;
+							case 2:
+								item = 170;
+								break;
+							case 3:
+								item = 171;
+								break;
+							case 4:
+								item = 172;
+								break;
+							case 5:
+								item = 216;
+								break;
+							case 6:
+								item = Utility.getRandomItemFromSeason(Game1.currentSeason, tileLocation.X * 653 + tileLocation.Y * 777, forQuest: false);
+								break;
+							case 7:
+								item = 403;
+								break;
+							case 8:
+								item = 309 + garbageRandom.Next(3);
+								break;
+							case 9:
+								item = 153;
+								break;
 							}
-							if (Utility.doesMasterPlayerHaveMailReceivedButNotMailForTomorrow("ccMovieTheater") && !Utility.doesMasterPlayerHaveMailReceivedButNotMailForTomorrow("ccMovieTheaterJoja"))
+							if (whichCan == 3 && garbageRandom.NextDouble() < 0.2 + who.DailyLuck)
 							{
-								item = ((!(garbageRandom.NextDouble() < 0.25)) ? 270 : 809);
+								item = 535;
+								if (garbageRandom.NextDouble() < 0.05)
+								{
+									item = 749;
+								}
 							}
+							if (whichCan == 4 && garbageRandom.NextDouble() < 0.2 + who.DailyLuck)
+							{
+								item = 378 + garbageRandom.Next(3) * 2;
+								garbageRandom.Next(1, 5);
+							}
+							if (whichCan == 5 && garbageRandom.NextDouble() < 0.2 + who.DailyLuck && Game1.dishOfTheDay != null)
+							{
+								item = (((int)Game1.dishOfTheDay.parentSheetIndex != 217) ? ((int)Game1.dishOfTheDay.parentSheetIndex) : 216);
+							}
+							if (whichCan == 6 && garbageRandom.NextDouble() < 0.2 + who.DailyLuck)
+							{
+								item = 223;
+							}
+							if (whichCan == 7 && garbageRandom.NextDouble() < 0.2)
+							{
+								if (!Utility.HasAnyPlayerSeenEvent(191393))
+								{
+									item = 167;
+								}
+								if (Utility.doesMasterPlayerHaveMailReceivedButNotMailForTomorrow("ccMovieTheater") && !Utility.doesMasterPlayerHaveMailReceivedButNotMailForTomorrow("ccMovieTheaterJoja"))
+								{
+									item = ((!(garbageRandom.NextDouble() < 0.25)) ? 270 : 809);
+								}
+							}
+							if (Game1.random.NextDouble() <= 0.25 && Game1.player.team.SpecialOrderRuleActive("DROP_QI_BEANS"))
+							{
+								item = 890;
+							}
+							Vector2 origin = new Vector2((float)tileLocation.X + 0.5f, tileLocation.Y - 1) * 64f;
+							Game1.createItemDebris(new Object(item, 1), origin, 2, this, (int)origin.Y + 64);
 						}
-						Vector2 origin = new Vector2((float)tileLocation.X + 0.5f, tileLocation.Y - 1) * 64f;
-						Game1.createItemDebris(new Object(item, 1), origin, 2, this, (int)origin.Y + 64);
 					}
-					break;
+					Game1.haltAfterCheck = false;
+					return true;
 				}
 				case 620:
 					if (Utility.HasAnyPlayerSeenEvent(191393))
@@ -474,6 +515,19 @@ namespace StardewValley.Locations
 			{
 				return;
 			}
+			ccRefurbished = true;
+			if (Game1.MasterPlayer.mailReceived.Contains("JojaMember"))
+			{
+				ccJoja = true;
+			}
+			if (_appliedMapOverrides != null)
+			{
+				if (_appliedMapOverrides.Contains("ccRefurbished"))
+				{
+					return;
+				}
+				_appliedMapOverrides.Add("ccRefurbished");
+			}
 			Microsoft.Xna.Framework.Rectangle ccBounds = new Microsoft.Xna.Framework.Rectangle(47, 11, 11, 9);
 			for (int x = ccBounds.X; x <= ccBounds.Right; x++)
 			{
@@ -497,11 +551,6 @@ namespace StardewValley.Locations
 					}
 				}
 			}
-			ccRefurbished = true;
-			if (Game1.MasterPlayer.mailReceived.Contains("JojaMember"))
-			{
-				ccJoja = true;
-			}
 		}
 
 		private void showDestroyedJoja()
@@ -510,6 +559,12 @@ namespace StardewValley.Locations
 			{
 				return;
 			}
+			isShowingDestroyedJoja = true;
+			if (_appliedMapOverrides != null && _appliedMapOverrides.Contains("isShowingDestroyedJoja"))
+			{
+				return;
+			}
+			_appliedMapOverrides.Add("isShowingDestroyedJoja");
 			Microsoft.Xna.Framework.Rectangle jojaBounds = new Microsoft.Xna.Framework.Rectangle(90, 42, 11, 9);
 			for (int x = jojaBounds.X; x <= jojaBounds.Right; x++)
 			{
@@ -538,7 +593,15 @@ namespace StardewValley.Locations
 					}
 				}
 			}
-			isShowingDestroyedJoja = true;
+		}
+
+		public override bool isTileFishable(int tileX, int tileY)
+		{
+			if ((GetSeasonForLocation() != "winter" && tileY == 26 && (tileX == 25 || tileX == 26 || tileX == 27)) || (tileX == 25 && tileY == 25) || (tileX == 27 && tileY == 25))
+			{
+				return true;
+			}
+			return base.isTileFishable(tileX, tileY);
 		}
 
 		public void showImprovedPamHouse()
@@ -546,6 +609,15 @@ namespace StardewValley.Locations
 			if (isShowingUpgradedPamHouse)
 			{
 				return;
+			}
+			isShowingUpgradedPamHouse = true;
+			if (_appliedMapOverrides != null)
+			{
+				if (_appliedMapOverrides.Contains("isShowingUpgradedPamHouse"))
+				{
+					return;
+				}
+				_appliedMapOverrides.Add("isShowingUpgradedPamHouse");
 			}
 			Microsoft.Xna.Framework.Rectangle buildingsLayerBounds = new Microsoft.Xna.Framework.Rectangle(69, 66, 8, 3);
 			Microsoft.Xna.Framework.Rectangle alwaysFrontLayerBounds = new Microsoft.Xna.Framework.Rectangle(69, 60, 8, 6);
@@ -583,7 +655,6 @@ namespace StardewValley.Locations
 				removeTile(62, 72, "Buildings");
 				removeTile(74, 71, "Buildings");
 			}
-			isShowingUpgradedPamHouse = true;
 		}
 
 		public static Point GetTheaterTileOffset()
@@ -611,13 +682,35 @@ namespace StardewValley.Locations
 			{
 				refurbishCommunityCenter();
 			}
+			if (!isShowingSpecialOrdersBoard && SpecialOrder.IsSpecialOrdersBoardUnlocked())
+			{
+				LargeTerrainFeature bush = null;
+				do
+				{
+					bush = getLargeTerrainFeatureAt(61, 93);
+					if (bush != null)
+					{
+						largeTerrainFeatures.Remove(bush);
+					}
+				}
+				while (bush != null);
+				setMapTileIndex(61, 93, 2045, "Buildings", 2);
+				setMapTileIndex(62, 93, 2046, "Buildings", 2);
+				setMapTileIndex(63, 93, 2047, "Buildings", 2);
+				setTileProperty(61, 93, "Buildings", "Action", "SpecialOrders");
+				setTileProperty(62, 93, "Buildings", "Action", "SpecialOrders");
+				setTileProperty(63, 93, "Buildings", "Action", "SpecialOrders");
+				setMapTileIndex(61, 92, 2013, "Front", 2);
+				setMapTileIndex(62, 92, 2014, "Front", 2);
+				setMapTileIndex(63, 92, 2015, "Front", 2);
+			}
 			if (NetWorldState.checkAnywhereForWorldStateID("trashBearDone") && (currentEvent == null || currentEvent.id != 777111))
 			{
 				if (!Game1.eventUp || mapPath.Value == null || !mapPath.Value.EndsWith("Town-Fair", StringComparison.Ordinal))
 				{
-					ApplyMapOverride("Town-TrashGone", null, new Microsoft.Xna.Framework.Rectangle(57, 68, 17, 5));
+					ApplyMapOverride("Town-TrashGone", (Microsoft.Xna.Framework.Rectangle?)null, (Microsoft.Xna.Framework.Rectangle?)new Microsoft.Xna.Framework.Rectangle(57, 68, 17, 5));
 				}
-				ApplyMapOverride("Town-DogHouse", null, new Microsoft.Xna.Framework.Rectangle(51, 65, 5, 6));
+				ApplyMapOverride("Town-DogHouse", (Microsoft.Xna.Framework.Rectangle?)null, (Microsoft.Xna.Framework.Rectangle?)new Microsoft.Xna.Framework.Rectangle(51, 65, 5, 6));
 				if (!Game1.isRaining && new Random((int)Game1.uniqueIDForThisGame + (int)Game1.stats.DaysPlayed).NextDouble() < 0.2)
 				{
 					base.TemporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(348, 1916, 12, 20), 999f, 1, 999999, new Vector2(53f, 67f) * 64f + new Vector2(3f, 2f) * 4f, flicker: false, flipped: false, 0.98f, 0f, Color.White, 4f, 0f, 0f, 0f)
@@ -634,11 +727,13 @@ namespace StardewValley.Locations
 				}
 				if (Utility.doesMasterPlayerHaveMailReceivedButNotMailForTomorrow("ccMovieTheaterJoja"))
 				{
-					ApplyMapOverride("Town-TheaterCC");
+					Microsoft.Xna.Framework.Rectangle rect2 = new Microsoft.Xna.Framework.Rectangle(46, 10, 15, 16);
+					ApplyMapOverride("Town-TheaterCC", rect2, rect2);
 				}
 				else
 				{
-					ApplyMapOverride("Town-Theater");
+					Microsoft.Xna.Framework.Rectangle rect = new Microsoft.Xna.Framework.Rectangle(84, 41, 27, 15);
+					ApplyMapOverride("Town-Theater", rect, rect);
 				}
 				Point offset = GetTheaterTileOffset();
 				MovieTheater.AddMoviePoster(this, (91 + offset.X) * 64 + 32, (48 + offset.Y) * 64 + 64);
@@ -669,6 +764,10 @@ namespace StardewValley.Locations
 			if (Game1.MasterPlayer.mailReceived.Contains("pamHouseUpgrade"))
 			{
 				showImprovedPamHouse();
+			}
+			if (Game1.MasterPlayer.mailReceived.Contains("communityUpgradeShortcuts"))
+			{
+				showTownCommunityUpgradeShortcuts();
 			}
 			if (!Game1.currentSeason.Equals("winter"))
 			{
@@ -717,6 +816,85 @@ namespace StardewValley.Locations
 				temporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(247, 407, 6, 6), 2000f, 1, 10000, new Vector2(31.5f, 18.2f) * 64f, flicker: false, flipped: false, 1E-06f, 0f, Color.White, 3f + (float)Game1.random.NextDouble(), 0f, 0f, 0f));
 				temporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(247, 407, 6, 6), 2000f, 1, 10000, new Vector2(30.5f, 16.8f) * 64f, flicker: false, flipped: false, 1E-06f, 0f, Color.White, 3f + (float)Game1.random.NextDouble(), 0f, 0f, 0f));
 			}
+			if (Game1.MasterPlayer.mailReceived.Contains("Capsule_Broken") && Game1.isDarkOut() && Game1.random.NextDouble() < 0.01)
+			{
+				temporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\temporary_sprites_1", new Microsoft.Xna.Framework.Rectangle(448, 546, 16, 25), new Vector2(3f, 59f) * 64f, flipped: false, 0f, Color.White)
+				{
+					scale = 4f,
+					motion = new Vector2(3f, 0f),
+					animationLength = 4,
+					interval = 80f,
+					totalNumberOfLoops = 200,
+					layerDepth = 0.384f,
+					xStopCoordinate = 384
+				});
+				temporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\temporary_sprites_1", new Microsoft.Xna.Framework.Rectangle(448, 546, 16, 25), new Vector2(58f, 108f) * 64f, flipped: false, 0f, Color.White)
+				{
+					scale = 4f,
+					motion = new Vector2(3f, 0f),
+					animationLength = 4,
+					interval = 80f,
+					totalNumberOfLoops = 200,
+					layerDepth = 0.384f,
+					xStopCoordinate = 4800
+				});
+				temporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\temporary_sprites_1", new Microsoft.Xna.Framework.Rectangle(448, 546, 16, 25), new Vector2(20f, 92.5f) * 64f, flipped: false, 0f, Color.White)
+				{
+					scale = 4f,
+					motion = new Vector2(3f, 0f),
+					animationLength = 4,
+					interval = 80f,
+					totalNumberOfLoops = 200,
+					layerDepth = 0.384f,
+					xStopCoordinate = 1664,
+					delayBeforeAnimationStart = 1000
+				});
+				temporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\temporary_sprites_1", new Microsoft.Xna.Framework.Rectangle(448, 546, 16, 25), new Vector2(75f, 1f) * 64f, flipped: true, 0f, Color.White)
+				{
+					scale = 4f,
+					motion = new Vector2(-4f, 0f),
+					animationLength = 4,
+					interval = 60f,
+					totalNumberOfLoops = 200,
+					layerDepth = 0.0064f,
+					xStopCoordinate = 4352
+				});
+			}
+		}
+
+		private void showTownCommunityUpgradeShortcuts()
+		{
+			removeTile(90, 2, "Buildings");
+			removeTile(90, 1, "Front");
+			removeTile(90, 1, "Buildings");
+			removeTile(90, 0, "Buildings");
+			setMapTileIndex(89, 1, 360, "Front");
+			setMapTileIndex(89, 2, 385, "Buildings");
+			setMapTileIndex(89, 1, 436, "Buildings");
+			setMapTileIndex(89, 0, 411, "Buildings");
+			removeTile(98, 3, "Buildings");
+			removeTile(98, 2, "Buildings");
+			removeTile(98, 1, "Buildings");
+			removeTile(98, 0, "Buildings");
+			setMapTileIndex(98, 3, 588, "Back");
+			setMapTileIndex(98, 2, 588, "Back");
+			setMapTileIndex(98, 1, 588, "Back");
+			setMapTileIndex(98, 0, 588, "Back");
+			setMapTileIndex(99, 3, 416, "Buildings");
+			setMapTileIndex(99, 2, 391, "Buildings");
+			setMapTileIndex(99, 1, 416, "Buildings");
+			setMapTileIndex(99, 0, 391, "Buildings");
+			removeTile(92, 104, "Buildings");
+			removeTile(93, 104, "Buildings");
+			removeTile(94, 104, "Buildings");
+			removeTile(92, 105, "Buildings");
+			removeTile(93, 105, "Buildings");
+			removeTile(94, 105, "Buildings");
+			removeTile(93, 106, "Buildings");
+			removeTile(94, 106, "Buildings");
+			removeTile(92, 103, "Front");
+			removeTile(93, 103, "Front");
+			removeTile(94, 103, "Front");
 		}
 
 		public override void cleanupBeforePlayerExit()
@@ -956,22 +1134,48 @@ namespace StardewValley.Locations
 			}
 			if (!playerCheckedBoard)
 			{
-				float yOffset2 = 4f * (float)Math.Round(Math.Sin(DateTime.UtcNow.TimeOfDay.TotalMilliseconds / 250.0), 2);
+				float yOffset2 = 4f * (float)Math.Round(Math.Sin(Game1.currentGameTime.TotalGameTime.TotalMilliseconds / 250.0), 2);
 				spriteBatch.Draw(Game1.mouseCursors, Game1.GlobalToLocal(Game1.viewport, new Vector2(2616f, 3472f + yOffset2)), new Microsoft.Xna.Framework.Rectangle(141, 465, 20, 24), Color.White * 0.75f, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.98f);
 				spriteBatch.Draw(Game1.mouseCursors, Game1.GlobalToLocal(Game1.viewport, new Vector2(2656f, 3512f + yOffset2)), new Microsoft.Xna.Framework.Rectangle(175, 425, 12, 12), Color.White * 0.75f, 0f, new Vector2(6f, 6f), 4f, SpriteEffects.None, 1f);
 			}
 			if (Game1.CanAcceptDailyQuest())
 			{
-				float yOffset = 4f * (float)Math.Round(Math.Sin(DateTime.UtcNow.TimeOfDay.TotalMilliseconds / 250.0), 2);
-				spriteBatch.Draw(Game1.mouseCursors, Game1.GlobalToLocal(Game1.viewport, new Vector2(2692f, 3528f + yOffset)), new Microsoft.Xna.Framework.Rectangle(395, 497, 3, 8), Color.White, 0f, new Vector2(1f, 4f), 4f + Math.Max(0f, 0.25f - yOffset / 16f), SpriteEffects.None, 1f);
+				float yOffset3 = 4f * (float)Math.Round(Math.Sin(Game1.currentGameTime.TotalGameTime.TotalMilliseconds / 250.0), 2);
+				spriteBatch.Draw(Game1.mouseCursors, Game1.GlobalToLocal(Game1.viewport, new Vector2(2692f, 3528f + yOffset3)), new Microsoft.Xna.Framework.Rectangle(395, 497, 3, 8), Color.White, 0f, new Vector2(1f, 4f), 4f + Math.Max(0f, 0.25f - yOffset3 / 16f), SpriteEffects.None, 1f);
+			}
+			if (SpecialOrder.IsSpecialOrdersBoardUnlocked() && !Game1.player.team.acceptedSpecialOrderTypes.Contains("") && !Game1.eventUp)
+			{
+				float yOffset = 4f * (float)Math.Round(Math.Sin(Game1.currentGameTime.ElapsedGameTime.TotalMilliseconds / 250.0), 2);
+				spriteBatch.Draw(Game1.mouseCursors, Game1.GlobalToLocal(Game1.viewport, new Vector2(3997.6f, 5908.8f + yOffset)), new Microsoft.Xna.Framework.Rectangle(395, 497, 3, 8), Color.White, 0f, new Vector2(1f, 4f), 4f + Math.Max(0f, 0.25f - yOffset / 8f), SpriteEffects.None, 1f);
 			}
 		}
 
 		public override Object getFish(float millisecondsAfterNibble, int bait, int waterDepth, Farmer who, double baitPotency, Vector2 bobberTile, string locationName = null)
 		{
-			if (Game1.currentSeason.Equals("fall") && who.getTileLocation().Y < 15f && who.FishingLevel >= 3 && !who.fishCaught.ContainsKey(160) && Game1.random.NextDouble() < 0.2)
+			bool using_magic_bait = IsUsingMagicBait(who);
+			if (bobberTile.X < 30f && bobberTile.Y < 30f)
 			{
-				return new Object(160, 1);
+				if (Game1.random.NextDouble() < 0.1)
+				{
+					return new Furniture(2427, Vector2.Zero);
+				}
+				return new Object((Game1.random.NextDouble() < 0.5) ? 388 : 390, 1);
+			}
+			float bobberAddition = 0f;
+			if (who != null && who.CurrentTool is FishingRod && (who.CurrentTool as FishingRod).getBobberAttachmentIndex() == 856)
+			{
+				bobberAddition += 0.05f;
+			}
+			if (who.getTileLocation().Y < 15f && who.FishingLevel >= 3 && Game1.random.NextDouble() < 0.2 + (double)bobberAddition)
+			{
+				if (Game1.player.team.SpecialOrderRuleActive("LEGENDARY_FAMILY"))
+				{
+					return new Object(899, 1);
+				}
+				if (!who.fishCaught.ContainsKey(160) && (Game1.currentSeason.Equals("fall") | using_magic_bait))
+				{
+					return new Object(160, 1);
+				}
 			}
 			return base.getFish(millisecondsAfterNibble, bait, waterDepth, who, baitPotency, bobberTile, locationName);
 		}

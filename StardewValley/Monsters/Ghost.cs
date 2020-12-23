@@ -1,12 +1,21 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using Netcode;
+using StardewValley.Projectiles;
 using System;
+using System.Collections.Generic;
 using xTile.Dimensions;
 
 namespace StardewValley.Monsters
 {
 	public class Ghost : Monster
 	{
+		public enum GhostVariant
+		{
+			Normal,
+			Putrid
+		}
+
 		public const float rotationIncrement = (float)Math.PI / 64f;
 
 		private int wasHitCounter;
@@ -23,6 +32,14 @@ namespace StardewValley.Monsters
 
 		private int yOffsetExtra;
 
+		public NetInt currentState = new NetInt(0);
+
+		public float stateTimer = -1f;
+
+		public float nextParticle;
+
+		public NetEnum<GhostVariant> variant = new NetEnum<GhostVariant>(GhostVariant.Normal);
+
 		public Ghost()
 		{
 		}
@@ -35,17 +52,57 @@ namespace StardewValley.Monsters
 			base.HideShadow = true;
 		}
 
+		protected override void initNetFields()
+		{
+			base.initNetFields();
+			base.NetFields.AddFields(variant, currentState);
+			currentState.fieldChangeVisibleEvent += delegate
+			{
+				stateTimer = -1f;
+			};
+		}
+
 		public Ghost(Vector2 position, string name)
 			: base(name, position)
 		{
 			base.Slipperiness = 8;
 			isGlider.Value = true;
 			base.HideShadow = true;
+			if (name == "Putrid Ghost")
+			{
+				variant.Value = GhostVariant.Putrid;
+			}
 		}
 
 		public override void reloadSprite()
 		{
 			Sprite = new AnimatedSprite("Characters\\Monsters\\" + name);
+		}
+
+		public override int GetBaseDifficultyLevel()
+		{
+			if (variant.Value == GhostVariant.Putrid)
+			{
+				return 1;
+			}
+			return base.GetBaseDifficultyLevel();
+		}
+
+		public override List<Item> getExtraDropItems()
+		{
+			if (Game1.random.NextDouble() < 0.095 && Game1.player.team.SpecialOrderActive("Wizard") && !Game1.MasterPlayer.hasOrWillReceiveMail("ectoplasmDrop"))
+			{
+				Object o = new Object(875, 1)
+				{
+					specialItem = true
+				};
+				o.questItem.Value = true;
+				return new List<Item>
+				{
+					o
+				};
+			}
+			return base.getExtraDropItems();
 		}
 
 		public override void drawAboveAllLayers(SpriteBatch b)
@@ -56,6 +113,10 @@ namespace StardewValley.Monsters
 
 		public override int takeDamage(int damage, int xTrajectory, int yTrajectory, bool isBomb, double addedPrecision, Farmer who)
 		{
+			if (variant.Value == GhostVariant.Putrid && currentState.Value <= 2)
+			{
+				currentState.Value = 0;
+			}
 			int actualDamage = Math.Max(1, damage - (int)resilience);
 			base.Slipperiness = 8;
 			Utility.addSprinklesToLocation(base.currentLocation, getTileX(), getTileY(), 2, 2, 101, 50, Color.LightBlue);
@@ -94,6 +155,22 @@ namespace StardewValley.Monsters
 
 		protected override void updateAnimation(GameTime time)
 		{
+			nextParticle -= (float)time.ElapsedGameTime.TotalSeconds;
+			if (nextParticle <= 0f)
+			{
+				nextParticle = 1f;
+				if (variant.Value == GhostVariant.Putrid)
+				{
+					if (currentLocationRef.Value != null)
+					{
+						Vector2 position = getStandingPosition();
+						TemporaryAnimatedSprite drip = new TemporaryAnimatedSprite(Sprite.textureName, new Microsoft.Xna.Framework.Rectangle(Game1.random.Next(4) * 16, 168, 16, 24), 100f, 1, 10, base.Position + new Vector2(Utility.RandomFloat(-16f, 16f), Utility.RandomFloat(-16f, 0f) - (float)yOffset), flicker: false, flipped: false, position.Y / 10000f, 0.01f, Color.White, 4f, -0.01f, 0f, 0f);
+						drip.acceleration = new Vector2(0f, 0.025f);
+						base.currentLocation.temporarySprites.Add(drip);
+					}
+					nextParticle = Utility.RandomFloat(0.3f, 0.5f);
+				}
+			}
 			yOffset = (int)(Math.Sin((double)((float)time.TotalGameTime.Milliseconds / 1000f) * (Math.PI * 2.0)) * 20.0) - yOffsetExtra;
 			if (base.currentLocation == Game1.currentLocation)
 			{
@@ -108,8 +185,19 @@ namespace StardewValley.Monsters
 				}
 				if (!wasFound)
 				{
-					Game1.currentLightSources.Add(new LightSource(5, new Vector2(base.Position.X + 8f, base.Position.Y + 64f), 1f, Color.White * 0.7f, identifier, LightSource.LightContext.None, 0L));
+					if ((string)name == "Carbon Ghost")
+					{
+						Game1.currentLightSources.Add(new LightSource(4, new Vector2(base.Position.X + 8f, base.Position.Y + 64f), 1f, new Color(80, 30, 0), identifier, LightSource.LightContext.None, 0L));
+					}
+					else
+					{
+						Game1.currentLightSources.Add(new LightSource(5, new Vector2(base.Position.X + 8f, base.Position.Y + 64f), 1f, Color.White * 0.7f, identifier, LightSource.LightContext.None, 0L));
+					}
 				}
+			}
+			if (variant.Value == GhostVariant.Putrid && UpdateVariantAnimation(time))
+			{
+				return;
 			}
 			float xSlope3 = -(base.Player.GetBoundingBox().Center.X - GetBoundingBox().Center.X);
 			float ySlope3 = base.Player.GetBoundingBox().Center.Y - GetBoundingBox().Center.Y;
@@ -151,14 +239,186 @@ namespace StardewValley.Monsters
 			{
 				yVelocity -= (0f - ySlope3) * maxAccel / 6f;
 			}
-			faceGeneralDirection(base.Player.getStandingPosition());
+			faceGeneralDirection(base.Player.getStandingPosition(), 0, opposite: false, useTileCalculations: false);
 			resetAnimationSpeed();
+		}
+
+		public virtual bool UpdateVariantAnimation(GameTime time)
+		{
+			if (variant.Value == GhostVariant.Putrid)
+			{
+				if (currentState.Value == 0)
+				{
+					if (Sprite.CurrentFrame >= 20)
+					{
+						Sprite.CurrentFrame = 0;
+					}
+					return false;
+				}
+				if (currentState.Value >= 1 && currentState.Value <= 3)
+				{
+					shakeTimer = 250;
+					if (base.Player != null)
+					{
+						faceGeneralDirection(base.Player.getStandingPosition(), 0, opposite: false, useTileCalculations: false);
+					}
+					if (FacingDirection == 2)
+					{
+						Sprite.CurrentFrame = 20;
+					}
+					else if (FacingDirection == 1)
+					{
+						Sprite.CurrentFrame = 21;
+					}
+					else if (FacingDirection == 0)
+					{
+						Sprite.CurrentFrame = 22;
+					}
+					else if (FacingDirection == 3)
+					{
+						Sprite.CurrentFrame = 23;
+					}
+				}
+				else if (currentState.Value >= 4)
+				{
+					shakeTimer = 250;
+					if (FacingDirection == 2)
+					{
+						Sprite.CurrentFrame = 24;
+					}
+					else if (FacingDirection == 1)
+					{
+						Sprite.CurrentFrame = 25;
+					}
+					else if (FacingDirection == 0)
+					{
+						Sprite.CurrentFrame = 26;
+					}
+					else if (FacingDirection == 3)
+					{
+						Sprite.CurrentFrame = 27;
+					}
+				}
+				return true;
+			}
+			return false;
+		}
+
+		public override void noMovementProgressNearPlayerBehavior()
+		{
 		}
 
 		public override void behaviorAtGameTick(GameTime time)
 		{
+			if (stateTimer > 0f)
+			{
+				stateTimer -= (float)time.ElapsedGameTime.TotalSeconds;
+				if (stateTimer <= 0f)
+				{
+					stateTimer = 0f;
+				}
+			}
+			if (variant.Value == GhostVariant.Putrid)
+			{
+				Farmer player = base.Player;
+				if (currentState.Value == 0)
+				{
+					if (stateTimer == -1f)
+					{
+						stateTimer = Utility.RandomFloat(1f, 2f);
+					}
+					if (player != null && stateTimer == 0f && Math.Abs(player.Position.X - base.Position.X) < 448f && Math.Abs(player.Position.Y - base.Position.Y) < 448f)
+					{
+						currentState.Value = 1;
+						base.currentLocation.playSound("croak");
+						stateTimer = 0.5f;
+					}
+				}
+				else if (currentState.Value == 1)
+				{
+					xVelocity = 0f;
+					yVelocity = 0f;
+					if (stateTimer <= 0f)
+					{
+						currentState.Value = 2;
+					}
+				}
+				else if (currentState.Value == 2)
+				{
+					if (player == null)
+					{
+						currentState.Value = 0;
+					}
+					else if (Math.Abs(player.Position.X - base.Position.X) < 80f && Math.Abs(player.Position.Y - base.Position.Y) < 80f)
+					{
+						currentState.Value = 3;
+						stateTimer = 0.05f;
+						xVelocity = 0f;
+						yVelocity = 0f;
+					}
+					else
+					{
+						Vector2 offset = player.getStandingPosition() - getStandingPosition();
+						if (offset.LengthSquared() == 0f)
+						{
+							currentState.Value = 3;
+							stateTimer = 0.15f;
+						}
+						else
+						{
+							offset.Normalize();
+							offset *= 10f;
+							xVelocity = offset.X;
+							yVelocity = 0f - offset.Y;
+						}
+					}
+				}
+				else if (currentState.Value == 3)
+				{
+					xVelocity = 0f;
+					yVelocity = 0f;
+					if (stateTimer <= 0f)
+					{
+						currentState.Value = 4;
+						stateTimer = 1f;
+						Vector2 shot_velocity = Vector2.Zero;
+						if ((int)facingDirection == 0)
+						{
+							shot_velocity = new Vector2(0f, -1f);
+						}
+						if ((int)facingDirection == 3)
+						{
+							shot_velocity = new Vector2(-1f, 0f);
+						}
+						if ((int)facingDirection == 1)
+						{
+							shot_velocity = new Vector2(1f, 0f);
+						}
+						if ((int)facingDirection == 2)
+						{
+							shot_velocity = new Vector2(0f, 1f);
+						}
+						shot_velocity *= 6f;
+						base.currentLocation.playSound("fishSlap");
+						BasicProjectile projectile = new BasicProjectile(base.DamageToFarmer, 7, 0, 1, (float)Math.PI / 32f, shot_velocity.X, shot_velocity.Y, base.Position, "", "", explode: false, damagesMonsters: false, base.currentLocation, this);
+						projectile.debuff.Value = 25;
+						projectile.scaleGrow.Value = 0.05f;
+						projectile.ignoreTravelGracePeriod.Value = true;
+						projectile.IgnoreLocationCollision = true;
+						projectile.maxTravelDistance.Value = 192;
+						base.currentLocation.projectiles.Add(projectile);
+					}
+				}
+				else if (currentState.Value == 4 && stateTimer <= 0f)
+				{
+					xVelocity = 0f;
+					yVelocity = 0f;
+					currentState.Value = 0;
+					stateTimer = Utility.RandomFloat(3f, 4f);
+				}
+			}
 			base.behaviorAtGameTick(time);
-			if (!GetBoundingBox().Intersects(base.Player.GetBoundingBox()) || !base.Player.temporarilyInvincible)
+			if (!GetBoundingBox().Intersects(base.Player.GetBoundingBox()) || !base.Player.temporarilyInvincible || currentState.Value != 0)
 			{
 				return;
 			}

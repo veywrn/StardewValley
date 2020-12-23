@@ -3,6 +3,7 @@ using Microsoft.Xna.Framework.Graphics;
 using Netcode;
 using StardewValley.Locations;
 using System;
+using System.Collections.Generic;
 using System.Xml.Serialization;
 
 namespace StardewValley.Monsters
@@ -11,6 +12,11 @@ namespace StardewValley.Monsters
 	{
 		[XmlElement("c")]
 		public readonly NetColor c = new NetColor();
+
+		[XmlElement("heldObject")]
+		public readonly NetRef<Object> heldObject = new NetRef<Object>();
+
+		private float heldObjectBobTimer;
 
 		public BigSlime()
 		{
@@ -70,12 +76,31 @@ namespace StardewValley.Monsters
 			c.Value *= (float)Game1.random.Next(7, 11) / 10f;
 			Sprite.interval = 300f;
 			base.HideShadow = true;
+			if (Game1.random.NextDouble() < 0.01 && mineArea >= 40)
+			{
+				heldObject.Value = new Object(221, 1);
+			}
+			if (Game1.mine != null && Game1.mine.GetAdditionalDifficulty() > 0)
+			{
+				if (Game1.random.NextDouble() < 0.1)
+				{
+					heldObject.Value = new Object(858, 1);
+				}
+				else if (Game1.random.NextDouble() < 0.005)
+				{
+					heldObject.Value = new Object(896, 1);
+				}
+			}
+			if (Game1.random.NextDouble() < 0.5 && Game1.player.team.SpecialOrderRuleActive("SC_NO_FOOD"))
+			{
+				heldObject.Value = new Object(930, 1);
+			}
 		}
 
 		protected override void initNetFields()
 		{
 			base.initNetFields();
-			base.NetFields.AddField(c);
+			base.NetFields.AddFields(c, heldObject);
 		}
 
 		public override void reloadSprite()
@@ -152,22 +177,39 @@ namespace StardewValley.Monsters
 			if (isMoving())
 			{
 				Sprite.interval = 100f;
+				heldObjectBobTimer += (float)time.ElapsedGameTime.TotalMilliseconds * ((float)Math.PI / 400f);
 			}
 			else
 			{
 				Sprite.interval = 200f;
+				heldObjectBobTimer += (float)time.ElapsedGameTime.TotalMilliseconds * ((float)Math.PI / 800f);
 			}
 			if (Utility.isOnScreen(base.Position, 128) && Sprite.currentFrame == 0 && currentIndex == 7)
 			{
 				base.currentLocation.localSound("slimeHit");
 			}
-			resetAnimationSpeed();
+		}
+
+		public override List<Item> getExtraDropItems()
+		{
+			if (heldObject.Value != null)
+			{
+				return new List<Item>
+				{
+					heldObject.Value
+				};
+			}
+			return base.getExtraDropItems();
 		}
 
 		public override void draw(SpriteBatch b)
 		{
 			if (!base.IsInvisible && Utility.isOnScreen(base.Position, 128))
 			{
+				if (heldObject.Value != null)
+				{
+					heldObject.Value.drawInMenu(b, getLocalPosition(Game1.viewport) + new Vector2(28f, -16f + (float)Math.Sin(heldObjectBobTimer + 1f) * 4f), 1f, 1f, (float)(getStandingY() - 1) / 10000f, StackDrawType.Hide, Color.White, drawShadow: false);
+				}
 				b.Draw(Sprite.Texture, getLocalPosition(Game1.viewport) + new Vector2(56f, 16 + yJumpOffset), Sprite.SourceRect, c, rotation, new Vector2(16f, 16f), Math.Max(0.2f, scale) * 4f, flip ? SpriteEffects.FlipHorizontally : SpriteEffects.None, Math.Max(0f, drawOnTop ? 0.991f : ((float)getStandingY() / 10000f)));
 				if (isGlowing)
 				{
@@ -178,7 +220,8 @@ namespace StardewValley.Monsters
 
 		public override Rectangle GetBoundingBox()
 		{
-			return new Rectangle((int)base.Position.X + 8, (int)base.Position.Y, Sprite.SpriteWidth * 4 * 3 / 4, 64);
+			Vector2 position = base.Position;
+			return new Rectangle((int)position.X + 8, (int)position.Y, Sprite.SpriteWidth * 4 * 3 / 4, 64);
 		}
 
 		public override void shedChunks(int number, float scale)

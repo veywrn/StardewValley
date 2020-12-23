@@ -23,6 +23,16 @@ namespace StardewValley.Monsters
 			base.HideShadow = true;
 		}
 
+		public Duggy(Vector2 position, bool magmaDuggy)
+			: base("Magma Duggy", position)
+		{
+			base.IsWalkingTowardPlayer = false;
+			base.IsInvisible = true;
+			base.DamageToFarmer = 0;
+			Sprite.currentFrame = 0;
+			base.HideShadow = true;
+		}
+
 		protected override void initNetFields()
 		{
 			base.initNetFields();

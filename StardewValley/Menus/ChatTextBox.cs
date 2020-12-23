@@ -1,6 +1,5 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -116,7 +115,7 @@ namespace StardewValley.Menus
 		public override void Draw(SpriteBatch spriteBatch, bool drawShadow = true)
 		{
 			bool caretVisible2 = true;
-			caretVisible2 = ((DateTime.UtcNow.Millisecond % 1000 >= 500) ? true : false);
+			caretVisible2 = ((!(Game1.currentGameTime.TotalGameTime.TotalMilliseconds % 1000.0 < 500.0)) ? true : false);
 			if (_textBoxTexture != null)
 			{
 				spriteBatch.Draw(_textBoxTexture, new Rectangle(base.X, base.Y, 16, base.Height), new Rectangle(0, 0, 16, base.Height), Color.White);

@@ -4,6 +4,7 @@ using Netcode;
 using StardewValley.Characters;
 using StardewValley.Menus;
 using StardewValley.Network;
+using StardewValley.Objects;
 using StardewValley.TerrainFeatures;
 using System;
 using System.Xml.Serialization;
@@ -26,6 +27,8 @@ namespace StardewValley.Locations
 		public readonly NetRef<ResourceClump> netLog = new NetRef<ResourceClump>();
 
 		private int chimneyTimer = 500;
+
+		private bool hasShownCCUpgrade;
 
 		private Microsoft.Xna.Framework.Rectangle hatterSource = new Microsoft.Xna.Framework.Rectangle(600, 1957, 64, 32);
 
@@ -79,7 +82,7 @@ namespace StardewValley.Locations
 
 		public void removeSewerTrash()
 		{
-			ApplyMapOverride("Forest-SewerClean", null, new Microsoft.Xna.Framework.Rectangle(83, 97, 24, 12));
+			ApplyMapOverride("Forest-SewerClean", (Microsoft.Xna.Framework.Rectangle?)null, (Microsoft.Xna.Framework.Rectangle?)new Microsoft.Xna.Framework.Rectangle(83, 97, 24, 12));
 			setMapTileIndex(43, 106, -1, "Buildings");
 			setMapTileIndex(17, 106, -1, "Buildings");
 			setMapTileIndex(13, 105, -1, "Buildings");
@@ -98,6 +101,34 @@ namespace StardewValley.Locations
 			if (NetWorldState.checkAnywhereForWorldStateID("trashBearDone"))
 			{
 				removeSewerTrash();
+			}
+			if (Game1.MasterPlayer.mailReceived.Contains("communityUpgradeShortcuts"))
+			{
+				showCommunityUpgradeShortcuts();
+			}
+		}
+
+		private void showCommunityUpgradeShortcuts()
+		{
+			if (!hasShownCCUpgrade)
+			{
+				removeTile(119, 36, "Buildings");
+				LargeTerrainFeature blockingBush = null;
+				foreach (LargeTerrainFeature t in largeTerrainFeatures)
+				{
+					if (t.tilePosition.Equals(new Vector2(119f, 35f)))
+					{
+						blockingBush = t;
+						break;
+					}
+				}
+				if (blockingBush != null)
+				{
+					largeTerrainFeatures.Remove(blockingBush);
+				}
+				hasShownCCUpgrade = true;
+				warps.Add(new Warp(120, 35, "Beach", 0, 6, flipFarmer: false));
+				warps.Add(new Warp(120, 36, "Beach", 0, 6, flipFarmer: false));
 			}
 		}
 
@@ -189,10 +220,12 @@ namespace StardewValley.Locations
 				if (tileLocation.X == 27 && tileLocation.Y == 11)
 				{
 					Game1.activeClickableMenu = new ShopMenu(Utility.getTravelingMerchantStock((int)(Game1.uniqueIDForThisGame + Game1.stats.DaysPlayed)), 0, "Traveler", Utility.onTravelingMerchantShopPurchase);
+					return true;
 				}
-				else if (tileLocation.X == 23 && tileLocation.Y == 11)
+				if (tileLocation.X == 23 && tileLocation.Y == 11)
 				{
 					playSound("pig");
+					return true;
 				}
 			}
 			Microsoft.Xna.Framework.Rectangle boundingBox = new Microsoft.Xna.Framework.Rectangle(tileLocation.X * 64, tileLocation.Y * 64, 64, 64);
@@ -235,6 +268,10 @@ namespace StardewValley.Locations
 				foreach (Microsoft.Xna.Framework.Rectangle travelingMerchantBound in travelingMerchantBounds)
 				{
 					Utility.clearObjectsInArea(travelingMerchantBound, this);
+				}
+				if (Game1.IsMasterGame && Game1.netWorldState.Value.VisitsUntilY1Guarantee >= 0)
+				{
+					Game1.netWorldState.Value.VisitsUntilY1Guarantee--;
 				}
 			}
 			else
@@ -385,9 +422,22 @@ namespace StardewValley.Locations
 
 		public override Object getFish(float millisecondsAfterNibble, int bait, int waterDepth, Farmer who, double baitPotency, Vector2 bobberTile, string locationName = null)
 		{
-			if (Game1.currentSeason.Equals("winter") && who.getTileX() == 58 && who.getTileY() == 87 && who.FishingLevel >= 6 && !who.fishCaught.ContainsKey(775) && waterDepth >= 3 && Game1.random.NextDouble() < 0.5)
+			bool using_magic_bait = IsUsingMagicBait(who);
+			if (who.getTileX() == 58 && who.getTileY() == 87 && who.FishingLevel >= 6 && waterDepth >= 3 && Game1.random.NextDouble() < 0.5)
 			{
-				return new Object(775, 1);
+				if (Game1.player.team.SpecialOrderRuleActive("LEGENDARY_FAMILY"))
+				{
+					return new Object(902, 1);
+				}
+				if (!who.fishCaught.ContainsKey(775) && (Game1.currentSeason.Equals("winter") | using_magic_bait))
+				{
+					return new Object(775, 1);
+				}
+			}
+			if (bobberTile.Y > 108f && !Game1.player.mailReceived.Contains("caughtIridiumKrobus"))
+			{
+				Game1.player.mailReceived.Add("caughtIridiumKrobus");
+				return new Furniture(2428, Vector2.Zero);
 			}
 			return base.getFish(millisecondsAfterNibble, bait, waterDepth, who, baitPotency, bobberTile, locationName);
 		}

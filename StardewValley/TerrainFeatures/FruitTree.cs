@@ -195,7 +195,7 @@ namespace StardewValley.TerrainFeatures
 
 		public override bool performUseAction(Vector2 tileLocation, GameLocation location)
 		{
-			if (maxShake == 0f && !stump && (int)growthStage >= 3 && (!Game1.currentSeason.Equals("winter") || location.IsGreenhouse))
+			if (maxShake == 0f && !stump && (int)growthStage >= 3 && (!Game1.GetSeasonForLocation(location).Equals("winter") || location.SeedsIgnoreSeasonsHere()))
 			{
 				location.playSound("leafrustle");
 			}
@@ -264,7 +264,7 @@ namespace StardewValley.TerrainFeatures
 			{
 				shakeRotation += (shakeLeft ? (0f - maxShake * maxShake) : (maxShake * maxShake));
 				maxShake += 0.00153398083f;
-				if (Game1.random.NextDouble() < 0.01 && !Game1.currentSeason.Equals("winter"))
+				if (Game1.random.NextDouble() < 0.01 && !Game1.GetSeasonForLocation(location).Equals("winter"))
 				{
 					location.localSound("leafrustle");
 				}
@@ -320,11 +320,11 @@ namespace StardewValley.TerrainFeatures
 		{
 			if (((maxShake == 0f) | doEvenIfStillShaking) && (int)growthStage >= 3 && !stump)
 			{
-				shakeLeft.Value = (Game1.player.getTileLocation().X > tileLocation.X || ((Game1.player.getTileLocation().X == tileLocation.X && Game1.random.NextDouble() < 0.5) ? true : false));
+				shakeLeft.Value = ((float)Game1.player.getStandingX() > (tileLocation.X + 0.5f) * 64f || ((Game1.player.getTileLocation().X == tileLocation.X && Game1.random.NextDouble() < 0.5) ? true : false));
 				maxShake = (float)(((int)growthStage >= 4) ? (Math.PI / 128.0) : (Math.PI / 64.0));
 				if ((int)growthStage >= 4)
 				{
-					if (Game1.random.NextDouble() < 0.66)
+					if (Game1.random.NextDouble() < 0.66 && Game1.GetSeasonForLocation(location) != "winter")
 					{
 						int numberOfLeaves2 = Game1.random.Next(1, 6);
 						for (int k = 0; k < numberOfLeaves2; k++)
@@ -379,7 +379,7 @@ namespace StardewValley.TerrainFeatures
 					}
 					fruitsOnTree.Value = 0;
 				}
-				else if (Game1.random.NextDouble() < 0.66)
+				else if (Game1.random.NextDouble() < 0.66 && Game1.GetSeasonForLocation(location) != "winter")
 				{
 					int numberOfLeaves = Game1.random.Next(1, 3);
 					for (int i = 0; i < numberOfLeaves; i++)
@@ -403,6 +403,29 @@ namespace StardewValley.TerrainFeatures
 			return false;
 		}
 
+		public static bool IsGrowthBlocked(Vector2 tileLocation, GameLocation environment)
+		{
+			Vector2[] surroundingTileLocationsArray = Utility.getSurroundingTileLocationsArray(tileLocation);
+			for (int i = 0; i < surroundingTileLocationsArray.Length; i++)
+			{
+				Vector2 v = surroundingTileLocationsArray[i];
+				bool isClearHoeDirt = environment.terrainFeatures.ContainsKey(v) && environment.terrainFeatures[v] is HoeDirt && (environment.terrainFeatures[v] as HoeDirt).crop == null;
+				if (environment.isTileOccupied(v, "", ignoreAllCharacters: true) && !isClearHoeDirt)
+				{
+					Object o = environment.getObjectAtTile((int)v.X, (int)v.Y);
+					if (o == null)
+					{
+						return true;
+					}
+					if (!Utility.IsNormalObjectAtParentSheetIndex(o, 590))
+					{
+						return true;
+					}
+				}
+			}
+			return false;
+		}
+
 		public override void dayUpdate(GameLocation environment, Vector2 tileLocation)
 		{
 			if ((float)health <= -99f)
@@ -417,27 +440,7 @@ namespace StardewValley.TerrainFeatures
 					fruitsOnTree.Value = 0;
 				}
 			}
-			bool foundSomething = false;
-			Vector2[] surroundingTileLocationsArray = Utility.getSurroundingTileLocationsArray(tileLocation);
-			for (int i = 0; i < surroundingTileLocationsArray.Length; i++)
-			{
-				Vector2 v = surroundingTileLocationsArray[i];
-				bool isClearHoeDirt = environment.terrainFeatures.ContainsKey(v) && environment.terrainFeatures[v] is HoeDirt && (environment.terrainFeatures[v] as HoeDirt).crop == null;
-				if (environment.isTileOccupied(v, "", ignoreAllCharacters: true) && !isClearHoeDirt)
-				{
-					Object o = environment.getObjectAtTile((int)v.X, (int)v.Y);
-					if (o == null)
-					{
-						foundSomething = true;
-						break;
-					}
-					if (!Utility.IsNormalObjectAtParentSheetIndex(o, 590))
-					{
-						foundSomething = true;
-						break;
-					}
-				}
-			}
+			bool foundSomething = IsGrowthBlocked(tileLocation, environment);
 			if (!foundSomething || (int)daysUntilMature <= 0)
 			{
 				if ((int)daysUntilMature > 28)
@@ -470,7 +473,7 @@ namespace StardewValley.TerrainFeatures
 			{
 				Game1.multiplayer.broadcastGlobalMessage("Strings\\UI:FruitTree_Warning", true, Game1.objectInformation[indexOfFruit].Split('/')[4]);
 			}
-			if (!stump && (int)growthStage == 4 && (((int)struckByLightningCountdown > 0 && !Game1.IsWinter) || Game1.currentSeason.Equals(fruitSeason) || environment.IsGreenhouse))
+			if (!stump && (int)growthStage == 4 && (((int)struckByLightningCountdown > 0 && !Game1.IsWinter) || IsInSeasonHere(environment) || environment.SeedsIgnoreSeasonsHere()))
 			{
 				fruitsOnTree.Value = Math.Min(3, (int)fruitsOnTree + 1);
 				if (environment.IsGreenhouse)
@@ -484,9 +487,22 @@ namespace StardewValley.TerrainFeatures
 			}
 		}
 
+		public virtual bool IsInSeasonHere(GameLocation location)
+		{
+			if (fruitSeason.Value == "island")
+			{
+				if (location.GetLocationContext() == GameLocation.LocationContext.Island)
+				{
+					return true;
+				}
+				return Game1.GetSeasonForLocation(location).Equals("summer");
+			}
+			return Game1.GetSeasonForLocation(location).Equals(fruitSeason);
+		}
+
 		public override bool seasonUpdate(bool onLoad)
 		{
-			if (!Game1.currentSeason.Equals(fruitSeason) && !onLoad && !greenHouseTree)
+			if (!IsInSeasonHere(currentLocation) && !onLoad && !greenHouseTree)
 			{
 				fruitsOnTree.Value = 0;
 			}
@@ -495,7 +511,6 @@ namespace StardewValley.TerrainFeatures
 
 		public override bool performToolAction(Tool t, int explosion, Vector2 tileLocation, GameLocation location)
 		{
-			Console.WriteLine("FRUIT TREE: IsClient:" + Game1.IsClient.ToString() + " randomOutput: " + Game1.recentMultiplayerRandom.Next(9999));
 			if ((float)health <= -99f)
 			{
 				return false;
@@ -546,13 +561,13 @@ namespace StardewValley.TerrainFeatures
 								offset.Y = 32f;
 								break;
 							}
-							Debris d = new Debris(((int)struckByLightningCountdown > 0) ? 382 : ((int)indexOfFruit), new Vector2(tileLocation.X * 64f + 32f, (tileLocation.Y - 3f) * 64f + 32f) + offset, new Vector2(Game1.player.getStandingX(), Game1.player.getStandingY()))
+							Debris d2 = new Debris(((int)struckByLightningCountdown > 0) ? 382 : ((int)indexOfFruit), new Vector2(tileLocation.X * 64f + 32f, (tileLocation.Y - 3f) * 64f + 32f) + offset, new Vector2(Game1.player.getStandingX(), Game1.player.getStandingY()))
 							{
 								itemQuality = fruitquality
 							};
-							d.Chunks[0].xVelocity.Value += (float)Game1.random.Next(-10, 11) / 10f;
-							d.chunkFinalYLevel = (int)(tileLocation.Y * 64f + 64f);
-							location.debris.Add(d);
+							d2.Chunks[0].xVelocity.Value += (float)Game1.random.Next(-10, 11) / 10f;
+							d2.chunkFinalYLevel = (int)(tileLocation.Y * 64f + 64f);
+							location.debris.Add(d2);
 						}
 						fruitsOnTree.Value = 0;
 					}
@@ -562,10 +577,10 @@ namespace StardewValley.TerrainFeatures
 					return false;
 				}
 				shake(tileLocation, doEvenIfStillShaking: true, location);
-				float damage2 = 1f;
+				float damage3 = 1f;
 				if (explosion > 0)
 				{
-					damage2 = explosion;
+					damage3 = explosion;
 				}
 				else
 				{
@@ -576,23 +591,33 @@ namespace StardewValley.TerrainFeatures
 					switch ((int)t.upgradeLevel)
 					{
 					case 0:
-						damage2 = 1f;
+						damage3 = 1f;
 						break;
 					case 1:
-						damage2 = 1.25f;
+						damage3 = 1.25f;
 						break;
 					case 2:
-						damage2 = 1.67f;
+						damage3 = 1.67f;
 						break;
 					case 3:
-						damage2 = 2.5f;
+						damage3 = 2.5f;
 						break;
 					case 4:
-						damage2 = 5f;
+						damage3 = 5f;
+						break;
+					default:
+						damage3 = (int)t.upgradeLevel + 1;
 						break;
 					}
 				}
-				health.Value -= damage2;
+				health.Value -= damage3;
+				if (t is Axe && t.hasEnchantmentOfType<ShavingEnchantment>() && Game1.random.NextDouble() <= (double)(damage3 / 5f))
+				{
+					Debris d = new Debris(388, new Vector2(tileLocation.X * 64f + 32f, (tileLocation.Y - 0.5f) * 64f + 32f), new Vector2(Game1.player.getStandingX(), Game1.player.getStandingY()));
+					d.Chunks[0].xVelocity.Value += (float)Game1.random.Next(-10, 11) / 10f;
+					d.chunkFinalYLevel = (int)(tileLocation.Y * 64f + 64f);
+					location.debris.Add(d);
+				}
 				if ((float)health <= 0f)
 				{
 					if (!stump)
@@ -607,7 +632,7 @@ namespace StardewValley.TerrainFeatures
 						}
 						else
 						{
-							shakeLeft.Value = (t.getLastFarmerToUse().getTileLocation().X > tileLocation.X || (t.getLastFarmerToUse().getTileLocation().Y < tileLocation.Y && tileLocation.X % 2f == 0f));
+							shakeLeft.Value = ((float)t.getLastFarmerToUse().getStandingX() > (tileLocation.X + 0.5f) * 64f);
 						}
 					}
 					else
@@ -774,6 +799,7 @@ namespace StardewValley.TerrainFeatures
 
 		public override void draw(SpriteBatch spriteBatch, Vector2 tileLocation)
 		{
+			string season = Game1.GetSeasonForLocation(currentLocation);
 			if ((bool)greenHouseTileTree)
 			{
 				spriteBatch.Draw(Game1.mouseCursors, Game1.GlobalToLocal(Game1.viewport, new Vector2(tileLocation.X * 64f, tileLocation.Y * 64f)), new Rectangle(669, 1957, 16, 16), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1E-08f);
@@ -805,17 +831,17 @@ namespace StardewValley.TerrainFeatures
 				{
 					if (!falling)
 					{
-						spriteBatch.Draw(texture, Game1.GlobalToLocal(Game1.viewport, new Vector2(tileLocation.X * 64f + 32f, tileLocation.Y * 64f + 64f)), new Rectangle((12 + (greenHouseTree ? 1 : Utility.getSeasonNumber(Game1.currentSeason)) * 3) * 16, (int)treeType * 5 * 16 + 64, 48, 16), ((int)struckByLightningCountdown > 0) ? (Color.Gray * alpha) : (Color.White * alpha), 0f, new Vector2(24f, 16f), 4f, flipped ? SpriteEffects.FlipHorizontally : SpriteEffects.None, 1E-07f);
+						spriteBatch.Draw(texture, Game1.GlobalToLocal(Game1.viewport, new Vector2(tileLocation.X * 64f + 32f, tileLocation.Y * 64f + 64f)), new Rectangle((12 + (greenHouseTree ? 1 : Utility.getSeasonNumber(season)) * 3) * 16, (int)treeType * 5 * 16 + 64, 48, 16), ((int)struckByLightningCountdown > 0) ? (Color.Gray * alpha) : (Color.White * alpha), 0f, new Vector2(24f, 16f), 4f, flipped ? SpriteEffects.FlipHorizontally : SpriteEffects.None, 1E-07f);
 					}
-					spriteBatch.Draw(texture, Game1.GlobalToLocal(Game1.viewport, new Vector2(tileLocation.X * 64f + 32f, tileLocation.Y * 64f + 64f)), new Rectangle((12 + (greenHouseTree ? 1 : Utility.getSeasonNumber(Game1.currentSeason)) * 3) * 16, (int)treeType * 5 * 16, 48, 64), ((int)struckByLightningCountdown > 0) ? (Color.Gray * alpha) : (Color.White * alpha), shakeRotation, new Vector2(24f, 80f), 4f, flipped ? SpriteEffects.FlipHorizontally : SpriteEffects.None, (float)getBoundingBox(tileLocation).Bottom / 10000f + 0.001f - tileLocation.X / 1000000f);
+					spriteBatch.Draw(texture, Game1.GlobalToLocal(Game1.viewport, new Vector2(tileLocation.X * 64f + 32f, tileLocation.Y * 64f + 64f)), new Rectangle((12 + (greenHouseTree ? 1 : Utility.getSeasonNumber(season)) * 3) * 16, (int)treeType * 5 * 16, 48, 64), ((int)struckByLightningCountdown > 0) ? (Color.Gray * alpha) : (Color.White * alpha), shakeRotation, new Vector2(24f, 80f), 4f, flipped ? SpriteEffects.FlipHorizontally : SpriteEffects.None, (float)getBoundingBox(tileLocation).Bottom / 10000f + 0.001f - tileLocation.X / 1000000f);
 				}
 				if ((float)health >= 1f || (!falling && (float)health > -99f))
 				{
 					spriteBatch.Draw(texture, Game1.GlobalToLocal(Game1.viewport, new Vector2(tileLocation.X * 64f + 32f + ((shakeTimer > 0f) ? ((float)Math.Sin(Math.PI * 2.0 / (double)shakeTimer) * 2f) : 0f), tileLocation.Y * 64f + 64f)), new Rectangle(384, (int)treeType * 5 * 16 + 48, 48, 32), ((int)struckByLightningCountdown > 0) ? (Color.Gray * alpha) : (Color.White * alpha), 0f, new Vector2(24f, 32f), 4f, flipped ? SpriteEffects.FlipHorizontally : SpriteEffects.None, ((bool)stump && !falling) ? ((float)getBoundingBox(tileLocation).Bottom / 10000f) : ((float)getBoundingBox(tileLocation).Bottom / 10000f - 0.001f - tileLocation.X / 1000000f));
 				}
-				for (int i = 0; i < (int)fruitsOnTree; i++)
+				for (int j = 0; j < (int)fruitsOnTree; j++)
 				{
-					switch (i)
+					switch (j)
 					{
 					case 0:
 						spriteBatch.Draw(Game1.objectSpriteSheet, Game1.GlobalToLocal(Game1.viewport, new Vector2(tileLocation.X * 64f - 64f + tileLocation.X * 200f % 64f / 2f, tileLocation.Y * 64f - 192f - tileLocation.X % 64f / 3f)), Game1.getSourceRectForStandardTileSheet(Game1.objectSpriteSheet, ((int)struckByLightningCountdown > 0) ? 382 : ((int)indexOfFruit), 16, 16), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, (float)getBoundingBox(tileLocation).Bottom / 10000f + 0.002f - tileLocation.X / 1000000f);
@@ -829,9 +855,9 @@ namespace StardewValley.TerrainFeatures
 					}
 				}
 			}
-			foreach (Leaf j in leaves)
+			foreach (Leaf i in leaves)
 			{
-				spriteBatch.Draw(texture, Game1.GlobalToLocal(Game1.viewport, j.position), new Rectangle((24 + Utility.getSeasonNumber(Game1.currentSeason)) * 16, (int)treeType * 5 * 16, 8, 8), Color.White, j.rotation, Vector2.Zero, 4f, SpriteEffects.None, (float)getBoundingBox(tileLocation).Bottom / 10000f + 0.01f);
+				spriteBatch.Draw(texture, Game1.GlobalToLocal(Game1.viewport, i.position), new Rectangle((24 + Utility.getSeasonNumber(season)) * 16, (int)treeType * 5 * 16, 8, 8), Color.White, i.rotation, Vector2.Zero, 4f, SpriteEffects.None, (float)getBoundingBox(tileLocation).Bottom / 10000f + 0.01f);
 			}
 		}
 	}

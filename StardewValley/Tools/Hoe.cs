@@ -15,10 +15,11 @@ namespace StardewValley.Tools
 
 		public override Item getOne()
 		{
-			return new Hoe
-			{
-				UpgradeLevel = base.UpgradeLevel
-			};
+			Hoe hoe = new Hoe();
+			hoe.UpgradeLevel = base.UpgradeLevel;
+			CopyEnchantments(this, hoe);
+			hoe._GetOneFrom(this);
+			return hoe;
 		}
 
 		protected override string loadDisplayName()
@@ -38,7 +39,10 @@ namespace StardewValley.Tools
 			{
 				power = 1;
 			}
-			who.Stamina -= (float)(2 * power) - (float)who.FarmingLevel * 0.1f;
+			if (!isEfficient)
+			{
+				who.Stamina -= (float)(2 * power) - (float)who.FarmingLevel * 0.1f;
+			}
 			power = who.toolPower;
 			who.stopJittering();
 			location.playSound("woodyHit");

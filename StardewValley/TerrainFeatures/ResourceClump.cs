@@ -168,10 +168,17 @@ namespace StardewValley.TerrainFeatures
 			}
 			float power = Math.Max(1f, (float)((int)t.upgradeLevel + 1) * 0.75f);
 			health.Value -= power;
+			if (t is Axe && t.hasEnchantmentOfType<ShavingEnchantment>() && Game1.random.NextDouble() <= (double)(power / 12f) && ((int)parentSheetIndex == 602 || (int)parentSheetIndex == 600))
+			{
+				Debris d = new Debris(709, new Vector2(tileLocation.X * 64f + 32f, (tileLocation.Y - 0.5f) * 64f + 32f), new Vector2(Game1.player.getStandingX(), Game1.player.getStandingY()));
+				d.Chunks[0].xVelocity.Value += (float)Game1.random.Next(-10, 11) / 10f;
+				d.chunkFinalYLevel = (int)(tileLocation.Y * 64f + 64f);
+				location.debris.Add(d);
+			}
 			Game1.createRadialDebris(Game1.currentLocation, radialDebris, (int)tileLocation.X + Game1.random.Next((int)width / 2 + 1), (int)tileLocation.Y + Game1.random.Next((int)height / 2 + 1), Game1.random.Next(4, 9), resource: false);
 			if ((float)health <= 0f)
 			{
-				if (t != null && t.getLastFarmerToUse().hasMagnifyingGlass && Game1.random.NextDouble() < 0.05)
+				if (t != null && location.HasUnlockedAreaSecretNotes(t.getLastFarmerToUse()) && Game1.random.NextDouble() < 0.05)
 				{
 					Object o = location.tryToCreateUnseenSecretNote(t.getLastFarmerToUse());
 					if (o != null)
@@ -231,6 +238,14 @@ namespace StardewValley.TerrainFeatures
 					Game1.multiplayer.broadcastSprites(Game1.currentLocation, new TemporaryAnimatedSprite(23, tileLocation * 64f, Color.White, 4, flipped: false, 140f, 0, 128, -1f, 128));
 					Game1.multiplayer.broadcastSprites(Game1.currentLocation, new TemporaryAnimatedSprite("TileSheets\\animations", new Rectangle(385, 1522, 127, 79), 2000f, 1, 1, tileLocation * 64f + new Vector2(0f, 49f), flicker: false, flipped: false, 1E-05f, 0.016f, Color.White, 1f, 0f, 0f, 0f));
 					Game1.createRadialDebris(Game1.currentLocation, 34, (int)tileLocation.X, (int)tileLocation.Y, Game1.random.Next(4, 9), resource: false);
+					if (r2.NextDouble() < 0.1)
+					{
+						Game1.createMultipleObjectDebris(292, (int)tileLocation.X, (int)tileLocation.Y, 1);
+					}
+					if (Game1.random.NextDouble() <= 0.25 && Game1.player.team.SpecialOrderRuleActive("DROP_QI_BEANS"))
+					{
+						Game1.createObjectDebris(890, (int)tileLocation.X, (int)tileLocation.Y - 3, ((int)tileLocation.Y + 1) * 64, 0, 1f, location);
+					}
 					return true;
 				}
 				case 672:
@@ -355,19 +370,25 @@ namespace StardewValley.TerrainFeatures
 
 		public override bool performUseAction(Vector2 tileLocation, GameLocation location)
 		{
+			if (!Game1.didPlayerJustRightClick(ignoreNonMouseHeldInput: true))
+			{
+				Game1.haltAfterCheck = false;
+				return false;
+			}
 			switch ((int)parentSheetIndex)
 			{
 			case 602:
 				Game1.drawObjectDialogue(Game1.parseText(Game1.content.LoadString("Strings\\StringsFromCSFiles:ResourceClump.cs.13962")));
-				break;
+				return true;
 			case 672:
 				Game1.drawObjectDialogue(Game1.parseText(Game1.content.LoadString("Strings\\StringsFromCSFiles:ResourceClump.cs.13963")));
-				break;
+				return true;
 			case 622:
 				Game1.drawObjectDialogue(Game1.parseText(Game1.content.LoadString("Strings\\StringsFromCSFiles:ResourceClump.cs.13964")));
-				break;
+				return true;
+			default:
+				return false;
 			}
-			return true;
 		}
 
 		public override bool tickUpdate(GameTime time, Vector2 tileLocation, GameLocation location)

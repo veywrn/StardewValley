@@ -787,9 +787,20 @@ namespace StardewValley
 			{
 				if (AdventureGuild.willThisKillCompleteAMonsterSlayerQuest(name))
 				{
-					Game1.showGlobalMessage(Game1.content.LoadString("Strings\\StringsFromCSFiles:Stats.cs.5129"));
-					Game1.multiplayer.globalChatInfoMessage("MonsterSlayer" + Game1.random.Next(4), Game1.player.Name, name);
 					specificMonstersKilled[name]++;
+					Game1.player.hasCompletedAllMonsterSlayerQuests.Value = AdventureGuild.areAllMonsterSlayerQuestsComplete();
+					string localized_name2 = name;
+					if (Game1.content.Load<Dictionary<string, string>>("Data\\Monsters").TryGetValue(name, out localized_name2))
+					{
+						string[] split = localized_name2.Split('/');
+						localized_name2 = ((split.Length <= 14) ? name : split[14]);
+					}
+					else
+					{
+						localized_name2 = name;
+					}
+					Game1.showGlobalMessage(Game1.content.LoadString("Strings\\StringsFromCSFiles:Stats.cs.5129"));
+					Game1.multiplayer.globalChatInfoMessage("MonsterSlayer" + Game1.random.Next(4), Game1.player.Name, localized_name2);
 					if (AdventureGuild.areAllMonsterSlayerQuestsComplete())
 					{
 						Game1.getSteamAchievement("Achievement_KeeperOfTheMysticRings");
@@ -957,7 +968,7 @@ namespace StardewValley
 			int totalKindsOfFish = 0;
 			foreach (KeyValuePair<int, string> v in Game1.objectInformation)
 			{
-				if (v.Value.Split('/')[3].Contains("Fish") && (v.Key < 167 || v.Key >= 173))
+				if (v.Value.Split('/')[3].Contains("Fish") && (v.Key < 167 || v.Key > 172) && (v.Key < 898 || v.Key > 902))
 				{
 					totalKindsOfFish++;
 					if (Game1.player.fishCaught.ContainsKey(v.Key))
@@ -1099,12 +1110,21 @@ namespace StardewValley
 				Game1.getAchievement(7);
 			}
 			Dictionary<string, string> cookingRecipes = Game1.content.Load<Dictionary<string, string>>("Data\\CookingRecipes");
-			foreach (string s in cookingRecipes.Keys)
+			foreach (string s2 in cookingRecipes.Keys)
 			{
-				string[] getConditions = cookingRecipes[s].Split('/')[3].Split(' ');
-				if (getConditions[0].Equals("f") && Game1.player.friendshipData.ContainsKey(getConditions[1]) && Game1.player.friendshipData[getConditions[1]].Points >= Convert.ToInt32(getConditions[2]) * 250 && !Game1.player.cookingRecipes.ContainsKey(s) && !Game1.player.hasOrWillReceiveMail(getConditions[1] + "Cooking"))
+				string[] getConditions2 = cookingRecipes[s2].Split('/')[3].Split(' ');
+				if (getConditions2[0].Equals("f") && Game1.player.friendshipData.ContainsKey(getConditions2[1]) && Game1.player.friendshipData[getConditions2[1]].Points >= Convert.ToInt32(getConditions2[2]) * 250 && !Game1.player.cookingRecipes.ContainsKey(s2) && !Game1.player.hasOrWillReceiveMail(getConditions2[1] + "Cooking"))
 				{
-					Game1.addMailForTomorrow(getConditions[1] + "Cooking");
+					Game1.addMailForTomorrow(getConditions2[1] + "Cooking");
+				}
+			}
+			Dictionary<string, string> craftingRecipes = Game1.content.Load<Dictionary<string, string>>("Data\\CraftingRecipes");
+			foreach (string s in craftingRecipes.Keys)
+			{
+				string[] getConditions = craftingRecipes[s].Split('/')[4].Split(' ');
+				if (getConditions[0].Equals("f") && Game1.player.friendshipData.ContainsKey(getConditions[1]) && Game1.player.friendshipData[getConditions[1]].Points >= Convert.ToInt32(getConditions[2]) * 250 && !Game1.player.craftingRecipes.ContainsKey(s) && !Game1.player.hasOrWillReceiveMail(getConditions[1] + "Crafting"))
+				{
+					Game1.addMailForTomorrow(getConditions[1] + "Crafting");
 				}
 			}
 		}
@@ -1130,6 +1150,7 @@ namespace StardewValley
 			checkForBuildingUpgradeAchievements();
 			checkForQuestAchievements();
 			checkForFriendshipAchievements();
+			Game1.player.hasCompletedAllMonsterSlayerQuests.Value = AdventureGuild.areAllMonsterSlayerQuestsComplete();
 		}
 	}
 }

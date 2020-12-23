@@ -17,7 +17,9 @@ namespace StardewValley
 
 		protected override FarmerPair ReadKey(BinaryReader reader)
 		{
-			return FarmerPair.MakePair(reader.ReadInt64(), reader.ReadInt64());
+			long f = reader.ReadInt64();
+			long farmer2 = reader.ReadInt64();
+			return FarmerPair.MakePair(f, farmer2);
 		}
 
 		protected override void WriteKey(BinaryWriter writer, FarmerPair key)

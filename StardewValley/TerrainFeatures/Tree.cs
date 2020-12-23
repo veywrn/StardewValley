@@ -2,6 +2,7 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Netcode;
 using StardewValley.BellsAndWhistles;
+using StardewValley.Locations;
 using StardewValley.Objects;
 using StardewValley.Tools;
 using System;
@@ -41,6 +42,10 @@ namespace StardewValley.TerrainFeatures
 		public const int palmTree = 6;
 
 		public const int mushroomTree = 7;
+
+		public const int mahoganyTree = 8;
+
+		public const int palmTree2 = 9;
 
 		public const int seedStage = 0;
 
@@ -102,7 +107,7 @@ namespace StardewValley.TerrainFeatures
 
 		private float shakeTimer;
 
-		public static Microsoft.Xna.Framework.Rectangle treeTopSourceRect = new Microsoft.Xna.Framework.Rectangle(0, 0, 48, 96);
+		public Microsoft.Xna.Framework.Rectangle treeTopSourceRect = new Microsoft.Xna.Framework.Rectangle(0, 0, 48, 96);
 
 		public static Microsoft.Xna.Framework.Rectangle stumpSourceRect = new Microsoft.Xna.Framework.Rectangle(32, 96, 16, 32);
 
@@ -163,16 +168,20 @@ namespace StardewValley.TerrainFeatures
 			{
 				return Game1.content.Load<Texture2D>("TerrainFeatures\\mushroom_tree");
 			}
+			if ((int)treeType == 9)
+			{
+				return Game1.content.Load<Texture2D>("TerrainFeatures\\tree_palm2");
+			}
 			if ((int)treeType == 6)
 			{
 				return Game1.content.Load<Texture2D>("TerrainFeatures\\tree_palm");
 			}
-			string season = Game1.currentSeason;
+			string season = Game1.GetSeasonForLocation(currentLocation);
 			if ((int)treeType == 3 && season.Equals("summer"))
 			{
 				season = "spring";
 			}
-			if (Game1.currentLocation != null && Game1.currentLocation.Name.Equals("Desert"))
+			if (Game1.currentLocation != null && (Game1.currentLocation.Name.Equals("Desert") || Game1.currentLocation is MineShaft))
 			{
 				season = "spring";
 			}
@@ -197,13 +206,17 @@ namespace StardewValley.TerrainFeatures
 		{
 			if (!tapped)
 			{
-				if (maxShake == 0f && !stump && (int)growthStage >= 3 && (!Game1.currentSeason.Equals("winter") || location.Name.Equals("Desert") || (int)treeType == 3))
+				if (maxShake == 0f && !stump && (int)growthStage >= 3 && (!Game1.GetSeasonForLocation(currentLocation).Equals("winter") || location.Name.Equals("Desert") || (int)treeType == 3))
 				{
 					location.localSound("leafrustle");
 				}
 				shake(tileLocation, doEvenIfStillShaking: false, location);
 			}
-			return false;
+			if (Game1.player.ActiveObject != null && Game1.player.ActiveObject.canBePlacedHere(location, tileLocation))
+			{
+				return false;
+			}
+			return true;
 		}
 
 		private int extraWoodCalculator(Vector2 tileLocation)
@@ -231,10 +244,10 @@ namespace StardewValley.TerrainFeatures
 
 		public override bool tickUpdate(GameTime time, Vector2 tileLocation, GameLocation location)
 		{
-			if (season != Game1.currentSeason)
+			if (season != Game1.GetSeasonForLocation(currentLocation))
 			{
 				resetTexture();
-				season = Game1.currentSeason;
+				season = Game1.GetSeasonForLocation(currentLocation);
 			}
 			if (shakeTimer > 0f)
 			{
@@ -303,8 +316,11 @@ namespace StardewValley.TerrainFeatures
 					}
 					if ((int)treeType != 7)
 					{
-						Game1.createRadialDebris(location, 12, (int)tileLocation.X + (shakeLeft ? (-4) : 4), (int)tileLocation.Y, (int)((Game1.getFarmer(lastPlayerToHit).professions.Contains(12) ? 1.25 : 1.0) * (double)(12 + extraWoodCalculator(tileLocation))), resource: true);
-						Game1.createRadialDebris(location, 12, (int)tileLocation.X + (shakeLeft ? (-4) : 4), (int)tileLocation.Y, (int)((Game1.getFarmer(lastPlayerToHit).professions.Contains(12) ? 1.25 : 1.0) * (double)(12 + extraWoodCalculator(tileLocation))), resource: false);
+						if ((int)treeType != 8)
+						{
+							Game1.createRadialDebris(location, 12, (int)tileLocation.X + (shakeLeft ? (-4) : 4), (int)tileLocation.Y, (int)((Game1.getFarmer(lastPlayerToHit).professions.Contains(12) ? 1.25 : 1.0) * (double)(12 + extraWoodCalculator(tileLocation))), resource: true);
+							Game1.createRadialDebris(location, 12, (int)tileLocation.X + (shakeLeft ? (-4) : 4), (int)tileLocation.Y, (int)((Game1.getFarmer(lastPlayerToHit).professions.Contains(12) ? 1.25 : 1.0) * (double)(12 + extraWoodCalculator(tileLocation))), resource: false);
+						}
 						Random r;
 						if (Game1.IsMultiplayer)
 						{
@@ -317,7 +333,10 @@ namespace StardewValley.TerrainFeatures
 						}
 						if (Game1.IsMultiplayer)
 						{
-							Game1.createMultipleObjectDebris(92, (int)tileLocation.X + (shakeLeft ? (-4) : 4), (int)tileLocation.Y, 5, lastPlayerToHit, location);
+							if ((int)treeType != 8)
+							{
+								Game1.createMultipleObjectDebris(92, (int)tileLocation.X + (shakeLeft ? (-4) : 4), (int)tileLocation.Y, 5, lastPlayerToHit, location);
+							}
 							int numHardwood2 = 0;
 							if (Game1.getFarmer(lastPlayerToHit) != null)
 							{
@@ -326,18 +345,36 @@ namespace StardewValley.TerrainFeatures
 									numHardwood2++;
 								}
 							}
+							if ((int)treeType == 8)
+							{
+								numHardwood2 += r.Next(7, 12);
+								if (Game1.getFarmer(lastPlayerToHit).professions.Contains(14))
+								{
+									numHardwood2 += (int)((float)numHardwood2 * 0.25f + 0.9f);
+								}
+							}
 							if (numHardwood2 > 0)
 							{
 								Game1.createMultipleObjectDebris(709, (int)tileLocation.X + (shakeLeft ? (-4) : 4), (int)tileLocation.Y, numHardwood2, lastPlayerToHit, location);
 							}
-							if (Game1.getFarmer(lastPlayerToHit).getEffectiveSkillLevel(2) >= 1 && r.NextDouble() < 0.75 && (int)treeType < 4)
+							if (Game1.getFarmer(lastPlayerToHit).getEffectiveSkillLevel(2) >= 1 && r.NextDouble() < 0.75)
 							{
-								Game1.createMultipleObjectDebris(308 + (int)treeType, (int)tileLocation.X + (shakeLeft ? (-4) : 4), (int)tileLocation.Y, r.Next(1, 3), lastPlayerToHit, location);
+								if ((int)treeType < 4)
+								{
+									Game1.createMultipleObjectDebris(308 + (int)treeType, (int)tileLocation.X + (shakeLeft ? (-4) : 4), (int)tileLocation.Y, r.Next(1, 3), lastPlayerToHit, location);
+								}
+								else if ((int)treeType == 8 && r.NextDouble() < 0.75)
+								{
+									Game1.createMultipleObjectDebris(292, (int)tileLocation.X + (shakeLeft ? (-4) : 4), (int)tileLocation.Y, r.Next(1, 3), lastPlayerToHit, location);
+								}
 							}
 						}
 						else
 						{
-							Game1.createMultipleObjectDebris(92, (int)tileLocation.X + (shakeLeft ? (-4) : 4), (int)tileLocation.Y, 5, location);
+							if ((int)treeType != 8)
+							{
+								Game1.createMultipleObjectDebris(92, (int)tileLocation.X + (shakeLeft ? (-4) : 4), (int)tileLocation.Y, 5, location);
+							}
 							int numHardwood = 0;
 							if (Game1.getFarmer(lastPlayerToHit) != null)
 							{
@@ -346,13 +383,28 @@ namespace StardewValley.TerrainFeatures
 									numHardwood++;
 								}
 							}
+							if ((int)treeType == 8)
+							{
+								numHardwood += r.Next(7, 12);
+								if (Game1.getFarmer(lastPlayerToHit).professions.Contains(14))
+								{
+									numHardwood += (int)((float)numHardwood * 0.25f + 0.9f);
+								}
+							}
 							if (numHardwood > 0)
 							{
 								Game1.createMultipleObjectDebris(709, (int)tileLocation.X + (shakeLeft ? (-4) : 4), (int)tileLocation.Y, numHardwood, location);
 							}
-							if ((long)lastPlayerToHit != 0L && Game1.getFarmer(lastPlayerToHit).getEffectiveSkillLevel(2) >= 1 && r.NextDouble() < 0.75 && (int)treeType < 4)
+							if ((long)lastPlayerToHit != 0L && Game1.getFarmer(lastPlayerToHit).getEffectiveSkillLevel(2) >= 1 && r.NextDouble() < 0.75)
 							{
-								Game1.createMultipleObjectDebris(308 + (int)treeType, (int)tileLocation.X + (shakeLeft ? (-4) : 4), (int)tileLocation.Y, r.Next(1, 3), location);
+								if ((int)treeType < 4)
+								{
+									Game1.createMultipleObjectDebris(308 + (int)treeType, (int)tileLocation.X + (shakeLeft ? (-4) : 4), (int)tileLocation.Y, r.Next(1, 3), location);
+								}
+								else if ((int)treeType == 8 && r.NextDouble() < 0.75)
+								{
+									Game1.createMultipleObjectDebris(292, (int)tileLocation.X + (shakeLeft ? (-4) : 4), (int)tileLocation.Y, r.Next(1, 3), location);
+								}
 							}
 						}
 					}
@@ -391,7 +443,7 @@ namespace StardewValley.TerrainFeatures
 		{
 			if (((maxShake == 0f) | doEvenIfStillShaking) && (int)growthStage >= 3 && !stump)
 			{
-				shakeLeft.Value = (Game1.player.getTileLocation().X > tileLocation.X || ((Game1.player.getTileLocation().X == tileLocation.X && Game1.random.NextDouble() < 0.5) ? true : false));
+				shakeLeft.Value = ((float)Game1.player.getStandingX() > (tileLocation.X + 0.5f) * 64f || ((Game1.player.getTileLocation().X == tileLocation.X && Game1.random.NextDouble() < 0.5) ? true : false));
 				maxShake = (float)(((int)growthStage >= 5) ? (Math.PI / 128.0) : (Math.PI / 64.0));
 				if ((int)growthStage >= 5)
 				{
@@ -403,11 +455,11 @@ namespace StardewValley.TerrainFeatures
 							leaves.Add(new Leaf(new Vector2(Game1.random.Next((int)(tileLocation.X * 64f - 64f), (int)(tileLocation.X * 64f + 128f)), Game1.random.Next((int)(tileLocation.Y * 64f - 256f), (int)(tileLocation.Y * 64f - 192f))), (float)Game1.random.Next(-10, 10) / 100f, Game1.random.Next(4), (float)Game1.random.Next(5) / 10f));
 						}
 					}
-					if (Game1.random.NextDouble() < 0.01 && (Game1.currentSeason.Equals("spring") || Game1.currentSeason.Equals("summer")))
+					if (Game1.random.NextDouble() < 0.01 && (Game1.GetSeasonForLocation(currentLocation).Equals("spring") || Game1.GetSeasonForLocation(currentLocation).Equals("summer") || currentLocation.GetLocationContext() == GameLocation.LocationContext.Island))
 					{
 						while (Game1.random.NextDouble() < 0.8)
 						{
-							location.addCritter(new Butterfly(new Vector2(tileLocation.X + (float)Game1.random.Next(1, 3), tileLocation.Y - 2f + (float)Game1.random.Next(-1, 2))));
+							location.addCritter(new Butterfly(new Vector2(tileLocation.X + (float)Game1.random.Next(1, 3), tileLocation.Y - 2f + (float)Game1.random.Next(-1, 2)), currentLocation.GetLocationContext() == GameLocation.LocationContext.Island));
 						}
 					}
 					if ((bool)hasSeed && (Game1.IsMultiplayer || Game1.player.ForagingLevel >= 1))
@@ -421,20 +473,32 @@ namespace StardewValley.TerrainFeatures
 						case 1:
 							seedIndex = 309;
 							break;
+						case 8:
+							seedIndex = 292;
+							break;
 						case 2:
 							seedIndex = 310;
 							break;
 						case 6:
+						case 9:
 							seedIndex = 88;
 							break;
 						}
-						if (Game1.currentSeason.Equals("fall") && (int)treeType == 2 && Game1.dayOfMonth >= 14)
+						if (Game1.GetSeasonForLocation(currentLocation).Equals("fall") && (int)treeType == 2 && Game1.dayOfMonth >= 14)
 						{
 							seedIndex = 408;
 						}
 						if (seedIndex != -1)
 						{
 							Game1.createObjectDebris(seedIndex, (int)tileLocation.X, (int)tileLocation.Y - 3, ((int)tileLocation.Y + 1) * 64, 0, 1f, location);
+						}
+						if (seedIndex == 88 && new Random((int)Game1.uniqueIDForThisGame + (int)Game1.stats.DaysPlayed + (int)tileLocation.X * 13 + (int)tileLocation.Y * 54).NextDouble() < 0.1)
+						{
+							Game1.createObjectDebris(791, (int)tileLocation.X, (int)tileLocation.Y - 3, ((int)tileLocation.Y + 1) * 64, 0, 1f, location);
+						}
+						if (Game1.random.NextDouble() <= 0.5 && Game1.player.team.SpecialOrderRuleActive("DROP_QI_BEANS"))
+						{
+							Game1.createObjectDebris(890, (int)tileLocation.X, (int)tileLocation.Y - 3, ((int)tileLocation.Y + 1) * 64, 0, 1f, location);
 						}
 						hasSeed.Value = false;
 					}
@@ -478,7 +542,7 @@ namespace StardewValley.TerrainFeatures
 					tapped.Value = false;
 				}
 			}
-			if (!Game1.IsWinter || (int)treeType == 6 || environment.IsGreenhouse || fertilized.Value)
+			if (!Game1.GetSeasonForLocation(currentLocation).Equals("winter") || (int)treeType == 6 || (int)treeType == 9 || environment.CanPlantTreesHere(-1, (int)tileLocation.X, (int)tileLocation.Y) || fertilized.Value)
 			{
 				string s = environment.doesTileHaveProperty((int)tileLocation.X, (int)tileLocation.Y, "NoSpawn", "Back");
 				if (s != null && (s.Equals("All") || s.Equals("Tree") || s.Equals("True")))
@@ -499,12 +563,19 @@ namespace StardewValley.TerrainFeatures
 				{
 					return;
 				}
-				if (Game1.random.NextDouble() < 0.2 || fertilized.Value)
+				if ((int)treeType == 8)
+				{
+					if (Game1.random.NextDouble() < 0.15 || (fertilized.Value && Game1.random.NextDouble() < 0.6))
+					{
+						growthStage.Value++;
+					}
+				}
+				else if (Game1.random.NextDouble() < 0.2 || fertilized.Value)
 				{
 					growthStage.Value++;
 				}
 			}
-			if (Game1.IsWinter && (int)treeType == 7)
+			if (Game1.GetSeasonForLocation(currentLocation).Equals("winter") && (int)treeType == 7)
 			{
 				stump.Value = true;
 			}
@@ -512,6 +583,7 @@ namespace StardewValley.TerrainFeatures
 			{
 				stump.Value = false;
 				health.Value = 10f;
+				shakeRotation = 0f;
 			}
 			if ((int)growthStage >= 5 && environment is Farm && Game1.random.NextDouble() < 0.15)
 			{
@@ -519,13 +591,18 @@ namespace StardewValley.TerrainFeatures
 				int yCoord = Game1.random.Next(-3, 4) + (int)tileLocation.Y;
 				Vector2 location = new Vector2(xCoord, yCoord);
 				string noSpawn = environment.doesTileHaveProperty(xCoord, yCoord, "NoSpawn", "Back");
-				if ((noSpawn == null || (!noSpawn.Equals("Tree") && !noSpawn.Equals("All") && !noSpawn.Equals("True"))) && environment.isTileLocationOpen(new Location(xCoord * 64, yCoord * 64)) && !environment.isTileOccupied(location) && environment.doesTileHaveProperty(xCoord, yCoord, "Water", "Back") == null && environment.isTileOnMap(location))
+				if ((noSpawn == null || (!noSpawn.Equals("Tree") && !noSpawn.Equals("All") && !noSpawn.Equals("True"))) && environment.isTileLocationOpen(new Location(xCoord, yCoord)) && !environment.isTileOccupied(location) && environment.doesTileHaveProperty(xCoord, yCoord, "Water", "Back") == null && environment.isTileOnMap(location))
 				{
 					environment.terrainFeatures.Add(location, new Tree(treeType, 0));
 				}
 			}
 			hasSeed.Value = false;
-			if ((int)growthStage >= 5 && Game1.random.NextDouble() < 0.05000000074505806)
+			float seedChance = 0.05f;
+			if ((int)treeType == 9)
+			{
+				seedChance *= 3f;
+			}
+			if ((int)growthStage >= 5 && Game1.random.NextDouble() < (double)seedChance)
 			{
 				hasSeed.Value = true;
 			}
@@ -571,7 +648,7 @@ namespace StardewValley.TerrainFeatures
 					location.playSound("axchop");
 					lastPlayerToHit.Value = t.getLastFarmerToUse().UniqueMultiplayerID;
 					location.debris.Add(new Debris(12, Game1.random.Next(1, 3), t.getLastFarmerToUse().GetToolLocation() + new Vector2(16f, 0f), t.getLastFarmerToUse().Position, 0, ((int)treeType == 7) ? 10000 : (-1)));
-					if (!stump && t.getLastFarmerToUse() != null && t.getLastFarmerToUse().hasMagnifyingGlass && Game1.random.NextDouble() < 0.005)
+					if (!stump && t.getLastFarmerToUse() != null && location.HasUnlockedAreaSecretNotes(t.getLastFarmerToUse()) && Game1.random.NextDouble() < 0.005)
 					{
 						Object o = location.tryToCreateUnseenSecretNote(t.getLastFarmerToUse());
 						if (o != null)
@@ -614,6 +691,17 @@ namespace StardewValley.TerrainFeatures
 						damage2 = 5f;
 						break;
 					}
+					if ((int)t.upgradeLevel > 4)
+					{
+						damage2 = (int)t.upgradeLevel + 1;
+					}
+				}
+				if (t is Axe && t.hasEnchantmentOfType<ShavingEnchantment>() && Game1.random.NextDouble() <= (double)(damage2 / 5f))
+				{
+					Debris d = new Debris(388, new Vector2(tileLocation.X * 64f + 32f, (tileLocation.Y - 0.5f) * 64f + 32f), new Vector2(Game1.player.getStandingX(), Game1.player.getStandingY()));
+					d.Chunks[0].xVelocity.Value += (float)Game1.random.Next(-10, 11) / 10f;
+					d.chunkFinalYLevel = (int)(tileLocation.Y * 64f + 64f);
+					location.debris.Add(d);
 				}
 				health.Value -= damage2;
 				if ((float)health <= 0f && performTreeFall(t, explosion, tileLocation, location))
@@ -669,6 +757,10 @@ namespace StardewValley.TerrainFeatures
 					case 4:
 						damage = 10f;
 						break;
+					}
+					if ((int)t.upgradeLevel > 4)
+					{
+						damage = 10 + ((int)t.upgradeLevel - 4);
 					}
 				}
 				health.Value -= damage;
@@ -768,34 +860,50 @@ namespace StardewValley.TerrainFeatures
 			{
 				Game1.createMultipleObjectDebris(308 + (int)treeType, (int)tileLocation.X, (int)tileLocation.Y, 1, (t == null) ? Game1.player.uniqueMultiplayerID : t.getLastFarmerToUse().uniqueMultiplayerID, location);
 			}
+			else if (Game1.player.getEffectiveSkillLevel(2) >= 1 && (int)treeType == 8)
+			{
+				Game1.createMultipleObjectDebris(292, (int)tileLocation.X, (int)tileLocation.Y, 1, (t == null) ? Game1.player.uniqueMultiplayerID : t.getLastFarmerToUse().uniqueMultiplayerID, location);
+			}
 		}
 
 		public void UpdateTapperProduct(Object tapper_instance, Object previous_object = null)
 		{
+			float time_multiplier = 1f;
+			if (tapper_instance != null && (int)tapper_instance.parentSheetIndex == 264)
+			{
+				time_multiplier = 0.5f;
+			}
 			switch ((int)treeType)
 			{
 			case 4:
 			case 5:
 			case 6:
 				break;
+			case 8:
+			{
+				Random r = new Random((int)Game1.uniqueIDForThisGame + (int)Game1.stats.DaysPlayed + 73137);
+				tapper_instance.heldObject.Value = new Object(92, r.Next(3, 8));
+				tapper_instance.minutesUntilReady.Value = Utility.CalculateMinutesUntilMorning(Game1.timeOfDay, (int)Math.Max(1.0, Math.Floor(1f * time_multiplier)));
+				break;
+			}
 			case 2:
 				tapper_instance.heldObject.Value = new Object(724, 1);
-				tapper_instance.minutesUntilReady.Value = 16000 - Game1.timeOfDay;
+				tapper_instance.minutesUntilReady.Value = Utility.CalculateMinutesUntilMorning(Game1.timeOfDay, (int)Math.Max(1.0, Math.Floor(9f * time_multiplier)));
 				break;
 			case 1:
 				tapper_instance.heldObject.Value = new Object(725, 1);
-				tapper_instance.minutesUntilReady.Value = 13000 - Game1.timeOfDay;
+				tapper_instance.minutesUntilReady.Value = Utility.CalculateMinutesUntilMorning(Game1.timeOfDay, (int)Math.Max(1.0, Math.Floor(7f * time_multiplier)));
 				break;
 			case 3:
 				tapper_instance.heldObject.Value = new Object(726, 1);
-				tapper_instance.minutesUntilReady.Value = 10000 - Game1.timeOfDay;
+				tapper_instance.minutesUntilReady.Value = Utility.CalculateMinutesUntilMorning(Game1.timeOfDay, (int)Math.Max(1.0, Math.Floor(5f * time_multiplier)));
 				break;
 			case 7:
 				if (previous_object == null)
 				{
 					tapper_instance.heldObject.Value = new Object(420, 1);
 					tapper_instance.minutesUntilReady.Value = Utility.CalculateMinutesUntilMorning(Game1.timeOfDay);
-					if (!Game1.currentSeason.Equals("fall"))
+					if (!Game1.GetSeasonForLocation(currentLocation).Equals("fall"))
 					{
 						tapper_instance.heldObject.Value = new Object(404, 1);
 						tapper_instance.minutesUntilReady.Value = Utility.CalculateMinutesUntilMorning(Game1.timeOfDay, 2);
@@ -812,7 +920,7 @@ namespace StardewValley.TerrainFeatures
 				case 420:
 					tapper_instance.minutesUntilReady.Value = Utility.CalculateMinutesUntilMorning(Game1.timeOfDay);
 					tapper_instance.heldObject.Value = new Object(previous_object.ParentSheetIndex, 1);
-					if (!Game1.currentSeason.Equals("fall"))
+					if (!Game1.GetSeasonForLocation(currentLocation).Equals("fall"))
 					{
 						tapper_instance.heldObject.Value = new Object(404, 1);
 						tapper_instance.minutesUntilReady.Value = Utility.CalculateMinutesUntilMorning(Game1.timeOfDay, 2);
@@ -821,7 +929,7 @@ namespace StardewValley.TerrainFeatures
 					{
 						tapper_instance.heldObject.Value = new Object(422, 1);
 					}
-					if (Game1.currentSeason.Equals("winter"))
+					if (Game1.GetSeasonForLocation(currentLocation).Equals("winter"))
 					{
 						int daysTilSpring = new WorldDate(Game1.year + 1, "spring", 1).TotalDays - Game1.Date.TotalDays;
 						tapper_instance.minutesUntilReady.Value = Utility.CalculateMinutesUntilMorning(Game1.timeOfDay, daysTilSpring);
@@ -876,7 +984,7 @@ namespace StardewValley.TerrainFeatures
 					}
 					else
 					{
-						shakeLeft.Value = (t.getLastFarmerToUse().getTileLocation().X > tileLocation.X || (t.getLastFarmerToUse().getTileLocation().Y < tileLocation.Y && tileLocation.X % 2f == 0f));
+						shakeLeft.Value = ((float)t.getLastFarmerToUse().getStandingX() > (tileLocation.X + 0.5f) * 64f);
 					}
 				}
 			}
@@ -888,7 +996,7 @@ namespace StardewValley.TerrainFeatures
 				}
 				health.Value = -100f;
 				Game1.createRadialDebris(location, 12, (int)tileLocation.X, (int)tileLocation.Y, Game1.random.Next(30, 40), resource: false, -1, item: false, ((int)treeType == 7) ? 10000 : (-1));
-				int whatToDrop = ((int)treeType == 7 && tileLocation.X % 7f == 0f) ? 422 : (((int)treeType == 7) ? 420 : 92);
+				int whatToDrop = ((int)treeType == 7 && tileLocation.X % 7f == 0f) ? 422 : (((int)treeType == 7) ? 420 : (((int)treeType == 8) ? 709 : 92));
 				if (Game1.IsMultiplayer)
 				{
 					Game1.recentMultiplayerRandom = new Random((int)tileLocation.X * 2000 + (int)tileLocation.Y);
@@ -913,18 +1021,22 @@ namespace StardewValley.TerrainFeatures
 				else if (Game1.IsMultiplayer)
 				{
 					Game1.createMultipleObjectDebris(whatToDrop, (int)tileLocation.X, (int)tileLocation.Y, 1, lastPlayerToHit, location);
-					if ((int)treeType != 7)
+					if ((int)treeType != 7 && (int)treeType != 8)
 					{
 						Game1.createRadialDebris(location, 12, (int)tileLocation.X, (int)tileLocation.Y, (int)((Game1.getFarmer(lastPlayerToHit).professions.Contains(12) ? 1.25 : 1.0) * 4.0), resource: true);
 					}
 				}
 				else
 				{
-					if ((int)treeType != 7)
+					if ((int)treeType != 7 && (int)treeType != 8)
 					{
 						Game1.createRadialDebris(location, 12, (int)tileLocation.X, (int)tileLocation.Y, (int)((Game1.getFarmer(lastPlayerToHit).professions.Contains(12) ? 1.25 : 1.0) * (double)(5 + extraWoodCalculator(tileLocation))), resource: true);
 					}
 					Game1.createMultipleObjectDebris(whatToDrop, (int)tileLocation.X, (int)tileLocation.Y, 1, location);
+				}
+				if (Game1.random.NextDouble() <= 0.25 && Game1.player.team.SpecialOrderRuleActive("DROP_QI_BEANS"))
+				{
+					Game1.createObjectDebris(890, (int)tileLocation.X, (int)tileLocation.Y - 3, ((int)tileLocation.Y + 1) * 64, 0, 1f, location);
 				}
 				location.playSound("treethud");
 				if (!falling)
@@ -1002,7 +1114,19 @@ namespace StardewValley.TerrainFeatures
 				if (!stump || (bool)falling)
 				{
 					spriteBatch.Draw(Game1.mouseCursors, Game1.GlobalToLocal(Game1.viewport, new Vector2(tileLocation.X * 64f - 51f, tileLocation.Y * 64f - 16f)), shadowSourceRect, Color.White * ((float)Math.PI / 2f - Math.Abs(shakeRotation)), 0f, Vector2.Zero, 4f, flipped ? SpriteEffects.FlipHorizontally : SpriteEffects.None, 1E-06f);
-					spriteBatch.Draw(texture.Value, Game1.GlobalToLocal(Game1.viewport, new Vector2(tileLocation.X * 64f + 32f, tileLocation.Y * 64f + 64f)), treeTopSourceRect, Color.White * alpha, shakeRotation, new Vector2(24f, 96f), 4f, flipped ? SpriteEffects.FlipHorizontally : SpriteEffects.None, (float)(getBoundingBox(tileLocation).Bottom + 2) / 10000f - tileLocation.X / 1000000f);
+					Microsoft.Xna.Framework.Rectangle source_rect = treeTopSourceRect;
+					if (treeType.Value == 9)
+					{
+						if (hasSeed.Value)
+						{
+							source_rect.X = 48;
+						}
+						else
+						{
+							source_rect.X = 0;
+						}
+					}
+					spriteBatch.Draw(texture.Value, Game1.GlobalToLocal(Game1.viewport, new Vector2(tileLocation.X * 64f + 32f, tileLocation.Y * 64f + 64f)), source_rect, Color.White * alpha, shakeRotation, new Vector2(24f, 96f), 4f, flipped ? SpriteEffects.FlipHorizontally : SpriteEffects.None, (float)(getBoundingBox(tileLocation).Bottom + 2) / 10000f - tileLocation.X / 1000000f);
 				}
 				if ((float)health >= 1f || (!falling && (float)health > -99f))
 				{

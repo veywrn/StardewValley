@@ -64,5 +64,7 @@ namespace StardewValley.Network
 		void onConnect(string connectionID);
 
 		void onDisconnect(string connectionID);
+
+		bool IsLocalMultiplayerInitiatedServer();
 	}
 }

@@ -18,8 +18,10 @@ namespace StardewValley.Menus
 
 		public bool isChecked;
 
+		[InstancedStatic]
 		public static bool snapZoomPlus;
 
+		[InstancedStatic]
 		public static bool snapZoomMinus;
 
 		public Rectangle minusButton;
@@ -83,7 +85,7 @@ namespace StardewValley.Menus
 				}
 				if (num != selected)
 				{
-					Game1.options.changeDropDownOption(whichOption, selected, options);
+					Game1.options.changeDropDownOption(whichOption, options[selected]);
 				}
 			}
 		}
@@ -104,7 +106,7 @@ namespace StardewValley.Menus
 			}
 		}
 
-		public override void draw(SpriteBatch b, int slotX, int slotY)
+		public override void draw(SpriteBatch b, int slotX, int slotY, IClickableMenu context = null)
 		{
 			b.Draw(Game1.mouseCursors, new Vector2(slotX + minusButton.X, slotY + minusButton.Y), minusButtonSource, Color.White * (greyedOut ? 0.33f : 1f) * ((selected == 0) ? 0.5f : 1f), 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.4f);
 			b.DrawString(Game1.dialogueFont, (selected < displayOptions.Count && selected != -1) ? displayOptions[selected] : "", new Vector2(slotX + minusButton.X + minusButton.Width + 4, slotY + minusButton.Y), Game1.textColor);
@@ -122,7 +124,7 @@ namespace StardewValley.Menus
 					snapZoomPlus = false;
 				}
 			}
-			base.draw(b, slotX, slotY);
+			base.draw(b, slotX, slotY, context);
 		}
 	}
 }

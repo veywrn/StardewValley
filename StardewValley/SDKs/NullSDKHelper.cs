@@ -2,6 +2,10 @@ namespace StardewValley.SDKs
 {
 	public class NullSDKHelper : SDKHelper
 	{
+		public bool IsEnterButtonAssignmentFlipped => false;
+
+		public bool IsJapaneseRegionRelease => false;
+
 		public virtual string Name
 		{
 			get;
@@ -23,6 +27,8 @@ namespace StardewValley.SDKs
 		{
 			get;
 		}
+
+		public bool HasOverlay => false;
 
 		public void EarlyInitialize()
 		{

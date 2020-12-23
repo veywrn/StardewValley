@@ -27,7 +27,7 @@ namespace StardewValley.Menus
 		public float scrollY;
 
 		public AnimationPreviewTool()
-			: base(Game1.viewport.Width / 2 - (632 + IClickableMenu.borderWidth * 2) / 2, Game1.viewport.Height / 2 - (600 + IClickableMenu.borderWidth * 2) / 2 - 64, 632 + IClickableMenu.borderWidth * 2, 600 + IClickableMenu.borderWidth * 2 + 64)
+			: base(Game1.uiViewport.Width / 2 - (632 + IClickableMenu.borderWidth * 2) / 2, Game1.uiViewport.Height / 2 - (600 + IClickableMenu.borderWidth * 2) / 2 - 64, 632 + IClickableMenu.borderWidth * 2, 600 + IClickableMenu.borderWidth * 2 + 64)
 		{
 			Game1.player.faceDirection(2);
 			Game1.player.FarmerSprite.StopAnimation();
@@ -111,8 +111,8 @@ namespace StardewValley.Menus
 		public override void gameWindowSizeChanged(Rectangle oldBounds, Rectangle newBounds)
 		{
 			base.gameWindowSizeChanged(oldBounds, newBounds);
-			xPositionOnScreen = Game1.viewport.Width / 2 - (632 + IClickableMenu.borderWidth * 2) / 2;
-			yPositionOnScreen = Game1.viewport.Height / 2 - (600 + IClickableMenu.borderWidth * 2) / 2 - 64;
+			xPositionOnScreen = Game1.uiViewport.Width / 2 - (632 + IClickableMenu.borderWidth * 2) / 2;
+			yPositionOnScreen = Game1.uiViewport.Height / 2 - (600 + IClickableMenu.borderWidth * 2) / 2 - 64;
 			RepositionElements();
 		}
 
@@ -317,17 +317,14 @@ namespace StardewValley.Menus
 
 		public override void draw(SpriteBatch b)
 		{
-			bool ignoreTitleSafe2 = false;
-			ignoreTitleSafe2 = true;
-			Game1.drawDialogueBox(xPositionOnScreen, yPositionOnScreen, width, height, speaker: false, drawOnlyBox: true, null, objectDialogueWithPortrait: false, ignoreTitleSafe2);
+			bool ignoreTitleSafe = false;
+			ignoreTitleSafe = true;
+			Game1.drawDialogueBox(xPositionOnScreen, yPositionOnScreen, width, height, speaker: false, drawOnlyBox: true, null, objectDialogueWithPortrait: false, ignoreTitleSafe);
 			b.Draw(Game1.daybg, new Vector2(xPositionOnScreen + 64 + 42 - 2, yPositionOnScreen + IClickableMenu.borderWidth + IClickableMenu.spaceToClearTopBorder - 16), Color.White);
 			Game1.player.FarmerRenderer.draw(b, Game1.player.FarmerSprite.CurrentAnimationFrame, Game1.player.FarmerSprite.CurrentFrame, Game1.player.FarmerSprite.SourceRect, new Vector2(xPositionOnScreen - 2 + 42 + 128 - 32, yPositionOnScreen + IClickableMenu.borderWidth - 16 + IClickableMenu.spaceToClearTopBorder + 32), Vector2.Zero, 0.8f, Color.White, 0f, 1f, Game1.player);
 			b.End();
 			Rectangle cached_scissor_rect = b.GraphicsDevice.ScissorRectangle;
-			b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, new RasterizerState
-			{
-				ScissorTestEnable = true
-			});
+			b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, Utility.ScissorEnabled);
 			b.GraphicsDevice.ScissorRectangle = scrollView;
 			foreach (ClickableTextureComponent component in animationButtons)
 			{

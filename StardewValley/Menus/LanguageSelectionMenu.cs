@@ -194,11 +194,16 @@ namespace StardewValley.Menus
 					}
 					if (changed_language)
 					{
+						ApplyLanguageChange();
 						exitThisMenu();
 					}
 				}
 			}
 			isWithinBounds(x, y);
+		}
+
+		public virtual void ApplyLanguageChange()
+		{
 		}
 
 		public override void performHoverAction(int x, int y)
@@ -276,6 +281,10 @@ namespace StardewValley.Menus
 				buttonSourceY2 += ((c.label != null) ? 39 : 0);
 				int buttonSourceX = (i > 6) ? 174 : 0;
 				b.Draw(texture, c.bounds, new Rectangle(buttonSourceX, buttonSourceY2, 174, 40), Color.White, 0f, new Vector2(0f, 0f), SpriteEffects.None, 0f);
+			}
+			if (Game1.activeClickableMenu == this)
+			{
+				drawMouse(b);
 			}
 		}
 

@@ -4,6 +4,7 @@ using Microsoft.Xna.Framework.Input;
 using StardewValley.BellsAndWhistles;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -66,9 +67,14 @@ namespace StardewValley.Menus
 				return Farmer.Name;
 			}
 
+			public virtual float getSlotAlpha()
+			{
+				return 1f;
+			}
+
 			protected virtual void drawSlotName(SpriteBatch b, int i)
 			{
-				SpriteText.drawString(b, slotName(), menu.slotButtons[i].bounds.X + 128 + 36, menu.slotButtons[i].bounds.Y + 36);
+				SpriteText.drawString(b, slotName(), menu.slotButtons[i].bounds.X + 128 + 36, menu.slotButtons[i].bounds.Y + 36, 999999, -1, 999999, getSlotAlpha());
 			}
 
 			protected virtual void drawSlotShadow(SpriteBatch b, int i)
@@ -93,7 +99,7 @@ namespace StardewValley.Menus
 			protected virtual void drawSlotDate(SpriteBatch b, int i)
 			{
 				string dateStringForSaveGame = (!Farmer.dayOfMonthForSaveGame.HasValue || !Farmer.seasonForSaveGame.HasValue || !Farmer.yearForSaveGame.HasValue) ? Farmer.dateStringForSaveGame : Utility.getDateStringFor(Farmer.dayOfMonthForSaveGame.Value, Farmer.seasonForSaveGame.Value, Farmer.yearForSaveGame.Value);
-				Utility.drawTextWithShadow(b, dateStringForSaveGame, Game1.dialogueFont, new Vector2(menu.slotButtons[i].bounds.X + 128 + 32, menu.slotButtons[i].bounds.Y + 64 + 40), Game1.textColor);
+				Utility.drawTextWithShadow(b, dateStringForSaveGame, Game1.dialogueFont, new Vector2(menu.slotButtons[i].bounds.X + 128 + 32, menu.slotButtons[i].bounds.Y + 64 + 40), Game1.textColor * getSlotAlpha());
 			}
 
 			protected virtual string slotSubName()
@@ -104,7 +110,7 @@ namespace StardewValley.Menus
 			protected virtual void drawSlotSubName(SpriteBatch b, int i)
 			{
 				string subName = slotSubName();
-				Utility.drawTextWithShadow(b, subName, Game1.dialogueFont, new Vector2((float)(menu.slotButtons[i].bounds.X + menu.width - 128) - Game1.dialogueFont.MeasureString(subName).X, menu.slotButtons[i].bounds.Y + 44), Game1.textColor);
+				Utility.drawTextWithShadow(b, subName, Game1.dialogueFont, new Vector2((float)(menu.slotButtons[i].bounds.X + menu.width - 128) - Game1.dialogueFont.MeasureString(subName).X, menu.slotButtons[i].bounds.Y + 44), Game1.textColor * getSlotAlpha());
 			}
 
 			protected virtual void drawSlotMoney(SpriteBatch b, int i)
@@ -121,7 +127,7 @@ namespace StardewValley.Menus
 				{
 					position.Y += 5f;
 				}
-				Utility.drawTextWithShadow(b, cashText, Game1.dialogueFont, position, Game1.textColor);
+				Utility.drawTextWithShadow(b, cashText, Game1.dialogueFont, position, Game1.textColor * getSlotAlpha());
 			}
 
 			protected virtual void drawSlotTimer(SpriteBatch b, int i)
@@ -133,7 +139,7 @@ namespace StardewValley.Menus
 				{
 					position.Y += 5f;
 				}
-				Utility.drawTextWithShadow(b, Utility.getHoursMinutesStringFromMilliseconds(Farmer.millisecondsPlayed), Game1.dialogueFont, position, Game1.textColor);
+				Utility.drawTextWithShadow(b, Utility.getHoursMinutesStringFromMilliseconds(Farmer.millisecondsPlayed), Game1.dialogueFont, position, Game1.textColor * getSlotAlpha());
 			}
 
 			public virtual void drawVersionMismatchSlot(SpriteBatch b, int i)
@@ -177,6 +183,8 @@ namespace StardewValley.Menus
 				Farmer.unload();
 			}
 		}
+
+		protected const int CenterOffset = 0;
 
 		public const int region_upArrow = 800;
 
@@ -228,7 +236,7 @@ namespace StardewValley.Menus
 
 		private Rectangle scrollBarRunner;
 
-		private string hoverText = "";
+		protected string hoverText = "";
 
 		protected bool loading;
 
@@ -275,9 +283,9 @@ namespace StardewValley.Menus
 		}
 
 		public LoadGameMenu()
-			: base(Game1.viewport.Width / 2 - (1100 + IClickableMenu.borderWidth * 2) / 2, Game1.viewport.Height / 2 - (600 + IClickableMenu.borderWidth * 2) / 2, 1100 + IClickableMenu.borderWidth * 2, 600 + IClickableMenu.borderWidth * 2)
+			: base(Game1.uiViewport.Width / 2 - (1100 + IClickableMenu.borderWidth * 2) / 2, Game1.uiViewport.Height / 2 - (600 + IClickableMenu.borderWidth * 2) / 2, 1100 + IClickableMenu.borderWidth * 2, 600 + IClickableMenu.borderWidth * 2)
 		{
-			backButton = new ClickableComponent(new Rectangle(Game1.viewport.Width + -198 - 48, Game1.viewport.Height - 81 - 24, 198, 81), "")
+			backButton = new ClickableComponent(new Rectangle(Game1.uiViewport.Width + -198 - 48, Game1.uiViewport.Height - 81 - 24, 198, 81), "")
 			{
 				myID = 81114,
 				upNeighborID = -99998,
@@ -358,12 +366,20 @@ namespace StardewValley.Menus
 
 		protected virtual void startListPopulation()
 		{
-			_initTask = new Task<List<Farmer>>(delegate
+			if (LocalMultiplayer.IsLocalMultiplayer())
 			{
-				Thread.CurrentThread.CurrentCulture = CultureInfo.InvariantCulture;
-				return FindSaveGames();
-			});
-			_initTask.Start();
+				addSaveFiles(FindSaveGames());
+				saveFileScanComplete();
+			}
+			else
+			{
+				_initTask = new Task<List<Farmer>>(delegate
+				{
+					Thread.CurrentThread.CurrentCulture = CultureInfo.InvariantCulture;
+					return FindSaveGames();
+				});
+				_initTask.Start();
+			}
 		}
 
 		public virtual void UpdateButtons()
@@ -406,26 +422,29 @@ namespace StardewValley.Menus
 			string pathToDirectory = Path.Combine(Path.Combine(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "StardewValley"), "Saves"));
 			if (Directory.Exists(pathToDirectory))
 			{
-				string[] directories = Directory.GetDirectories(pathToDirectory);
-				foreach (string s in directories)
+				foreach (string s in Directory.EnumerateDirectories(pathToDirectory).ToList())
 				{
+					string saveName = s.Split(Path.DirectorySeparatorChar).Last();
 					string pathToFile = Path.Combine(pathToDirectory, s, "SaveGameInfo");
-					Farmer f = null;
-					try
+					if (File.Exists(Path.Combine(pathToDirectory, s, saveName)))
 					{
-						using (FileStream stream = File.OpenRead(pathToFile))
+						Farmer f = null;
+						try
 						{
-							f = (Farmer)SaveGame.farmerSerializer.Deserialize(stream);
-							SaveGame.loadDataToFarmer(f);
-							f.slotName = s.Split(Path.DirectorySeparatorChar).Last();
-							results.Add(f);
+							using (FileStream stream = File.OpenRead(pathToFile))
+							{
+								f = (Farmer)SaveGame.farmerSerializer.Deserialize(stream);
+								SaveGame.loadDataToFarmer(f);
+								f.slotName = saveName;
+								results.Add(f);
+							}
 						}
-					}
-					catch (Exception ex)
-					{
-						Console.WriteLine("Exception occured trying to access file '{0}'", pathToFile);
-						Console.WriteLine(ex.GetBaseException().ToString());
-						f?.unload();
+						catch (Exception ex)
+						{
+							Console.WriteLine("Exception occured trying to access file '{0}'", pathToFile);
+							Console.WriteLine(ex.GetBaseException().ToString());
+							f?.unload();
+						}
 					}
 				}
 			}
@@ -481,8 +500,8 @@ namespace StardewValley.Menus
 		{
 			xPositionOnScreen = (newBounds.Width - width) / 2;
 			yPositionOnScreen = (newBounds.Height - (height + 32)) / 2;
-			backButton.bounds.X = Game1.viewport.Width + -198 - 48;
-			backButton.bounds.Y = Game1.viewport.Height - 81 - 24;
+			backButton.bounds.X = Game1.uiViewport.Width + -198 - 48;
+			backButton.bounds.Y = Game1.uiViewport.Height - 81 - 24;
 			upArrow.bounds.X = xPositionOnScreen + width + 16;
 			upArrow.bounds.Y = yPositionOnScreen + 16;
 			downArrow.bounds.X = xPositionOnScreen + width + 16;
@@ -665,12 +684,20 @@ namespace StardewValley.Menus
 				else if (okDeleteButton.containsPoint(x, y))
 				{
 					deleting = true;
-					_deleteTask = new Task(delegate
+					if (LocalMultiplayer.IsLocalMultiplayer())
 					{
-						Thread.CurrentThread.CurrentCulture = CultureInfo.InvariantCulture;
 						deleteFile(selectedForDelete);
-					});
-					_deleteTask.Start();
+						deleting = false;
+					}
+					else
+					{
+						_deleteTask = new Task(delegate
+						{
+							Thread.CurrentThread.CurrentCulture = CultureInfo.InvariantCulture;
+							deleteFile(selectedForDelete);
+						});
+						_deleteTask.Start();
+					}
 					deleteConfirmationScreen = false;
 					if (Game1.options.snappyMenus && Game1.options.gamepadControls)
 					{
@@ -818,6 +845,11 @@ namespace StardewValley.Menus
 							deleteButtons.Add(new ClickableTextureComponent("", new Rectangle(xPositionOnScreen + width - 64 - 4, yPositionOnScreen + 32 + 4 + i * (height / 4), 48, 48), "", "Delete File", Game1.mouseCursors, new Rectangle(322, 498, 12, 12), 3f));
 						}
 					}
+					if (MenuSlots.Count <= 4)
+					{
+						currentItemIndex = 0;
+						setScrollBarToCurrentIndex();
+					}
 				}
 			}
 			if (timerToLoad <= 0)
@@ -906,7 +938,7 @@ namespace StardewValley.Menus
 			}
 			if (deleteConfirmationScreen && MenuSlots[selectedForDelete] is SaveFileSlot)
 			{
-				b.Draw(Game1.staminaRect, new Rectangle(0, 0, Game1.viewport.Width, Game1.viewport.Height), Color.Black * 0.75f);
+				b.Draw(Game1.staminaRect, new Rectangle(0, 0, Game1.uiViewport.Width, Game1.uiViewport.Height), Color.Black * 0.75f);
 				string toDisplay = Game1.content.LoadString("Strings\\StringsFromCSFiles:LoadGameMenu.cs.11023", (MenuSlots[selectedForDelete] as SaveFileSlot).Farmer.Name);
 				int middlePosX = okDeleteButton.bounds.X + (cancelDeleteButton.bounds.X - okDeleteButton.bounds.X) / 2 + okDeleteButton.bounds.Width / 2;
 				SpriteText.drawString(b, toDisplay, middlePosX - SpriteText.getWidthOfString(toDisplay) / 2, (int)Utility.getTopLeftPositionForCenteringOnScreen(192, 64).Y, 9999, -1, 9999, 1f, 1f, junimoText: false, -1, "", 4);
@@ -921,7 +953,11 @@ namespace StardewValley.Menus
 			drawExtra(b);
 			if (selected != -1 && timerToLoad < 1000)
 			{
-				b.Draw(Game1.staminaRect, new Rectangle(0, 0, Game1.viewport.Width, Game1.viewport.Height), Color.Black * (1f - (float)timerToLoad / 1000f));
+				b.Draw(Game1.staminaRect, new Rectangle(0, 0, Game1.uiViewport.Width, Game1.uiViewport.Height), Color.Black * (1f - (float)timerToLoad / 1000f));
+			}
+			if (Game1.activeClickableMenu == this && (!Game1.options.SnappyMenus || currentlySnappedComponent != null) && !IsDoingTask())
+			{
+				drawMouse(b);
 			}
 			drawn = true;
 		}
@@ -998,6 +1034,12 @@ namespace StardewValley.Menus
 		protected override bool _ShouldAutoSnapPrioritizeAlignedElements()
 		{
 			return false;
+		}
+
+		[Conditional("LOG_FS_IO")]
+		private static void LogFsio(string format, params object[] args)
+		{
+			Console.WriteLine(format, args);
 		}
 	}
 }

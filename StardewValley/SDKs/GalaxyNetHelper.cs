@@ -112,6 +112,10 @@ namespace StardewValley.SDKs
 
 		protected GalaxyID parseConnectionString(string connectionString)
 		{
+			if (connectionString == null)
+			{
+				return null;
+			}
 			if (connectionString.StartsWith("-connect-lobby-"))
 			{
 				return new GalaxyID(Convert.ToUInt64(connectionString.Substring("-connect-lobby-".Length)));
@@ -228,6 +232,19 @@ namespace StardewValley.SDKs
 		public virtual void ShowInviteDialog(object lobby)
 		{
 			GalaxyInstance.Friends().ShowOverlayInviteDialog("-connect-lobby-" + Convert.ToString((ulong)lobby));
+		}
+
+		public void MutePlayer(string userId, bool mute)
+		{
+		}
+
+		public bool IsPlayerMuted(string userId)
+		{
+			return false;
+		}
+
+		public void ShowProfile(string userId)
+		{
 		}
 	}
 }

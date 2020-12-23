@@ -10,7 +10,7 @@ namespace StardewValley.Menus
 		private ClickableComponent garbage;
 
 		public AddNewItemMenu()
-			: base(Game1.viewport.Width / 2 - (800 + IClickableMenu.borderWidth * 2) / 2, Game1.viewport.Height / 2 - (300 + IClickableMenu.borderWidth * 2) / 2, 800 + IClickableMenu.borderWidth * 2, 300 + IClickableMenu.borderWidth * 2)
+			: base(Game1.uiViewport.Width / 2 - (800 + IClickableMenu.borderWidth * 2) / 2, Game1.uiViewport.Height / 2 - (300 + IClickableMenu.borderWidth * 2) / 2, 800 + IClickableMenu.borderWidth * 2, 300 + IClickableMenu.borderWidth * 2)
 		{
 			playerInventory = new InventoryMenu(xPositionOnScreen + IClickableMenu.borderWidth + IClickableMenu.spaceToClearSideBorder, yPositionOnScreen + IClickableMenu.borderWidth + IClickableMenu.spaceToClearSideBorder, playerInventory: true);
 			garbage = new ClickableComponent(new Rectangle(xPositionOnScreen + width + IClickableMenu.spaceToClearSideBorder, yPositionOnScreen + height - 64, 64, 64), "Garbage");

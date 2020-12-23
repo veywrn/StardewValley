@@ -24,6 +24,7 @@ namespace StardewValley
 	{
 		protected static Dictionary<string, MethodInfo> _commandLookup;
 
+		[InstancedStatic]
 		protected static object[] _eventCommandArgs = new object[3];
 
 		public const int weddingEventId = -2;
@@ -70,8 +71,6 @@ namespace StardewValley
 
 		public bool wasBloomVisible;
 
-		public bool playerControlSequence;
-
 		public bool eventSwitched;
 
 		public bool isFestival;
@@ -81,6 +80,14 @@ namespace StardewValley
 		public bool isWedding;
 
 		public bool doingSecretSanta;
+
+		public bool showWorldCharacters;
+
+		public bool isMemory;
+
+		public bool ignoreObjectCollisions = true;
+
+		protected bool _playerControlSequence;
 
 		private Dictionary<string, Vector3> actorPositionsAfterMove;
 
@@ -102,13 +109,15 @@ namespace StardewValley
 
 		public LocationRequest exitLocation;
 
-		private ICustomEventScript currentCustomEventScript;
+		public ICustomEventScript currentCustomEventScript;
 
 		public List<Farmer> farmerActors = new List<Farmer>();
 
 		private HashSet<long> festivalWinners = new HashSet<long>();
 
 		public Action onEventFinished;
+
+		protected bool _repeatingLocationSpecificCommand;
 
 		private readonly LocalizedContentManager festivalContent = Game1.content.CreateTemporary();
 
@@ -129,6 +138,13 @@ namespace StardewValley
 		public int id;
 
 		public List<Vector2> characterWalkLocations = new List<Vector2>();
+
+		public bool ignoreTileOffsets;
+
+		public Vector2 eventPositionTileOffset = Vector2.Zero;
+
+		[NonInstancedStatic]
+		public static HashSet<string> invalidFestivals = new HashSet<string>();
 
 		private Dictionary<string, string> festivalData;
 
@@ -169,6 +185,25 @@ namespace StardewValley
 		public bool specialEventVariable2;
 
 		private List<Farmer> winners;
+
+		public bool playerControlSequence
+		{
+			get
+			{
+				return _playerControlSequence;
+			}
+			set
+			{
+				if (_playerControlSequence != value)
+				{
+					_playerControlSequence = value;
+					if (!_playerControlSequence)
+					{
+						OnPlayerControlSequenceEnd(playerControlSequenceID);
+					}
+				}
+			}
+		}
 
 		public Farmer farmer
 		{
@@ -223,12 +258,15 @@ namespace StardewValley
 			if (_commandLookup == null)
 			{
 				_commandLookup = new Dictionary<string, MethodInfo>(StringComparer.InvariantCultureIgnoreCase);
-				foreach (MethodInfo method in from method_info in typeof(Event).GetMethods()
+				MethodInfo[] event_command_methods = (from method_info in typeof(Event).GetMethods()
 					where method_info.Name.StartsWith("command_")
-					select method_info)
+					select method_info).ToArray();
+				MethodInfo[] array = event_command_methods;
+				foreach (MethodInfo method in array)
 				{
 					_commandLookup.Add(method.Name.Substring("command_".Length), method);
 				}
+				Console.WriteLine("setupEventCommands() registered '{0}' methods", event_command_methods.Length);
 			}
 		}
 
@@ -239,15 +277,28 @@ namespace StardewValley
 			_eventCommandArgs[2] = split;
 			if (split.Length != 0)
 			{
-				if (_commandLookup.ContainsKey(split[0]))
+				if (_commandLookup.TryGetValue(split[0], out MethodInfo method_info))
 				{
-					_commandLookup[split[0]].Invoke(this, _eventCommandArgs);
+					try
+					{
+						method_info.Invoke(this, _eventCommandArgs);
+					}
+					catch (TargetInvocationException e)
+					{
+						LogErrorAndHalt(e.InnerException);
+					}
 				}
 				else
 				{
 					Console.WriteLine("ERROR: Invalid command: " + split[0]);
 				}
 			}
+		}
+
+		public virtual void command_ignoreEventTileOffset(GameLocation location, GameTime time, string[] split)
+		{
+			ignoreTileOffsets = true;
+			CurrentCommand++;
 		}
 
 		public virtual void command_move(GameLocation location, GameTime time, string[] split)
@@ -304,10 +355,10 @@ namespace StardewValley
 				return;
 			}
 			timeAccumulator = 0f;
-			NPC i = Game1.getCharacterFromName(split[1].Equals("rival") ? Utility.getOtherFarmerNames()[0] : split[1]);
+			NPC i = getActorByName(split[1]);
 			if (i == null)
 			{
-				i = getActorByName(split[1]);
+				Game1.getCharacterFromName(split[1].Equals("rival") ? Utility.getOtherFarmerNames()[0] : split[1]);
 			}
 			if (i == null)
 			{
@@ -425,6 +476,28 @@ namespace StardewValley
 			endBehaviors(split, location);
 		}
 
+		public virtual void command_locationSpecificCommand(GameLocation location, GameTime time, string[] split)
+		{
+			if (split.Length > 1)
+			{
+				if (location.RunLocationSpecificEventCommand(this, split[1], !_repeatingLocationSpecificCommand, split.Skip(2).ToArray()))
+				{
+					_repeatingLocationSpecificCommand = false;
+					CurrentCommand++;
+				}
+				else
+				{
+					_repeatingLocationSpecificCommand = true;
+				}
+			}
+		}
+
+		public virtual void command_unskippable(GameLocation location, GameTime time, string[] split)
+		{
+			skippable = false;
+			CurrentCommand++;
+		}
+
 		public virtual void command_skippable(GameLocation location, GameTime time, string[] split)
 		{
 			skippable = true;
@@ -484,7 +557,7 @@ namespace StardewValley
 				acceleration = new Vector2(0f, 0.2f),
 				interval = 1000f,
 				scale = 4f,
-				position = new Vector2(actor.Position.X, actor.Position.Y - 96f),
+				position = OffsetPosition(new Vector2(actor.Position.X, actor.Position.Y - 96f)),
 				layerDepth = (float)actor.getStandingY() / 10000f
 			});
 			CurrentCommand++;
@@ -546,7 +619,7 @@ namespace StardewValley
 				Farmer f = getFarmerFromFarmerNumberString(split[1], farmer);
 				if (f != null)
 				{
-					f.setTileLocation(new Vector2(Convert.ToInt32(split[2]), Convert.ToInt32(split[3])));
+					f.setTileLocation(OffsetTile(new Vector2(Convert.ToInt32(split[2]), Convert.ToInt32(split[3]))));
 					f.position.Y -= 16f;
 					if (farmerActors.Contains(f))
 					{
@@ -568,7 +641,7 @@ namespace StardewValley
 							}
 						}
 					}
-					getActorByName(Game1.player.spouse).Position = new Vector2(Convert.ToInt32(split[2]) * 64, Convert.ToInt32(split[3]) * 64);
+					getActorByName(Game1.player.spouse).Position = OffsetPosition(new Vector2(Convert.ToInt32(split[2]) * 64, Convert.ToInt32(split[3]) * 64));
 				}
 			}
 			else
@@ -576,8 +649,8 @@ namespace StardewValley
 				NPC i = getActorByName(split[1]);
 				if (i != null)
 				{
-					i.position.X = Convert.ToInt32(split[2]) * 64 + 4;
-					i.position.Y = Convert.ToInt32(split[3]) * 64;
+					i.position.X = OffsetPositionX(Convert.ToInt32(split[2]) * 64 + 4);
+					i.position.Y = OffsetPositionY(Convert.ToInt32(split[3]) * 64);
 				}
 			}
 			CurrentCommand++;
@@ -621,13 +694,13 @@ namespace StardewValley
 
 		public virtual void command_doAction(GameLocation location, GameTime time, string[] split)
 		{
-			location.checkAction(new Location(Convert.ToInt32(split[1]), Convert.ToInt32(split[2])), Game1.viewport, farmer);
+			location.checkAction(new Location(OffsetTileX(Convert.ToInt32(split[1])), OffsetTileY(Convert.ToInt32(split[2]))), Game1.viewport, farmer);
 			CurrentCommand++;
 		}
 
 		public virtual void command_removeTile(GameLocation location, GameTime time, string[] split)
 		{
-			location.removeTile(Convert.ToInt32(split[1]), Convert.ToInt32(split[2]), split[3]);
+			location.removeTile(OffsetTileX(Convert.ToInt32(split[1])), OffsetTileY(Convert.ToInt32(split[2])), split[3]);
 			CurrentCommand++;
 		}
 
@@ -689,6 +762,33 @@ namespace StardewValley
 			farmer.FarmerSprite.setCurrentSingleAnimation(Convert.ToInt32(split[1]));
 			farmer.FarmerSprite.PauseForSingleAnimation = true;
 			CurrentCommand++;
+		}
+
+		public virtual void command_ignoreMovementAnimation(GameLocation location, GameTime time, string[] split)
+		{
+			bool ignore = true;
+			if (split.Length > 2)
+			{
+				split[2].Equals("true");
+			}
+			if (split[1].Contains("farmer"))
+			{
+				Farmer f = getFarmerFromFarmerNumberString(split[1], farmer);
+				if (f != null)
+				{
+					f.ignoreMovementAnimation = ignore;
+				}
+			}
+			else
+			{
+				NPC i = getActorByName(split[1].Replace('_', ' '));
+				if (i != null)
+				{
+					i.ignoreMovementAnimation = ignore;
+				}
+			}
+			CurrentCommand++;
+			checkForNextCommand(location, time);
 		}
 
 		public virtual void command_animate(GameLocation location, GameTime time, string[] split)
@@ -886,6 +986,15 @@ namespace StardewValley
 			CurrentCommand++;
 		}
 
+		public virtual void command_hostMail(GameLocation location, GameTime time, string[] split)
+		{
+			if (Game1.IsMasterGame && !Game1.player.hasOrWillReceiveMail(split[1]))
+			{
+				Game1.addMailForTomorrow(split[1]);
+			}
+			CurrentCommand++;
+		}
+
 		public virtual void command_mail(GameLocation location, GameTime time, string[] split)
 		{
 			if (!Game1.player.hasOrWillReceiveMail(split[1]))
@@ -903,7 +1012,7 @@ namespace StardewValley
 
 		public virtual void command_temporarySprite(GameLocation location, GameTime time, string[] split)
 		{
-			location.TemporarySprites.Add(new TemporaryAnimatedSprite(Convert.ToInt32(split[3]), new Vector2(Convert.ToInt32(split[1]) * 64, Convert.ToInt32(split[2]) * 64), Color.White, Convert.ToInt32(split[4]), split.Length > 6 && split[6] == "true", (split.Length > 5) ? ((float)Convert.ToInt32(split[5])) : 300f, 0, 64, (split.Length > 7) ? ((float)Convert.ToDouble(split[7])) : (-1f)));
+			location.TemporarySprites.Add(new TemporaryAnimatedSprite(Convert.ToInt32(split[3]), OffsetPosition(new Vector2(Convert.ToInt32(split[1]) * 64, Convert.ToInt32(split[2]) * 64)), Color.White, Convert.ToInt32(split[4]), split.Length > 6 && split[6] == "true", (split.Length > 5) ? ((float)Convert.ToInt32(split[5])) : 300f, 0, 64, (split.Length > 7) ? ((float)Convert.ToDouble(split[7])) : (-1f)));
 			CurrentCommand++;
 		}
 
@@ -968,8 +1077,8 @@ namespace StardewValley
 		{
 			if (split.Count() == 3)
 			{
-				int x = Convert.ToInt32(split[1]);
-				int y2 = Convert.ToInt32(split[2]);
+				int x = OffsetTileX(Convert.ToInt32(split[1]));
+				int y2 = OffsetTileY(Convert.ToInt32(split[2]));
 				Object o4 = null;
 				o4 = location.getObjectAtTile(x, y2);
 				if (o4 != null)
@@ -979,8 +1088,8 @@ namespace StardewValley
 			}
 			else
 			{
-				int x2 = Convert.ToInt32(split[1]);
-				int y = Convert.ToInt32(split[2]);
+				int x2 = OffsetTileX(Convert.ToInt32(split[1]));
+				int y = OffsetTileY(Convert.ToInt32(split[2]));
 				int width = Convert.ToInt32(split[3]);
 				int height = Convert.ToInt32(split[4]);
 				Object o2 = null;
@@ -1005,12 +1114,12 @@ namespace StardewValley
 
 		public virtual void command_addObject(GameLocation location, GameTime time, string[] split)
 		{
-			float layerDepth = (float)(Convert.ToInt32(split[2]) * 64) / 10000f;
+			float layerDepth = (float)(OffsetTileY(Convert.ToInt32(split[2])) * 64) / 10000f;
 			if (split.Length > 4)
 			{
 				layerDepth = Convert.ToSingle(split[4]);
 			}
-			location.TemporarySprites.Add(new TemporaryAnimatedSprite(Convert.ToInt32(split[3]), 9999f, 1, 9999, new Vector2(Convert.ToInt32(split[1]), Convert.ToInt32(split[2])) * 64f, flicker: false, flipped: false)
+			location.TemporarySprites.Add(new TemporaryAnimatedSprite(Convert.ToInt32(split[3]), 9999f, 1, 9999, OffsetPosition(new Vector2(Convert.ToInt32(split[1]), Convert.ToInt32(split[2])) * 64f), flicker: false, flipped: false)
 			{
 				layerDepth = layerDepth
 			});
@@ -1020,7 +1129,7 @@ namespace StardewValley
 
 		public virtual void command_addBigProp(GameLocation location, GameTime time, string[] split)
 		{
-			props.Add(new Object(new Vector2(Convert.ToInt32(split[1]), Convert.ToInt32(split[2])), Convert.ToInt32(split[3])));
+			props.Add(new Object(OffsetTile(new Vector2(Convert.ToInt32(split[1]), Convert.ToInt32(split[2]))), Convert.ToInt32(split[3])));
 			CurrentCommand++;
 			checkForNextCommand(location, time);
 		}
@@ -1032,8 +1141,8 @@ namespace StardewValley
 
 		public virtual void command_addProp(GameLocation location, GameTime time, string[] split)
 		{
-			int tileX = Convert.ToInt32(split[2]);
-			int tileY = Convert.ToInt32(split[3]);
+			int tileX = OffsetTileX(Convert.ToInt32(split[2]));
+			int tileY = OffsetTileY(Convert.ToInt32(split[3]));
 			int index = Convert.ToInt32(split[1]);
 			int drawWidth = (split.Length <= 4) ? 1 : Convert.ToInt32(split[4]);
 			int drawHeight = (split.Length <= 5) ? 1 : Convert.ToInt32(split[5]);
@@ -1068,7 +1177,7 @@ namespace StardewValley
 			}
 			else
 			{
-				location.objects[new Vector2(Convert.ToInt32(split[1]), Convert.ToInt32(split[2]))].heldObject.Value = new Object(Vector2.Zero, Convert.ToInt32(split[3]), 1);
+				location.objects[OffsetTile(new Vector2(Convert.ToInt32(split[1]), Convert.ToInt32(split[2])))].heldObject.Value = new Object(Vector2.Zero, Convert.ToInt32(split[3]), 1);
 			}
 			CurrentCommand++;
 			checkForNextCommand(location, time);
@@ -1076,12 +1185,12 @@ namespace StardewValley
 
 		public virtual void command_removeObject(GameLocation location, GameTime time, string[] split)
 		{
-			Vector2 position = new Vector2(Convert.ToInt32(split[1]), Convert.ToInt32(split[2]));
-			for (int i = props.Count - 1; i >= 0; i--)
+			Vector2 position = OffsetPosition(new Vector2(Convert.ToInt32(split[1]), Convert.ToInt32(split[2])) * 64f);
+			for (int i = location.temporarySprites.Count - 1; i >= 0; i--)
 			{
-				if (props[i].TileLocation.Equals(position))
+				if (location.temporarySprites[i].position.Equals(position))
 				{
-					props.RemoveAt(i);
+					location.temporarySprites.RemoveAt(i);
 					break;
 				}
 			}
@@ -1178,6 +1287,31 @@ namespace StardewValley
 			{
 				switch (split[1].ToLower())
 				{
+				case "birdiereward":
+					new List<Item>();
+					Game1.player.team.RequestLimitedNutDrops("Birdie", null, 0, 0, 5, 5);
+					if (!Game1.MasterPlayer.hasOrWillReceiveMail("gotBirdieReward"))
+					{
+						Game1.addMailForTomorrow("gotBirdieReward", noLetter: true, sendToEveryone: true);
+					}
+					CurrentCommand++;
+					CurrentCommand++;
+					break;
+				case "memento":
+				{
+					Object o = new Object(864, 1)
+					{
+						specialItem = true
+					};
+					o.questItem.Value = true;
+					Game1.player.addItemByMenuIfNecessary(o);
+					if (Game1.activeClickableMenu == null)
+					{
+						CurrentCommand++;
+					}
+					CurrentCommand++;
+					break;
+				}
 				case "emilyclothes":
 				{
 					Clothing pants = new Clothing(8);
@@ -1317,7 +1451,7 @@ namespace StardewValley
 			{
 				if (Game1.player.mailReceived.Contains(split[1]) || (int.TryParse(split[1], out int i) && Game1.player.dialogueQuestionsAnswered.Contains(i)))
 				{
-					string[] newCommands2 = eventCommands = Game1.content.Load<Dictionary<string, string>>("Data\\Events\\" + Game1.currentLocation.Name)[split[2]].Split('/');
+					string[] newCommands2 = eventCommands = ((split.Length <= 3) ? Game1.content.Load<Dictionary<string, string>>("Data\\Events\\" + Game1.currentLocation.Name)[split[2]].Split('/') : Game1.content.LoadString(split[2]).Split('/'));
 					CurrentCommand = 0;
 					forked = !forked;
 				}
@@ -1442,15 +1576,16 @@ namespace StardewValley
 					CurrentCommand++;
 					break;
 				case "balloonChangeMap":
-					location.TemporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(0, 1183, 84, 160), 10000f, 1, 99999, new Vector2(22f, 36f) * 64f + new Vector2(-23f, 0f) * 4f, flicker: false, flipped: false, 2E-05f, 0f, Color.White, 4f, 0f, 0f, 0f)
+					eventPositionTileOffset = Vector2.Zero;
+					location.TemporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(0, 1183, 84, 160), 10000f, 1, 99999, OffsetPosition(new Vector2(22f, 36f) * 64f + new Vector2(-23f, 0f) * 4f), flicker: false, flipped: false, 2E-05f, 0f, Color.White, 4f, 0f, 0f, 0f)
 					{
 						motion = new Vector2(0f, -2f),
-						yStopCoordinate = 576,
+						yStopCoordinate = (int)OffsetPositionY(576f),
 						reachedStopCoordinate = balloonInSky,
 						attachedCharacter = farmer,
 						id = 1f
 					});
-					location.TemporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(84, 1205, 38, 26), 10000f, 1, 99999, new Vector2(22f, 36f) * 64f + new Vector2(0f, 134f) * 4f, flicker: false, flipped: false, 0.2625f, 0f, Color.White, 4f, 0f, 0f, 0f)
+					location.TemporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(84, 1205, 38, 26), 10000f, 1, 99999, OffsetPosition(new Vector2(22f, 36f) * 64f + new Vector2(0f, 134f) * 4f), flicker: false, flipped: false, 0.2625f, 0f, Color.White, 4f, 0f, 0f, 0f)
 					{
 						motion = new Vector2(0f, -2f),
 						id = 2f,
@@ -1640,7 +1775,7 @@ namespace StardewValley
 
 		public virtual void command_addLantern(GameLocation location, GameTime time, string[] split)
 		{
-			location.TemporarySprites.Add(new TemporaryAnimatedSprite(Convert.ToInt32(split[1]), 999999f, 1, 0, new Vector2(Convert.ToInt32(split[2]), Convert.ToInt32(split[3])) * 64f, flicker: false, flipped: false)
+			location.TemporarySprites.Add(new TemporaryAnimatedSprite(Convert.ToInt32(split[1]), 999999f, 1, 0, OffsetPosition(new Vector2(Convert.ToInt32(split[2]), Convert.ToInt32(split[3])) * 64f), flicker: false, flipped: false)
 			{
 				light = true,
 				lightRadius = Convert.ToInt32(split[4])
@@ -1715,10 +1850,10 @@ namespace StardewValley
 				int firstQuoteIndex = eventCommands[CurrentCommand].IndexOf('"') + 1;
 				int lastQuoteIndex = eventCommands[CurrentCommand].Substring(eventCommands[CurrentCommand].IndexOf('"') + 1).IndexOf('"');
 				string[] speakSplit = eventCommands[CurrentCommand].Substring(firstQuoteIndex, lastQuoteIndex).Split('~');
-				NPC i = Game1.getCharacterFromName(split[1].Equals("rival") ? Utility.getOtherFarmerNames()[0] : split[1]);
+				NPC i = getActorByName(split[1]);
 				if (i == null)
 				{
-					i = getActorByName(split[1]);
+					i = Game1.getCharacterFromName(split[1].Equals("rival") ? Utility.getOtherFarmerNames()[0] : split[1]);
 				}
 				if (i == null || previousAnswerChoice < 0 || previousAnswerChoice >= speakSplit.Length)
 				{
@@ -1800,7 +1935,11 @@ namespace StardewValley
 			{
 				string speech2 = "";
 				speech2 = (Game1.player.dialogueQuestionsAnswered.Contains(958699) ? Game1.content.LoadString("Strings\\StringsFromCSFiles:Event.cs.1257") : (Game1.player.dialogueQuestionsAnswered.Contains(958700) ? Game1.content.LoadString("Strings\\StringsFromCSFiles:Event.cs.1258") : ((!Game1.player.dialogueQuestionsAnswered.Contains(9586701)) ? Game1.content.LoadString("Strings\\StringsFromCSFiles:Event.cs.1260") : Game1.content.LoadString("Strings\\StringsFromCSFiles:Event.cs.1259"))));
-				NPC i = Game1.getCharacterFromName("Elliott");
+				NPC i = getActorByName("Elliott");
+				if (i == null)
+				{
+					i = Game1.getCharacterFromName("Elliott");
+				}
 				i.CurrentDialogue.Push(new Dialogue(speech2, i));
 				Game1.drawDialogue(i);
 			}
@@ -1835,6 +1974,7 @@ namespace StardewValley
 				getActorByName(split[1]).reloadSprite();
 				getActorByName(split[1]).Sprite.SpriteWidth = 16;
 				getActorByName(split[1]).Sprite.SpriteHeight = 32;
+				getActorByName(split[1]).HideShadow = false;
 			}
 			else
 			{
@@ -1934,8 +2074,8 @@ namespace StardewValley
 		public virtual void command_changeMapTile(GameLocation location, GameTime time, string[] split)
 		{
 			string whichLayer = split[1];
-			int tileX = Convert.ToInt32(split[2]);
-			int tileY = Convert.ToInt32(split[3]);
+			int tileX = OffsetTileX(Convert.ToInt32(split[2]));
+			int tileY = OffsetTileY(Convert.ToInt32(split[3]));
 			int newTileIndex = Convert.ToInt32(split[4]);
 			location.map.GetLayer(whichLayer).Tiles[tileX, tileY].TileIndex = newTileIndex;
 			CurrentCommand++;
@@ -1943,7 +2083,7 @@ namespace StardewValley
 
 		public virtual void command_changeSprite(GameLocation location, GameTime time, string[] split)
 		{
-			getActorByName(split[1]).Sprite.LoadTexture("Characters\\" + split[1] + "_" + split[2]);
+			getActorByName(split[1]).Sprite.LoadTexture("Characters\\" + NPC.getTextureNameForCharacter(split[1]) + "_" + split[2]);
 			CurrentCommand++;
 		}
 
@@ -1987,9 +2127,10 @@ namespace StardewValley
 			continueAfterMove = true;
 			try
 			{
-				if (!getCharacterByName(split[1]).isMoving() || (npcControllers != null && npcControllers.Count == 0))
+				Character character = getCharacterByName(split[1]);
+				if (!character.isMoving() || (npcControllers != null && npcControllers.Count == 0))
 				{
-					getCharacterByName(split[1]).Halt();
+					character.Halt();
 					CurrentCommand++;
 				}
 			}
@@ -2001,7 +2142,11 @@ namespace StardewValley
 
 		public virtual void command_changePortrait(GameLocation location, GameTime time, string[] split)
 		{
-			NPC i = Game1.getCharacterFromName(split[1]);
+			NPC i = getActorByName(split[1]);
+			if (i == null)
+			{
+				i = Game1.getCharacterFromName(split[1]);
+			}
 			i.Portrait = Game1.content.Load<Texture2D>("Portraits\\" + split[1] + "_" + split[2]);
 			i.uniquePortraitActive = true;
 			npcsWithUniquePortraits.Add(i);
@@ -2018,21 +2163,118 @@ namespace StardewValley
 			CurrentCommand++;
 		}
 
+		public virtual void command_changeName(GameLocation location, GameTime time, string[] split)
+		{
+			NPC i = getActorByName(split[1]);
+			if (i != null)
+			{
+				i.displayName = split[2].Replace('_', ' ');
+			}
+			CurrentCommand++;
+		}
+
+		public virtual void command_playFramesAhead(GameLocation location, GameTime time, string[] split)
+		{
+			int framesToSkip = Convert.ToInt32(split[1]);
+			CurrentCommand++;
+			for (int i = 0; i < framesToSkip; i++)
+			{
+				checkForNextCommand(location, time);
+			}
+		}
+
+		public virtual void command_showKissFrame(GameLocation location, GameTime time, string[] split)
+		{
+			bool facingRight = true;
+			NPC actor = getActorByName(split[1]);
+			bool flip = split.Count() > 2 && Convert.ToBoolean(split[2]);
+			int spouseFrame = 28;
+			switch (actor.Name)
+			{
+			case "Maru":
+				spouseFrame = 28;
+				facingRight = false;
+				break;
+			case "Harvey":
+				spouseFrame = 31;
+				facingRight = false;
+				break;
+			case "Leah":
+				spouseFrame = 25;
+				facingRight = true;
+				break;
+			case "Elliott":
+				spouseFrame = 35;
+				facingRight = false;
+				break;
+			case "Sebastian":
+				spouseFrame = 40;
+				facingRight = false;
+				break;
+			case "Abigail":
+				spouseFrame = 33;
+				facingRight = false;
+				break;
+			case "Penny":
+				spouseFrame = 35;
+				facingRight = true;
+				break;
+			case "Alex":
+				spouseFrame = 42;
+				facingRight = true;
+				break;
+			case "Sam":
+				spouseFrame = 36;
+				facingRight = true;
+				break;
+			case "Shane":
+				spouseFrame = 34;
+				facingRight = false;
+				break;
+			case "Emily":
+				spouseFrame = 33;
+				facingRight = false;
+				break;
+			case "Krobus":
+				spouseFrame = 16;
+				facingRight = true;
+				break;
+			}
+			if (flip)
+			{
+				facingRight = !facingRight;
+			}
+			actor.Sprite.setCurrentAnimation(new List<FarmerSprite.AnimationFrame>
+			{
+				new FarmerSprite.AnimationFrame(spouseFrame, 1000, secondaryArm: false, facingRight)
+			});
+			CurrentCommand++;
+		}
+
 		public virtual void command_addTemporaryActor(GameLocation location, GameTime time, string[] split)
 		{
 			string textureLocation = "Characters\\";
-			if (split.Length > 8 && split[8].Equals("Animal"))
+			bool has_valid_type_key = true;
+			if (split.Length > 8 && split[8].ToLower().Equals("animal"))
 			{
 				textureLocation = "Animals\\";
 			}
-			if (split.Length > 8 && split[8].Equals("Monster"))
+			else if (split.Length > 8 && split[8].ToLower().Equals("monster"))
 			{
 				textureLocation = "Characters\\Monsters\\";
 			}
-			NPC i = new NPC(new AnimatedSprite(festivalContent, textureLocation + split[1].Replace('_', ' '), 0, Convert.ToInt32(split[2]), Convert.ToInt32(split[3])), new Vector2(Convert.ToInt32(split[4]), Convert.ToInt32(split[5])) * 64f, Convert.ToInt32(split[6]), split[1].Replace('_', ' '), festivalContent);
+			else if (split.Length <= 8 || !split[8].ToLower().Equals("character"))
+			{
+				has_valid_type_key = false;
+			}
+			NPC i = new NPC(new AnimatedSprite(festivalContent, textureLocation + split[1].Replace('_', ' '), 0, Convert.ToInt32(split[2]), Convert.ToInt32(split[3])), OffsetPosition(new Vector2(Convert.ToInt32(split[4]), Convert.ToInt32(split[5])) * 64f), Convert.ToInt32(split[6]), split[1].Replace('_', ' '), festivalContent);
 			if (split.Length > 7)
 			{
 				i.Breather = Convert.ToBoolean(split[7]);
+			}
+			if (!has_valid_type_key && split.Length > 8)
+			{
+				i.displayName = split[8].Replace('_', ' ');
 			}
 			if (isFestival)
 			{
@@ -2052,6 +2294,7 @@ namespace StardewValley
 			{
 				i.HideShadow = true;
 			}
+			i.eventActor = true;
 			actors.Add(i);
 			CurrentCommand++;
 		}
@@ -2142,6 +2385,57 @@ namespace StardewValley
 				}
 				Game1.currentLocation.createQuestionDialogue(question, answers, "quickQuestion");
 			}
+		}
+
+		public virtual void command_drawOffset(GameLocation location, GameTime time, string[] split)
+		{
+			int x_offset = Convert.ToInt32(split[2]);
+			float y_offset = Convert.ToInt32(split[3]);
+			Character character2 = null;
+			character2 = (Character)((!split[1].Equals("farmer")) ? ((object)getActorByName(split[1])) : ((object)farmer));
+			character2.drawOffset.Value = new Vector2(x_offset, y_offset) * 4f;
+			CurrentCommand++;
+		}
+
+		public virtual void command_hideShadow(GameLocation location, GameTime time, string[] split)
+		{
+			bool hide_shadow = split[2].Equals("true");
+			getActorByName(split[1]).HideShadow = hide_shadow;
+			CurrentCommand++;
+		}
+
+		public virtual void command_animateHeight(GameLocation location, GameTime time, string[] split)
+		{
+			int? height = null;
+			float? jump_gravity = null;
+			float? jump_velocity = null;
+			if (split[2] != "keep")
+			{
+				height = Convert.ToInt32(split[2]);
+			}
+			if (split[3] != "keep")
+			{
+				jump_gravity = (float)Convert.ToDouble(split[3]);
+			}
+			if (split[4] != "keep")
+			{
+				jump_velocity = Convert.ToInt32(split[4]);
+			}
+			Character character2 = null;
+			character2 = (Character)((!split[1].Equals("farmer")) ? ((object)getActorByName(split[1])) : ((object)farmer));
+			if (height.HasValue)
+			{
+				character2.yJumpOffset = -height.Value;
+			}
+			if (jump_gravity.HasValue)
+			{
+				character2.yJumpGravity = jump_gravity.Value;
+			}
+			if (jump_velocity.HasValue)
+			{
+				character2.yJumpVelocity = jump_velocity.Value;
+			}
+			CurrentCommand++;
 		}
 
 		public virtual void command_jump(GameLocation location, GameTime time, string[] split)
@@ -2287,18 +2581,246 @@ namespace StardewValley
 					npcControllers.Clear();
 				}
 				Dictionary<string, string> NPCData = Game1.content.Load<Dictionary<string, string>>("Data\\NPCDispositions");
-				for (int x = 0; x < temporaryLocation.map.GetLayer(split[1]).LayerWidth; x++)
+				List<string> npc_names = new List<string>();
+				for (int x2 = 0; x2 < temporaryLocation.map.GetLayer(split[1]).LayerWidth; x2++)
 				{
 					for (int y = 0; y < temporaryLocation.map.GetLayer(split[1]).LayerHeight; y++)
 					{
-						if (temporaryLocation.map.GetLayer(split[1]).Tiles[x, y] != null)
+						if (temporaryLocation.map.GetLayer(split[1]).Tiles[x2, y] != null)
 						{
-							int actorIndex = temporaryLocation.map.GetLayer(split[1]).Tiles[x, y].TileIndex / 4;
-							int actorFacingDirection = temporaryLocation.map.GetLayer(split[1]).Tiles[x, y].TileIndex % 4;
+							int actorIndex = temporaryLocation.map.GetLayer(split[1]).Tiles[x2, y].TileIndex / 4;
+							int actorFacingDirection = temporaryLocation.map.GetLayer(split[1]).Tiles[x2, y].TileIndex % 4;
 							string actorName = NPCData.ElementAt(actorIndex).Key;
-							if (actorName != null && Game1.getCharacterFromName(actorName) != null)
+							if (actorName != null && Game1.getCharacterFromName(actorName) != null && (!(actorName == "Leo") || Game1.MasterPlayer.mailReceived.Contains("leoMoved")))
 							{
-								addActor(actorName, x, y, actorFacingDirection, temporaryLocation);
+								addActor(actorName, x2, y, actorFacingDirection, temporaryLocation);
+								npc_names.Add(actorName);
+							}
+						}
+					}
+				}
+				if (festivalData != null)
+				{
+					string key_name = split[1] + "_additionalCharacters";
+					if (festivalData.ContainsKey(key_name))
+					{
+						string[] array = festivalData[key_name].Split('/');
+						foreach (string additional_character_data in array)
+						{
+							if (string.IsNullOrEmpty(additional_character_data))
+							{
+								continue;
+							}
+							string[] additional_character_split = additional_character_data.Split(' ');
+							if (additional_character_split.Length < 4)
+							{
+								continue;
+							}
+							bool fail = false;
+							int x = 0;
+							int y2 = 0;
+							int direction = 2;
+							if (!fail && !int.TryParse(additional_character_split[1], out x))
+							{
+								fail = true;
+							}
+							if (!fail && !int.TryParse(additional_character_split[2], out y2))
+							{
+								fail = true;
+							}
+							if (!fail)
+							{
+								string direction_string2 = additional_character_split[3];
+								direction_string2 = direction_string2.ToLowerInvariant();
+								if (direction_string2 == "up")
+								{
+									direction = 0;
+								}
+								else if (direction_string2 == "down")
+								{
+									direction = 2;
+								}
+								else if (direction_string2 == "left")
+								{
+									direction = 3;
+								}
+								else if (direction_string2 == "right")
+								{
+									direction = 1;
+								}
+								else if (!int.TryParse(direction_string2, out direction))
+								{
+									fail = true;
+								}
+							}
+							if (fail)
+							{
+								Console.WriteLine("Warning: Failed to load additional festival character: " + additional_character_data);
+								continue;
+							}
+							string actor_name = additional_character_split[0];
+							if (actor_name != null && Game1.getCharacterFromName(actor_name) != null)
+							{
+								if (!(actor_name == "Leo") || Game1.MasterPlayer.mailReceived.Contains("leoMoved"))
+								{
+									addActor(actor_name, x, y2, direction, temporaryLocation);
+									npc_names.Add(actor_name);
+								}
+							}
+							else
+							{
+								Console.WriteLine("Warning: Invalid additional festival character name: " + actor_name);
+							}
+						}
+					}
+				}
+				if (split[1] == "Set-Up")
+				{
+					foreach (string npc_name in npc_names)
+					{
+						NPC npc2 = Game1.getCharacterFromName(npc_name);
+						if (npc2.isMarried() && npc2.getSpouse() != null && npc2.getSpouse().getChildren().Count > 0)
+						{
+							Farmer spouse = Game1.player;
+							if (npc2.getSpouse() != null)
+							{
+								spouse = npc2.getSpouse();
+							}
+							List<Child> children = spouse.getChildren();
+							npc2 = (getCharacterByName(npc_name) as NPC);
+							for (int child_index = 0; child_index < children.Count; child_index++)
+							{
+								Child child = children[child_index];
+								if (child.Age >= 3)
+								{
+									Child child_actor = new Child(child.Name, child.Gender == 0, child.darkSkinned, spouse);
+									child_actor.NetFields.CopyFrom(child.NetFields);
+									child_actor.Halt();
+									new Point((int)npc2.Position.X / 64, (int)npc2.Position.Y / 64);
+									Point[] direction_offsets2 = null;
+									switch (npc2.FacingDirection)
+									{
+									case 0:
+										direction_offsets2 = new Point[4]
+										{
+											new Point(0, 1),
+											new Point(-1, 0),
+											new Point(1, 0),
+											new Point(0, -1)
+										};
+										break;
+									case 2:
+										direction_offsets2 = new Point[4]
+										{
+											new Point(0, -1),
+											new Point(1, 0),
+											new Point(-1, 0),
+											new Point(0, 1)
+										};
+										break;
+									case 3:
+										direction_offsets2 = new Point[4]
+										{
+											new Point(1, 0),
+											new Point(0, -1),
+											new Point(0, 1),
+											new Point(-1, 0)
+										};
+										break;
+									case 1:
+										direction_offsets2 = new Point[4]
+										{
+											new Point(-1, 0),
+											new Point(0, 1),
+											new Point(0, -1),
+											new Point(1, 0)
+										};
+										break;
+									default:
+										direction_offsets2 = new Point[4]
+										{
+											new Point(-1, 0),
+											new Point(1, 0),
+											new Point(0, -1),
+											new Point(0, 1)
+										};
+										break;
+									}
+									Point spawn_point = new Point(npc2.getTileX(), npc2.getTileY());
+									List<Point> points_to_check = new List<Point>();
+									new List<Point>();
+									Point[] array2 = direction_offsets2;
+									for (int j = 0; j < array2.Length; j++)
+									{
+										Point offset = array2[j];
+										points_to_check.Add(new Point(spawn_point.X + offset.X, spawn_point.Y + offset.Y));
+									}
+									Func<Point, bool> is_walkable_tile_check = (Point point) => temporaryLocation.isTilePassable(new Location(point.X, point.Y), Game1.viewport) ? true : false;
+									Func<Point, bool> has_clearance_check = delegate(Point point)
+									{
+										int num = 1;
+										for (int k = point.X - num; k <= point.X + num; k++)
+										{
+											for (int l = point.Y - num; l <= point.Y + num; l++)
+											{
+												if (temporaryLocation.isTileOccupiedForPlacement(new Vector2(k, l)))
+												{
+													return false;
+												}
+												foreach (NPC current in actors)
+												{
+													if (!(current is Child) && current.getTileX() == k && current.getTileY() == l)
+													{
+														return false;
+													}
+												}
+											}
+										}
+										return true;
+									};
+									bool found_spawn = false;
+									for (int iteration = 0; iteration < 5; iteration++)
+									{
+										if (found_spawn)
+										{
+											break;
+										}
+										int current_check_count = points_to_check.Count;
+										for (int i = 0; i < current_check_count; i++)
+										{
+											Point current_point = points_to_check[0];
+											points_to_check.RemoveAt(0);
+											if (is_walkable_tile_check(current_point))
+											{
+												if (has_clearance_check(current_point))
+												{
+													found_spawn = true;
+													spawn_point = current_point;
+													break;
+												}
+												array2 = direction_offsets2;
+												for (int j = 0; j < array2.Length; j++)
+												{
+													Point offset2 = array2[j];
+													points_to_check.Add(new Point(current_point.X + offset2.X, current_point.Y + offset2.Y));
+												}
+											}
+										}
+									}
+									if (found_spawn)
+									{
+										child_actor.setTilePosition(spawn_point.X, spawn_point.Y);
+										child_actor.DefaultPosition = npc2.DefaultPosition;
+										child_actor.faceDirection(npc2.FacingDirection);
+										child_actor.eventActor = true;
+										child_actor.lastCrossroad = new Microsoft.Xna.Framework.Rectangle(spawn_point.X * 64, spawn_point.Y * 64, 64, 64);
+										child_actor.squareMovementFacingPreference = -1;
+										child_actor.walkInSquare(3, 3, 2000);
+										child_actor.controller = null;
+										child_actor.temporaryController = null;
+										actors.Add(child_actor);
+									}
+								}
 							}
 						}
 					}
@@ -2317,7 +2839,7 @@ namespace StardewValley
 
 		public virtual void command_removeSprite(GameLocation location, GameTime time, string[] split)
 		{
-			Vector2 tile = new Vector2(Convert.ToInt32(split[1]), Convert.ToInt32(split[2])) * 64f;
+			Vector2 tile = OffsetPosition(new Vector2(Convert.ToInt32(split[1]), Convert.ToInt32(split[2])) * 64f);
 			for (int i = Game1.currentLocation.temporarySprites.Count - 1; i >= 0; i--)
 			{
 				if (Game1.currentLocation.temporarySprites[i].position.Equals(tile))
@@ -2342,8 +2864,16 @@ namespace StardewValley
 					aboveMapSprites = null;
 				}
 				Game1.viewportFreeze = true;
-				Game1.viewport.X = Convert.ToInt32(split[1]) * 64 + 32 - Game1.viewport.Width / 2;
-				Game1.viewport.Y = Convert.ToInt32(split[2]) * 64 + 32 - Game1.viewport.Height / 2;
+				int target_tile_x = OffsetTileX(Convert.ToInt32(split[1]));
+				int target_tile_y = OffsetTileY(Convert.ToInt32(split[2]));
+				if (id == 2146991)
+				{
+					Point grandpaShrinePosition = Game1.getFarm().GetGrandpaShrinePosition();
+					target_tile_x = grandpaShrinePosition.X;
+					target_tile_y = grandpaShrinePosition.Y;
+				}
+				Game1.viewport.X = target_tile_x * 64 + 32 - Game1.viewport.Width / 2;
+				Game1.viewport.Y = target_tile_y * 64 + 32 - Game1.viewport.Height / 2;
 				if (Game1.viewport.X > 0 && Game1.viewport.Width > Game1.currentLocation.Map.DisplayWidth)
 				{
 					Game1.viewport.X = (Game1.currentLocation.Map.DisplayWidth - Game1.viewport.Width) / 2;
@@ -2413,13 +2943,27 @@ namespace StardewValley
 		{
 			if (farmer == Game1.player)
 			{
-				Game1.multiplayer.broadcastEvent(this, Game1.currentLocation, Game1.player.positionBeforeEvent);
+				bool use_local_farmer = false;
+				if (split.Length > 1 && split[1] == "local")
+				{
+					use_local_farmer = true;
+				}
+				if (id == 558291 || id == 558292)
+				{
+					use_local_farmer = true;
+				}
+				Game1.multiplayer.broadcastEvent(this, Game1.currentLocation, Game1.player.positionBeforeEvent, use_local_farmer);
 			}
 			CurrentCommand++;
 		}
 
 		public virtual void command_addConversationTopic(GameLocation location, GameTime time, string[] split)
 		{
+			if (isMemory)
+			{
+				CurrentCommand++;
+				return;
+			}
 			if (!Game1.player.activeDialogueEvents.ContainsKey(split[1]))
 			{
 				Game1.player.activeDialogueEvents.Add(split[1], (split.Count() > 2) ? Convert.ToInt32(split[2]) : 4);
@@ -2475,6 +3019,10 @@ namespace StardewValley
 
 		public bool tryToLoadFestival(string festival)
 		{
+			if (invalidFestivals.Contains(festival))
+			{
+				return false;
+			}
 			Game1.player.festivalScore = 0;
 			try
 			{
@@ -2483,6 +3031,7 @@ namespace StardewValley
 			}
 			catch (Exception)
 			{
+				invalidFestivals.Add(festival);
 				return false;
 			}
 			string locationName = festivalData["conditions"].Split('/')[0];
@@ -2492,7 +3041,22 @@ namespace StardewValley
 			{
 				return false;
 			}
+			int year_count;
+			for (year_count = 1; festivalData.ContainsKey("set-up_y" + year_count + 1); year_count++)
+			{
+			}
+			int setup_variant = Game1.year % year_count;
+			if (setup_variant == 0)
+			{
+				setup_variant = year_count;
+			}
 			eventCommands = festivalData["set-up"].Split('/');
+			if (setup_variant > 1)
+			{
+				List<string> event_commands = new List<string>(eventCommands);
+				event_commands.AddRange(festivalData["set-up_y" + setup_variant].Split('/'));
+				eventCommands = event_commands.ToArray();
+			}
 			actorPositionsAfterMove = new Dictionary<string, Vector3>();
 			previousAmbientLight = Game1.ambientLight;
 			_ = wasBloomDay;
@@ -2501,10 +3065,31 @@ namespace StardewValley
 			return true;
 		}
 
-		private void setExitLocation(string location, int x, int y)
+		public string GetFestivalDataForYear(string key)
 		{
-			exitLocation = Game1.getLocationRequest(location);
-			Game1.player.positionBeforeEvent = new Vector2(x, y);
+			int years;
+			for (years = 1; festivalData.ContainsKey(key + "_y" + (years + 1)); years++)
+			{
+			}
+			int selected_year = Game1.year % years;
+			if (selected_year == 0)
+			{
+				selected_year = years;
+			}
+			if (selected_year > 1)
+			{
+				return festivalData[key + "_y" + selected_year];
+			}
+			return festivalData[key];
+		}
+
+		public void setExitLocation(string location, int x, int y)
+		{
+			if (Game1.player.locationBeforeForcedEvent.Value == null || Game1.player.locationBeforeForcedEvent.Value == "")
+			{
+				exitLocation = Game1.getLocationRequest(location);
+				Game1.player.positionBeforeEvent = new Vector2(x, y);
+			}
 		}
 
 		public void endBehaviors(string[] split, GameLocation location)
@@ -2517,6 +3102,13 @@ namespace StardewValley
 			{
 				switch (split[1])
 				{
+				case "Leo":
+					if (!isMemory)
+					{
+						Game1.addMailForTomorrow("leoMoved", noLetter: true, sendToEveryone: true);
+						Game1.player.team.requestLeoMove.Fire();
+					}
+					break;
 				case "bed":
 					Game1.player.Position = Game1.player.mostRecentBed + new Vector2(0f, 64f);
 					break;
@@ -2552,7 +3144,10 @@ namespace StardewValley
 					Game1.screenGlowHold = false;
 					break;
 				case "invisible":
-					Game1.getCharacterFromName(split[2]).IsInvisible = true;
+					if (!isMemory)
+					{
+						Game1.getCharacterFromName(split[2]).IsInvisible = true;
+					}
 					break;
 				case "warpOut":
 				{
@@ -2575,11 +3170,11 @@ namespace StardewValley
 						whichWarp2 = 1;
 					}
 					setExitLocation(location.warps[whichWarp2].TargetName, location.warps[whichWarp2].TargetX, location.warps[whichWarp2].TargetY);
-					NPC j = Game1.getCharacterFromName(split[2]);
-					int firstQuoteIndex2 = eventCommands[CurrentCommand].IndexOf('"') + 1;
-					int lastQuoteIndex2 = eventCommands[CurrentCommand].Substring(eventCommands[CurrentCommand].IndexOf('"') + 1).IndexOf('"');
-					j.CurrentDialogue.Clear();
-					j.CurrentDialogue.Push(new Dialogue(eventCommands[CurrentCommand].Substring(firstQuoteIndex2, lastQuoteIndex2), j));
+					NPC i = Game1.getCharacterFromName(split[2]);
+					int firstQuoteIndex = eventCommands[CurrentCommand].IndexOf('"') + 1;
+					int lastQuoteIndex = eventCommands[CurrentCommand].Substring(eventCommands[CurrentCommand].IndexOf('"') + 1).IndexOf('"');
+					i.CurrentDialogue.Clear();
+					i.CurrentDialogue.Push(new Dialogue(eventCommands[CurrentCommand].Substring(firstQuoteIndex, lastQuoteIndex), i));
 					Game1.eventOver = true;
 					CurrentCommand += 2;
 					Game1.screenGlowHold = false;
@@ -2640,15 +3235,15 @@ namespace StardewValley
 				}
 				case "dialogue":
 				{
-					NPC j = Game1.getCharacterFromName(split[2]);
-					int firstQuoteIndex2 = eventCommands[CurrentCommand].IndexOf('"') + 1;
-					int lastQuoteIndex2 = eventCommands[CurrentCommand].Substring(eventCommands[CurrentCommand].IndexOf('"') + 1).IndexOf('"');
-					if (j != null)
+					NPC i = Game1.getCharacterFromName(split[2]);
+					int firstQuoteIndex = eventCommands[CurrentCommand].IndexOf('"') + 1;
+					int lastQuoteIndex = eventCommands[CurrentCommand].Substring(eventCommands[CurrentCommand].IndexOf('"') + 1).IndexOf('"');
+					if (i != null)
 					{
-						j.shouldSayMarriageDialogue.Value = false;
-						j.currentMarriageDialogue.Clear();
-						j.CurrentDialogue.Clear();
-						j.CurrentDialogue.Push(new Dialogue(eventCommands[CurrentCommand].Substring(firstQuoteIndex2, lastQuoteIndex2), j));
+						i.shouldSayMarriageDialogue.Value = false;
+						i.currentMarriageDialogue.Clear();
+						i.CurrentDialogue.Clear();
+						i.CurrentDialogue.Push(new Dialogue(eventCommands[CurrentCommand].Substring(firstQuoteIndex, lastQuoteIndex), i));
 					}
 					break;
 				}
@@ -2667,7 +3262,55 @@ namespace StardewValley
 					CurrentCommand += 2;
 					break;
 				case "position":
-					Game1.player.positionBeforeEvent = new Vector2(Convert.ToInt32(split[2]), Convert.ToInt32(split[3]));
+					if (Game1.player.locationBeforeForcedEvent.Value == null || Game1.player.locationBeforeForcedEvent.Value == "")
+					{
+						Game1.player.positionBeforeEvent = new Vector2(Convert.ToInt32(split[2]), Convert.ToInt32(split[3]));
+					}
+					break;
+				case "islandDepart":
+				{
+					Game1.player.orientationBeforeEvent = 2;
+					if (Game1.whereIsTodaysFest != null && Game1.whereIsTodaysFest == "Beach")
+					{
+						Game1.player.orientationBeforeEvent = 0;
+						setExitLocation("Town", 54, 109);
+					}
+					else if (Game1.whereIsTodaysFest != null && Game1.whereIsTodaysFest == "Town")
+					{
+						Game1.player.orientationBeforeEvent = 3;
+						setExitLocation("BusStop", 33, 23);
+					}
+					else
+					{
+						setExitLocation("BoatTunnel", 6, 9);
+					}
+					GameLocation left_location = Game1.currentLocation;
+					exitLocation.OnLoad += delegate
+					{
+						foreach (NPC actor in actors)
+						{
+							actor.shouldShadowBeOffset = true;
+							actor.drawOffset.Y = 0f;
+						}
+						foreach (Farmer farmerActor in farmerActors)
+						{
+							farmerActor.shouldShadowBeOffset = true;
+							farmerActor.drawOffset.Y = 0f;
+						}
+						Game1.player.drawOffset.Value = Vector2.Zero;
+						Game1.player.shouldShadowBeOffset = false;
+						if (left_location is IslandSouth)
+						{
+							(left_location as IslandSouth).ResetBoat();
+						}
+					};
+					break;
+				}
+				case "tunnelDepart":
+					if (Game1.player.hasOrWillReceiveMail("seenBoatJourney"))
+					{
+						Game1.warpFarmer("IslandSouth", 21, 43, 0);
+					}
 					break;
 				}
 			}
@@ -2679,6 +3322,10 @@ namespace StardewValley
 			if (id != -1 && !Game1.player.eventsSeen.Contains(id))
 			{
 				Game1.player.eventsSeen.Add(id);
+			}
+			if (id == 1039573)
+			{
+				Game1.player.team.requestAddCharacterEvent.Fire("Leo");
 			}
 			Game1.stopMusicTrack(Game1.MusicContext.Event);
 			Game1.player.ignoreCollisions = false;
@@ -2704,7 +3351,8 @@ namespace StardewValley
 				int timePass = Utility.CalculateMinutesBetweenTimes(Game1.timeOfDay, Game1.timeOfDayAfterFade);
 				if (Game1.IsMasterGame)
 				{
-					setExitLocation("Farm", 64 - Utility.getFarmerNumberFromFarmer(Game1.player), 15);
+					Point house_entry = Game1.getFarm().GetMainFarmHouseEntry();
+					setExitLocation("Farm", house_entry.X, house_entry.Y);
 				}
 				else
 				{
@@ -2733,9 +3381,13 @@ namespace StardewValley
 								{
 									j.controller = null;
 									j.temporaryController = null;
+									FarmHouse home_location = Utility.getHomeOfFarmer(spouse_farmer);
 									j.Halt();
-									Game1.warpCharacter(j, Utility.getHomeOfFarmer(spouse_farmer), Utility.PointToVector2(Utility.getHomeOfFarmer(spouse_farmer).getSpouseBedSpot(spouse_farmer.spouse)));
-									FarmHouse.spouseSleepEndFunction(j, Utility.getHomeOfFarmer(spouse_farmer));
+									Game1.warpCharacter(j, home_location, Utility.PointToVector2(home_location.getSpouseBedSpot(spouse_farmer.spouse)));
+									if (home_location.GetSpouseBed() != null)
+									{
+										FarmHouse.spouseSleepEndFunction(j, Utility.getHomeOfFarmer(spouse_farmer));
+									}
 									j.ignoreScheduleToday = true;
 									if (Game1.timeOfDayAfterFade >= 1800)
 									{
@@ -2766,9 +3418,12 @@ namespace StardewValley
 				}
 				foreach (GameLocation i in Game1.locations)
 				{
-					foreach (Object value in i.objects.Values)
+					foreach (Vector2 position in new List<Vector2>(i.objects.Keys))
 					{
-						value.minutesElapsed(timePass, i);
+						if (i.objects[position].minutesElapsed(timePass, i))
+						{
+							i.objects.Remove(position);
+						}
 					}
 					if (i is Farm)
 					{
@@ -2854,7 +3509,29 @@ namespace StardewValley
 			Game1.warpFarmer(locationRequest, x, y, farmer.FacingDirection);
 		}
 
+		public void LogErrorAndHalt(Exception e)
+		{
+			Game1.chatBox.addErrorMessage("Event script error: " + e.Message);
+			if (eventCommands != null && eventCommands.Length != 0 && CurrentCommand < eventCommands.Length)
+			{
+				Game1.chatBox.addErrorMessage("On line #" + CurrentCommand + ": " + eventCommands[CurrentCommand]);
+				skipEvent();
+			}
+		}
+
 		public void checkForNextCommand(GameLocation location, GameTime time)
+		{
+			try
+			{
+				_checkForNextCommand(location, time);
+			}
+			catch (Exception e)
+			{
+				LogErrorAndHalt(e);
+			}
+		}
+
+		protected void _checkForNextCommand(GameLocation location, GameTime time)
 		{
 			if (skipped || Game1.farmEvent != null)
 			{
@@ -2909,16 +3586,25 @@ namespace StardewValley
 			{
 				temporaryLocation.updateEvenIfFarmerIsntHere(time, ignoreWasUpdatedFlush: true);
 			}
+			if (split.Length != 0 && split[0].StartsWith("--"))
+			{
+				CurrentCommand++;
+				return;
+			}
 			if (CurrentCommand == 0 && !forked && !eventSwitched)
 			{
 				farmer.speed = 2;
 				farmer.running = false;
 				Game1.eventOver = false;
+				if (eventCommands.Length > 3 && eventCommands[3] == "ignoreEventTileOffset")
+				{
+					ignoreTileOffsets = true;
+				}
 				if ((!eventCommands[0].Equals("none") || !Game1.isRaining) && !eventCommands[0].Equals("continue") && !eventCommands[0].Contains("pause"))
 				{
 					Game1.changeMusicTrack(eventCommands[0], track_interruptable: false, Game1.MusicContext.Event);
 				}
-				if (location is Farm && Convert.ToInt32(eventCommands[1].Split(' ')[0]) >= -1000 && id != -2)
+				if (location is Farm && Convert.ToInt32(eventCommands[1].Split(' ')[0]) >= -1000 && id != -2 && !ignoreTileOffsets)
 				{
 					Point p = Farm.getFrontDoorPositionForFarmer(farmer);
 					p.X *= 64;
@@ -2930,11 +3616,11 @@ namespace StardewValley
 				{
 					try
 					{
-						string[] array = eventCommands[1].Split(' ');
+						string[] viewportSplit = eventCommands[1].Split(' ');
 						Game1.viewportFreeze = true;
-						int centerX = Convert.ToInt32(array[0]) * 64 + 32;
-						int centerY = Convert.ToInt32(array[1]) * 64 + 32;
-						if (array[0][0] == '-')
+						int centerX = OffsetTileX(Convert.ToInt32(viewportSplit[0])) * 64 + 32;
+						int centerY = OffsetTileY(Convert.ToInt32(viewportSplit[1])) * 64 + 32;
+						if (viewportSplit[0][0] == '-')
 						{
 							Game1.viewport.X = centerX;
 							Game1.viewport.Y = centerY;
@@ -2996,8 +3682,8 @@ namespace StardewValley
 				}
 				if (actorPositionsAfterMove.Count > 0)
 				{
-					string[] array2 = actorPositionsAfterMove.Keys.ToArray();
-					foreach (string s in array2)
+					string[] array = actorPositionsAfterMove.Keys.ToArray();
+					foreach (string s in array)
 					{
 						Microsoft.Xna.Framework.Rectangle targetTile = new Microsoft.Xna.Framework.Rectangle((int)actorPositionsAfterMove[s].X * 64, (int)actorPositionsAfterMove[s].Y * 64, 64, 64);
 						targetTile.Inflate(-4, 0);
@@ -3007,7 +3693,7 @@ namespace StardewValley
 							targetTile.Width = getActorByName(s).GetBoundingBox().Width + 4;
 							targetTile.Height = getActorByName(s).GetBoundingBox().Height + 4;
 							targetTile.X += 8;
-							targetTile.Y -= 16;
+							targetTile.Y += 16;
 						}
 						if (s.Contains("farmer"))
 						{
@@ -3181,7 +3867,7 @@ namespace StardewValley
 
 		private void addActor(string name, int x, int y, int facingDirection, GameLocation location)
 		{
-			string spriteName = name;
+			string spriteName = NPC.getTextureNameForCharacter(name);
 			if (name.Equals("Krobus_Trenchcoat"))
 			{
 				name = "Krobus";
@@ -3201,7 +3887,7 @@ namespace StardewValley
 			{
 				try
 				{
-					i.setNewDialogue(festivalData[i.Name]);
+					i.setNewDialogue(GetFestivalDataForYear(i.Name));
 				}
 				catch (Exception)
 				{
@@ -3211,6 +3897,7 @@ namespace StardewValley
 			{
 				i.displayName = Game1.content.LoadString("Strings\\NPCNames:MisterQi");
 			}
+			i.eventActor = true;
 			actors.Add(i);
 		}
 
@@ -3276,12 +3963,68 @@ namespace StardewValley
 				}
 				break;
 			case 4324303:
-				if (location is FarmHouse && (location as FarmHouse).upgradeLevel == 1)
+			{
+				if (!(location is FarmHouse))
 				{
-					farmer.Position = new Vector2(1344f, 272f);
-					getActorByName("Penny").setTilePosition(20, 4);
+					break;
+				}
+				Point bed_spot = (location as FarmHouse).GetPlayerBedSpot();
+				bed_spot.X--;
+				farmer.Position = new Vector2(bed_spot.X * 64, bed_spot.Y * 64 + 16);
+				getActorByName("Penny").setTilePosition(bed_spot.X - 1, bed_spot.Y);
+				Microsoft.Xna.Framework.Rectangle room = new Microsoft.Xna.Framework.Rectangle(23, 12, 10, 10);
+				if ((location as FarmHouse).upgradeLevel == 1)
+				{
+					room = new Microsoft.Xna.Framework.Rectangle(20, 3, 8, 7);
+				}
+				Point room_center = room.Center;
+				if (!room.Contains(Game1.player.getTileLocationPoint()))
+				{
+					List<string> commands = new List<string>(eventCommands);
+					int command_index12 = 56;
+					commands.Insert(command_index12, "globalFade 0.03");
+					command_index12++;
+					commands.Insert(command_index12, "beginSimultaneousCommand");
+					command_index12++;
+					commands.Insert(command_index12, "viewport " + room_center.X + " " + room_center.Y);
+					command_index12++;
+					commands.Insert(command_index12, "globalFadeToClear 0.03");
+					command_index12++;
+					commands.Insert(command_index12, "endSimultaneousCommand");
+					command_index12++;
+					commands.Insert(command_index12, "pause 2000");
+					command_index12++;
+					commands.Insert(command_index12, "globalFade 0.03");
+					command_index12++;
+					commands.Insert(command_index12, "beginSimultaneousCommand");
+					command_index12++;
+					commands.Insert(command_index12, "viewport " + Game1.player.getTileX() + " " + Game1.player.getTileY());
+					command_index12++;
+					commands.Insert(command_index12, "globalFadeToClear 0.03");
+					command_index12++;
+					commands.Insert(command_index12, "endSimultaneousCommand");
+					command_index12++;
+					eventCommands = commands.ToArray();
+				}
+				for (int i = 0; i < eventCommands.Length; i++)
+				{
+					if (eventCommands[i].StartsWith("makeInvisible"))
+					{
+						string[] split = eventCommands[i].Split(' ');
+						split[1] = string.Concat(int.Parse(split[1]) - 26 + bed_spot.X);
+						split[2] = string.Concat(int.Parse(split[2]) - 13 + bed_spot.Y);
+						if (location.getObjectAtTile(int.Parse(split[1]), int.Parse(split[2])) == (location as FarmHouse).GetPlayerBed())
+						{
+							eventCommands[i] = "makeInvisible -1000 -1000";
+						}
+						else
+						{
+							eventCommands[i] = string.Join(" ", split);
+						}
+					}
 				}
 				break;
+			}
 			case 4325434:
 				if (location is FarmHouse && (location as FarmHouse).upgradeLevel == 1)
 				{
@@ -3290,12 +4033,38 @@ namespace StardewValley
 				}
 				break;
 			case 3912132:
-				if (location is FarmHouse && (location as FarmHouse).upgradeLevel == 1)
+			{
+				if (!(location is FarmHouse))
 				{
-					farmer.Position = new Vector2(farmer.position.X - 320f, farmer.position.Y - 576f);
-					getActorByName("Elliott").setTilePosition((int)getActorByName("Elliott").getTileLocation().X - 5, (int)getActorByName("Elliott").getTileLocation().Y - 9);
+					break;
+				}
+				Point bed_spot2 = (location as FarmHouse).GetPlayerBedSpot();
+				bed_spot2.X--;
+				if (!location.isTileLocationTotallyClearAndPlaceable(Utility.PointToVector2(bed_spot2) + new Vector2(-2f, 0f)))
+				{
+					bed_spot2.X++;
+				}
+				farmer.setTileLocation(Utility.PointToVector2(bed_spot2));
+				getActorByName("Elliott").setTileLocation(Utility.PointToVector2(bed_spot2) + new Vector2(-2f, 0f));
+				for (int j = 0; j < eventCommands.Length; j++)
+				{
+					if (eventCommands[j].StartsWith("makeInvisible"))
+					{
+						string[] split2 = eventCommands[j].Split(' ');
+						split2[1] = string.Concat(int.Parse(split2[1]) - 26 + bed_spot2.X);
+						split2[2] = string.Concat(int.Parse(split2[2]) - 13 + bed_spot2.Y);
+						if (location.getObjectAtTile(int.Parse(split2[1]), int.Parse(split2[2])) == (location as FarmHouse).GetPlayerBed())
+						{
+							eventCommands[j] = "makeInvisible -1000 -1000";
+						}
+						else
+						{
+							eventCommands[j] = string.Join(" ", split2);
+						}
+					}
 				}
 				break;
+			}
 			case 8675611:
 				if (location is FarmHouse && (location as FarmHouse).upgradeLevel == 1)
 				{
@@ -3337,8 +4106,11 @@ namespace StardewValley
 		private void setUpCharacters(string description, GameLocation location)
 		{
 			farmer.Halt();
-			Game1.player.positionBeforeEvent = Game1.player.getTileLocation();
-			Game1.player.orientationBeforeEvent = Game1.player.FacingDirection;
+			if ((Game1.player.locationBeforeForcedEvent.Value == null || Game1.player.locationBeforeForcedEvent.Value == "") && !isMemory)
+			{
+				Game1.player.positionBeforeEvent = Game1.player.getTileLocation();
+				Game1.player.orientationBeforeEvent = Game1.player.FacingDirection;
+			}
 			string[] split = description.Split(' ');
 			for (int j = 0; j < split.Length; j += 4)
 			{
@@ -3356,8 +4128,8 @@ namespace StardewValley
 				{
 					if (split[j].Equals("otherFarmers"))
 					{
-						int x2 = Convert.ToInt32(split[j + 1]);
-						int y2 = Convert.ToInt32(split[j + 2]);
+						int x2 = OffsetTileX(Convert.ToInt32(split[j + 1]));
+						int y2 = OffsetTileY(Convert.ToInt32(split[j + 2]));
 						int direction2 = Convert.ToInt32(split[j + 3]);
 						foreach (Farmer f2 in Game1.getOnlineFarmers())
 						{
@@ -3377,8 +4149,8 @@ namespace StardewValley
 					}
 					if (split[j].Contains("farmer"))
 					{
-						int x = Convert.ToInt32(split[j + 1]);
-						int y = Convert.ToInt32(split[j + 2]);
+						int x = OffsetTileX(Convert.ToInt32(split[j + 1]));
+						int y = OffsetTileY(Convert.ToInt32(split[j + 2]));
 						int direction = Convert.ToInt32(split[j + 3]);
 						Farmer f = Utility.getFarmerFromFarmerNumber(Convert.ToInt32(split[j].Last().ToString() ?? ""));
 						if (f != null)
@@ -3405,36 +4177,36 @@ namespace StardewValley
 					}
 					if (split[j].Equals("cat"))
 					{
-						actors.Add(new Cat(Convert.ToInt32(split[j + 1]), Convert.ToInt32(split[j + 2]), Game1.player.whichPetBreed));
+						actors.Add(new Cat(OffsetTileX(Convert.ToInt32(split[j + 1])), OffsetTileY(Convert.ToInt32(split[j + 2])), Game1.player.whichPetBreed));
 						actors.Last().Name = "Cat";
 						actors.Last().position.X -= 32f;
 						continue;
 					}
 					if (split[j].Equals("dog"))
 					{
-						actors.Add(new Dog(Convert.ToInt32(split[j + 1]), Convert.ToInt32(split[j + 2]), Game1.player.whichPetBreed));
+						actors.Add(new Dog(OffsetTileX(Convert.ToInt32(split[j + 1])), OffsetTileY(Convert.ToInt32(split[j + 2])), Game1.player.whichPetBreed));
 						actors.Last().Name = "Dog";
 						actors.Last().position.X -= 42f;
 						continue;
 					}
 					if (split[j].Equals("golem"))
 					{
-						actors.Add(new NPC(new AnimatedSprite("Characters\\Monsters\\Wilderness Golem", 0, 16, 24), new Vector2(Convert.ToInt32(split[j + 1]), Convert.ToInt32(split[j + 2])) * 64f, 0, "Golem"));
+						actors.Add(new NPC(new AnimatedSprite("Characters\\Monsters\\Wilderness Golem", 0, 16, 24), OffsetPosition(new Vector2(Convert.ToInt32(split[j + 1]), Convert.ToInt32(split[j + 2])) * 64f), 0, "Golem"));
 						continue;
 					}
 					if (split[j].Equals("Junimo"))
 					{
-						actors.Add(new Junimo(new Vector2(Convert.ToInt32(split[j + 1]) * 64, Convert.ToInt32(split[j + 2]) * 64 - 32), Game1.currentLocation.Name.Equals("AbandonedJojaMart") ? 6 : (-1))
+						actors.Add(new Junimo(OffsetPosition(new Vector2(Convert.ToInt32(split[j + 1]) * 64, Convert.ToInt32(split[j + 2]) * 64 - 32)), Game1.currentLocation.Name.Equals("AbandonedJojaMart") ? 6 : (-1))
 						{
 							Name = "Junimo",
 							EventActor = true
 						});
 						continue;
 					}
-					int xPos = Convert.ToInt32(split[j + 1]);
-					int yPos = Convert.ToInt32(split[j + 2]);
+					int xPos = OffsetTileX(Convert.ToInt32(split[j + 1]));
+					int yPos = OffsetTileY(Convert.ToInt32(split[j + 2]));
 					int facingDir = Convert.ToInt32(split[j + 3]);
-					if (location is Farm && id != -2)
+					if (location is Farm && id != -2 && !ignoreTileOffsets)
 					{
 						xPos = Farm.getFrontDoorPositionForFarmer(farmer).X;
 						yPos = Farm.getFrontDoorPositionForFarmer(farmer).Y + 2;
@@ -3444,10 +4216,10 @@ namespace StardewValley
 				}
 				else if (!split[j + 1].Equals("-1"))
 				{
-					farmer.position.X = Convert.ToInt32(split[j + 1]) * 64;
-					farmer.position.Y = Convert.ToInt32(split[j + 2]) * 64 + 16;
+					farmer.position.X = OffsetPositionX(Convert.ToInt32(split[j + 1]) * 64);
+					farmer.position.Y = OffsetPositionY(Convert.ToInt32(split[j + 2]) * 64 + 16);
 					farmer.faceDirection(Convert.ToInt32(split[j + 3]));
-					if (location is Farm && id != -2)
+					if (location is Farm && id != -2 && !ignoreTileOffsets)
 					{
 						farmer.position.X = Farm.getFrontDoorPositionForFarmer(farmer).X * 64;
 						farmer.position.Y = (Farm.getFrontDoorPositionForFarmer(farmer).Y + 1) * 64;
@@ -3510,8 +4282,8 @@ namespace StardewValley
 			{
 				t2.scaleChange = 0f;
 			}
-			Game1.currentLocation.TemporarySprites.Add(new TemporaryAnimatedSprite("TileSheets\\animations", new Microsoft.Xna.Framework.Rectangle(0, 2944, 64, 64), 120f, 8, 1, new Vector2(25f, 39f) * 64f + new Vector2(-32f, 32f), flicker: false, flipped: true, 1f, 0f, Color.White, 1f, 0f, 0f, 0f));
-			Game1.currentLocation.TemporarySprites.Add(new TemporaryAnimatedSprite("TileSheets\\animations", new Microsoft.Xna.Framework.Rectangle(0, 2944, 64, 64), 120f, 8, 1, new Vector2(27f, 39f) * 64f + new Vector2(0f, 48f), flicker: false, flipped: false, 1f, 0f, Color.White, 1f, 0f, 0f, 0f)
+			Game1.currentLocation.TemporarySprites.Add(new TemporaryAnimatedSprite("TileSheets\\animations", new Microsoft.Xna.Framework.Rectangle(0, 2944, 64, 64), 120f, 8, 1, (new Vector2(25f, 39f) + eventPositionTileOffset) * 64f + new Vector2(-32f, 32f), flicker: false, flipped: true, 1f, 0f, Color.White, 1f, 0f, 0f, 0f));
+			Game1.currentLocation.TemporarySprites.Add(new TemporaryAnimatedSprite("TileSheets\\animations", new Microsoft.Xna.Framework.Rectangle(0, 2944, 64, 64), 120f, 8, 1, (new Vector2(27f, 39f) + eventPositionTileOffset) * 64f + new Vector2(0f, 48f), flicker: false, flipped: false, 1f, 0f, Color.White, 1f, 0f, 0f, 0f)
 			{
 				delayBeforeAnimationStart = 300
 			});
@@ -3659,10 +4431,209 @@ namespace StardewValley
 			CurrentCommand++;
 		}
 
+		public virtual Vector2 OffsetPosition(Vector2 original)
+		{
+			return new Vector2(OffsetPositionX(original.X), OffsetPositionY(original.Y));
+		}
+
+		public virtual Vector2 OffsetTile(Vector2 original)
+		{
+			return new Vector2(OffsetTileX((int)original.X), OffsetTileY((int)original.Y));
+		}
+
+		public virtual float OffsetPositionX(float original)
+		{
+			if (original < 0f || ignoreTileOffsets)
+			{
+				return original;
+			}
+			return original + eventPositionTileOffset.X * 64f;
+		}
+
+		public virtual float OffsetPositionY(float original)
+		{
+			if (original < 0f || ignoreTileOffsets)
+			{
+				return original;
+			}
+			return original + eventPositionTileOffset.Y * 64f;
+		}
+
+		public virtual int OffsetTileX(int original)
+		{
+			if (original < 0 || ignoreTileOffsets)
+			{
+				return original;
+			}
+			return (int)((float)original + eventPositionTileOffset.X);
+		}
+
+		public virtual int OffsetTileY(int original)
+		{
+			if (original < 0 || ignoreTileOffsets)
+			{
+				return original;
+			}
+			return (int)((float)original + eventPositionTileOffset.Y);
+		}
+
 		private void addSpecificTemporarySprite(string key, GameLocation location, string[] split)
 		{
 			switch (key)
 			{
+			case "LeoWillyFishing":
+			{
+				for (int i = 0; i < 20; i++)
+				{
+					location.TemporarySprites.Add(new TemporaryAnimatedSprite(0, new Vector2(42.5f, 38f) * 64f + new Vector2(Game1.random.Next(64), Game1.random.Next(64)), Color.White * 0.7f)
+					{
+						layerDepth = (float)(1280 + i) / 10000f,
+						delayBeforeAnimationStart = i * 150
+					});
+				}
+				break;
+			}
+			case "LeoLinusCooking":
+			{
+				location.TemporarySprites.Add(new TemporaryAnimatedSprite("Maps\\springobjects", new Microsoft.Xna.Framework.Rectangle(240, 128, 16, 16), 9999f, 1, 1, new Vector2(29f, 8.5f) * 64f, flicker: false, flipped: false, 0.01f, 0f, Color.White, 4f, 0f, 0f, 0f)
+				{
+					layerDepth = 1f
+				});
+				for (int smokePuffs = 0; smokePuffs < 10; smokePuffs++)
+				{
+					Utility.addSmokePuff(location, new Vector2(29.5f, 8.6f) * 64f, smokePuffs * 500);
+				}
+				break;
+			}
+			case "BoatParrotLeave":
+			{
+				TemporaryAnimatedSprite temporaryAnimatedSprite2 = aboveMapSprites.First();
+				temporaryAnimatedSprite2.motion = new Vector2(4f, -6f);
+				temporaryAnimatedSprite2.sourceRect.X = 48;
+				temporaryAnimatedSprite2.sourceRectStartingPos.X = 48f;
+				temporaryAnimatedSprite2.animationLength = 3;
+				temporaryAnimatedSprite2.pingPong = true;
+				break;
+			}
+			case "BoatParrotSquawkStop":
+			{
+				TemporaryAnimatedSprite temporaryAnimatedSprite = aboveMapSprites.First();
+				temporaryAnimatedSprite.sourceRect.X = 0;
+				temporaryAnimatedSprite.sourceRectStartingPos.X = 0f;
+				break;
+			}
+			case "BoatParrotSquawk":
+			{
+				TemporaryAnimatedSprite temporaryAnimatedSprite3 = aboveMapSprites.First();
+				temporaryAnimatedSprite3.sourceRect.X = 24;
+				temporaryAnimatedSprite3.sourceRectStartingPos.X = 24f;
+				Game1.playSound("parrot_squawk");
+				break;
+			}
+			case "BoatParrot":
+				aboveMapSprites = new List<TemporaryAnimatedSprite>();
+				aboveMapSprites.Add(new TemporaryAnimatedSprite("LooseSprites\\parrots", new Microsoft.Xna.Framework.Rectangle(48, 0, 24, 24), 100f, 3, 99999, new Vector2(Game1.viewport.X - 64, 2112f), flicker: false, flipped: true, 1f, 0f, Color.White, 4f, 0f, 0f, 0f)
+				{
+					id = 999f,
+					motion = new Vector2(6f, 1f),
+					delayBeforeAnimationStart = 0,
+					pingPong = true,
+					xStopCoordinate = 1040,
+					reachedStopCoordinate = delegate
+					{
+						TemporaryAnimatedSprite temporaryAnimatedSprite4 = aboveMapSprites.First();
+						if (temporaryAnimatedSprite4 != null)
+						{
+							temporaryAnimatedSprite4.motion = new Vector2(0f, 2f);
+							temporaryAnimatedSprite4.yStopCoordinate = 2336;
+							temporaryAnimatedSprite4.reachedStopCoordinate = delegate
+							{
+								TemporaryAnimatedSprite temporaryAnimatedSprite5 = aboveMapSprites.First();
+								temporaryAnimatedSprite5.animationLength = 1;
+								temporaryAnimatedSprite5.pingPong = false;
+								temporaryAnimatedSprite5.sourceRect = new Microsoft.Xna.Framework.Rectangle(0, 0, 24, 24);
+								temporaryAnimatedSprite5.sourceRectStartingPos = Vector2.Zero;
+							};
+						}
+					}
+				});
+				break;
+			case "islandFishSplash":
+				location.TemporarySprites.Add(new TemporaryAnimatedSprite("Maps\\springobjects", new Microsoft.Xna.Framework.Rectangle(336, 544, 16, 16), 100000f, 1, 1, new Vector2(81f, 92f) * 64f, flicker: false, flipped: false, 0.01f, 0f, Color.White, 4f, 0f, 0f, 0f)
+				{
+					id = 9999f,
+					motion = new Vector2(-2f, -8f),
+					acceleration = new Vector2(0f, 0.2f),
+					flipped = true,
+					rotationChange = -0.02f,
+					yStopCoordinate = 5952,
+					layerDepth = 0.99f,
+					reachedStopCoordinate = delegate
+					{
+						location.TemporarySprites.Add(new TemporaryAnimatedSprite("Maps\\springobjects", new Microsoft.Xna.Framework.Rectangle(48, 16, 16, 16), 100f, 5, 1, location.getTemporarySpriteByID(9999).position, flicker: false, flipped: false, 0.01f, 0f, Color.White, 4f, 0f, 0f, 0f)
+						{
+							layerDepth = 1f
+						});
+						location.removeTemporarySpritesWithID(9999);
+						Game1.playSound("waterSlosh");
+					}
+				});
+				location.TemporarySprites.Add(new TemporaryAnimatedSprite("Maps\\springobjects", new Microsoft.Xna.Framework.Rectangle(48, 16, 16, 16), 100f, 5, 1, new Vector2(81f, 92f) * 64f, flicker: false, flipped: false, 0.01f, 0f, Color.White, 4f, 0f, 0f, 0f)
+				{
+					layerDepth = 1f
+				});
+				break;
+			case "georgeLeekGift":
+				location.TemporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(288, 1231, 16, 16), 100f, 6, 1, new Vector2(17f, 19f) * 64f, flicker: false, flipped: false, 0.01f, 0f, Color.White, 4f, 0f, 0f, 0f)
+				{
+					id = 999f,
+					paused = false,
+					holdLastFrame = true
+				});
+				break;
+			case "staticSprite":
+				location.temporarySprites.Add(new TemporaryAnimatedSprite(split[2], new Microsoft.Xna.Framework.Rectangle(Convert.ToInt32(split[3]), Convert.ToInt32(split[4]), Convert.ToInt32(split[5]), Convert.ToInt32(split[6])), new Vector2((float)Convert.ToDouble(split[7]), (float)Convert.ToDouble(split[8])) * 64f, flipped: false, 0f, Color.White)
+				{
+					animationLength = 1,
+					interval = 999999f,
+					scale = 4f,
+					layerDepth = ((split.Length > 10) ? ((float)Convert.ToDouble(split[10])) : 1f),
+					id = ((split.Length > 9) ? Convert.ToInt32(split[9]) : 999)
+				});
+				break;
+			case "WillyWad":
+				location.temporarySprites.Add(new TemporaryAnimatedSprite
+				{
+					texture = Game1.temporaryContent.Load<Texture2D>("LooseSprites\\Cursors2"),
+					sourceRect = new Microsoft.Xna.Framework.Rectangle(192, 61, 32, 32),
+					sourceRectStartingPos = new Vector2(192f, 61f),
+					animationLength = 2,
+					totalNumberOfLoops = 99999,
+					interval = 400f,
+					scale = 4f,
+					position = new Vector2(50f, 23f) * 64f,
+					layerDepth = 0.1536f,
+					id = 996f
+				});
+				location.TemporarySprites.Add(new TemporaryAnimatedSprite(51, new Vector2(3328f, 1728f), Color.White, 10, flipped: false, 80f, 999999));
+				location.TemporarySprites.Add(new TemporaryAnimatedSprite(51, new Vector2(3264f, 1792f), Color.White, 10, flipped: false, 70f, 999999));
+				location.TemporarySprites.Add(new TemporaryAnimatedSprite(51, new Vector2(3392f, 1792f), Color.White, 10, flipped: false, 85f, 999999));
+				location.TemporarySprites.Add(new TemporaryAnimatedSprite("Maps\\Festivals", new Microsoft.Xna.Framework.Rectangle(160, 368, 16, 32), 500f, 3, 99999, new Vector2(53f, 24f) * 64f, flicker: false, flipped: false, 0.1984f, 0f, Color.White, 4f, 0f, 0f, 0f));
+				location.TemporarySprites.Add(new TemporaryAnimatedSprite("Maps\\Festivals", new Microsoft.Xna.Framework.Rectangle(160, 368, 16, 32), 510f, 3, 99999, new Vector2(54f, 23f) * 64f, flicker: false, flipped: false, 0.1984f, 0f, Color.White, 4f, 0f, 0f, 0f));
+				break;
+			case "parrotHutSquawk":
+				(location as IslandHut).parrotUpgradePerches[0].timeUntilSqwawk = 1f;
+				break;
+			case "parrotPerchHut":
+				location.temporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\parrots", new Microsoft.Xna.Framework.Rectangle(0, 0, 24, 24), new Vector2(7f, 4f) * 64f, flipped: false, 0f, Color.White)
+				{
+					animationLength = 1,
+					interval = 999999f,
+					scale = 4f,
+					layerDepth = 1f,
+					id = 999f
+				});
+				break;
 			case "trashBearTown":
 				aboveMapSprites = new List<TemporaryAnimatedSprite>();
 				aboveMapSprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors2", new Microsoft.Xna.Framework.Rectangle(46, 80, 46, 56), new Vector2(43f, 64f) * 64f, flipped: false, 0f, Color.White)
@@ -3681,12 +4652,12 @@ namespace StardewValley
 					{
 						aboveMapSprites.First().xStopCoordinate = -1;
 						aboveMapSprites.First().motion = new Vector2(4f, 0f);
-						location.ApplyMapOverride("Town-TrashGone", null, new Microsoft.Xna.Framework.Rectangle(57, 68, 17, 5));
-						location.ApplyMapOverride("Town-DogHouse", null, new Microsoft.Xna.Framework.Rectangle(51, 65, 5, 6));
+						location.ApplyMapOverride("Town-TrashGone", (Microsoft.Xna.Framework.Rectangle?)null, (Microsoft.Xna.Framework.Rectangle?)new Microsoft.Xna.Framework.Rectangle(57, 68, 17, 5));
+						location.ApplyMapOverride("Town-DogHouse", (Microsoft.Xna.Framework.Rectangle?)null, (Microsoft.Xna.Framework.Rectangle?)new Microsoft.Xna.Framework.Rectangle(51, 65, 5, 6));
 						Game1.flashAlpha = 0.75f;
 						Game1.screenGlowOnce(Color.Lime, hold: false, 0.25f, 1f);
 						location.playSound("yoba");
-						TemporaryAnimatedSprite temporaryAnimatedSprite = new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(497, 1918, 11, 11), new Vector2(3456f, 4160f), flipped: false, 0f, Color.White)
+						TemporaryAnimatedSprite temporaryAnimatedSprite6 = new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(497, 1918, 11, 11), new Vector2(3456f, 4160f), flipped: false, 0f, Color.White)
 						{
 							yStopCoordinate = 4372,
 							motion = new Vector2(-0.5f, -10f),
@@ -3695,9 +4666,9 @@ namespace StardewValley
 							alphaFade = 0f,
 							extraInfoForEndBehavior = -777
 						};
-						temporaryAnimatedSprite.reachedStopCoordinate = temporaryAnimatedSprite.bounce;
-						temporaryAnimatedSprite.initialPosition.Y = 4372f;
-						aboveMapSprites.Add(temporaryAnimatedSprite);
+						temporaryAnimatedSprite6.reachedStopCoordinate = temporaryAnimatedSprite6.bounce;
+						temporaryAnimatedSprite6.initialPosition.Y = 4372f;
+						aboveMapSprites.Add(temporaryAnimatedSprite6);
 						aboveMapSprites.AddRange(Utility.getStarsAndSpirals(location, 54, 69, 6, 5, 1000, 10, Color.Lime));
 						location.TemporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(324, 1936, 12, 20), 80f, 4, 99999, new Vector2(53f, 67f) * 64f + new Vector2(3f, 3f) * 4f, flicker: false, flipped: false, 1f, 0f, Color.White, 4f, 0f, 0f, 0f)
 						{
@@ -3742,11 +4713,11 @@ namespace StardewValley
 				break;
 			case "krobusBeach":
 			{
-				for (int i = 0; i < 8; i++)
+				for (int j = 0; j < 8; j++)
 				{
-					location.temporarySprites.Add(new TemporaryAnimatedSprite("TileSheets\\animations", new Microsoft.Xna.Framework.Rectangle(0, 0, 64, 64), 150f, 4, 0, new Vector2(84f + ((i % 2 == 0) ? 0.25f : (-0.05f)), 41f) * 64f, flicker: false, Game1.random.NextDouble() < 0.5, 0.001f, 0.02f, Color.White, 0.75f, 0.003f, 0f, 0f)
+					location.temporarySprites.Add(new TemporaryAnimatedSprite("TileSheets\\animations", new Microsoft.Xna.Framework.Rectangle(0, 0, 64, 64), 150f, 4, 0, new Vector2(84f + ((j % 2 == 0) ? 0.25f : (-0.05f)), 41f) * 64f, flicker: false, Game1.random.NextDouble() < 0.5, 0.001f, 0.02f, Color.White, 0.75f, 0.003f, 0f, 0f)
 					{
-						delayBeforeAnimationStart = 500 + i * 1000,
+						delayBeforeAnimationStart = 500 + j * 1000,
 						startSound = "waterSlosh"
 					});
 				}
@@ -3869,7 +4840,7 @@ namespace StardewValley
 				}
 				break;
 			case "sauceGood":
-				Utility.addSprinklesToLocation(location, 64, 16, 3, 1, 800, 200, Color.White);
+				Utility.addSprinklesToLocation(location, OffsetTileX(64), OffsetTileY(16), 3, 1, 800, 200, Color.White);
 				break;
 			case "sauceFire":
 			{
@@ -3881,14 +4852,14 @@ namespace StardewValley
 					sourceRectStartingPos = new Vector2(276f, 1985f),
 					interval = 100f,
 					totalNumberOfLoops = 5,
-					position = new Vector2(64f, 16f) * 64f + new Vector2(3f, -4f) * 4f,
+					position = OffsetPosition(new Vector2(64f, 16f) * 64f + new Vector2(3f, -4f) * 4f),
 					scale = 4f,
 					layerDepth = 1f
 				});
 				aboveMapSprites = new List<TemporaryAnimatedSprite>();
-				for (int j = 0; j < 8; j++)
+				for (int k = 0; k < 8; k++)
 				{
-					aboveMapSprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(372, 1956, 10, 10), new Vector2(64f, 16f) * 64f + new Vector2(Game1.random.Next(-16, 32), 0f), flipped: false, 0.002f, Color.Gray)
+					aboveMapSprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(372, 1956, 10, 10), OffsetPosition(new Vector2(64f, 16f) * 64f) + new Vector2(Game1.random.Next(-16, 32), 0f), flipped: false, 0.002f, Color.Gray)
 					{
 						alpha = 0.75f,
 						motion = new Vector2(1f, -1f) + new Vector2((float)(Game1.random.Next(100) - 50) / 100f, (float)(Game1.random.Next(100) - 50) / 100f),
@@ -3897,7 +4868,7 @@ namespace StardewValley
 						scale = 3f,
 						scaleChange = 0.01f,
 						rotationChange = (float)Game1.random.Next(-5, 6) * (float)Math.PI / 256f,
-						delayBeforeAnimationStart = j * 25
+						delayBeforeAnimationStart = k * 25
 					});
 				}
 				break;
@@ -4039,7 +5010,7 @@ namespace StardewValley
 					interval = 5000f,
 					totalNumberOfLoops = 9999,
 					scale = 4f,
-					position = Utility.getTopLeftPositionForCenteringOnScreen(268, 172, 0, -20),
+					position = Utility.getTopLeftPositionForCenteringOnScreen(Game1.viewport, 268, 172, 0, -20),
 					layerDepth = 0.0001f,
 					local = true,
 					id = 999f
@@ -4049,7 +5020,7 @@ namespace StardewValley
 			{
 				location.removeTemporarySpritesWithID(999);
 				Texture2D tempTxture98 = Game1.temporaryContent.Load<Texture2D>("LooseSprites\\temporary_sprites_1");
-				for (int k = 0; k < 48; k++)
+				for (int l = 0; l < 48; l++)
 				{
 					location.TemporarySprites.Add(new TemporaryAnimatedSprite
 					{
@@ -4060,12 +5031,12 @@ namespace StardewValley
 						interval = 5000f,
 						totalNumberOfLoops = 10,
 						scale = Game1.random.Next(1, 5),
-						position = Utility.getTopLeftPositionForCenteringOnScreen(84, 84) + new Vector2(Game1.random.Next(-32, 32), Game1.random.Next(-32, 32)),
+						position = Utility.getTopLeftPositionForCenteringOnScreen(Game1.viewport, 84, 84) + new Vector2(Game1.random.Next(-32, 32), Game1.random.Next(-32, 32)),
 						rotationChange = (float)Math.PI / (float)Game1.random.Next(16, 128),
 						motion = new Vector2((float)Game1.random.Next(-30, 40) / 10f, (float)Game1.random.Next(20, 90) * -0.1f),
 						acceleration = new Vector2(0f, 0.05f),
 						local = true,
-						layerDepth = (float)k / 100f,
+						layerDepth = (float)l / 100f,
 						color = ((Game1.random.NextDouble() < 0.5) ? Color.White : Utility.getRandomRainbowColor())
 					});
 				}
@@ -4073,10 +5044,10 @@ namespace StardewValley
 			}
 			case "frogJump":
 			{
-				TemporaryAnimatedSprite temporarySpriteByID2 = location.getTemporarySpriteByID(777);
-				temporarySpriteByID2.motion = new Vector2(-2f, 0f);
-				temporarySpriteByID2.animationLength = 4;
-				temporarySpriteByID2.interval = 150f;
+				TemporaryAnimatedSprite temporarySpriteByID3 = location.getTemporarySpriteByID(777);
+				temporarySpriteByID3.motion = new Vector2(-2f, 0f);
+				temporarySpriteByID3.animationLength = 4;
+				temporarySpriteByID3.interval = 150f;
 				break;
 			}
 			case "sebastianFrogHouse":
@@ -4875,9 +5846,9 @@ namespace StardewValley
 				break;
 			case "arcaneBook":
 			{
-				for (int m = 0; m < 16; m++)
+				for (int n = 0; n < 16; n++)
 				{
-					location.TemporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(536, 1945, 8, 8), new Vector2(128f, 792f) + new Vector2(Game1.random.Next(32), Game1.random.Next(32) - m * 4), flipped: false, 0f, Color.White)
+					location.TemporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(536, 1945, 8, 8), new Vector2(128f, 792f) + new Vector2(Game1.random.Next(32), Game1.random.Next(32) - n * 4), flipped: false, 0f, Color.White)
 					{
 						interval = 50f,
 						totalNumberOfLoops = 99999,
@@ -4903,7 +5874,7 @@ namespace StardewValley
 					motion = new Vector2(-8f, -8f),
 					acceleration = new Vector2(0.4f, 0.4f)
 				});
-				for (int l = 0; l < 16; l++)
+				for (int m = 0; m < 16; m++)
 				{
 					aboveMapSprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(372, 1956, 10, 10), new Vector2(2f, 12f) * 64f + new Vector2(Game1.random.Next(-32, 64), 0f), flipped: false, 0.002f, Color.Gray)
 					{
@@ -4914,7 +5885,7 @@ namespace StardewValley
 						scale = 3f,
 						scaleChange = 0.01f,
 						rotationChange = (float)Game1.random.Next(-5, 6) * (float)Math.PI / 256f,
-						delayBeforeAnimationStart = l * 25
+						delayBeforeAnimationStart = m * 25
 					});
 				}
 				location.setMapTileIndex(2, 12, 2143, "Front", 1);
@@ -5231,6 +6202,159 @@ namespace StardewValley
 					local = true
 				});
 				break;
+			case "doneWithSlideShow":
+				(location as Summit).isShowingEndSlideshow = false;
+				break;
+			case "getEndSlideshow":
+			{
+				Summit summit = location as Summit;
+				string[] s = summit.getEndSlideshow().Split('/');
+				List<string> commandsList = eventCommands.ToList();
+				commandsList.InsertRange(CurrentCommand + 1, s);
+				eventCommands = commandsList.ToArray();
+				summit.isShowingEndSlideshow = true;
+				break;
+			}
+			case "krobusraven":
+			{
+				location.TemporarySprites.Add(new TemporaryAnimatedSprite("Characters\\KrobusRaven", new Microsoft.Xna.Framework.Rectangle(0, 0, 32, 32), 100f, 5, 999999, new Vector2(Game1.viewport.Width, (float)Game1.viewport.Height * 0.33f), flicker: false, flipped: false, 0.9f, 0f, Color.White, 4f, 0f, 0f, 0f, local: true)
+				{
+					pingPong = true,
+					motion = new Vector2(-2f, 0f),
+					yPeriodic = true,
+					yPeriodicLoopTime = 3000f,
+					yPeriodicRange = 16f,
+					startSound = "shadowpeep"
+				});
+				location.TemporarySprites.Add(new TemporaryAnimatedSprite("Characters\\KrobusRaven", new Microsoft.Xna.Framework.Rectangle(0, 32, 32, 32), 30f, 5, 999999, new Vector2(Game1.viewport.Width, (float)Game1.viewport.Height * 0.33f), flicker: false, flipped: false, 0.9f, 0f, Color.White, 4f, 0f, 0f, 0f, local: true)
+				{
+					motion = new Vector2(-3f, 0f),
+					yPeriodic = true,
+					yPeriodicLoopTime = 2800f,
+					yPeriodicRange = 16f,
+					delayBeforeAnimationStart = 8000
+				});
+				location.TemporarySprites.Add(new TemporaryAnimatedSprite("Characters\\KrobusRaven", new Microsoft.Xna.Framework.Rectangle(0, 64, 32, 39), 100f, 4, 999999, new Vector2(Game1.viewport.Width, (float)Game1.viewport.Height * 0.33f), flicker: false, flipped: false, 0.9f, 0f, Color.White, 4f, 0f, 0f, 0f, local: true)
+				{
+					pingPong = true,
+					motion = new Vector2(-4f, 0f),
+					yPeriodic = true,
+					yPeriodicLoopTime = 2000f,
+					yPeriodicRange = 16f,
+					delayBeforeAnimationStart = 15000,
+					startSound = "fireball"
+				});
+				location.TemporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(276, 1886, 35, 29), 9999f, 1, 999999, new Vector2(Game1.graphics.GraphicsDevice.Viewport.Width, (float)Game1.viewport.Height * 0.33f), flicker: false, flipped: false, 1f, 0f, Color.White, 4f, 0f, 0f, 0f)
+				{
+					motion = new Vector2(-4f, 0f),
+					yPeriodic = true,
+					yPeriodicLoopTime = 2200f,
+					yPeriodicRange = 32f,
+					local = true,
+					delayBeforeAnimationStart = 20000
+				});
+				for (int i3 = 0; i3 < 12; i3++)
+				{
+					location.TemporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(16, 594, 16, 12), 100f, 2, 999999, new Vector2(Game1.graphics.GraphicsDevice.Viewport.Width, (float)Game1.viewport.Height * 0.33f + (float)Game1.random.Next(-128, 128)), flicker: false, flipped: false, 1f, 0f, Color.White, 4f, 0f, 0f, 0f)
+					{
+						motion = new Vector2(-2f, 0f),
+						yPeriodic = true,
+						yPeriodicLoopTime = Game1.random.Next(1500, 2000),
+						yPeriodicRange = 32f,
+						local = true,
+						delayBeforeAnimationStart = 24000 + i3 * 200,
+						startSound = ((i3 == 0) ? "yoba" : null)
+					});
+				}
+				int whenToStart2 = 0;
+				if (Game1.player.mailReceived.Contains("Capsule_Broken"))
+				{
+					for (int i2 = 0; i2 < 3; i2++)
+					{
+						location.TemporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(639, 785, 16, 16), 100f, 4, 999999, new Vector2(Game1.graphics.GraphicsDevice.Viewport.Width, (float)Game1.viewport.Height * 0.33f + (float)Game1.random.Next(-128, 128)), flicker: false, flipped: false, 1f, 0f, Color.White, 4f, 0f, 0f, 0f)
+						{
+							motion = new Vector2(-2f, 0f),
+							yPeriodic = true,
+							yPeriodicLoopTime = Game1.random.Next(1500, 2000),
+							yPeriodicRange = 16f,
+							local = true,
+							delayBeforeAnimationStart = 30000 + i2 * 500,
+							startSound = ((i2 == 0) ? "UFO" : null)
+						});
+					}
+					whenToStart2 += 5000;
+				}
+				if (Game1.year <= 1)
+				{
+					location.TemporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors2", new Microsoft.Xna.Framework.Rectangle(150, 259, 9, 9), 10f, 4, 9999999, new Vector2(Game1.viewport.Width + 4, (float)Game1.viewport.Height * 0.33f + 44f), flicker: false, flipped: false, 0.9f, 0f, Color.White, 4f, 0f, 0f, 0f, local: true)
+					{
+						motion = new Vector2(-2f, 0f),
+						yPeriodic = true,
+						yPeriodicLoopTime = 3000f,
+						yPeriodicRange = 8f,
+						delayBeforeAnimationStart = 30000 + whenToStart2
+					});
+					location.TemporarySprites.Add(new TemporaryAnimatedSprite("Characters\\KrobusRaven", new Microsoft.Xna.Framework.Rectangle(2, 129, 120, 27), 1090f, 1, 999999, new Vector2(Game1.viewport.Width, (float)Game1.viewport.Height * 0.33f), flicker: false, flipped: false, 0.9f, 0f, Color.White, 4f, 0f, 0f, 0f, local: true)
+					{
+						motion = new Vector2(-2f, 0f),
+						yPeriodic = true,
+						yPeriodicLoopTime = 3000f,
+						yPeriodicRange = 8f,
+						startSound = "discoverMineral",
+						delayBeforeAnimationStart = 30000 + whenToStart2
+					});
+					whenToStart2 += 5000;
+				}
+				else if (Game1.year <= 2)
+				{
+					location.TemporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors2", new Microsoft.Xna.Framework.Rectangle(150, 259, 9, 9), 10f, 4, 9999999, new Vector2(Game1.viewport.Width + 4, (float)Game1.viewport.Height * 0.33f + 44f), flicker: false, flipped: false, 0.9f, 0f, Color.White, 4f, 0f, 0f, 0f, local: true)
+					{
+						motion = new Vector2(-2f, 0f),
+						yPeriodic = true,
+						yPeriodicLoopTime = 3000f,
+						yPeriodicRange = 8f,
+						delayBeforeAnimationStart = 30000 + whenToStart2
+					});
+					location.TemporarySprites.Add(new TemporaryAnimatedSprite("Characters\\KrobusRaven", new Microsoft.Xna.Framework.Rectangle(1, 104, 100, 24), 1090f, 1, 999999, new Vector2(Game1.viewport.Width, (float)Game1.viewport.Height * 0.33f), flicker: false, flipped: false, 0.9f, 0f, Color.White, 4f, 0f, 0f, 0f, local: true)
+					{
+						motion = new Vector2(-2f, 0f),
+						yPeriodic = true,
+						yPeriodicLoopTime = 3000f,
+						yPeriodicRange = 8f,
+						startSound = "newArtifact",
+						delayBeforeAnimationStart = 30000 + whenToStart2
+					});
+					whenToStart2 += 5000;
+				}
+				if (Game1.MasterPlayer.totalMoneyEarned >= 100000000)
+				{
+					location.TemporarySprites.Add(new TemporaryAnimatedSprite("Characters\\KrobusRaven", new Microsoft.Xna.Framework.Rectangle(125, 108, 34, 50), 1090f, 1, 999999, new Vector2(Game1.viewport.Width, (float)Game1.viewport.Height * 0.33f), flicker: false, flipped: false, 0.9f, 0f, Color.White, 4f, 0f, 0f, 0f, local: true)
+					{
+						motion = new Vector2(-2f, 0f),
+						yPeriodic = true,
+						yPeriodicLoopTime = 3000f,
+						yPeriodicRange = 8f,
+						startSound = "discoverMineral",
+						delayBeforeAnimationStart = 30000 + whenToStart2
+					});
+					whenToStart2 += 5000;
+				}
+				break;
+			}
+			case "grandpaThumbsUp":
+			{
+				TemporaryAnimatedSprite temporarySpriteByID2 = location.getTemporarySpriteByID(77777);
+				temporarySpriteByID2.texture = Game1.mouseCursors2;
+				temporarySpriteByID2.sourceRect = new Microsoft.Xna.Framework.Rectangle(186, 265, 22, 34);
+				temporarySpriteByID2.sourceRectStartingPos = new Vector2(186f, 265f);
+				temporarySpriteByID2.yPeriodic = true;
+				temporarySpriteByID2.yPeriodicLoopTime = 1000f;
+				temporarySpriteByID2.yPeriodicRange = 16f;
+				temporarySpriteByID2.xPeriodicLoopTime = 2500f;
+				temporarySpriteByID2.xPeriodicRange = 16f;
+				temporarySpriteByID2.initialPosition = temporarySpriteByID2.position;
+				break;
+			}
 			case "grandpaSpirit":
 			{
 				TemporaryAnimatedSprite p = new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(555, 1956, 18, 35), 9999f, 1, 99999, new Vector2(-1000f, -1010f) * 64f, flicker: false, flipped: false, 1f, 0f, Color.White, 4f, 0f, 0f, 0f)
@@ -5240,15 +6364,16 @@ namespace StardewValley
 					xPeriodicLoopTime = 3000f,
 					xPeriodicRange = 16f,
 					motion = new Vector2(0f, 1f),
-					overrideLocationDestroy = true
+					overrideLocationDestroy = true,
+					id = 77777f
 				};
 				location.temporarySprites.Add(p);
-				for (int n = 0; n < 19; n++)
+				for (int i4 = 0; i4 < 19; i4++)
 				{
 					location.temporarySprites.Add(new TemporaryAnimatedSprite(10, new Vector2(32f, 32f), Color.White)
 					{
 						parentSprite = p,
-						delayBeforeAnimationStart = (n + 1) * 500,
+						delayBeforeAnimationStart = (i4 + 1) * 500,
 						overrideLocationDestroy = true,
 						scale = 1f,
 						alpha = 1f
@@ -5536,7 +6661,7 @@ namespace StardewValley
 			{
 				aboveMapSprites = new List<TemporaryAnimatedSprite>();
 				Game1.flashAlpha = 1f;
-				for (int i2 = 0; i2 < 150; i2++)
+				for (int i5 = 0; i5 < 150; i5++)
 				{
 					Vector2 position = new Vector2(Game1.random.Next(Game1.viewport.Width - 128), Game1.random.Next(Game1.viewport.Height));
 					int scale = Game1.random.Next(2, 5);
@@ -5582,9 +6707,9 @@ namespace StardewValley
 			case "jojaCeremony":
 			{
 				aboveMapSprites = new List<TemporaryAnimatedSprite>();
-				for (int i3 = 0; i3 < 16; i3++)
+				for (int i6 = 0; i6 < 16; i6++)
 				{
-					Vector2 position2 = new Vector2(Game1.random.Next(Game1.viewport.Width - 128), Game1.viewport.Height + i3 * 64);
+					Vector2 position2 = new Vector2(Game1.random.Next(Game1.viewport.Width - 128), Game1.viewport.Height + i6 * 64);
 					aboveMapSprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(534, 1413, 11, 16), 99999f, 1, 99999, position2, flicker: false, flipped: false, 0.99f, 0f, Color.DeepSkyBlue, 4f, 0f, 0f, 0f)
 					{
 						local = true,
@@ -5620,9 +6745,9 @@ namespace StardewValley
 			case "ccCelebration":
 			{
 				aboveMapSprites = new List<TemporaryAnimatedSprite>();
-				for (int i4 = 0; i4 < 32; i4++)
+				for (int i7 = 0; i7 < 32; i7++)
 				{
-					Vector2 position3 = new Vector2(Game1.random.Next(Game1.viewport.Width - 128), Game1.viewport.Height + i4 * 64);
+					Vector2 position3 = new Vector2(Game1.random.Next(Game1.viewport.Width - 128), Game1.viewport.Height + i7 * 64);
 					aboveMapSprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(534, 1413, 11, 16), 99999f, 1, 99999, position3, flicker: false, flipped: false, 1f, 0f, Utility.getRandomRainbowColor(), 4f, 0f, 0f, 0f)
 					{
 						local = true,
@@ -6309,7 +7434,7 @@ namespace StardewValley
 					initialPosition = new Vector2(Game1.viewport.Width / 2, Game1.viewport.Height)
 				};
 				location.temporarySprites.Add(parent);
-				for (int i5 = 0; i5 < 19; i5++)
+				for (int i8 = 0; i8 < 19; i8++)
 				{
 					location.temporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(516, 1916, 7, 10), 99999f, 1, 99999, new Vector2(64f, 32f), flicker: false, flipped: false, 1f, 0f, Color.White, 4f, 0f, 0f, 0f)
 					{
@@ -6317,7 +7442,7 @@ namespace StardewValley
 						local = true,
 						motion = new Vector2(-1f, -1f),
 						parentSprite = parent,
-						delayBeforeAnimationStart = (i5 + 1) * 1000
+						delayBeforeAnimationStart = (i8 + 1) * 1000
 					});
 				}
 				break;
@@ -6468,20 +7593,20 @@ namespace StardewValley
 				break;
 			}
 			case "marcelloLand":
-				location.TemporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(0, 1183, 84, 160), 10000f, 1, 99999, new Vector2(25f, 19f) * 64f + new Vector2(-23f, 0f) * 4f, flicker: false, flipped: false, 2E-05f, 0f, Color.White, 4f, 0f, 0f, 0f)
+				location.TemporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(0, 1183, 84, 160), 10000f, 1, 99999, (new Vector2(25f, 19f) + eventPositionTileOffset) * 64f + new Vector2(-23f, 0f) * 4f, flicker: false, flipped: false, 2E-05f, 0f, Color.White, 4f, 0f, 0f, 0f)
 				{
 					motion = new Vector2(0f, 2f),
-					yStopCoordinate = 1984,
+					yStopCoordinate = (41 + (int)eventPositionTileOffset.Y) * 64 - 640,
 					reachedStopCoordinate = marcelloBalloonLand,
 					attachedCharacter = getActorByName("Marcello"),
 					id = 1f
 				});
-				location.TemporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(84, 1205, 38, 26), 10000f, 1, 99999, new Vector2(25f, 19f) * 64f + new Vector2(0f, 134f) * 4f, flicker: false, flipped: false, 0.2625f, 0f, Color.White, 4f, 0f, 0f, 0f)
+				location.TemporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(84, 1205, 38, 26), 10000f, 1, 99999, (new Vector2(25f, 19f) + eventPositionTileOffset) * 64f + new Vector2(0f, 134f) * 4f, flicker: false, flipped: false, (41f + eventPositionTileOffset.Y) * 64f / 10000f + 0.0001f, 0f, Color.White, 4f, 0f, 0f, 0f)
 				{
 					motion = new Vector2(0f, 2f),
 					id = 2f
 				});
-				location.TemporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(24, 1343, 36, 19), 7000f, 1, 99999, new Vector2(25f, 40f) * 64f, flicker: false, flipped: false, 1E-05f, 0f, Color.White, 0f, 0f, 0f, 0f)
+				location.TemporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(24, 1343, 36, 19), 7000f, 1, 99999, (new Vector2(25f, 40f) + eventPositionTileOffset) * 64f, flicker: false, flipped: false, 1E-05f, 0f, Color.White, 0f, 0f, 0f, 0f)
 				{
 					scaleChange = 0.01f,
 					id = 3f
@@ -6513,8 +7638,8 @@ namespace StardewValley
 			case "leahPicnic":
 			{
 				location.TemporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(96, 1808, 32, 48), 9999f, 1, 999, new Vector2(75f, 37f) * 64f, flicker: false, flipped: false, 0.2496f, 0f, Color.White, 4f, 0f, 0f, 0f));
-				NPC n2 = new NPC(new AnimatedSprite(festivalContent, "Characters\\" + (farmer.IsMale ? "LeahExMale" : "LeahExFemale"), 0, 16, 32), new Vector2(-100f, -100f) * 64f, 2, "LeahEx");
-				actors.Add(n2);
+				NPC n3 = new NPC(new AnimatedSprite(festivalContent, "Characters\\" + (farmer.IsMale ? "LeahExMale" : "LeahExFemale"), 0, 16, 32), new Vector2(-100f, -100f) * 64f, 2, "LeahEx");
+				actors.Add(n3);
 				break;
 			}
 			case "leahShow":
@@ -6526,8 +7651,8 @@ namespace StardewValley
 				location.TemporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(160, 656, 32, 64), 9999f, 1, 999, new Vector2(29f, 60f) * 64f, flicker: false, flipped: false, 0.4032f, 0f, Color.White, 4f, 0f, 0f, 0f));
 				location.TemporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(144, 688, 16, 32), 9999f, 1, 999, new Vector2(34f, 63f) * 64f, flicker: false, flipped: false, 0.4031f, 0f, Color.White, 4f, 0f, 0f, 0f));
 				location.TemporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(113, 592, 16, 64), 100f, 4, 99999, new Vector2(34f, 60f) * 64f, flicker: false, flipped: false, 0.4032f, 0f, Color.White, 4f, 0f, 0f, 0f));
-				NPC n2 = new NPC(new AnimatedSprite(festivalContent, "Characters\\" + (farmer.IsMale ? "LeahExMale" : "LeahExFemale"), 0, 16, 32), new Vector2(46f, 57f) * 64f, 2, "LeahEx");
-				actors.Add(n2);
+				NPC n3 = new NPC(new AnimatedSprite(festivalContent, "Characters\\" + (farmer.IsMale ? "LeahExMale" : "LeahExFemale"), 0, 16, 32), new Vector2(46f, 57f) * 64f, 2, "LeahEx");
+				actors.Add(n3);
 				break;
 			}
 			case "leahTree":
@@ -6585,7 +7710,7 @@ namespace StardewValley
 				location.TemporarySprites.Add(new TemporaryAnimatedSprite(741, 999999f, 1, 0, new Vector2(16f, 6f) * 64f, flicker: false, flipped: false));
 				break;
 			case "heart":
-				location.TemporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(211, 428, 7, 6), 2000f, 1, 0, new Vector2(Convert.ToInt32(split[2]), Convert.ToInt32(split[3])) * 64f + new Vector2(-16f, -16f), flicker: false, flipped: false, 1f, 0f, Color.White, 4f, 0f, 0f, 0f)
+				location.TemporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(211, 428, 7, 6), 2000f, 1, 0, OffsetPosition(new Vector2(Convert.ToInt32(split[2]), Convert.ToInt32(split[3]))) * 64f + new Vector2(-16f, -16f), flicker: false, flipped: false, 1f, 0f, Color.White, 4f, 0f, 0f, 0f)
 				{
 					motion = new Vector2(0f, -0.5f),
 					alphaFade = 0.01f
@@ -6599,16 +7724,16 @@ namespace StardewValley
 					accelerationChange = new Vector2(0f, -0.0001f)
 				};
 				location.temporarySprites.Add(parent2);
-				for (int i9 = 0; i9 < 420; i9++)
+				for (int i11 = 0; i11 < 420; i11++)
 				{
 					location.TemporarySprites.Add(new TemporaryAnimatedSprite("TileSheets\\animations", new Microsoft.Xna.Framework.Rectangle(Game1.random.Next(4) * 64, 320, 64, 64), new Vector2(Game1.random.Next(96), 136f), flipped: false, 0.01f, Color.White * 0.75f)
 					{
 						layerDepth = 1f,
-						delayBeforeAnimationStart = i9 * 10,
+						delayBeforeAnimationStart = i11 * 10,
 						animationLength = 1,
 						currentNumberOfLoops = 0,
 						interval = 9999f,
-						motion = new Vector2(Game1.random.Next(-100, 100) / (i9 + 20), 0.25f + (float)i9 / 100f),
+						motion = new Vector2(Game1.random.Next(-100, 100) / (i11 + 20), 0.25f + (float)i11 / 100f),
 						parentSprite = parent2
 					});
 				}
@@ -6626,11 +7751,11 @@ namespace StardewValley
 				break;
 			case "maruTelescope":
 			{
-				for (int i8 = 0; i8 < 9; i8++)
+				for (int i12 = 0; i12 < 9; i12++)
 				{
 					location.TemporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(256, 1680, 16, 16), 80f, 5, 0, new Vector2(Game1.random.Next(1, 28), Game1.random.Next(1, 20)) * 64f, flicker: false, flipped: false, 1f, 0f, Color.White, 4f, 0f, 0f, 0f)
 					{
-						delayBeforeAnimationStart = 8000 + i8 * Game1.random.Next(2000),
+						delayBeforeAnimationStart = 8000 + i12 * Game1.random.Next(2000),
 						motion = new Vector2(4f, 4f)
 					});
 				}
@@ -6660,7 +7785,7 @@ namespace StardewValley
 				break;
 			case "abbyManyBats":
 			{
-				for (int i6 = 0; i6 < 100; i6++)
+				for (int i9 = 0; i9 < 100; i9++)
 				{
 					location.TemporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(640, 1664, 16, 16), 80f, 4, 9999, new Vector2(23f, 9f) * 64f, flicker: false, flipped: false, 1f, 0.003f, Color.White, 4f, 0f, 0f, 0f)
 					{
@@ -6668,16 +7793,16 @@ namespace StardewValley
 						xPeriodicLoopTime = Game1.random.Next(1500, 2500),
 						xPeriodicRange = Game1.random.Next(64, 192),
 						motion = new Vector2(Game1.random.Next(-2, 3), Game1.random.Next(-8, -4)),
-						delayBeforeAnimationStart = i6 * 30,
-						startSound = ((i6 % 10 == 0 || Game1.random.NextDouble() < 0.1) ? "batScreech" : null)
+						delayBeforeAnimationStart = i9 * 30,
+						startSound = ((i9 % 10 == 0 || Game1.random.NextDouble() < 0.1) ? "batScreech" : null)
 					});
 				}
-				for (int i7 = 0; i7 < 100; i7++)
+				for (int i10 = 0; i10 < 100; i10++)
 				{
 					location.TemporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(640, 1664, 16, 16), 80f, 4, 9999, new Vector2(23f, 9f) * 64f, flicker: false, flipped: false, 1f, 0.003f, Color.White, 4f, 0f, 0f, 0f)
 					{
 						motion = new Vector2(Game1.random.Next(-4, 5), Game1.random.Next(-8, -4)),
-						delayBeforeAnimationStart = 10 + i7 * 30
+						delayBeforeAnimationStart = 10 + i10 * 30
 					});
 				}
 				break;
@@ -6922,11 +8047,18 @@ namespace StardewValley
 
 		public void skipEvent()
 		{
+			if (playerControlSequence)
+			{
+				EndPlayerControlSequence();
+			}
 			Game1.playSound("drumkit6");
 			actorPositionsAfterMove.Clear();
 			foreach (NPC i in actors)
 			{
+				bool ignore_stop_animation = i.Sprite.ignoreStopAnimation;
+				i.Sprite.ignoreStopAnimation = true;
 				i.Halt();
+				i.Sprite.ignoreStopAnimation = ignore_stop_animation;
 				resetDialogueIfNecessary(i);
 			}
 			farmer.Halt();
@@ -6937,6 +8069,58 @@ namespace StardewValley
 			Game1.pauseTime = 0f;
 			switch (id)
 			{
+			case -157039427:
+				endBehaviors(new string[2]
+				{
+					"end",
+					"islandDepart"
+				}, Game1.currentLocation);
+				break;
+			case -888999:
+			{
+				Object o = new Object(864, 1)
+				{
+					specialItem = true
+				};
+				o.questItem.Value = true;
+				Game1.player.addItemByMenuIfNecessary(o);
+				Game1.player.addQuest(130);
+				endBehaviors(new string[1]
+				{
+					"end"
+				}, Game1.currentLocation);
+				break;
+			}
+			case -666777:
+				new List<Item>();
+				Game1.player.team.RequestLimitedNutDrops("Birdie", null, 0, 0, 5, 5);
+				if (!Game1.MasterPlayer.hasOrWillReceiveMail("gotBirdieReward"))
+				{
+					Game1.addMailForTomorrow("gotBirdieReward", noLetter: true, sendToEveryone: true);
+				}
+				if (!Game1.player.craftingRecipes.ContainsKey("Fairy Dust"))
+				{
+					Game1.player.craftingRecipes.Add("Fairy Dust", 0);
+				}
+				endBehaviors(new string[1]
+				{
+					"end"
+				}, Game1.currentLocation);
+				break;
+			case 6497428:
+				endBehaviors(new string[2]
+				{
+					"end",
+					"Leo"
+				}, Game1.currentLocation);
+				break;
+			case -78765:
+				endBehaviors(new string[2]
+				{
+					"end",
+					"tunnelDepart"
+				}, Game1.currentLocation);
+				break;
 			case 690006:
 				if (Game1.player.hasItemWithNameThatContains("Green Slime Egg") == null)
 				{
@@ -7143,6 +8327,7 @@ namespace StardewValley
 			{
 				if (a == "haleyBeach2")
 				{
+					EndPlayerControlSequence();
 					CurrentCommand++;
 				}
 			}
@@ -7245,8 +8430,7 @@ namespace StardewValley
 					{
 						if (a == "iceFishing")
 						{
-							playerControlSequence = false;
-							playerControlSequenceID = null;
+							EndPlayerControlSequence();
 							eventCommands = festivalData["afterIceFishing"].Split('/');
 							currentCommand = 0;
 							if (Game1.activeClickableMenu != null)
@@ -7264,8 +8448,7 @@ namespace StardewValley
 					}
 					else
 					{
-						playerControlSequence = false;
-						playerControlSequenceID = null;
+						EndPlayerControlSequence();
 						eventCommands = festivalData["afterEggHunt"].Split('/');
 						currentCommand = 0;
 					}
@@ -7342,6 +8525,15 @@ namespace StardewValley
 			}
 		}
 
+		public virtual bool ShouldHideCharacter(NPC n)
+		{
+			if (n is Child && doingSecretSanta)
+			{
+				return true;
+			}
+			return false;
+		}
+
 		public void draw(SpriteBatch b)
 		{
 			if (currentCustomEventScript != null)
@@ -7351,14 +8543,17 @@ namespace StardewValley
 			}
 			foreach (NPC j in actors)
 			{
-				j.Name.Equals("Marcello");
-				if (j.ySourceRectOffset == 0)
+				if (!ShouldHideCharacter(j))
 				{
-					j.draw(b);
-				}
-				else
-				{
-					j.draw(b, j.ySourceRectOffset);
+					j.Name.Equals("Marcello");
+					if (j.ySourceRectOffset == 0)
+					{
+						j.draw(b);
+					}
+					else
+					{
+						j.draw(b, j.ySourceRectOffset);
+					}
 				}
 			}
 			foreach (Object prop in props)
@@ -7439,6 +8634,7 @@ namespace StardewValley
 					break;
 				case "fair":
 					b.End();
+					Game1.PushUIMode();
 					b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, null);
 					b.Draw(Game1.fadeToBlackRect, new Microsoft.Xna.Framework.Rectangle(16, 16, 128 + ((Game1.player.festivalScore > 999) ? 16 : 0), 64), Color.Black * 0.75f);
 					b.Draw(Game1.mouseCursors, new Vector2(32f, 32f), new Microsoft.Xna.Framework.Rectangle(338, 400, 8, 8), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
@@ -7448,6 +8644,7 @@ namespace StardewValley
 						Game1.dayTimeMoneyBox.drawMoneyBox(b, Game1.dayTimeMoneyBox.xPositionOnScreen, 4);
 					}
 					b.End();
+					Game1.PopUIMode();
 					b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, null);
 					if (Game1.IsMultiplayer)
 					{
@@ -7494,12 +8691,25 @@ namespace StardewValley
 			}
 		}
 
+		public void EndPlayerControlSequence()
+		{
+			playerControlSequence = false;
+			playerControlSequenceID = null;
+		}
+
+		public void OnPlayerControlSequenceEnd(string id)
+		{
+			Game1.player.CanMove = false;
+			Game1.player.Halt();
+		}
+
 		public void setUpPlayerControlSequence(string id)
 		{
 			playerControlSequenceID = id;
 			playerControlSequence = true;
 			Game1.player.CanMove = true;
 			Game1.viewportFreeze = false;
+			Game1.forceSnapOnNextViewportUpdate = true;
 			Game1.globalFade = false;
 			doingSecretSanta = false;
 			switch (id)
@@ -7533,6 +8743,15 @@ namespace StardewValley
 			case "jellies":
 				festivalHost = getActorByName("Lewis");
 				hostMessage = Game1.content.LoadString("Strings\\StringsFromCSFiles:Event.cs.1531");
+				break;
+			case "boatRide":
+				Game1.viewportFreeze = true;
+				Game1.currentViewportTarget = Utility.PointToVector2(Game1.viewportCenter);
+				currentCommand++;
+				break;
+			case "parrotRide":
+				Game1.player.canOnlyWalk = false;
+				currentCommand++;
 				break;
 			case "fair":
 				festivalHost = getActorByName("Lewis");
@@ -7580,7 +8799,6 @@ namespace StardewValley
 				farmer.festivalScore = 0;
 				farmer.CurrentToolIndex = 0;
 				farmer.TemporaryItem = new FishingRod();
-				(farmer.CurrentTool as FishingRod).attachments[0] = new Object(690, 99);
 				(farmer.CurrentTool as FishingRod).attachments[1] = new Object(687, 1);
 				farmer.CurrentToolIndex = 0;
 				break;
@@ -7610,11 +8828,12 @@ namespace StardewValley
 				Game1.activeClickableMenu.emergencyShutDown();
 			}
 			Game1.exitActiveMenu();
-			string[] newCommands = eventCommands = festivalData["mainEvent"].Split('/');
+			string[] newCommands = eventCommands = GetFestivalDataForYear("mainEvent").Split('/');
 			CurrentCommand = 0;
 			eventSwitched = true;
 			playerControlSequence = false;
 			setUpFestivalMainEvent();
+			Game1.player.Halt();
 		}
 
 		public bool isSpecificFestival(string festivalID)
@@ -7696,7 +8915,7 @@ namespace StardewValley
 				}
 				leftoverFemales.Remove(female);
 			}
-			string rawFestivalData8 = festivalData["mainEvent"];
+			string rawFestivalData8 = GetFestivalDataForYear("mainEvent");
 			for (int i = 1; i <= 6; i++)
 			{
 				string female2 = (!females[i - 1].IsVillager()) ? ("farmer" + Utility.getFarmerNumberFromFarmer(females[i - 1].TryGetFarmer())) : females[i - 1].TryGetVillager().Name;
@@ -7733,7 +8952,7 @@ namespace StardewValley
 					{
 						purpleShorts = true;
 					}
-					pointsEarned3 += (int)(i as Object).quality + 1;
+					pointsEarned3 += (i as Object).Quality + 1;
 					int num = (i as Object).sellToStorePrice(-1L);
 					if (num >= 20)
 					{
@@ -7747,11 +8966,11 @@ namespace StardewValley
 					{
 						pointsEarned3++;
 					}
-					if (num >= 300 && (int)(i as Object).quality < 2)
+					if (num >= 300 && (i as Object).Quality < 2)
 					{
 						pointsEarned3++;
 					}
-					if (num >= 400 && (int)(i as Object).quality < 1)
+					if (num >= 400 && (i as Object).Quality < 1)
 					{
 						pointsEarned3++;
 					}
@@ -7982,7 +9201,7 @@ namespace StardewValley
 			}
 			else
 			{
-				string[] newCommands = eventCommands = festivalData["mainEvent"].Split('/');
+				string[] newCommands = eventCommands = GetFestivalDataForYear("mainEvent").Split('/');
 				CurrentCommand = 0;
 				eventSwitched = true;
 				playerControlSequence = false;
@@ -8063,6 +9282,11 @@ namespace StardewValley
 				tileIndex2 = Game1.currentLocation.getTileIndexAt(tileLocation.X, tileLocation.Y, "Buildings");
 				tileAction2 = Game1.currentLocation.doesTileHaveProperty(tileLocation.X, tileLocation.Y, "Action", "Buildings");
 				tileSheetID2 = Game1.currentLocation.getTileSheetIDAt(tileLocation.X, tileLocation.Y, "Buildings");
+				if (Game1.currentSeason == "winter" && Game1.dayOfMonth == 8 && tileSheetID2 == "fest" && (tileIndex2 == 1009 || tileIndex2 == 1010 || tileIndex2 == 1012 || tileIndex2 == 1013))
+				{
+					Game1.playSound("pig");
+					return true;
+				}
 				bool success = true;
 				switch (tileIndex2)
 				{
@@ -8151,6 +9375,49 @@ namespace StardewValley
 								2000,
 								1
 							});
+						}
+						stock2.Add(new Furniture(2488, Vector2.Zero), new int[2]
+						{
+							500,
+							1
+						});
+						switch (new Random((int)Game1.uniqueIDForThisGame + Game1.year + 19).Next(5))
+						{
+						case 0:
+							stock2.Add(new Object(251, 1), new int[2]
+							{
+								400,
+								2
+							});
+							break;
+						case 1:
+							stock2.Add(new Object(215, 1), new int[2]
+							{
+								250,
+								2
+							});
+							break;
+						case 2:
+							stock2.Add(new Ring(888), new int[2]
+							{
+								1000,
+								1
+							});
+							break;
+						case 3:
+							stock2.Add(new Object(178, 100), new int[2]
+							{
+								500,
+								1
+							});
+							break;
+						case 4:
+							stock2.Add(new Object(770, 24), new int[2]
+							{
+								1000,
+								1
+							});
+							break;
 						}
 						festivalShops.Add("starTokenShop", stock2);
 					}
@@ -8308,6 +9575,9 @@ namespace StardewValley
 									case "BBL":
 										item = new Object(Vector2.Zero, index, isRecipe: true);
 										break;
+									case "F":
+										item = Furniture.GetFurnitureInstance(index);
+										break;
 									}
 									if ((!(item is Object) || !(item as Object).isRecipe || !who.knowsRecipe(item.Name)) && item != null)
 									{
@@ -8352,6 +9622,11 @@ namespace StardewValley
 					{
 						foreach (NPC j in actors)
 						{
+							if (j.getTileX() == tileLocation.X && j.getTileY() == tileLocation.Y && j is Child)
+							{
+								(j as Child).checkAction(who, temporaryLocation);
+								return true;
+							}
 							if (j.getTileX() == tileLocation.X && j.getTileY() == tileLocation.Y && (j.CurrentDialogue.Count() >= 1 || (j.CurrentDialogue.Count() > 0 && !j.CurrentDialogue.Peek().isOnFinalDialogue()) || j.Equals(festivalHost) || ((bool)j.datable && festivalData["file"].Equals("spring24")) || (secretSantaRecipient != null && j.Name.Equals(secretSantaRecipient.Name))))
 							{
 								bool divorced = who.friendshipData.ContainsKey(j.Name) && who.friendshipData[j.Name].IsDivorced();
@@ -8451,7 +9726,7 @@ namespace StardewValley
 								if (who.spouse != null && j.Name.Equals(who.spouse) && !festivalData["file"].Equals("spring24") && festivalData.ContainsKey(j.Name + "_spouse"))
 								{
 									j.CurrentDialogue.Clear();
-									j.CurrentDialogue.Push(new Dialogue(festivalData[j.Name + "_spouse"], j));
+									j.CurrentDialogue.Push(new Dialogue(GetFestivalDataForYear(j.Name + "_spouse"), j));
 								}
 								if (divorced)
 								{
@@ -8512,6 +9787,7 @@ namespace StardewValley
 		{
 			Game1.currentMinigame = null;
 			Game1.exitActiveMenu();
+			Game1.player.Halt();
 			endBehaviors(null, Game1.currentLocation);
 			if (Game1.IsServer)
 			{
@@ -8688,7 +9964,7 @@ namespace StardewValley
 				specialEventVariable2 = (answerChoice == 1);
 				if (answerChoice != 2)
 				{
-					Game1.activeClickableMenu = new NumberSelectionMenu(Game1.content.LoadString("Strings\\StringsFromCSFiles:Event.cs.1776"), betStarTokens, -1, 1, Game1.player.festivalScore, 1);
+					Game1.activeClickableMenu = new NumberSelectionMenu(Game1.content.LoadString("Strings\\StringsFromCSFiles:Event.cs.1776"), betStarTokens, -1, 1, Game1.player.festivalScore, Math.Min(1, Game1.player.festivalScore));
 				}
 				break;
 			case "fortuneTeller":
@@ -8809,7 +10085,7 @@ namespace StardewValley
 				startSecretSantaAfterDialogue = true;
 				who.Halt();
 				who.completelyStopAnimatingOrDoingAction();
-				who.faceGeneralDirection(recipient.Position);
+				who.faceGeneralDirection(recipient.Position, 0, opposite: false, useTileCalculations: false);
 			}
 			else
 			{
@@ -9062,12 +10338,12 @@ namespace StardewValley
 					likeLevel = 6;
 					break;
 				}
-				if (((int)o.quality >= 2 && (int)o.price >= 160) || ((int)o.quality == 1 && (int)o.price >= 300 && (int)o.edibility > 10))
+				if ((o.Quality >= 2 && (int)o.price >= 160) || (o.Quality == 1 && (int)o.price >= 300 && (int)o.edibility > 10))
 				{
 					itemLevel = 4;
 					Utility.improveFriendshipWithEveryoneInRegion(Game1.player, 120, 2);
 				}
-				else if ((int)o.edibility >= 20 || (int)o.price >= 100 || ((int)o.price >= 70 && (int)o.quality >= 1))
+				else if ((int)o.edibility >= 20 || (int)o.price >= 100 || ((int)o.price >= 70 && o.Quality >= 1))
 				{
 					itemLevel = 3;
 					Utility.improveFriendshipWithEveryoneInRegion(Game1.player, 60, 2);

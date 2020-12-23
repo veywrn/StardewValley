@@ -3,6 +3,7 @@ using Microsoft.Xna.Framework.Audio;
 using Microsoft.Xna.Framework.Graphics;
 using Netcode;
 using StardewValley.BellsAndWhistles;
+using StardewValley.Objects;
 using System;
 using System.Xml.Serialization;
 using xTile.Dimensions;
@@ -38,6 +39,16 @@ namespace StardewValley.Locations
 		{
 		}
 
+		public override void startEvent(Event evt)
+		{
+			if (evt != null && evt.id == 528052)
+			{
+				evt.eventPositionTileOffset.X -= 8f;
+				evt.eventPositionTileOffset.Y -= 2f;
+			}
+			base.startEvent(evt);
+		}
+
 		protected override void initNetFields()
 		{
 			base.initNetFields();
@@ -67,6 +78,13 @@ namespace StardewValley.Locations
 			if (!Game1.IsWinter)
 			{
 				AmbientLocationSounds.addSound(new Vector2(15f, 56f), 0);
+			}
+			if (Game1.MasterPlayer.mailReceived.Contains("Farm_Eternal"))
+			{
+				removeTile(24, 34, "Buildings");
+				removeTile(25, 34, "Buildings");
+				removeTile(24, 35, "Buildings");
+				removeTile(25, 35, "Buildings");
 			}
 		}
 
@@ -198,7 +216,7 @@ namespace StardewValley.Locations
 
 		public void PlayTrainApproach()
 		{
-			if ((bool)Game1.currentLocation.isOutdoors && !Game1.isFestival())
+			if ((bool)Game1.currentLocation.isOutdoors && !Game1.isFestival() && Game1.currentLocation.GetLocationContext() == LocationContext.Default)
 			{
 				Game1.showGlobalMessage(Game1.content.LoadString("Strings\\Locations:Railroad_TrainComing"));
 				if (Game1.soundBank != null)
@@ -219,6 +237,15 @@ namespace StardewValley.Locations
 				Game1.player.addQuest(128);
 				Game1.player.addQuest(129);
 				return result;
+			}
+			if (!who.mailReceived.Contains("gotSpaFishing"))
+			{
+				who.mailReceived.Add("gotSpaFishing");
+				return new Furniture(2423, Vector2.Zero);
+			}
+			if (Game1.random.NextDouble() < 0.08)
+			{
+				return new Furniture(2423, Vector2.Zero);
 			}
 			return base.getFish(millisecondsAfterNibble, bait, waterDepth, who, baitPotency, bobberTile, locationName);
 		}

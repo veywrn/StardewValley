@@ -4,13 +4,16 @@ using Netcode;
 using StardewValley.BellsAndWhistles;
 using StardewValley.Locations;
 using StardewValley.Menus;
+using StardewValley.Network;
+using StardewValley.TerrainFeatures;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Xml.Serialization;
 
 namespace StardewValley.Objects
 {
-	public class Furniture : Object
+	public class Furniture : Object, ISittable
 	{
 		public const int chair = 0;
 
@@ -42,10 +45,21 @@ namespace StardewValley.Objects
 
 		public const int fireplace = 14;
 
+		public const int bed = 15;
+
+		public const int torch = 16;
+
+		public const int sconce = 17;
+
 		public const string furnitureTextureName = "TileSheets\\furniture";
+
+		public const string furnitureFrontTextureName = "TileSheets\\furnitureFront";
 
 		[XmlIgnore]
 		public static Texture2D furnitureTexture;
+
+		[XmlIgnore]
+		public static Texture2D furnitureFrontTexture;
 
 		[XmlElement("furniture_type")]
 		public readonly NetInt furniture_type = new NetInt();
@@ -77,14 +91,54 @@ namespace StardewValley.Objects
 		[XmlElement("drawHeldObjectLow")]
 		public readonly NetBool drawHeldObjectLow = new NetBool();
 
+		[XmlIgnore]
+		public NetLongDictionary<int, NetInt> sittingFarmers = new NetLongDictionary<int, NetInt>();
+
+		[XmlIgnore]
+		public Vector2? lightGlowPosition;
+
 		public static bool isDrawingLocationFurniture;
+
+		[XmlIgnore]
+		private int _placementRestriction = -1;
 
 		[XmlIgnore]
 		private string _description;
 
 		private const int fireIDBase = 944469;
 
-		private bool lightGlowAdded;
+		[XmlIgnore]
+		public int placementRestriction
+		{
+			get
+			{
+				if (_placementRestriction < 0)
+				{
+					bool use_default = true;
+					string[] data = getData();
+					if (data.Length > 6 && int.TryParse(data[6], out _placementRestriction))
+					{
+						use_default = false;
+					}
+					if (use_default)
+					{
+						if (base.name.Contains("TV"))
+						{
+							_placementRestriction = 0;
+						}
+						else if (furniture_type.Value == 11 || furniture_type.Value == 1 || furniture_type.Value == 0 || furniture_type.Value == 5 || furniture_type.Value == 8 || furniture_type.Value == 16)
+						{
+							_placementRestriction = 2;
+						}
+						else
+						{
+							_placementRestriction = 0;
+						}
+					}
+				}
+				return _placementRestriction;
+			}
+		}
 
 		[XmlIgnore]
 		public string description
@@ -104,7 +158,7 @@ namespace StardewValley.Objects
 		protected override void initNetFields()
 		{
 			base.initNetFields();
-			base.NetFields.AddFields(furniture_type, rotations, currentRotation, sourceIndexOffset, drawPosition, sourceRect, defaultSourceRect, defaultBoundingBox, drawHeldObjectLow);
+			base.NetFields.AddFields(furniture_type, rotations, currentRotation, sourceIndexOffset, drawPosition, sourceRect, defaultSourceRect, defaultBoundingBox, drawHeldObjectLow, sittingFarmers);
 		}
 
 		public Furniture()
@@ -121,6 +175,14 @@ namespace StardewValley.Objects
 				rotate();
 			}
 			isOn.Value = false;
+		}
+
+		public void OnAdded(GameLocation loc, Vector2 tilePos)
+		{
+			if (IntersectsForCollision(Game1.player.GetBoundingBox()))
+			{
+				Game1.player.TemporaryPassableTiles.Add(getBoundingBox(tilePos));
+			}
 		}
 
 		public Furniture(int which, Vector2 tile)
@@ -163,7 +225,7 @@ namespace StardewValley.Objects
 			price.Value = Convert.ToInt32(data[5]);
 		}
 
-		private string[] getData()
+		protected string[] getData()
 		{
 			Dictionary<int, string> dataSheet = Game1.content.Load<Dictionary<int, string>>("Data\\Furniture");
 			if (!dataSheet.ContainsKey(parentSheetIndex))
@@ -193,12 +255,20 @@ namespace StardewValley.Objects
 			{
 				return Game1.parseText(Game1.content.LoadString("Strings\\Objects:FurnitureCatalogueDescription"), Game1.smallFont, 320);
 			}
+			if (placementRestriction == 1)
+			{
+				return Game1.content.LoadString("Strings\\StringsFromCSFiles:Furniture_Outdoors_Description");
+			}
+			if (placementRestriction == 2)
+			{
+				return Game1.content.LoadString("Strings\\StringsFromCSFiles:Furniture_Decoration_Description");
+			}
 			return Game1.content.LoadString("Strings\\StringsFromCSFiles:Furniture.cs.12623");
 		}
 
 		private void specialVariableChange(bool newValue)
 		{
-			if ((int)furniture_type == 14 && newValue)
+			if (((int)furniture_type == 14 || (int)furniture_type == 16) && newValue)
 			{
 				Game1.playSound("fireball");
 			}
@@ -234,13 +304,13 @@ namespace StardewValley.Objects
 			{
 			case 1402:
 				Game1.activeClickableMenu = new Billboard();
-				break;
+				return true;
 			case 1308:
 				Game1.activeClickableMenu = new ShopMenu(Utility.getAllWallpapersAndFloorsForFree(), 0, null, null, null, "Catalogue");
-				break;
+				return true;
 			case 1226:
 				Game1.activeClickableMenu = new ShopMenu(Utility.getAllFurnituresForFree(), 0, null, null, null, "Furniture Catalogue");
-				break;
+				return true;
 			case 1309:
 				Game1.playSound("openBox");
 				shakeTimer = 500;
@@ -252,16 +322,22 @@ namespace StardewValley.Objects
 				{
 					Game1.changeMusicTrack("sam_acoustic1");
 				}
-				break;
-			}
-			if ((int)furniture_type == 14)
-			{
-				isOn.Value = !isOn.Value;
-				initializeLightSource(tileLocation);
-				setFireplace(who.currentLocation, playSound: true, broadcast: true);
 				return true;
+			default:
+				if ((int)furniture_type == 14 || (int)furniture_type == 16)
+				{
+					isOn.Value = !isOn.Value;
+					initializeLightSource(tileLocation);
+					setFireplace(who.currentLocation, playSound: true, broadcast: true);
+					return true;
+				}
+				if (GetSeatCapacity() > 0)
+				{
+					who.BeginSitting(this);
+					return true;
+				}
+				return clicked(who);
 			}
-			return clicked(who);
 		}
 
 		public void setFireplace(GameLocation location, bool playSound = true, bool broadcast = false)
@@ -295,8 +371,17 @@ namespace StardewValley.Objects
 			}
 		}
 
+		public virtual void AttemptRemoval(Action<Furniture> removal_action)
+		{
+			removal_action?.Invoke(this);
+		}
+
 		public virtual bool canBeRemoved(Farmer who)
 		{
+			if (HasSittingFarmers())
+			{
+				return false;
+			}
 			if (heldObject.Value == null)
 			{
 				return true;
@@ -326,11 +411,193 @@ namespace StardewValley.Objects
 			return false;
 		}
 
+		public virtual int GetSeatCapacity()
+		{
+			if ((int)furniture_type == 0)
+			{
+				return 1;
+			}
+			if ((int)furniture_type == 1)
+			{
+				return 2;
+			}
+			if ((int)furniture_type == 2)
+			{
+				return defaultBoundingBox.Width / 64 - 1;
+			}
+			if ((int)furniture_type == 3)
+			{
+				return 1;
+			}
+			return 0;
+		}
+
+		public bool IsSeatHere(GameLocation location)
+		{
+			return location.furniture.Contains(this);
+		}
+
+		public bool IsSittingHere(Farmer who)
+		{
+			if (sittingFarmers.ContainsKey(who.UniqueMultiplayerID))
+			{
+				return true;
+			}
+			return false;
+		}
+
+		public Vector2? GetSittingPosition(Farmer who, bool ignore_offsets = false)
+		{
+			if (sittingFarmers.ContainsKey(who.UniqueMultiplayerID))
+			{
+				return GetSeatPositions(ignore_offsets)[sittingFarmers[who.UniqueMultiplayerID]];
+			}
+			return null;
+		}
+
+		public bool HasSittingFarmers()
+		{
+			return sittingFarmers.Count() > 0;
+		}
+
+		public virtual void RemoveSittingFarmer(Farmer farmer)
+		{
+			sittingFarmers.Remove(farmer.UniqueMultiplayerID);
+		}
+
+		public virtual int GetSittingFarmerCount()
+		{
+			return sittingFarmers.Count();
+		}
+
+		public virtual Rectangle GetSeatBounds()
+		{
+			Rectangle bounds = getBoundingBox(base.TileLocation);
+			bounds.X /= 64;
+			bounds.Y /= 64;
+			bounds.Width /= 64;
+			bounds.Height /= 64;
+			return bounds;
+		}
+
+		public int GetSittingDirection()
+		{
+			if (Name.Contains("Stool"))
+			{
+				return Game1.player.FacingDirection;
+			}
+			if (currentRotation.Value == 0)
+			{
+				return 2;
+			}
+			if (currentRotation.Value == 1)
+			{
+				return 1;
+			}
+			if (currentRotation.Value == 2)
+			{
+				return 0;
+			}
+			if (currentRotation.Value == 3)
+			{
+				return 3;
+			}
+			return 2;
+		}
+
+		public virtual Vector2? AddSittingFarmer(Farmer who)
+		{
+			List<Vector2> seat_positions = GetSeatPositions();
+			int seat_index = -1;
+			Vector2? sit_position = null;
+			float distance = 96f;
+			for (int i = 0; i < seat_positions.Count; i++)
+			{
+				if (!sittingFarmers.Values.Contains(i))
+				{
+					float curr_distance = ((seat_positions[i] + new Vector2(0.5f, 0.5f)) * 64f - who.getStandingPosition()).Length();
+					if (curr_distance < distance)
+					{
+						distance = curr_distance;
+						sit_position = seat_positions[i];
+						seat_index = i;
+					}
+				}
+			}
+			if (sit_position.HasValue)
+			{
+				sittingFarmers[who.UniqueMultiplayerID] = seat_index;
+			}
+			return sit_position;
+		}
+
+		public virtual List<Vector2> GetSeatPositions(bool ignore_offsets = false)
+		{
+			List<Vector2> seat_positions = new List<Vector2>();
+			if ((int)furniture_type == 0)
+			{
+				seat_positions.Add(base.TileLocation);
+			}
+			if ((int)furniture_type == 1)
+			{
+				for (int x = 0; x < getTilesWide(); x++)
+				{
+					for (int y = 0; y < getTilesHigh(); y++)
+					{
+						seat_positions.Add(base.TileLocation + new Vector2(x, y));
+					}
+				}
+			}
+			if ((int)furniture_type == 2)
+			{
+				int width = defaultBoundingBox.Width / 64 - 1;
+				if ((int)currentRotation == 0 || (int)currentRotation == 2)
+				{
+					seat_positions.Add(base.TileLocation + new Vector2(0.5f, 0f));
+					for (int i = 1; i < width - 1; i++)
+					{
+						seat_positions.Add(base.TileLocation + new Vector2((float)i + 0.5f, 0f));
+					}
+					seat_positions.Add(base.TileLocation + new Vector2((float)(width - 1) + 0.5f, 0f));
+				}
+				else if ((int)currentRotation == 1)
+				{
+					for (int k = 0; k < width; k++)
+					{
+						seat_positions.Add(base.TileLocation + new Vector2(1f, k));
+					}
+				}
+				else
+				{
+					for (int j = 0; j < width; j++)
+					{
+						seat_positions.Add(base.TileLocation + new Vector2(0f, j));
+					}
+				}
+			}
+			if ((int)furniture_type == 3)
+			{
+				if ((int)currentRotation == 0 || (int)currentRotation == 2)
+				{
+					seat_positions.Add(base.TileLocation + new Vector2(0.5f, 0f));
+				}
+				else if ((int)currentRotation == 1)
+				{
+					seat_positions.Add(base.TileLocation + new Vector2(1f, 0f));
+				}
+				else
+				{
+					seat_positions.Add(base.TileLocation + new Vector2(0f, 0f));
+				}
+			}
+			return seat_positions;
+		}
+
 		public override void DayUpdate(GameLocation location)
 		{
 			base.DayUpdate(location);
-			lightGlowAdded = false;
-			if (!Game1.isDarkOut() || (Game1.newDay && !Game1.isRaining))
+			sittingFarmers.Clear();
+			if (!Game1.isDarkOut() || (Game1.newDay && !Game1.IsRainingHere(location)))
 			{
 				removeLights(location);
 			}
@@ -338,23 +605,46 @@ namespace StardewValley.Objects
 			{
 				addLights(location);
 			}
+			RemoveLightGlow(location);
 		}
 
-		public void resetOnPlayerEntry(GameLocation environment, bool dropDown = false)
+		public virtual void AddLightGlow(GameLocation location)
+		{
+			if (!lightGlowPosition.HasValue)
+			{
+				Vector2 light_glow_position = new Vector2(boundingBox.X + 32, boundingBox.Y + 64);
+				if (!location.lightGlows.Contains(light_glow_position))
+				{
+					lightGlowPosition = light_glow_position;
+					location.lightGlows.Add(light_glow_position);
+				}
+			}
+		}
+
+		public virtual void RemoveLightGlow(GameLocation location)
+		{
+			if (lightGlowPosition.HasValue && location.lightGlows.Contains(lightGlowPosition.Value))
+			{
+				location.lightGlows.Remove(lightGlowPosition.Value);
+			}
+			lightGlowPosition = null;
+		}
+
+		public virtual void resetOnPlayerEntry(GameLocation environment, bool dropDown = false)
 		{
 			isTemporarilyInvisible = false;
+			RemoveLightGlow(environment);
 			removeLights(environment);
-			if ((int)furniture_type == 14)
+			if ((int)furniture_type == 14 || (int)furniture_type == 16)
 			{
 				setFireplace(environment, playSound: false);
 			}
 			if (Game1.isDarkOut())
 			{
 				addLights(environment);
-				Furniture held_furniture;
-				if (heldObject.Value != null && (held_furniture = (heldObject.Value as Furniture)) != null)
+				if (heldObject.Value != null && heldObject.Value is Furniture)
 				{
-					held_furniture.addLights(environment);
+					(heldObject.Value as Furniture).addLights(environment);
 				}
 			}
 			if ((int)parentSheetIndex == 1971 && !dropDown)
@@ -397,74 +687,72 @@ namespace StardewValley.Objects
 			return (int)(tileLocation.X * 2000f + tileLocation.Y);
 		}
 
-		private void addLights(GameLocation environment)
+		public void addLights(GameLocation environment)
 		{
-			if ((int)furniture_type == 7)
+			if ((int)furniture_type == 7 || (int)furniture_type == 17)
 			{
-				if (sourceIndexOffset.Value == 0)
-				{
-					sourceRect.Value = defaultSourceRect;
-					sourceRect.X += sourceRect.Width;
-				}
+				sourceRect.Value = defaultSourceRect.Value;
 				sourceIndexOffset.Value = 1;
 				if (base.lightSource == null)
 				{
 					environment.removeLightSource(lightSourceIdentifier());
-					base.lightSource = new LightSource(4, new Vector2(boundingBox.X + 32, boundingBox.Y - 64), 2f, Color.Black, lightSourceIdentifier(), LightSource.LightContext.None, 0L);
+					base.lightSource = new LightSource(4, new Vector2(boundingBox.X + 32, boundingBox.Y + (((int)furniture_type == 7) ? (-64) : 64)), ((int)furniture_type == 17) ? 1f : 2f, Color.Black, lightSourceIdentifier(), LightSource.LightContext.None, 0L);
 					environment.sharedLights[base.lightSource.identifier] = base.lightSource.Clone();
 				}
 			}
 			else if ((int)furniture_type == 13)
 			{
-				if (sourceIndexOffset.Value == 0)
-				{
-					sourceRect.Value = defaultSourceRect;
-					sourceRect.X += sourceRect.Width;
-				}
+				sourceRect.Value = defaultSourceRect.Value;
 				sourceIndexOffset.Value = 1;
-				if (lightGlowAdded)
+				RemoveLightGlow(environment);
+			}
+			else if (this is FishTankFurniture && base.lightSource == null)
+			{
+				int identifier = lightSourceIdentifier();
+				Vector2 light_position = new Vector2(tileLocation.X * 64f + 32f + 2f, tileLocation.Y * 64f + 12f);
+				for (int i = 0; i < getTilesWide(); i++)
 				{
-					environment.lightGlows.Remove(new Vector2(boundingBox.X + 32, boundingBox.Y + 64));
-					lightGlowAdded = false;
+					environment.removeLightSource(identifier);
+					base.lightSource = new LightSource(8, light_position, 2f, Color.Black, identifier, LightSource.LightContext.None, 0L);
+					environment.sharedLights[identifier] = base.lightSource.Clone();
+					light_position.X += 64f;
+					identifier += 2000;
 				}
 			}
 		}
 
-		private void removeLights(GameLocation environment)
+		public void removeLights(GameLocation environment)
 		{
-			if ((int)furniture_type == 7)
+			if ((int)furniture_type == 7 || (int)furniture_type == 17)
 			{
-				if (sourceIndexOffset.Value == 1)
-				{
-					sourceRect.Value = defaultSourceRect;
-				}
+				sourceRect.Value = defaultSourceRect.Value;
 				sourceIndexOffset.Value = 0;
 				environment.removeLightSource(lightSourceIdentifier());
 				base.lightSource = null;
 			}
-			else
+			else if ((int)furniture_type == 13)
 			{
-				if ((int)furniture_type != 13)
+				if (Game1.IsRainingHere(environment))
 				{
-					return;
-				}
-				if (sourceIndexOffset.Value == 1)
-				{
-					sourceRect.Value = defaultSourceRect;
-				}
-				sourceIndexOffset.Value = 0;
-				if (Game1.isRaining)
-				{
-					sourceRect.Value = defaultSourceRect;
-					sourceRect.X += sourceRect.Width;
+					sourceRect.Value = defaultSourceRect.Value;
 					sourceIndexOffset.Value = 1;
-					return;
 				}
-				if (!lightGlowAdded && !environment.lightGlows.Contains(new Vector2(boundingBox.X + 32, boundingBox.Y + 64)))
+				else
 				{
-					environment.lightGlows.Add(new Vector2(boundingBox.X + 32, boundingBox.Y + 64));
+					sourceRect.Value = defaultSourceRect.Value;
+					sourceIndexOffset.Value = 0;
+					AddLightGlow(environment);
 				}
-				lightGlowAdded = true;
+			}
+			else if (this is FishTankFurniture)
+			{
+				int identifier = lightSourceIdentifier();
+				for (int i = 0; i < getTilesWide(); i++)
+				{
+					environment.removeLightSource(identifier);
+					identifier += 2000;
+				}
+				base.lightSource = null;
 			}
 		}
 
@@ -473,19 +761,17 @@ namespace StardewValley.Objects
 			if (Game1.isDarkOut())
 			{
 				addLights(environment);
-				Furniture held_furniture2;
-				if (heldObject.Value != null && (held_furniture2 = (heldObject.Value as Furniture)) != null)
+				if (heldObject.Value != null && heldObject.Value is Furniture)
 				{
-					held_furniture2.addLights(environment);
+					(heldObject.Value as Furniture).addLights(environment);
 				}
 			}
 			else
 			{
 				removeLights(environment);
-				Furniture held_furniture;
-				if (heldObject.Value != null && (held_furniture = (heldObject.Value as Furniture)) != null)
+				if (heldObject.Value != null && heldObject.Value is Furniture)
 				{
-					held_furniture.removeLights(environment);
+					(heldObject.Value as Furniture).removeLights(environment);
 				}
 			}
 			return false;
@@ -494,18 +780,14 @@ namespace StardewValley.Objects
 		public override void performRemoveAction(Vector2 tileLocation, GameLocation environment)
 		{
 			removeLights(environment);
-			if ((int)furniture_type == 14)
+			if ((int)furniture_type == 14 || (int)furniture_type == 16)
 			{
 				isOn.Value = false;
 				setFireplace(environment, playSound: false);
 			}
-			if ((int)furniture_type == 13 && lightGlowAdded)
-			{
-				environment.lightGlows.Remove(new Vector2(boundingBox.X + 32, boundingBox.Y + 64));
-				lightGlowAdded = false;
-			}
+			RemoveLightGlow(environment);
 			base.performRemoveAction(tileLocation, environment);
-			if ((int)furniture_type == 14)
+			if ((int)furniture_type == 14 || (int)furniture_type == 16)
 			{
 				base.lightSource = null;
 			}
@@ -513,6 +795,7 @@ namespace StardewValley.Objects
 			{
 				Game1.changeMusicTrack("none", track_interruptable: true);
 			}
+			sittingFarmers.Clear();
 		}
 
 		public void rotate()
@@ -620,7 +903,7 @@ namespace StardewValley.Objects
 
 		public bool isGroundFurniture()
 		{
-			if ((int)furniture_type != 13 && (int)furniture_type != 6)
+			if ((int)furniture_type != 13 && (int)furniture_type != 6 && (int)furniture_type != 17)
 			{
 				return (int)furniture_type != 13;
 			}
@@ -632,18 +915,66 @@ namespace StardewValley.Objects
 			return false;
 		}
 
+		public static Furniture GetFurnitureInstance(int index, Vector2? position = null)
+		{
+			if (!position.HasValue)
+			{
+				position = Vector2.Zero;
+			}
+			if (index == 1466 || index == 1468 || index == 1680 || index == 2326)
+			{
+				return new TV(index, position.Value);
+			}
+			Dictionary<int, string> data_sheet = Game1.content.Load<Dictionary<int, string>>("Data\\Furniture");
+			if (data_sheet.ContainsKey(index))
+			{
+				string furniture_type = data_sheet[index].Split('/')[1];
+				if (furniture_type == "fishtank")
+				{
+					return new FishTankFurniture(index, position.Value);
+				}
+				if (furniture_type.StartsWith("bed"))
+				{
+					return new BedFurniture(index, position.Value);
+				}
+				if (furniture_type == "dresser")
+				{
+					return new StorageFurniture(index, position.Value);
+				}
+			}
+			return new Furniture(index, position.Value);
+		}
+
+		public virtual bool IsCloseEnoughToFarmer(Farmer f, int? override_tile_x = null, int? override_tile_y = null)
+		{
+			Rectangle furniture_rect = new Rectangle((int)tileLocation.X * 64, (int)tileLocation.Y * 64, getTilesWide() * 64, getTilesHigh() * 64);
+			if (override_tile_x.HasValue)
+			{
+				furniture_rect.X = override_tile_x.Value * 64;
+			}
+			if (override_tile_y.HasValue)
+			{
+				furniture_rect.Y = override_tile_y.Value * 64;
+			}
+			furniture_rect.Inflate(96, 96);
+			if (furniture_rect.Contains(Utility.Vector2ToPoint(Game1.player.getStandingPosition())))
+			{
+				return true;
+			}
+			return false;
+		}
+
 		public int GetModifiedWallTilePosition(GameLocation l, int tile_x, int tile_y)
 		{
 			if (isGroundFurniture())
 			{
 				return tile_y;
 			}
-			DecoratableLocation location = l as DecoratableLocation;
-			if (location == null)
+			if (l == null)
 			{
 				return tile_y;
 			}
-			foreach (Rectangle wall in location.getWalls())
+			foreach (Rectangle wall in l.getWalls())
 			{
 				if (wall.Contains(new Point(tile_x, tile_y)))
 				{
@@ -655,7 +986,7 @@ namespace StardewValley.Objects
 
 		public override bool canBePlacedHere(GameLocation l, Vector2 tile)
 		{
-			if (!(l is DecoratableLocation))
+			if (!l.CanPlaceThisFurnitureHere(this))
 			{
 				return false;
 			}
@@ -670,19 +1001,31 @@ namespace StardewValley.Objects
 					Vector2 nonTile = tile * 64f + new Vector2(x, y) * 64f;
 					nonTile.X += 32f;
 					nonTile.Y += 32f;
-					foreach (Furniture f in (l as DecoratableLocation).furniture)
+					foreach (Furniture f in l.furniture)
 					{
 						if ((int)f.furniture_type == 11 && f.getBoundingBox(f.tileLocation).Contains((int)nonTile.X, (int)nonTile.Y) && f.heldObject.Value == null && getTilesWide() == 1 && getTilesHigh() == 1)
 						{
 							return true;
 						}
-						if (((int)f.furniture_type != 12 || (int)furniture_type == 12) && f.getBoundingBox(f.tileLocation).Contains((int)nonTile.X, (int)nonTile.Y))
+						if (((int)f.furniture_type != 12 || (int)furniture_type == 12) && f.getBoundingBox(f.tileLocation).Contains((int)nonTile.X, (int)nonTile.Y) && !f.AllowPlacementOnThisTile((int)tile.X + x, (int)tile.Y + y))
 						{
 							return false;
 						}
 					}
 					Vector2 currentTile = tile + new Vector2(x, y);
 					if (l.Objects.ContainsKey(currentTile))
+					{
+						return false;
+					}
+					if (l.getLargeTerrainFeatureAt((int)currentTile.X, (int)currentTile.Y) != null)
+					{
+						return false;
+					}
+					if (l.terrainFeatures.ContainsKey(currentTile) && l.terrainFeatures[currentTile] is Tree)
+					{
+						return false;
+					}
+					if (l.isTerrainFeatureAt((int)currentTile.X, (int)currentTile.Y))
 					{
 						return false;
 					}
@@ -696,6 +1039,13 @@ namespace StardewValley.Objects
 				foreach (Farmer farmer in l.farmers)
 				{
 					if (farmer.GetBoundingBox().Intersects(bounding_box))
+					{
+						return false;
+					}
+				}
+				foreach (NPC character in l.characters)
+				{
+					if (character.GetBoundingBox().Intersects(bounding_box))
 					{
 						return false;
 					}
@@ -734,7 +1084,7 @@ namespace StardewValley.Objects
 				return false;
 			}
 			boundingBox.Value = new Rectangle(x / 64 * 64, y / 64 * 64, boundingBox.Width, boundingBox.Height);
-			foreach (Furniture f in (location as DecoratableLocation).furniture)
+			foreach (Furniture f in location.furniture)
 			{
 				if ((int)f.furniture_type == 11 && f.heldObject.Value == null && f.getBoundingBox(f.tileLocation).Intersects(boundingBox))
 				{
@@ -746,23 +1096,23 @@ namespace StardewValley.Objects
 			return base.placementAction(location, x, y, who);
 		}
 
-		public int GetAdditionalFurniturePlacementStatus(GameLocation location, int x, int y, Farmer who = null)
+		public virtual int GetAdditionalFurniturePlacementStatus(GameLocation location, int x, int y, Farmer who = null)
 		{
-			if (!(location is DecoratableLocation))
+			if (!location.CanPlaceThisFurnitureHere(this))
 			{
 				return 4;
 			}
 			Point anchor = new Point(x / 64, y / 64);
-			List<Rectangle> walls = (location as DecoratableLocation).getWalls();
+			List<Rectangle> walls = location.getWalls();
 			tileLocation.Value = new Vector2(anchor.X, anchor.Y);
 			bool paintingAtRightPlace = false;
-			if ((int)furniture_type == 6 || (int)furniture_type == 13 || (int)parentSheetIndex == 1293)
+			if ((int)furniture_type == 6 || (int)furniture_type == 17 || (int)furniture_type == 13 || (int)parentSheetIndex == 1293)
 			{
 				int offset = ((int)parentSheetIndex == 1293) ? 3 : 0;
 				bool foundWall = false;
 				foreach (Rectangle w in walls)
 				{
-					if (((int)furniture_type == 6 || (int)furniture_type == 13 || offset != 0) && w.Y + offset == anchor.Y && w.Contains(anchor.X, anchor.Y - offset))
+					if (((int)furniture_type == 6 || (int)furniture_type == 17 || (int)furniture_type == 13 || offset != 0) && w.Y + offset == anchor.Y && w.Contains(anchor.X, anchor.Y - offset))
 					{
 						foundWall = true;
 						break;
@@ -779,9 +1129,14 @@ namespace StardewValley.Objects
 				}
 				paintingAtRightPlace = true;
 			}
+			int tiles_high_to_check = getTilesHigh();
+			if ((int)furniture_type == 6 && tiles_high_to_check > 2)
+			{
+				tiles_high_to_check = 2;
+			}
 			for (int furnitureX = anchor.X; furnitureX < anchor.X + getTilesWide(); furnitureX++)
 			{
-				for (int furnitureY = anchor.Y; furnitureY < anchor.Y + getTilesHigh(); furnitureY++)
+				for (int furnitureY = anchor.Y; furnitureY < anchor.Y + tiles_high_to_check; furnitureY++)
 				{
 					if (location.doesTileHaveProperty(furnitureX, furnitureY, "NoFurniture", "Back") != null)
 					{
@@ -789,9 +1144,18 @@ namespace StardewValley.Objects
 					}
 					if (!paintingAtRightPlace && Utility.pointInRectangles(walls, furnitureX, furnitureY))
 					{
-						return 3;
+						if (!(this is BedFurniture) || furnitureY != anchor.Y)
+						{
+							return 3;
+						}
+						continue;
 					}
-					if (location.getTileIndexAt(furnitureX, furnitureY, "Buildings") != -1)
+					int buildings_index = location.getTileIndexAt(furnitureX, furnitureY, "Buildings");
+					if (buildings_index != -1 && (!(location is IslandFarmHouse) || buildings_index < 192 || buildings_index > 194 || !(location.getTileSheetIDAt(furnitureX, furnitureY, "Buildings") == "untitled tile sheet")))
+					{
+						return -1;
+					}
+					if (location is BuildableGameLocation && (location as BuildableGameLocation).isTileOccupiedForPlacement(new Vector2(furnitureX, furnitureY), this))
 					{
 						return -1;
 					}
@@ -812,6 +1176,11 @@ namespace StardewValley.Objects
 		public override bool isPlaceable()
 		{
 			return true;
+		}
+
+		public virtual bool AllowPlacementOnThisTile(int tile_x, int tile_y)
+		{
+			return false;
 		}
 
 		public override Rectangle getBoundingBox(Vector2 tileLocation)
@@ -857,6 +1226,10 @@ namespace StardewValley.Objects
 				width = 2;
 				height = 2;
 				break;
+			case 17:
+				width = 1;
+				height = 2;
+				break;
 			case 7:
 				width = 1;
 				height = 3;
@@ -884,6 +1257,10 @@ namespace StardewValley.Objects
 			case 14:
 				width = 2;
 				height = 5;
+				break;
+			case 16:
+				width = 1;
+				height = 2;
 				break;
 			default:
 				width = 1;
@@ -927,6 +1304,10 @@ namespace StardewValley.Objects
 				width = 2;
 				height = 2;
 				break;
+			case 17:
+				width = 1;
+				height = 2;
+				break;
 			case 7:
 				width = 1;
 				height = 1;
@@ -955,6 +1336,10 @@ namespace StardewValley.Objects
 				width = 2;
 				height = 1;
 				break;
+			case 16:
+				width = 1;
+				height = 1;
+				break;
 			default:
 				width = 1;
 				height = 1;
@@ -965,6 +1350,10 @@ namespace StardewValley.Objects
 
 		private int getTypeNumberFromName(string typeName)
 		{
+			if (typeName.ToLower().StartsWith("bed"))
+			{
+				return 15;
+			}
 			switch (typeName.ToLower())
 			{
 			case "chair":
@@ -995,6 +1384,10 @@ namespace StardewValley.Objects
 				return 13;
 			case "fireplace":
 				return 14;
+			case "torch":
+				return 16;
+			case "sconce":
+				return 17;
 			default:
 				return 9;
 			}
@@ -1017,8 +1410,8 @@ namespace StardewValley.Objects
 
 		private float getScaleSize()
 		{
-			int tilesWide = sourceRect.Width / 16;
-			int tilesHigh = sourceRect.Height / 16;
+			int tilesWide = defaultSourceRect.Width / 16;
+			int tilesHigh = defaultSourceRect.Height / 16;
 			if (tilesWide >= 5)
 			{
 				return 0.75f;
@@ -1040,6 +1433,21 @@ namespace StardewValley.Objects
 
 		public override void updateWhenCurrentLocation(GameTime time, GameLocation environment)
 		{
+			if (Game1.IsMasterGame && sittingFarmers.Count() > 0)
+			{
+				List<long> ids_to_remove = new List<long>();
+				foreach (long uid2 in sittingFarmers.Keys)
+				{
+					if (!Game1.player.team.playerIsOnline(uid2))
+					{
+						ids_to_remove.Add(uid2);
+					}
+				}
+				foreach (long uid in ids_to_remove)
+				{
+					sittingFarmers.Remove(uid);
+				}
+			}
 			if (shakeTimer > 0)
 			{
 				shakeTimer -= time.ElapsedGameTime.Milliseconds;
@@ -1065,13 +1473,23 @@ namespace StardewValley.Objects
 			{
 				return;
 			}
+			Rectangle drawn_source_rect = sourceRect.Value;
+			drawn_source_rect.X += drawn_source_rect.Width * sourceIndexOffset.Value;
 			if (isDrawingLocationFurniture)
 			{
-				spriteBatch.Draw(furnitureTexture, Game1.GlobalToLocal(Game1.viewport, drawPosition + ((shakeTimer > 0) ? new Vector2(Game1.random.Next(-1, 2), Game1.random.Next(-1, 2)) : Vector2.Zero)), sourceRect, Color.White * alpha, 0f, Vector2.Zero, 4f, flipped ? SpriteEffects.FlipHorizontally : SpriteEffects.None, ((int)furniture_type == 12) ? 2E-09f : ((float)(boundingBox.Value.Bottom - (((int)furniture_type == 6 || (int)furniture_type == 13) ? 48 : 8)) / 10000f));
+				if (HasSittingFarmers() && sourceRect.Right <= furnitureFrontTexture.Width && sourceRect.Bottom <= furnitureFrontTexture.Height)
+				{
+					spriteBatch.Draw(furnitureTexture, Game1.GlobalToLocal(Game1.viewport, drawPosition + ((shakeTimer > 0) ? new Vector2(Game1.random.Next(-1, 2), Game1.random.Next(-1, 2)) : Vector2.Zero)), drawn_source_rect, Color.White * alpha, 0f, Vector2.Zero, 4f, flipped ? SpriteEffects.FlipHorizontally : SpriteEffects.None, (float)(boundingBox.Value.Top + 16) / 10000f);
+					spriteBatch.Draw(furnitureFrontTexture, Game1.GlobalToLocal(Game1.viewport, drawPosition + ((shakeTimer > 0) ? new Vector2(Game1.random.Next(-1, 2), Game1.random.Next(-1, 2)) : Vector2.Zero)), drawn_source_rect, Color.White * alpha, 0f, Vector2.Zero, 4f, flipped ? SpriteEffects.FlipHorizontally : SpriteEffects.None, (float)(boundingBox.Value.Bottom - 8) / 10000f);
+				}
+				else
+				{
+					spriteBatch.Draw(furnitureTexture, Game1.GlobalToLocal(Game1.viewport, drawPosition + ((shakeTimer > 0) ? new Vector2(Game1.random.Next(-1, 2), Game1.random.Next(-1, 2)) : Vector2.Zero)), drawn_source_rect, Color.White * alpha, 0f, Vector2.Zero, 4f, flipped ? SpriteEffects.FlipHorizontally : SpriteEffects.None, ((int)furniture_type == 12) ? (2E-09f + tileLocation.Y / 100000f) : ((float)(boundingBox.Value.Bottom - (((int)furniture_type == 6 || (int)furniture_type == 17 || (int)furniture_type == 13) ? 48 : 8)) / 10000f));
+				}
 			}
 			else
 			{
-				spriteBatch.Draw(furnitureTexture, Game1.GlobalToLocal(Game1.viewport, new Vector2(x * 64 + ((shakeTimer > 0) ? Game1.random.Next(-1, 2) : 0), y * 64 - (sourceRect.Height * 4 - boundingBox.Height) + ((shakeTimer > 0) ? Game1.random.Next(-1, 2) : 0))), sourceRect, Color.White * alpha, 0f, Vector2.Zero, 4f, flipped ? SpriteEffects.FlipHorizontally : SpriteEffects.None, ((int)furniture_type == 12) ? 2E-09f : ((float)(boundingBox.Value.Bottom - (((int)furniture_type == 6 || (int)furniture_type == 13) ? 48 : 8)) / 10000f));
+				spriteBatch.Draw(furnitureTexture, Game1.GlobalToLocal(Game1.viewport, new Vector2(x * 64 + ((shakeTimer > 0) ? Game1.random.Next(-1, 2) : 0), y * 64 - (sourceRect.Height * 4 - boundingBox.Height) + ((shakeTimer > 0) ? Game1.random.Next(-1, 2) : 0))), sourceRect, Color.White * alpha, 0f, Vector2.Zero, 4f, flipped ? SpriteEffects.FlipHorizontally : SpriteEffects.None, ((int)furniture_type == 12) ? (2E-09f + tileLocation.Y / 100000f) : ((float)(boundingBox.Value.Bottom - (((int)furniture_type == 6 || (int)furniture_type == 17 || (int)furniture_type == 13) ? 48 : 8)) / 10000f));
 			}
 			if (heldObject.Value != null)
 			{
@@ -1090,6 +1508,10 @@ namespace StardewValley.Objects
 				spriteBatch.Draw(Game1.mouseCursors, Game1.GlobalToLocal(Game1.viewport, new Vector2(boundingBox.Center.X - 12, boundingBox.Center.Y - 64)), new Rectangle(276 + (int)((Game1.currentGameTime.TotalGameTime.TotalMilliseconds + (double)(x * 3047) + (double)(y * 88)) % 400.0 / 100.0) * 12, 1985, 12, 11), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, (float)(getBoundingBox(new Vector2(x, y)).Bottom - 2) / 10000f);
 				spriteBatch.Draw(Game1.mouseCursors, Game1.GlobalToLocal(Game1.viewport, new Vector2(boundingBox.Center.X - 32 - 4, boundingBox.Center.Y - 64)), new Rectangle(276 + (int)((Game1.currentGameTime.TotalGameTime.TotalMilliseconds + (double)(x * 2047) + (double)(y * 98)) % 400.0 / 100.0) * 12, 1985, 12, 11), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, (float)(getBoundingBox(new Vector2(x, y)).Bottom - 1) / 10000f);
 			}
+			else if ((bool)isOn && (int)furniture_type == 16)
+			{
+				spriteBatch.Draw(Game1.mouseCursors, Game1.GlobalToLocal(Game1.viewport, new Vector2(boundingBox.Center.X - 20, (float)boundingBox.Center.Y - 105.6f)), new Rectangle(276 + (int)((Game1.currentGameTime.TotalGameTime.TotalMilliseconds + (double)(x * 3047) + (double)(y * 88)) % 400.0 / 100.0) * 12, 1985, 12, 11), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, (float)(getBoundingBox(new Vector2(x, y)).Bottom - 2) / 10000f);
+			}
 			if (Game1.debugMode)
 			{
 				spriteBatch.DrawString(Game1.smallFont, string.Concat((object)parentSheetIndex), Game1.GlobalToLocal(Game1.viewport, drawPosition), Color.Yellow, 0f, Vector2.Zero, 1f, SpriteEffects.None, 1f);
@@ -1098,7 +1520,24 @@ namespace StardewValley.Objects
 
 		public void drawAtNonTileSpot(SpriteBatch spriteBatch, Vector2 location, float layerDepth, float alpha = 1f)
 		{
-			spriteBatch.Draw(furnitureTexture, location, sourceRect, Color.White * alpha, 0f, Vector2.Zero, 4f, flipped ? SpriteEffects.FlipHorizontally : SpriteEffects.None, layerDepth);
+			Rectangle drawn_source_rect = sourceRect.Value;
+			drawn_source_rect.X += drawn_source_rect.Width * (int)sourceIndexOffset;
+			spriteBatch.Draw(furnitureTexture, location, drawn_source_rect, Color.White * alpha, 0f, Vector2.Zero, 4f, flipped ? SpriteEffects.FlipHorizontally : SpriteEffects.None, layerDepth);
+		}
+
+		public virtual int GetAdditionalTilePropertyRadius()
+		{
+			return 0;
+		}
+
+		public virtual bool DoesTileHaveProperty(int tile_x, int tile_y, string property_name, string layer_name, ref string property_value)
+		{
+			return false;
+		}
+
+		public virtual bool IntersectsForCollision(Rectangle rect)
+		{
+			return getBoundingBox(tileLocation).Intersects(rect);
 		}
 
 		public override Item getOne()
@@ -1111,6 +1550,7 @@ namespace StardewValley.Objects
 			furniture.isOn.Value = false;
 			furniture.rotations.Value = rotations;
 			furniture.rotate();
+			furniture._GetOneFrom(this);
 			return furniture;
 		}
 	}

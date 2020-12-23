@@ -61,6 +61,8 @@ namespace StardewValley
 
 		public bool magical;
 
+		public List<Point> additionalPlacementTiles = new List<Point>();
+
 		public BluePrint(string name)
 		{
 			this.name = name;
@@ -103,11 +105,11 @@ namespace StardewValley
 					{
 						textureName = "Buildings\\" + name;
 						string[] recipeSplit = split[0].Split(' ');
-						for (int i = 0; i < recipeSplit.Length; i += 2)
+						for (int j = 0; j < recipeSplit.Length; j += 2)
 						{
-							if (!recipeSplit[i].Equals(""))
+							if (!recipeSplit[j].Equals(""))
 							{
-								itemsRequired.Add(Convert.ToInt32(recipeSplit[i]), Convert.ToInt32(recipeSplit[i + 1]));
+								itemsRequired.Add(Convert.ToInt32(recipeSplit[j]), Convert.ToInt32(recipeSplit[j + 1]));
 							}
 						}
 						tilesWidth = Convert.ToInt32(split[1]);
@@ -147,10 +149,28 @@ namespace StardewValley
 						{
 							daysToConstruct = 2;
 						}
+						if (split.Length > count + 3)
+						{
+							string obj = split[20];
+							additionalPlacementTiles.Clear();
+							string[] additional_placement_coordinates = obj.Split(' ');
+							for (int i = 0; i < additional_placement_coordinates.Length / 2; i++)
+							{
+								int x = Convert.ToInt32(additional_placement_coordinates[i * 2]);
+								int y = Convert.ToInt32(additional_placement_coordinates[i * 2 + 1]);
+								additionalPlacementTiles.Add(new Point(x, y));
+							}
+						}
 					}
 				}
 			}
-			texture = Game1.content.Load<Texture2D>(textureName);
+			try
+			{
+				texture = Game1.content.Load<Texture2D>(textureName);
+			}
+			catch (Exception)
+			{
+			}
 		}
 
 		public void consumeResources()
@@ -186,6 +206,10 @@ namespace StardewValley
 
 		public bool doesFarmerHaveEnoughResourcesToBuild()
 		{
+			if (moneyRequired < 0)
+			{
+				return false;
+			}
 			foreach (KeyValuePair<int, int> kvp in itemsRequired)
 			{
 				if (!Game1.player.hasItemInInventory(kvp.Key, kvp.Value))

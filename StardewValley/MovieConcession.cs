@@ -57,6 +57,11 @@ namespace StardewValley
 			spriteBatch.Draw(Game1.concessionsSpriteSheet, location + new Vector2((int)(32f * scaleSize), (int)(32f * scaleSize)), Game1.getSourceRectForStandardTileSheet(Game1.concessionsSpriteSheet, _id, 16, 16), color * transparency, 0f, new Vector2(8f, 8f) * scaleSize, 4f * scaleSize, SpriteEffects.None, layerDepth);
 		}
 
+		public bool ShouldDrawIcon()
+		{
+			return true;
+		}
+
 		public string getDescription()
 		{
 			return _description;

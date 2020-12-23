@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows.Forms;
+using System.Xml.Serialization;
 
 namespace StardewValley
 {
@@ -27,7 +28,11 @@ namespace StardewValley
 
 		public const float minZoom = 0.75f;
 
-		public const float maxZoom = 1.25f;
+		public const float maxZoom = 2f;
+
+		public const float minUIZoom = 0.75f;
+
+		public const float maxUIZoom = 1.5f;
 
 		public const int toggleAutoRun = 0;
 
@@ -104,6 +109,16 @@ namespace StardewValley
 		public const int toggleVsync = 37;
 
 		public const int gamepadModeSelect = 38;
+
+		public const int uiScaleSlider = 39;
+
+		public const int moveBuildingPermissions = 40;
+
+		public const int slingshotModeSelect = 41;
+
+		public const int biteChime = 42;
+
+		public const int toggleMuteAnimalSounds = 43;
 
 		public const int input_actionButton = 7;
 
@@ -209,8 +224,6 @@ namespace StardewValley
 
 		public bool screenFlash;
 
-		public bool hardwareCursor;
-
 		public bool showPlacementTileForGamepad;
 
 		public bool snappyMenus;
@@ -227,21 +240,41 @@ namespace StardewValley
 
 		public bool vsyncEnabled;
 
+		public bool muteAnimalSounds;
+
+		protected bool _hardwareCursor;
+
 		public ItemStowingModes stowingMode;
 
 		public GamepadModes gamepadMode;
 
+		public bool useLegacySlingshotFiring;
+
 		public float musicVolumeLevel;
 
 		public float soundVolumeLevel;
-
-		public float zoomLevel;
 
 		public float footstepVolumeLevel;
 
 		public float ambientVolumeLevel;
 
 		public float snowTransparency;
+
+		[XmlIgnore]
+		public float baseZoomLevel = 1f;
+
+		[XmlElement("zoomLevel")]
+		public float singlePlayerBaseZoomLevel = 1f;
+
+		public float localCoopBaseZoomLevel = 1f;
+
+		[XmlElement("uiScale")]
+		public float singlePlayerDesiredUIScale = -1f;
+
+		public float localCoopDesiredUIScale = 1.5f;
+
+		[XmlIgnore]
+		public float baseUIScale = 1f;
 
 		public int preferredResolutionX;
 
@@ -392,9 +425,94 @@ namespace StardewValley
 			new InputButton(Microsoft.Xna.Framework.Input.Keys.Y)
 		};
 
-		private float appliedZoomLevel = -1f;
-
 		private int appliedLightingQuality = -1;
+
+		public bool hardwareCursor
+		{
+			get
+			{
+				if (LocalMultiplayer.IsLocalMultiplayer())
+				{
+					return false;
+				}
+				return _hardwareCursor;
+			}
+			set
+			{
+				_hardwareCursor = value;
+			}
+		}
+
+		[XmlIgnore]
+		public float zoomLevel
+		{
+			get
+			{
+				if (Game1.game1.takingMapScreenshot)
+				{
+					return baseZoomLevel;
+				}
+				return baseZoomLevel * Game1.game1.zoomModifier;
+			}
+		}
+
+		[XmlIgnore]
+		public float desiredBaseZoomLevel
+		{
+			get
+			{
+				if (LocalMultiplayer.IsLocalMultiplayer() || !Game1.game1.IsMainInstance)
+				{
+					return localCoopBaseZoomLevel;
+				}
+				return singlePlayerBaseZoomLevel;
+			}
+			set
+			{
+				if (LocalMultiplayer.IsLocalMultiplayer() || !Game1.game1.IsMainInstance)
+				{
+					localCoopBaseZoomLevel = value;
+				}
+				else
+				{
+					singlePlayerBaseZoomLevel = value;
+				}
+			}
+		}
+
+		[XmlIgnore]
+		public float desiredUIScale
+		{
+			get
+			{
+				if (Game1.gameMode != 3)
+				{
+					return 1f;
+				}
+				if (LocalMultiplayer.IsLocalMultiplayer() || !Game1.game1.IsMainInstance)
+				{
+					return localCoopDesiredUIScale;
+				}
+				return singlePlayerDesiredUIScale;
+			}
+			set
+			{
+				if (Game1.gameMode == 3)
+				{
+					if (LocalMultiplayer.IsLocalMultiplayer() || !Game1.game1.IsMainInstance)
+					{
+						localCoopDesiredUIScale = value;
+					}
+					else
+					{
+						singlePlayerDesiredUIScale = value;
+					}
+				}
+			}
+		}
+
+		[XmlIgnore]
+		public float uiScale => baseUIScale * Game1.game1.zoomModifier;
 
 		public bool allowStowing
 		{
@@ -453,10 +571,9 @@ namespace StardewValley
 		public void reApplySetOptions()
 		{
 			platformClampValues();
-			if (zoomLevel != appliedZoomLevel || lightingQuality != appliedLightingQuality)
+			if (lightingQuality != appliedLightingQuality)
 			{
 				Program.gamePtr.refreshWindowSettings();
-				appliedZoomLevel = zoomLevel;
 				appliedLightingQuality = lightingQuality;
 			}
 			Program.gamePtr.IsMouseVisible = hardwareCursor;
@@ -475,7 +592,11 @@ namespace StardewValley
 			rumble = true;
 			fullscreen = false;
 			pinToolbarToggle = false;
-			zoomLevel = 1f;
+			desiredBaseZoomLevel = 1f;
+			if (Game1.options == this)
+			{
+				Game1.forceSnapOnNextViewportUpdate = true;
+			}
 			zoomButtons = false;
 			pauseWhenOutOfFocus = true;
 			screenFlash = true;
@@ -484,6 +605,7 @@ namespace StardewValley
 			ambientOnlyToggle = false;
 			showAdvancedCraftingInformation = false;
 			stowingMode = ItemStowingModes.Off;
+			useLegacySlingshotFiring = false;
 			gamepadMode = GamepadModes.Auto;
 			windowedBorderlessFullscreen = true;
 			showPlacementTileForGamepad = true;
@@ -496,12 +618,14 @@ namespace StardewValley
 			preferredResolutionX = GraphicsAdapter.DefaultAdapter.SupportedDisplayModes.Last().Width;
 			preferredResolutionY = GraphicsAdapter.DefaultAdapter.SupportedDisplayModes.Last().Height;
 			vsyncEnabled = true;
+			GameRunner.instance.OnWindowSizeChange(null, null);
 			snappyMenus = true;
 			ipConnectionsEnabled = true;
 			enableServer = true;
 			serverPrivacy = ServerPrivacy.FriendsOnly;
 			enableFarmhandCreation = true;
 			showMPEndOfNightReadyStatus = false;
+			muteAnimalSounds = false;
 		}
 
 		public void setControlsToDefault()
@@ -680,6 +804,11 @@ namespace StardewValley
 			case 31:
 			case 33:
 			case 36:
+			case 38:
+			case 39:
+			case 40:
+			case 41:
+			case 42:
 				break;
 			case 0:
 				autoRun = value;
@@ -736,8 +865,7 @@ namespace StardewValley
 				break;
 			case 37:
 				vsyncEnabled = value;
-				Game1.graphics.SynchronizeWithVerticalRetrace = vsyncEnabled;
-				Game1.graphics.ApplyChanges();
+				GameRunner.instance.OnWindowSizeChange(null, null);
 				break;
 			case 29:
 				snappyMenus = value;
@@ -747,16 +875,16 @@ namespace StardewValley
 				break;
 			case 32:
 				enableFarmhandCreation = value;
-				if (Game1.server != null)
-				{
-					Game1.server.updateLobbyData();
-				}
+				Game1.server?.updateLobbyData();
 				break;
 			case 34:
 				showAdvancedCraftingInformation = value;
 				break;
 			case 35:
 				showMPEndOfNightReadyStatus = value;
+				break;
+			case 43:
+				muteAnimalSounds = value;
 				break;
 			}
 		}
@@ -786,9 +914,26 @@ namespace StardewValley
 			case 23:
 				snowTransparency = (float)value / 100f;
 				break;
+			case 39:
+			{
+				int zoomlvl6 = (int)(desiredUIScale * 100f);
+				int newValue2 = (int)((float)value * 100f);
+				if (newValue2 >= zoomlvl6 + 10 || newValue2 >= 100)
+				{
+					zoomlvl6 += 10;
+					zoomlvl6 = Math.Min(100, zoomlvl6);
+				}
+				else if (newValue2 <= zoomlvl6 - 10 || newValue2 <= 50)
+				{
+					zoomlvl6 -= 10;
+					zoomlvl6 = Math.Max(50, zoomlvl6);
+				}
+				desiredUIScale = (float)zoomlvl6 / 100f;
+				break;
+			}
 			case 18:
 			{
-				int zoomlvl3 = (int)(zoomLevel * 100f);
+				int zoomlvl3 = (int)(desiredBaseZoomLevel * 100f);
 				int oldZoom = zoomlvl3;
 				int newValue = (int)((float)value * 100f);
 				if (newValue >= zoomlvl3 + 10 || newValue >= 100)
@@ -803,10 +948,8 @@ namespace StardewValley
 				}
 				if (zoomlvl3 != oldZoom)
 				{
-					zoomLevel = (float)zoomlvl3 / 100f;
-					Game1.overrideGameMenuReset = true;
-					Program.gamePtr.refreshWindowSettings();
-					Game1.overrideGameMenuReset = false;
+					desiredBaseZoomLevel = (float)zoomlvl3 / 100f;
+					Game1.forceSnapOnNextViewportUpdate = true;
 					Game1.showGlobalMessage(Game1.content.LoadString("Strings\\StringsFromCSFiles:Options.cs.4563") + zoomLevel);
 				}
 				break;
@@ -830,6 +973,30 @@ namespace StardewValley
 			}
 		}
 
+		public void setSlingshotMode(string setting)
+		{
+			if (setting == "legacy")
+			{
+				useLegacySlingshotFiring = true;
+			}
+			else
+			{
+				useLegacySlingshotFiring = false;
+			}
+		}
+
+		public void setBiteChime(string setting)
+		{
+			try
+			{
+				Game1.player.biteChime.Value = int.Parse(setting);
+			}
+			catch (Exception)
+			{
+				Game1.player.biteChime.Value = -1;
+			}
+		}
+
 		public void setGamepadMode(string setting)
 		{
 			if (setting == "auto")
@@ -847,12 +1014,28 @@ namespace StardewValley
 			try
 			{
 				StartupPreferences startupPreferences = new StartupPreferences();
-				startupPreferences.loadPreferences(async: false);
+				startupPreferences.loadPreferences(async: false, applyLanguage: false);
 				startupPreferences.gamepadMode = gamepadMode;
 				startupPreferences.savePreferences(async: false);
 			}
 			catch (Exception)
 			{
+			}
+		}
+
+		public void setMoveBuildingPermissions(string setting)
+		{
+			if (setting == "off")
+			{
+				Game1.player.team.farmhandsCanMoveBuildings.Value = FarmerTeam.RemoteBuildingPermissions.Off;
+			}
+			if (setting == "on")
+			{
+				Game1.player.team.farmhandsCanMoveBuildings.Value = FarmerTeam.RemoteBuildingPermissions.On;
+			}
+			if (setting == "owned")
+			{
+				Game1.player.team.farmhandsCanMoveBuildings.Value = FarmerTeam.RemoteBuildingPermissions.OwnedBuildings;
 			}
 		}
 
@@ -864,26 +1047,22 @@ namespace StardewValley
 				Game1.multiplayer.Disconnect(Multiplayer.DisconnectType.ServerOfflineMode);
 				return;
 			}
-			if (setting == "online")
-			{
-				enableServer = true;
-			}
-			else if (setting == "friends")
+			if (setting == "friends")
 			{
 				serverPrivacy = ServerPrivacy.FriendsOnly;
-				enableServer = true;
 			}
 			else if (setting == "invite")
 			{
 				serverPrivacy = ServerPrivacy.InviteOnly;
-				enableServer = true;
 			}
 			if (Game1.server == null && Game1.client == null)
 			{
+				enableServer = true;
 				Game1.multiplayer.StartServer();
 			}
 			else if (Game1.server != null)
 			{
+				enableServer = true;
 				Game1.server.setPrivacy(serverPrivacy);
 			}
 		}
@@ -964,7 +1143,7 @@ namespace StardewValley
 			try
 			{
 				StartupPreferences startupPreferences = new StartupPreferences();
-				startupPreferences.loadPreferences(async: false);
+				startupPreferences.loadPreferences(async: false, applyLanguage: false);
 				startupPreferences.windowMode = whichMode;
 				startupPreferences.fullscreenResolutionX = preferredResolutionX;
 				startupPreferences.fullscreenResolutionY = preferredResolutionY;
@@ -975,52 +1154,71 @@ namespace StardewValley
 			}
 		}
 
-		public void changeDropDownOption(int which, int selection, List<string> options)
+		public void changeDropDownOption(int which, string value)
 		{
 			switch (which)
 			{
 			case 25:
-				switch (options[selection])
+				if (!(value == "Lowest"))
 				{
-				case "Lowest":
+					if (!(value == "Low"))
+					{
+						if (!(value == "Med."))
+						{
+							if (!(value == "High"))
+							{
+								if (value == "Ultra")
+								{
+									lightingQuality = 8;
+								}
+							}
+							else
+							{
+								lightingQuality = 16;
+							}
+						}
+						else
+						{
+							lightingQuality = 32;
+						}
+					}
+					else
+					{
+						lightingQuality = 64;
+					}
+				}
+				else
+				{
 					lightingQuality = 128;
-					break;
-				case "Low":
-					lightingQuality = 64;
-					break;
-				case "Med.":
-					lightingQuality = 32;
-					break;
-				case "High":
-					lightingQuality = 16;
-					break;
-				case "Ultra":
-					lightingQuality = 8;
-					break;
 				}
 				Game1.overrideGameMenuReset = true;
 				Program.gamePtr.refreshWindowSettings();
 				Game1.overrideGameMenuReset = false;
 				break;
+			case 39:
+			{
+				int newZoom = Convert.ToInt32(value.Replace("%", ""));
+				desiredUIScale = (float)newZoom / 100f;
+				break;
+			}
 			case 18:
 			{
-				int newZoom = Convert.ToInt32(options[selection].Replace("%", ""));
-				zoomLevel = (float)newZoom / 100f;
-				Game1.overrideGameMenuReset = true;
-				Program.gamePtr.refreshWindowSettings();
-				Game1.overrideGameMenuReset = false;
+				int newZoom2 = Convert.ToInt32(value.Replace("%", ""));
+				desiredBaseZoomLevel = (float)newZoom2 / 100f;
+				Game1.forceSnapOnNextViewportUpdate = true;
 				if (Game1.debrisWeather != null)
 				{
 					Game1.randomizeDebrisWeatherPositions(Game1.debrisWeather);
 				}
+				Game1.randomizeRainPositions();
 				break;
 			}
 			case 6:
 			{
-				Rectangle oldWindow = new Rectangle(Game1.viewport.X, Game1.viewport.Y, Game1.viewport.Width, Game1.viewport.Height);
-				string resolution = options[selection];
-				int width = Convert.ToInt32(resolution.Split(' ')[0]);
-				int height = Convert.ToInt32(resolution.Split(' ')[2]);
+				new Rectangle(Game1.viewport.X, Game1.viewport.Y, Game1.viewport.Width, Game1.viewport.Height);
+				new Rectangle(Game1.uiViewport.X, Game1.uiViewport.Y, Game1.uiViewport.Width, Game1.uiViewport.Height);
+				int width = Convert.ToInt32(value.Split(' ')[0]);
+				int height = Convert.ToInt32(value.Split(' ')[2]);
 				preferredResolutionX = width;
 				preferredResolutionY = height;
 				Game1.graphics.PreferredBackBufferWidth = width;
@@ -1030,7 +1228,7 @@ namespace StardewValley
 					try
 					{
 						StartupPreferences startupPreferences = new StartupPreferences();
-						startupPreferences.loadPreferences(async: false);
+						startupPreferences.loadPreferences(async: false, applyLanguage: false);
 						startupPreferences.fullscreenResolutionX = preferredResolutionX;
 						startupPreferences.fullscreenResolutionY = preferredResolutionY;
 						startupPreferences.savePreferences(async: false);
@@ -1040,28 +1238,30 @@ namespace StardewValley
 					}
 				}
 				Game1.graphics.ApplyChanges();
-				Game1.updateViewportForScreenSizeChange(fullscreenChange: true, width, height);
-				foreach (IClickableMenu onScreenMenu in Game1.onScreenMenus)
-				{
-					onScreenMenu.gameWindowSizeChanged(oldWindow, new Rectangle(Game1.viewport.X, Game1.viewport.Y, Game1.viewport.Width, Game1.viewport.Height));
-				}
-				if (Game1.currentMinigame != null)
-				{
-					Game1.currentMinigame.changeScreenSize();
-				}
+				GameRunner.instance.OnWindowSizeChange(null, null);
 				break;
 			}
 			case 13:
-				setWindowedOption(options[selection]);
+				setWindowedOption(value);
 				break;
 			case 31:
-				setServerMode(options[selection]);
+				setServerMode(value);
 				break;
 			case 28:
-				setStowingMode(options[selection]);
+				setStowingMode(value);
 				break;
 			case 38:
-				setGamepadMode(options[selection]);
+				setGamepadMode(value);
+				break;
+			case 40:
+				setMoveBuildingPermissions(value);
+				break;
+			case 41:
+				setSlingshotMode(value);
+				break;
+			case 42:
+				setBiteChime(value);
+				Game1.player.PlayFishBiteChime();
 				break;
 			}
 		}
@@ -1127,6 +1327,11 @@ namespace StardewValley
 			case 31:
 			case 33:
 			case 36:
+			case 38:
+			case 39:
+			case 40:
+			case 41:
+			case 42:
 				break;
 			case 0:
 				checkbox.isChecked = autoRun;
@@ -1187,7 +1392,7 @@ namespace StardewValley
 				checkbox.isChecked = screenFlash;
 				break;
 			case 26:
-				checkbox.isChecked = hardwareCursor;
+				checkbox.isChecked = _hardwareCursor;
 				checkbox.greyedOut = fullscreen;
 				break;
 			case 27:
@@ -1212,6 +1417,9 @@ namespace StardewValley
 			case 37:
 				checkbox.isChecked = vsyncEnabled;
 				break;
+			case 43:
+				checkbox.isChecked = muteAnimalSounds;
+				break;
 			}
 		}
 
@@ -1219,9 +1427,29 @@ namespace StardewValley
 		{
 			switch (plusMinus.whichOption)
 			{
+			case 39:
+			{
+				string currentZoom2 = Math.Round(desiredUIScale * 100f) + "%";
+				int k = 0;
+				while (true)
+				{
+					if (k < plusMinus.options.Count)
+					{
+						if (plusMinus.options[k].Equals(currentZoom2))
+						{
+							break;
+						}
+						k++;
+						continue;
+					}
+					return;
+				}
+				plusMinus.selected = k;
+				break;
+			}
 			case 18:
 			{
-				string currentZoom = Math.Round(zoomLevel * 100f) + "%";
+				string currentZoom = Math.Round(desiredBaseZoomLevel * 100f) + "%";
 				int i = 0;
 				while (true)
 				{
@@ -1300,7 +1528,10 @@ namespace StardewValley
 				slider.value = (int)(snowTransparency * 100f);
 				break;
 			case 18:
-				slider.value = (int)(zoomLevel * 100f);
+				slider.value = (int)(desiredBaseZoomLevel * 100f);
+				break;
+			case 39:
+				slider.value = (int)(desiredUIScale * 100f);
 				break;
 			}
 		}
@@ -1674,7 +1905,7 @@ namespace StardewValley
 				try
 				{
 					StartupPreferences startupPreferences2 = new StartupPreferences();
-					startupPreferences2.loadPreferences(async: false);
+					startupPreferences2.loadPreferences(async: false, applyLanguage: false);
 					if (startupPreferences2.fullscreenResolutionX != 0)
 					{
 						preferredResolutionX = startupPreferences2.fullscreenResolutionX;
@@ -1684,7 +1915,7 @@ namespace StardewValley
 				catch (Exception)
 				{
 				}
-				int i = 0;
+				int j = 0;
 				foreach (DisplayMode v in GraphicsAdapter.DefaultAdapter.SupportedDisplayModes)
 				{
 					if (v.Width >= 1280)
@@ -1693,9 +1924,9 @@ namespace StardewValley
 						dropDown.dropDownDisplayOptions.Add(v.Width + " x " + v.Height);
 						if (v.Width == preferredResolutionX && v.Height == preferredResolutionY)
 						{
-							dropDown.selectedOption = i;
+							dropDown.selectedOption = j;
 						}
-						i++;
+						j++;
 					}
 				}
 				dropDown.greyedOut = (!fullscreen || windowedBorderlessFullscreen);
@@ -1755,7 +1986,7 @@ namespace StardewValley
 				try
 				{
 					StartupPreferences startupPreferences = new StartupPreferences();
-					startupPreferences.loadPreferences(async: false);
+					startupPreferences.loadPreferences(async: false, applyLanguage: false);
 					gamepadMode = startupPreferences.gamepadMode;
 				}
 				catch (Exception)
@@ -1780,6 +2011,32 @@ namespace StardewValley
 					dropDown.selectedOption = 2;
 				}
 				break;
+			case 41:
+				dropDown.dropDownOptions.Add("hold");
+				dropDown.dropDownDisplayOptions.Add(Game1.content.LoadString("Strings\\UI:Options_SlingshotMode_Hold"));
+				dropDown.dropDownOptions.Add("legacy");
+				dropDown.dropDownDisplayOptions.Add(Game1.content.LoadString("Strings\\UI:Options_SlingshotMode_Pull"));
+				if (useLegacySlingshotFiring)
+				{
+					dropDown.selectedOption = 1;
+				}
+				else
+				{
+					dropDown.selectedOption = 0;
+				}
+				break;
+			case 42:
+			{
+				dropDown.dropDownOptions.Add("-1");
+				dropDown.dropDownDisplayOptions.Add(Game1.content.LoadString("Strings\\StringsFromCSFiles:BiteChime_Default"));
+				for (int i = 0; i <= 3; i++)
+				{
+					dropDown.dropDownOptions.Add(i.ToString());
+					dropDown.dropDownDisplayOptions.Add((i + 1).ToString());
+				}
+				dropDown.selectedOption = Game1.player.biteChime.Value + 1;
+				break;
+			}
 			case 31:
 				dropDown.dropDownOptions.Add("offline");
 				dropDown.dropDownDisplayOptions.Add(Game1.content.LoadString("Strings\\UI:GameMenu_ServerMode_Offline"));
@@ -1813,6 +2070,27 @@ namespace StardewValley
 				else
 				{
 					dropDown.selectedOption = 1;
+				}
+				Console.WriteLine("setDropDownToProperValue( serverMode, {0} ) called.", dropDown.dropDownOptions[dropDown.selectedOption]);
+				break;
+			case 40:
+				dropDown.dropDownOptions.Add("on");
+				dropDown.dropDownDisplayOptions.Add(Game1.content.LoadString("Strings\\UI:GameMenu_MoveBuildingPermissions_On"));
+				dropDown.dropDownOptions.Add("owned");
+				dropDown.dropDownDisplayOptions.Add(Game1.content.LoadString("Strings\\UI:GameMenu_MoveBuildingPermissions_Owned"));
+				dropDown.dropDownOptions.Add("off");
+				dropDown.dropDownDisplayOptions.Add(Game1.content.LoadString("Strings\\UI:GameMenu_MoveBuildingPermissions_Off"));
+				if (Game1.player.team.farmhandsCanMoveBuildings.Value == FarmerTeam.RemoteBuildingPermissions.On)
+				{
+					dropDown.selectedOption = 0;
+				}
+				if (Game1.player.team.farmhandsCanMoveBuildings.Value == FarmerTeam.RemoteBuildingPermissions.OwnedBuildings)
+				{
+					dropDown.selectedOption = 1;
+				}
+				if (Game1.player.team.farmhandsCanMoveBuildings.Value == FarmerTeam.RemoteBuildingPermissions.Off)
+				{
+					dropDown.selectedOption = 2;
 				}
 				break;
 			}

@@ -8,7 +8,7 @@ namespace StardewValley.Network
 	{
 		private string address;
 
-		private NetClient client;
+		public NetClient client;
 
 		private bool serverDiscovered;
 
@@ -70,6 +70,10 @@ namespace StardewValley.Network
 
 		public override void disconnect(bool neatly = true)
 		{
+			if (client == null)
+			{
+				return;
+			}
 			if (client.ConnectionStatus != NetConnectionStatus.Disconnected && client.ConnectionStatus != NetConnectionStatus.Disconnecting)
 			{
 				if (neatly)
@@ -85,7 +89,7 @@ namespace StardewValley.Network
 
 		protected virtual bool validateProtocol(string version)
 		{
-			return version == Game1.multiplayer.protocolVersion;
+			return version == "1.5";
 		}
 
 		protected override void receiveMessagesImpl()
@@ -116,7 +120,7 @@ namespace StardewValley.Network
 						}
 						else
 						{
-							connectionMessage = "Strings\\UI:CoopMenu_FailedProtocolVersion";
+							connectionMessage = Game1.content.LoadString("Strings\\UI:CoopMenu_FailedProtocolVersion");
 							client.Disconnect("");
 						}
 					}

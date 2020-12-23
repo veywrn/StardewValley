@@ -103,16 +103,19 @@ namespace StardewValley.Buildings
 		{
 			if ((int)daysOfConstructionLeft <= 0 && tileLocation.X == (float)((int)tileX + animalDoor.X) && tileLocation.Y == (float)((int)tileY + animalDoor.Y))
 			{
-				if (!animalDoorOpen)
+				if (Game1.didPlayerJustRightClick(ignoreNonMouseHeldInput: true))
 				{
-					who.currentLocation.playSound("doorCreak");
+					if (!animalDoorOpen)
+					{
+						who.currentLocation.playSound("doorCreak");
+					}
+					else
+					{
+						who.currentLocation.playSound("doorCreakReverse");
+					}
+					animalDoorOpen.Value = !animalDoorOpen;
+					animalDoorMotion.Value = (animalDoorOpen ? (-2) : 2);
 				}
-				else
-				{
-					who.currentLocation.playSound("doorCreakReverse");
-				}
-				animalDoorOpen.Value = !animalDoorOpen;
-				animalDoorMotion.Value = (animalDoorOpen ? (-2) : 2);
 				return true;
 			}
 			return base.doAction(tileLocation, who);

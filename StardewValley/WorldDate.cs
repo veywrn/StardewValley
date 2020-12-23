@@ -35,7 +35,7 @@ namespace StardewValley
 			{
 				return seasonIndex.Value;
 			}
-			private set
+			internal set
 			{
 				seasonIndex.Value = value;
 			}

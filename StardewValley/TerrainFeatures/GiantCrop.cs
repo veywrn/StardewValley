@@ -60,9 +60,16 @@ namespace StardewValley.TerrainFeatures
 				return false;
 			}
 			location.playSound("axchop");
-			int power = t.getLastFarmerToUse().toolPower + 1;
+			int power = (int)t.upgradeLevel / 2 + 1;
 			health.Value -= power;
-			Game1.createRadialDebris(Game1.currentLocation, 12, (int)tileLocation.X, (int)tileLocation.Y, Game1.random.Next(4, 9), resource: false);
+			Game1.createRadialDebris(Game1.currentLocation, 12, (int)tileLocation.X + 1, (int)tileLocation.Y + 1, Game1.random.Next(4, 9), resource: false);
+			if (t is Axe && t.hasEnchantmentOfType<ShavingEnchantment>() && Game1.random.NextDouble() <= (double)((float)power / 5f))
+			{
+				Debris d = new Debris(parentSheetIndex, new Vector2(tileLocation.X * 64f + 96f, (tileLocation.Y + 0.5f) * 64f), new Vector2(Game1.player.getStandingX(), Game1.player.getStandingY()));
+				d.Chunks[0].xVelocity.Value += (float)Game1.random.Next(-10, 11) / 10f;
+				d.chunkFinalYLevel = (int)(tileLocation.Y * 64f + 128f);
+				location.debris.Add(d);
+			}
 			if (shakeTimer <= 0f)
 			{
 				shakeTimer = 100f;
@@ -71,7 +78,7 @@ namespace StardewValley.TerrainFeatures
 			if ((float)health <= 0f)
 			{
 				t.getLastFarmerToUse().gainExperience(5, 50 * (((int)t.getLastFarmerToUse().luckLevel + 1) / 2));
-				if (t.getLastFarmerToUse().hasMagnifyingGlass)
+				if (location.HasUnlockedAreaSecretNotes(t.getLastFarmerToUse()))
 				{
 					Object o = location.tryToCreateUnseenSecretNote(t.getLastFarmerToUse());
 					if (o != null)

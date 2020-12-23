@@ -1,4 +1,5 @@
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -78,6 +79,8 @@ namespace StardewValley
 		public const string favoriteThingSpecialCharacter = "%favorite";
 
 		public const string eventForkSpecialCharacter = "%fork";
+
+		public const string yearSpecialCharacter = "%year";
 
 		public const string kid1specialCharacter = "%kid1";
 
@@ -208,7 +211,7 @@ namespace StardewValley
 			"/rainbow"
 		};
 
-		private List<string> dialogues = new List<string>();
+		public List<string> dialogues = new List<string>();
 
 		private List<NPCDialogueResponse> playerResponses;
 
@@ -228,6 +231,8 @@ namespace StardewValley
 
 		public bool removeOnNextMove;
 
+		public string temporaryDialogueKey;
+
 		public int currentDialogueIndex;
 
 		private string currentEmotion;
@@ -237,6 +242,10 @@ namespace StardewValley
 		public NPC speaker;
 
 		public onAnswerQuestion answerQuestionBehavior;
+
+		public Texture2D overridePortrait;
+
+		public Action onFinish;
 
 		public string CurrentEmotion
 		{
@@ -417,7 +426,7 @@ namespace StardewValley
 			{
 				TranslateArraysOfStrings();
 			}
-			return verbs[Game1.random.Next(verbs.Count())];
+			return verbs[Game1.random.Next(verbs.Length)];
 		}
 
 		public static string getRandomAdjective()
@@ -426,7 +435,7 @@ namespace StardewValley
 			{
 				TranslateArraysOfStrings();
 			}
-			return adjectives[Game1.random.Next(adjectives.Count())];
+			return adjectives[Game1.random.Next(adjectives.Length)];
 		}
 
 		public static string getRandomNoun()
@@ -435,7 +444,7 @@ namespace StardewValley
 			{
 				TranslateArraysOfStrings();
 			}
-			return nouns[Game1.random.Next(nouns.Count())];
+			return nouns[Game1.random.Next(nouns.Length)];
 		}
 
 		public static string getRandomPositional()
@@ -444,7 +453,7 @@ namespace StardewValley
 			{
 				TranslateArraysOfStrings();
 			}
-			return positional[Game1.random.Next(positional.Count())];
+			return positional[Game1.random.Next(positional.Length)];
 		}
 
 		public int getPortraitIndex()
@@ -527,7 +536,7 @@ namespace StardewValley
 								break;
 							}
 							m += 3;
-							if (m < masterDialogueSplit.Count())
+							if (m < masterDialogueSplit.Length)
 							{
 								masterDialogueSplit[m] = checkForSpecialCharacters(masterDialogueSplit[m]);
 								dialogues.Add(masterDialogueSplit[m]);
@@ -697,6 +706,10 @@ namespace StardewValley
 		{
 			if (dialogues.Count > 0)
 			{
+				if (speaker != null && (bool)speaker.shouldWearIslandAttire && Game1.player.friendshipData.ContainsKey(speaker.Name) && Game1.player.friendshipData[speaker.Name].IsDivorced() && currentEmotion == "$u")
+				{
+					currentEmotion = "$neutral";
+				}
 				dialogues[currentDialogueIndex] = Utility.ParseGiftReveals(dialogues[currentDialogueIndex]);
 			}
 		}
@@ -745,7 +758,7 @@ namespace StardewValley
 				showPortrait = false;
 				return dialogues[currentDialogueIndex].Substring(1);
 			}
-			if (dialogues.Count() <= 0)
+			if (dialogues.Count <= 0)
 			{
 				return Game1.content.LoadString("Strings\\StringsFromCSFiles:Dialogue.cs.792");
 			}
@@ -773,7 +786,8 @@ namespace StardewValley
 
 		public string checkForSpecialCharacters(string str)
 		{
-			str = str.Replace("@", farmer.Name);
+			string farmerName = Utility.FilterUserName(farmer.Name);
+			str = str.Replace("@", farmerName);
 			str = str.Replace("%adj", adjectives[Game1.random.Next(adjectives.Length)].ToLower());
 			if (str.Contains("%noun"))
 			{
@@ -781,7 +795,7 @@ namespace StardewValley
 			}
 			str = str.Replace("%place", places[Game1.random.Next(places.Length)]);
 			str = str.Replace("%name", randomName());
-			str = str.Replace("%firstnameletter", farmer.Name.Substring(0, Math.Max(0, farmer.Name.Length / 2)));
+			str = str.Replace("%firstnameletter", farmerName.Substring(0, Math.Max(0, farmerName.Length / 2)));
 			str = str.Replace("%band", Game1.samBandName);
 			if (str.Contains("%book"))
 			{
@@ -800,8 +814,11 @@ namespace StardewValley
 					str = str.Replace("%spouse", spouse.Name);
 				}
 			}
-			str = str.Replace("%farm", farmer.farmName);
-			str = str.Replace("%favorite", farmer.favoriteThing);
+			string farmName = Utility.FilterUserName(farmer.farmName);
+			str = str.Replace("%farm", farmName);
+			string favoriteThing = Utility.FilterUserName(farmer.favoriteThing);
+			str = str.Replace("%favorite", favoriteThing);
+			str = str.Replace("%year", string.Concat(Game1.year));
 			int kids = farmer.getNumberOfChildren();
 			str = str.Replace("%kid1", (kids > 0) ? farmer.getChildren()[0].displayName : Game1.content.LoadString("Strings\\StringsFromCSFiles:Dialogue.cs.793"));
 			str = str.Replace("%kid2", (kids > 1) ? farmer.getChildren()[1].displayName : Game1.content.LoadString("Strings\\StringsFromCSFiles:Dialogue.cs.794"));
@@ -1384,6 +1401,10 @@ namespace StardewValley
 
 		public string exitCurrentDialogue()
 		{
+			if (isOnFinalDialogue() && onFinish != null)
+			{
+				onFinish();
+			}
 			if (temporaryDialogue != null)
 			{
 				return null;

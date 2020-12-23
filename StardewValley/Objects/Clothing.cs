@@ -343,6 +343,7 @@ namespace StardewValley.Objects
 		{
 			Clothing clothing = new Clothing(base.ParentSheetIndex);
 			clothing.clothesColor.Value = clothesColor.Value;
+			clothing._GetOneFrom(this);
 			return clothing;
 		}
 	}

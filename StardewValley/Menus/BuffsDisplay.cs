@@ -119,18 +119,15 @@ namespace StardewValley.Menus
 
 		public bool hasBuff(int which)
 		{
-			foreach (Buff otherBuff in otherBuffs)
-			{
-				if (otherBuff.which == which)
-				{
-					return true;
-				}
-			}
-			return false;
+			return Game1.player.hasBuff(which);
 		}
 
 		public bool tryToAddFoodBuff(Buff b, int duration)
 		{
+			if (b.source.Equals("Squid Ink Ravioli"))
+			{
+				addOtherBuff(new Buff(28));
+			}
 			if (b.total > 0 && fullnessLeft <= 0)
 			{
 				if (food != null)
@@ -175,6 +172,26 @@ namespace StardewValley.Menus
 				return true;
 			}
 			return false;
+		}
+
+		public bool removeOtherBuff(int which)
+		{
+			bool removed = false;
+			for (int i = 0; i < otherBuffs.Count; i++)
+			{
+				Buff buff = otherBuffs[i];
+				if (which == buff.which)
+				{
+					buff.removeBuff();
+					otherBuffs.RemoveAt(i);
+					removed = true;
+				}
+			}
+			if (removed)
+			{
+				syncIcons();
+			}
+			return removed;
 		}
 
 		public bool addOtherBuff(Buff buff)
@@ -224,10 +241,15 @@ namespace StardewValley.Menus
 					syncIcons();
 				}
 			}
-			foreach (KeyValuePair<ClickableTextureComponent, Buff> buff in buffs)
+			foreach (KeyValuePair<ClickableTextureComponent, Buff> pair in buffs)
 			{
-				ClickableTextureComponent c = buff.Key;
+				ClickableTextureComponent c = pair.Key;
 				c.scale = Math.Max(c.baseScale, c.scale - 0.01f);
+				if (!pair.Value.alreadyUpdatedIconAlpha && (float)pair.Value.millisecondsDuration < Math.Min(10000f, (float)pair.Value.totalMillisecondsDuration / 10f))
+				{
+					pair.Value.displayAlphaTimer += (float)Game1.currentGameTime.ElapsedGameTime.TotalMilliseconds / (((float)pair.Value.millisecondsDuration < Math.Min(2000f, (float)pair.Value.totalMillisecondsDuration / 20f)) ? 1f : 2f);
+					pair.Value.alreadyUpdatedIconAlpha = true;
+				}
 			}
 		}
 
@@ -250,9 +272,10 @@ namespace StardewValley.Menus
 		public override void draw(SpriteBatch b)
 		{
 			updatePosition();
-			foreach (KeyValuePair<ClickableTextureComponent, Buff> buff in buffs)
+			foreach (KeyValuePair<ClickableTextureComponent, Buff> pair in buffs)
 			{
-				buff.Key.draw(b);
+				pair.Key.draw(b, Color.White * ((pair.Value.displayAlphaTimer > 0f) ? ((float)(Math.Cos(pair.Value.displayAlphaTimer / 100f) + 3.0) / 4f) : 1f), 0.8f);
+				pair.Value.alreadyUpdatedIconAlpha = false;
 			}
 			if (hoverText.Length != 0 && isWithinBounds(Game1.getOldMouseX(), Game1.getOldMouseY()))
 			{

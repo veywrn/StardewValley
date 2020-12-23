@@ -105,6 +105,10 @@ namespace StardewValley.Objects
 
 		public static bool IsValidCrabPotLocationTile(GameLocation location, int x, int y)
 		{
+			if (location is Caldera)
+			{
+				return false;
+			}
 			Vector2 placement_tile = new Vector2(x, y);
 			bool neighbor_check = (location.doesTileHaveProperty(x + 1, y, "Water", "Back") != null && location.doesTileHaveProperty(x - 1, y, "Water", "Back") != null) || (location.doesTileHaveProperty(x, y + 1, "Water", "Back") != null && location.doesTileHaveProperty(x, y - 1, "Water", "Back") != null);
 			if (location.objects.ContainsKey(placement_tile) || !neighbor_check || location.doesTileHaveProperty((int)placement_tile.X, (int)placement_tile.Y, "Water", "Back") == null || location.doesTileHaveProperty((int)placement_tile.X, (int)placement_tile.Y, "Passable", "Buildings") != null)
@@ -183,7 +187,9 @@ namespace StardewValley.Objects
 
 		public override Item getOne()
 		{
-			return new Object(parentSheetIndex, 1);
+			Object @object = new Object(parentSheetIndex, 1);
+			@object._GetOneFrom(this);
+			return @object;
 		}
 
 		public override bool performObjectDropInAction(Item dropInItem, bool probe, Farmer who)
@@ -292,14 +298,19 @@ namespace StardewValley.Objects
 			Dictionary<int, string> fishData = Game1.content.Load<Dictionary<int, string>>("Data\\Fish");
 			List<int> marinerList = new List<int>();
 			double chanceForJunk = isMariner ? 0.0 : 0.2;
+			if (!isMariner)
+			{
+				chanceForJunk += (double)location.getExtraTrashChanceForCrabPot((int)tileLocation.X, (int)tileLocation.Y);
+			}
 			if (r.NextDouble() > chanceForJunk)
 			{
 				foreach (KeyValuePair<int, string> v in fishData)
 				{
 					if (v.Value.Contains("trap"))
 					{
+						bool should_catch_ocean_fish = location is Beach || location.catchOceanCrabPotFishFromThisSpot((int)tileLocation.X, (int)tileLocation.Y);
 						string[] rawSplit = v.Value.Split('/');
-						if ((!rawSplit[4].Equals("ocean") || location is Beach) && (!rawSplit[4].Equals("freshwater") || !(location is Beach)))
+						if ((!rawSplit[4].Equals("ocean") || should_catch_ocean_fish) && (!rawSplit[4].Equals("freshwater") || !should_catch_ocean_fish))
 						{
 							if (isMariner)
 							{
@@ -320,7 +331,7 @@ namespace StardewValley.Objects
 			}
 			if (heldObject.Value == null)
 			{
-				if (isMariner)
+				if (isMariner && marinerList.Count > 0)
 				{
 					heldObject.Value = new Object(marinerList[r.Next(marinerList.Count)], 1);
 				}
@@ -385,7 +396,7 @@ namespace StardewValley.Objects
 			{
 				tileIndexToShow = parentSheetIndex;
 			}
-			yBob = (float)(Math.Sin(DateTime.UtcNow.TimeOfDay.TotalMilliseconds / 500.0 + (double)(x * 64)) * 8.0 + 8.0);
+			yBob = (float)(Math.Sin(Game1.currentGameTime.TotalGameTime.TotalMilliseconds / 500.0 + (double)(x * 64)) * 8.0 + 8.0);
 			if (yBob <= 0.001f)
 			{
 				Game1.currentLocation.temporarySprites.Add(new TemporaryAnimatedSprite("TileSheets\\animations", new Rectangle(0, 0, 64, 64), 150f, 8, 0, directionOffset + new Vector2(x * 64 + 4, y * 64 + 32), flicker: false, Game1.random.NextDouble() < 0.5, 0.001f, 0.01f, Color.White, 0.75f, 0.003f, 0f, 0f));
@@ -395,7 +406,7 @@ namespace StardewValley.Objects
 			spriteBatch.Draw(Game1.mouseCursors, Game1.GlobalToLocal(Game1.viewport, directionOffset + new Vector2(x * 64 + 4, y * 64 + 48)) + shake, new Rectangle(Game1.currentLocation.waterAnimationIndex * 64, 2112 + (((x + y) % 2 != 0) ? ((!Game1.currentLocation.waterTileFlip) ? 128 : 0) : (Game1.currentLocation.waterTileFlip ? 128 : 0)), 56, 16 + (int)yBob), Game1.currentLocation.waterColor, 0f, Vector2.Zero, 1f, SpriteEffects.None, ((float)(y * 64) + directionOffset.Y + (float)(x % 4)) / 9999f);
 			if ((bool)readyForHarvest && heldObject.Value != null)
 			{
-				float yOffset = 4f * (float)Math.Round(Math.Sin(DateTime.UtcNow.TimeOfDay.TotalMilliseconds / 250.0), 2);
+				float yOffset = 4f * (float)Math.Round(Math.Sin(Game1.currentGameTime.TotalGameTime.TotalMilliseconds / 250.0), 2);
 				spriteBatch.Draw(Game1.mouseCursors, Game1.GlobalToLocal(Game1.viewport, directionOffset + new Vector2(x * 64 - 8, (float)(y * 64 - 96 - 16) + yOffset)), new Rectangle(141, 465, 20, 24), Color.White * 0.75f, 0f, Vector2.Zero, 4f, SpriteEffects.None, (float)((y + 1) * 64) / 10000f + 1E-06f + tileLocation.X / 10000f);
 				spriteBatch.Draw(Game1.objectSpriteSheet, Game1.GlobalToLocal(Game1.viewport, directionOffset + new Vector2(x * 64 + 32, (float)(y * 64 - 64 - 8) + yOffset)), Game1.getSourceRectForStandardTileSheet(Game1.objectSpriteSheet, heldObject.Value.parentSheetIndex, 16, 16), Color.White * 0.75f, 0f, new Vector2(8f, 8f), 4f, SpriteEffects.None, (float)((y + 1) * 64) / 10000f + 1E-05f + tileLocation.X / 10000f);
 			}

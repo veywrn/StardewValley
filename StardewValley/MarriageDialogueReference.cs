@@ -61,8 +61,8 @@ namespace StardewValley
 
 		protected string _ReplaceTokens(string text, NPC n)
 		{
-			text = text.Replace("%endearment", n.getTermOfSpousalEndearment());
 			text = text.Replace("%endearmentlower", n.getTermOfSpousalEndearment().ToLower());
+			text = text.Replace("%endearment", n.getTermOfSpousalEndearment());
 			return text;
 		}
 

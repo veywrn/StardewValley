@@ -68,6 +68,8 @@ namespace StardewValley.BellsAndWhistles
 
 		public const int color_Gray = 8;
 
+		public static bool forceEnglishFont = false;
+
 		public static void drawStringHorizontallyCenteredAt(SpriteBatch b, string s, int x, int y, int characterPosition = 999999, int width = -1, int height = 999999, float alpha = 1f, float layerDepth = 0.88f, bool junimoText = false, int color = -1, int maxWidth = 99999)
 		{
 			drawString(b, s, x - getWidthOfString(s, maxWidth) / 2, y, characterPosition, width, height, alpha, layerDepth, junimoText, -1, "", color);
@@ -80,7 +82,7 @@ namespace StardewValley.BellsAndWhistles
 			int maxWidth = 0;
 			for (int i = 0; i < s.Length; i++)
 			{
-				if (!LocalizedContentManager.CurrentLanguageLatin)
+				if (!LocalizedContentManager.CurrentLanguageLatin && !forceEnglishFont)
 				{
 					if (_characterMap.TryGetValue(s[i], out FontChar c))
 					{
@@ -108,6 +110,22 @@ namespace StardewValley.BellsAndWhistles
 			return (int)((float)maxWidth * fontPixelZoom);
 		}
 
+		public static bool IsMissingCharacters(string text)
+		{
+			setUpCharacterMap();
+			if (!LocalizedContentManager.CurrentLanguageLatin && !forceEnglishFont)
+			{
+				for (int i = 0; i < text.Length; i++)
+				{
+					if (!_characterMap.ContainsKey(text[i]))
+					{
+						return true;
+					}
+				}
+			}
+			return false;
+		}
+
 		public static int getHeightOfString(string s, int widthConstraint = 999999)
 		{
 			if (s.Length == 0)
@@ -118,7 +136,7 @@ namespace StardewValley.BellsAndWhistles
 			int accumulatedHorizontalSpaceBetweenCharacters = 0;
 			s = s.Replace(Environment.NewLine, "");
 			setUpCharacterMap();
-			if (!LocalizedContentManager.CurrentLanguageLatin)
+			if (!LocalizedContentManager.CurrentLanguageLatin && !forceEnglishFont)
 			{
 				for (int j = 0; j < s.Length; j++)
 				{
@@ -578,10 +596,10 @@ namespace StardewValley.BellsAndWhistles
 			s = s.Replace('♡', '<');
 			for (int i = 0; i < Math.Min(s.Length, characterPosition); i++)
 			{
-				if ((LocalizedContentManager.CurrentLanguageLatin || IsSpecialCharacter(s[i])) | junimoText)
+				if (((LocalizedContentManager.CurrentLanguageLatin || IsSpecialCharacter(s[i])) | junimoText) || forceEnglishFont)
 				{
 					float tempzoom = fontPixelZoom;
-					if (IsSpecialCharacter(s[i]) | junimoText)
+					if ((IsSpecialCharacter(s[i]) | junimoText) || forceEnglishFont)
 					{
 						fontPixelZoom = 3f;
 					}

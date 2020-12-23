@@ -25,5 +25,10 @@ namespace StardewValley
 		{
 			return field.ToArray();
 		}
+
+		protected override int[] getFieldTargetValue(NetArray<int, NetInt> field)
+		{
+			return field.ToArray();
+		}
 	}
 }

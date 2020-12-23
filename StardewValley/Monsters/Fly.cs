@@ -153,7 +153,7 @@ namespace StardewValley.Monsters
 			{
 				wasHitCounter -= time.ElapsedGameTime.Milliseconds;
 			}
-			Sprite.Animate(time, (base.FacingDirection == 0) ? 8 : ((base.FacingDirection != 2) ? (base.FacingDirection * 4) : 0), 4, 75f);
+			Sprite.Animate(time, (FacingDirection == 0) ? 8 : ((FacingDirection != 2) ? (FacingDirection * 4) : 0), 4, 75f);
 			if (spawningCounter >= 0)
 			{
 				spawningCounter -= time.ElapsedGameTime.Milliseconds;

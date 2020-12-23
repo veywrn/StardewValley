@@ -3,6 +3,7 @@ using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using StardewValley.BellsAndWhistles;
 using StardewValley.Locations;
+using StardewValley.Objects;
 using StardewValley.Tools;
 using System;
 using System.Collections.Generic;
@@ -27,31 +28,31 @@ namespace StardewValley.Menus
 
 		public Texture2D secretNoteImageTexture;
 
-		private int moneyIncluded;
+		public int moneyIncluded;
 
-		private int questID = -1;
+		public int questID = -1;
 
-		private int secretNoteImage = -1;
+		public int secretNoteImage = -1;
 
-		private int whichBG;
+		public int whichBG;
 
-		private string learnedRecipe = "";
+		public string learnedRecipe = "";
 
-		private string cookingOrCrafting = "";
+		public string cookingOrCrafting = "";
 
-		private string mailTitle;
+		public string mailTitle;
 
-		private List<string> mailMessage = new List<string>();
+		public List<string> mailMessage = new List<string>();
 
-		private int page;
+		public int page;
 
 		public List<ClickableComponent> itemsToGrab = new List<ClickableComponent>();
 
-		private float scale;
+		public float scale;
 
-		private bool isMail;
+		public bool isMail;
 
-		private bool isFromCollection;
+		public bool isFromCollection;
 
 		public new bool destroy;
 
@@ -79,6 +80,14 @@ namespace StardewValley.Menus
 			};
 			letterTexture = Game1.temporaryContent.Load<Texture2D>("LooseSprites\\letterBG");
 			mailMessage = SpriteText.getStringBrokenIntoSectionsOfHeight(text, width - 64, height - 128);
+			forwardButton.visible = (page < mailMessage.Count - 1);
+			backButton.visible = (page > 0);
+			OnPageChange();
+			populateClickableComponentList();
+			if (Game1.options.SnappyMenus)
+			{
+				snapToDefaultClickableComponent();
+			}
 		}
 
 		public LetterViewerMenu(int secretNoteIndex)
@@ -105,7 +114,33 @@ namespace StardewValley.Menus
 			else
 			{
 				mailMessage = SpriteText.getStringBrokenIntoSectionsOfHeight(Utility.ParseGiftReveals(data.Replace("@", Game1.player.name)), width - 64, height - 128);
-				whichBG = 1;
+				whichBG = ((secretNoteIndex <= 1000) ? 1 : 0);
+			}
+			OnPageChange();
+			forwardButton.visible = (page < mailMessage.Count - 1);
+			backButton.visible = (page > 0);
+			populateClickableComponentList();
+			if (Game1.options.SnappyMenus)
+			{
+				snapToDefaultClickableComponent();
+			}
+		}
+
+		public virtual void OnPageChange()
+		{
+			forwardButton.visible = (page < mailMessage.Count - 1);
+			backButton.visible = (page > 0);
+			foreach (ClickableComponent item in itemsToGrab)
+			{
+				item.visible = ShouldShowInteractable();
+			}
+			if (acceptQuestButton != null)
+			{
+				acceptQuestButton.visible = ShouldShowInteractable();
+			}
+			if (Game1.options.SnappyMenus && (currentlySnappedComponent == null || !currentlySnappedComponent.visible))
+			{
+				snapToDefaultClickableComponent();
 			}
 		}
 
@@ -155,11 +190,11 @@ namespace StardewValley.Menus
 				{
 					if (split[1].Equals("object"))
 					{
-						int maxNum2 = split.Length - 1;
-						int which3 = Game1.random.Next(2, maxNum2);
-						which3 -= which3 % 2;
-						Object o2 = new Object(Vector2.Zero, Convert.ToInt32(split[which3]), Convert.ToInt32(split[which3 + 1]));
-						itemsToGrab.Add(new ClickableComponent(new Rectangle(xPositionOnScreen + width / 2 - 48, yPositionOnScreen + height - 32 - 96, 96, 96), o2)
+						int maxNum3 = split.Length - 1;
+						int which4 = Game1.random.Next(2, maxNum3);
+						which4 -= which4 % 2;
+						Object o3 = new Object(Vector2.Zero, Convert.ToInt32(split[which4]), Convert.ToInt32(split[which4 + 1]));
+						itemsToGrab.Add(new ClickableComponent(new Rectangle(xPositionOnScreen + width / 2 - 48, yPositionOnScreen + height - 32 - 96, 96, 96), o3)
 						{
 							myID = 104,
 							leftNeighborID = 101,
@@ -199,9 +234,23 @@ namespace StardewValley.Menus
 					}
 					else if (split[1].Equals("bigobject"))
 					{
+						int maxNum2 = split.Length - 1;
+						int which2 = Game1.random.Next(2, maxNum2);
+						Object o2 = new Object(Vector2.Zero, Convert.ToInt32(split[which2]));
+						itemsToGrab.Add(new ClickableComponent(new Rectangle(xPositionOnScreen + width / 2 - 48, yPositionOnScreen + height - 32 - 96, 96, 96), o2)
+						{
+							myID = 104,
+							leftNeighborID = 101,
+							rightNeighborID = 102
+						});
+						backButton.rightNeighborID = 104;
+						forwardButton.leftNeighborID = 104;
+					}
+					else if (split[1].Equals("furniture"))
+					{
 						int maxNum = split.Length - 1;
 						int which = Game1.random.Next(2, maxNum);
-						Object o = new Object(Vector2.Zero, Convert.ToInt32(split[which]));
+						Item o = Furniture.GetFurnitureInstance(Convert.ToInt32(split[which]));
 						itemsToGrab.Add(new ClickableComponent(new Rectangle(xPositionOnScreen + width / 2 - 48, yPositionOnScreen + height - 32 - 96, 96, 96), o)
 						{
 							myID = 104,
@@ -329,7 +378,12 @@ namespace StardewValley.Menus
 				hide_secret_santa = false;
 			}
 			mail = mail.Replace("%secretsanta", hide_secret_santa ? "???" : Utility.getRandomTownNPC(r).displayName);
-			mailMessage = SpriteText.getStringBrokenIntoSectionsOfHeight(mail, width - 64, height - 128);
+			int page_height = height - 128;
+			if (HasInteractable())
+			{
+				page_height = height - 128 - 32;
+			}
+			mailMessage = SpriteText.getStringBrokenIntoSectionsOfHeight(mail, width - 64, page_height);
 			if (mailTitle.Equals("winter_5_2") || mailTitle.Equals("winter_12_1") || mailTitle.ToLower().Contains("wizard"))
 			{
 				whichBG = 2;
@@ -338,6 +392,12 @@ namespace StardewValley.Menus
 			{
 				whichBG = 1;
 			}
+			else if (mailTitle.Contains("Krobus"))
+			{
+				whichBG = 3;
+			}
+			forwardButton.visible = (page < mailMessage.Count - 1);
+			backButton.visible = (page > 0);
 			if (Game1.options.SnappyMenus)
 			{
 				populateClickableComponentList();
@@ -352,17 +412,17 @@ namespace StardewValley.Menus
 
 		public override void snapToDefaultClickableComponent()
 		{
-			if (questID != -1)
+			if (questID != -1 && ShouldShowInteractable())
 			{
 				currentlySnappedComponent = getComponentWithID(103);
 			}
-			else if (itemsToGrab != null && itemsToGrab.Count > 0)
+			else if (itemsToGrab != null && itemsToGrab.Count > 0 && ShouldShowInteractable())
 			{
 				currentlySnappedComponent = getComponentWithID(104);
 			}
-			else
+			else if (currentlySnappedComponent == null || (currentlySnappedComponent != backButton && currentlySnappedComponent != forwardButton))
 			{
-				currentlySnappedComponent = getComponentWithID(102);
+				currentlySnappedComponent = forwardButton;
 			}
 			snapCursorToCurrentSnappedComponent();
 		}
@@ -411,15 +471,21 @@ namespace StardewValley.Menus
 		public override void receiveGamePadButton(Buttons b)
 		{
 			base.receiveGamePadButton(b);
-			if (b == Buttons.LeftTrigger && page > 0)
+			if (isFromCollection && b == Buttons.B)
+			{
+				exitThisMenu(playSound: false);
+			}
+			else if (b == Buttons.LeftTrigger && page > 0)
 			{
 				page--;
 				Game1.playSound("shwip");
+				OnPageChange();
 			}
 			else if (b == Buttons.RightTrigger && page < mailMessage.Count - 1)
 			{
 				page++;
 				Game1.playSound("shwip");
+				OnPageChange();
 			}
 		}
 
@@ -449,27 +515,32 @@ namespace StardewValley.Menus
 				unload();
 				return;
 			}
-			foreach (ClickableComponent c in itemsToGrab)
+			if (ShouldShowInteractable())
 			{
-				if (c.containsPoint(x, y) && c.item != null)
+				foreach (ClickableComponent c in itemsToGrab)
 				{
-					Game1.playSound("coin");
-					Game1.player.addItemByMenuIfNecessary(c.item);
-					c.item = null;
-					return;
+					if (c.containsPoint(x, y) && c.item != null)
+					{
+						Game1.playSound("coin");
+						Game1.player.addItemByMenuIfNecessary(c.item);
+						c.item = null;
+						return;
+					}
 				}
 			}
 			if (backButton.containsPoint(x, y) && page > 0)
 			{
 				page--;
 				Game1.playSound("shwip");
+				OnPageChange();
 			}
 			else if (forwardButton.containsPoint(x, y) && page < mailMessage.Count - 1)
 			{
 				page++;
 				Game1.playSound("shwip");
+				OnPageChange();
 			}
-			else if (acceptQuestButton != null && acceptQuestButton.containsPoint(x, y))
+			else if (ShouldShowInteractable() && acceptQuestButton != null && acceptQuestButton.containsPoint(x, y))
 			{
 				AcceptQuest();
 			}
@@ -479,6 +550,7 @@ namespace StardewValley.Menus
 				{
 					page++;
 					Game1.playSound("shwip");
+					OnPageChange();
 				}
 				else if (!isMail)
 				{
@@ -507,6 +579,10 @@ namespace StardewValley.Menus
 		public virtual bool ShouldPlayExitSound()
 		{
 			if (questID != -1)
+			{
+				return false;
+			}
+			if (isFromCollection)
 			{
 				return false;
 			}
@@ -546,20 +622,23 @@ namespace StardewValley.Menus
 		public override void performHoverAction(int x, int y)
 		{
 			base.performHoverAction(x, y);
-			foreach (ClickableComponent c in itemsToGrab)
+			if (ShouldShowInteractable())
 			{
-				if (c.containsPoint(x, y))
+				foreach (ClickableComponent c in itemsToGrab)
 				{
-					c.scale = Math.Min(c.scale + 0.03f, 1.1f);
-				}
-				else
-				{
-					c.scale = Math.Max(1f, c.scale - 0.03f);
+					if (c.containsPoint(x, y))
+					{
+						c.scale = Math.Min(c.scale + 0.03f, 1.1f);
+					}
+					else
+					{
+						c.scale = Math.Max(1f, c.scale - 0.03f);
+					}
 				}
 			}
 			backButton.tryHover(x, y, 0.6f);
 			forwardButton.tryHover(x, y, 0.6f);
-			if (questID != -1)
+			if (ShouldShowInteractable() && questID != -1)
 			{
 				float oldScale = acceptQuestButton.scale;
 				acceptQuestButton.scale = (acceptQuestButton.bounds.Contains(x, y) ? 1.5f : 1f);
@@ -573,6 +652,8 @@ namespace StardewValley.Menus
 		public override void update(GameTime time)
 		{
 			base.update(time);
+			forwardButton.visible = (page < mailMessage.Count - 1);
+			backButton.visible = (page > 0);
 			if (scale < 1f)
 			{
 				scale += (float)time.ElapsedGameTime.Milliseconds * 0.003f;
@@ -587,7 +668,7 @@ namespace StardewValley.Menus
 			}
 		}
 
-		private int getTextColor()
+		public virtual int getTextColor()
 		{
 			switch (whichBG)
 			{
@@ -595,6 +676,8 @@ namespace StardewValley.Menus
 				return 8;
 			case 2:
 				return 7;
+			case 3:
+				return 4;
 			default:
 				return -1;
 			}
@@ -616,44 +699,75 @@ namespace StardewValley.Menus
 				{
 					SpriteText.drawString(b, mailMessage[page], xPositionOnScreen + 32, yPositionOnScreen + 32, 999999, width - 64, 999999, 0.75f, 0.865f, junimoText: false, -1, "", getTextColor());
 				}
-				foreach (ClickableComponent c in itemsToGrab)
+				if (ShouldShowInteractable())
 				{
-					b.Draw(letterTexture, c.bounds, new Rectangle(whichBG * 24, 180, 24, 24), Color.White);
-					if (c.item != null)
+					foreach (ClickableComponent c in itemsToGrab)
 					{
-						c.item.drawInMenu(b, new Vector2(c.bounds.X + 16, c.bounds.Y + 16), c.scale);
+						b.Draw(letterTexture, c.bounds, new Rectangle(whichBG * 24, 180, 24, 24), Color.White);
+						if (c.item != null)
+						{
+							c.item.drawInMenu(b, new Vector2(c.bounds.X + 16, c.bounds.Y + 16), c.scale);
+						}
+					}
+					if (moneyIncluded > 0)
+					{
+						string moneyText = Game1.content.LoadString("Strings\\UI:LetterViewer_MoneyIncluded", moneyIncluded);
+						SpriteText.drawString(b, moneyText, xPositionOnScreen + width / 2 - SpriteText.getWidthOfString(moneyText) / 2, yPositionOnScreen + height - 96, 999999, -1, 9999, 0.75f, 0.865f);
+					}
+					else if (learnedRecipe != null && learnedRecipe.Length > 0)
+					{
+						string recipeText = Game1.content.LoadString("Strings\\UI:LetterViewer_LearnedRecipe", cookingOrCrafting);
+						SpriteText.drawStringHorizontallyCenteredAt(b, recipeText, xPositionOnScreen + width / 2, yPositionOnScreen + height - 32 - SpriteText.getHeightOfString(recipeText) * 2, 999999, -1, 9999, 0.65f, 0.865f, junimoText: false, getTextColor());
+						SpriteText.drawStringHorizontallyCenteredAt(b, Game1.content.LoadString("Strings\\UI:LetterViewer_LearnedRecipeName", learnedRecipe), xPositionOnScreen + width / 2, yPositionOnScreen + height - 32 - SpriteText.getHeightOfString("t"), 999999, -1, 9999, 0.9f, 0.865f, junimoText: false, getTextColor());
 					}
 				}
-				if (moneyIncluded > 0)
-				{
-					string moneyText = Game1.content.LoadString("Strings\\UI:LetterViewer_MoneyIncluded", moneyIncluded);
-					SpriteText.drawString(b, moneyText, xPositionOnScreen + width / 2 - SpriteText.getWidthOfString(moneyText) / 2, yPositionOnScreen + height - 96, 999999, -1, 9999, 0.75f, 0.865f);
-				}
-				else if (learnedRecipe != null && learnedRecipe.Length > 0)
-				{
-					string recipeText = Game1.content.LoadString("Strings\\UI:LetterViewer_LearnedRecipe", cookingOrCrafting);
-					SpriteText.drawStringHorizontallyCenteredAt(b, recipeText, xPositionOnScreen + width / 2, yPositionOnScreen + height - 32 - SpriteText.getHeightOfString(recipeText) * 2, 999999, width - 64, 9999, 0.65f, 0.865f);
-					SpriteText.drawStringHorizontallyCenteredAt(b, Game1.content.LoadString("Strings\\UI:LetterViewer_LearnedRecipeName", learnedRecipe), xPositionOnScreen + width / 2, yPositionOnScreen + height - 32 - SpriteText.getHeightOfString("t"), 999999, width - 64, 9999, 0.9f, 0.865f);
-				}
 				base.draw(b);
-				if (page < mailMessage.Count - 1)
-				{
-					forwardButton.draw(b);
-				}
-				if (page > 0)
-				{
-					backButton.draw(b);
-				}
-				if (questID != -1)
+				forwardButton.draw(b);
+				backButton.draw(b);
+				if (ShouldShowInteractable() && questID != -1)
 				{
 					IClickableMenu.drawTextureBox(b, Game1.mouseCursors, new Rectangle(403, 373, 9, 9), acceptQuestButton.bounds.X, acceptQuestButton.bounds.Y, acceptQuestButton.bounds.Width, acceptQuestButton.bounds.Height, (acceptQuestButton.scale > 1f) ? Color.LightPink : Color.White, 4f * acceptQuestButton.scale);
 					Utility.drawTextWithShadow(b, Game1.content.LoadString("Strings\\UI:AcceptQuest"), Game1.dialogueFont, new Vector2(acceptQuestButton.bounds.X + 12, acceptQuestButton.bounds.Y + (LocalizedContentManager.CurrentLanguageLatin ? 16 : 12)), Game1.textColor);
 				}
 			}
-			if (Game1.activeClickableMenu == this && !Game1.options.hardwareCursor)
+			if ((!Game1.options.SnappyMenus || !(scale < 1f)) && (!Game1.options.SnappyMenus || forwardButton.visible || backButton.visible || questID != -1 || itemsLeftToGrab()))
 			{
-				b.Draw(Game1.mouseCursors, new Vector2(Game1.getMouseX(), Game1.getMouseY()), Game1.getSourceRectForStandardTileSheet(Game1.mouseCursors, 0, 16, 16), Color.White, 0f, Vector2.Zero, 4f + Game1.dialogueButtonScale / 150f, SpriteEffects.None, 1f);
+				drawMouse(b);
 			}
+		}
+
+		public virtual bool ShouldShowInteractable()
+		{
+			if (!HasInteractable())
+			{
+				return false;
+			}
+			return page == mailMessage.Count - 1;
+		}
+
+		public virtual bool HasInteractable()
+		{
+			if (isFromCollection)
+			{
+				return false;
+			}
+			if (questID != -1)
+			{
+				return true;
+			}
+			if (moneyIncluded > 0)
+			{
+				return true;
+			}
+			if (itemsToGrab.Count > 0)
+			{
+				return true;
+			}
+			if (learnedRecipe != null && learnedRecipe.Length > 0)
+			{
+				return true;
+			}
+			return false;
 		}
 
 		public void unload()
@@ -682,6 +796,13 @@ namespace StardewValley.Menus
 					Game1.playSound("coin");
 					Game1.player.addItemsByMenuIfNecessary(items);
 				}
+			}
+			if (isFromCollection)
+			{
+				destroy = true;
+				Game1.oldKBState = Game1.GetKeyboardState();
+				Game1.oldMouseState = Game1.input.GetMouseState();
+				Game1.oldPadState = Game1.input.GetGamePadState();
 			}
 			base.cleanupBeforeExit();
 		}

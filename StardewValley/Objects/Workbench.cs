@@ -56,13 +56,18 @@ namespace StardewValley.Objects
 					nearby_chests.Add((who.currentLocation as FarmHouse).fridge.Value);
 					continue;
 				}
+				if (who.currentLocation is IslandFarmHouse && who.currentLocation.getTileIndexAt((int)(tileLocation.X + neighbor_tiles[i].X), (int)(tileLocation.Y + neighbor_tiles[i].Y), "Buildings") == 173)
+				{
+					nearby_chests.Add((who.currentLocation as IslandFarmHouse).fridge.Value);
+					continue;
+				}
 				Vector2 tile_location = new Vector2((int)(tileLocation.X + neighbor_tiles[i].X), (int)(tileLocation.Y + neighbor_tiles[i].Y));
 				Object neighbor_object = null;
 				if (who.currentLocation.objects.ContainsKey(tile_location))
 				{
 					neighbor_object = who.currentLocation.objects[tile_location];
 				}
-				if (neighbor_object != null && neighbor_object is Chest)
+				if (neighbor_object != null && neighbor_object is Chest && (neighbor_object as Chest).SpecialChestType == Chest.SpecialChestTypes.None)
 				{
 					nearby_chests.Add(neighbor_object as Chest);
 				}

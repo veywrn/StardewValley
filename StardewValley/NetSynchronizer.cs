@@ -1,5 +1,6 @@
 using Netcode;
 using StardewValley.Network;
+using System;
 using System.Collections.Generic;
 using System.IO;
 
@@ -14,6 +15,8 @@ namespace StardewValley
 		private Dictionary<string, INetObject<INetSerializable>> variables = new Dictionary<string, INetObject<INetSerializable>>();
 
 		private Dictionary<string, HashSet<long>> barriers = new Dictionary<string, HashSet<long>>();
+
+		public Action<bool> barrierPoll;
 
 		private HashSet<long> barrierPlayers(string name)
 		{
@@ -50,17 +53,53 @@ namespace StardewValley
 		{
 			barrierPlayers(name).Add(Game1.player.UniqueMultiplayerID);
 			sendMessage((byte)1, name);
-			do
+			while (true)
 			{
 				if (!barrierReady(name))
 				{
 					processMessages();
+					if (shouldAbort())
+					{
+						break;
+					}
+					if (LocalMultiplayer.IsLocalMultiplayer())
+					{
+						return;
+					}
 					continue;
 				}
 				return;
 			}
-			while (!shouldAbort());
 			throw new AbortNetSynchronizerException();
+		}
+
+		public bool isBarrierReady(string name)
+		{
+			if (!barrierReady(name))
+			{
+				processMessages();
+				if (shouldAbort())
+				{
+					throw new AbortNetSynchronizerException();
+				}
+				return false;
+			}
+			return true;
+		}
+
+		public bool isVarReady(string varName)
+		{
+			if (!variables.ContainsKey(varName))
+			{
+				processMessages();
+				if (shouldAbort())
+				{
+					throw new AbortNetSynchronizerException();
+				}
+				LocalMultiplayer.IsLocalMultiplayer();
+				return false;
+			}
+			return true;
 		}
 
 		public T waitForVar<TField, T>(string varName) where TField : NetFieldBase<T, TField>, new()

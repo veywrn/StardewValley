@@ -23,6 +23,10 @@ namespace StardewValley.TerrainFeatures
 
 		public const byte lavaGrass = 4;
 
+		public const byte caveGrass2 = 5;
+
+		public const byte cobweb = 6;
+
 		public static ICue grassSound;
 
 		[XmlElement("grassType")]
@@ -42,7 +46,8 @@ namespace StardewValley.TerrainFeatures
 		[XmlElement("grassSourceOffset")]
 		public readonly NetInt grassSourceOffset = new NetInt();
 
-		protected Lazy<Texture2D> texture;
+		[XmlIgnore]
+		public Lazy<Texture2D> texture;
 
 		private int[] whichWeed = new int[4];
 
@@ -73,7 +78,7 @@ namespace StardewValley.TerrainFeatures
 			this.numberOfWeeds.Value = numberOfWeeds;
 		}
 
-		protected virtual string textureName()
+		public virtual string textureName()
 		{
 			return "TerrainFeatures\\grass";
 		}
@@ -93,12 +98,12 @@ namespace StardewValley.TerrainFeatures
 				}
 				if ((byte)grassType == 1)
 				{
-					string currentSeason = Game1.currentSeason;
-					if (!(currentSeason == "spring"))
+					string seasonForLocation = Game1.GetSeasonForLocation(currentLocation);
+					if (!(seasonForLocation == "spring"))
 					{
-						if (!(currentSeason == "summer"))
+						if (!(seasonForLocation == "summer"))
 						{
-							if (currentSeason == "fall")
+							if (seasonForLocation == "fall")
 							{
 								grassSourceOffset.Value = 40;
 							}
@@ -125,10 +130,19 @@ namespace StardewValley.TerrainFeatures
 				{
 					grassSourceOffset.Value = 100;
 				}
+				else
+				{
+					grassSourceOffset.Value = ((byte)grassType + 1) * 20;
+				}
 			}
 			catch (Exception)
 			{
 			}
+		}
+
+		public override void OnAddedToLocation(GameLocation location, Vector2 tile)
+		{
+			loadSprite();
 		}
 
 		public override Rectangle getBoundingBox(Vector2 tileLocation)
@@ -163,6 +177,10 @@ namespace StardewValley.TerrainFeatures
 			if (who is Farmer)
 			{
 				(who as Farmer).temporarySpeedBuff = -1f;
+				if ((byte)grassType == 6)
+				{
+					(who as Farmer).temporarySpeedBuff = -3f;
+				}
 			}
 		}
 
@@ -183,6 +201,15 @@ namespace StardewValley.TerrainFeatures
 			shakeRotation = 0f;
 			shakeLeft = left;
 			base.NeedsUpdate = true;
+		}
+
+		public override void performPlayerEntryAction(Vector2 tileLocation)
+		{
+			base.performPlayerEntryAction(tileLocation);
+			if (shakeRandom[0] == 0.0)
+			{
+				setUpRandom(tileLocation);
+			}
 		}
 
 		public override bool tickUpdate(GameTime time, Vector2 tileLocation, GameLocation location)
@@ -226,7 +253,7 @@ namespace StardewValley.TerrainFeatures
 
 		public override void dayUpdate(GameLocation environment, Vector2 tileLocation)
 		{
-			if ((byte)grassType == 1 && !Game1.currentSeason.Equals("winter") && (int)numberOfWeeds < 4)
+			if ((byte)grassType == 1 && !environment.GetSeasonForLocation().Equals("winter") && (int)numberOfWeeds < 4)
 			{
 				numberOfWeeds.Value = Utility.Clamp(numberOfWeeds.Value + Game1.random.Next(1, 4), 0, 4);
 			}
@@ -250,7 +277,7 @@ namespace StardewValley.TerrainFeatures
 
 		public override bool seasonUpdate(bool onLoad)
 		{
-			if ((byte)grassType == 1 && Game1.currentSeason.Equals("winter"))
+			if ((byte)grassType == 1 && Game1.GetSeasonForLocation(currentLocation).Equals("winter"))
 			{
 				return true;
 			}
@@ -284,12 +311,16 @@ namespace StardewValley.TerrainFeatures
 				{
 					numberOfWeedsToDestroy2 = 2;
 				}
+				if ((byte)grassType == 6 && Game1.random.NextDouble() < 0.5)
+				{
+					numberOfWeedsToDestroy2 = 0;
+				}
 				numberOfWeeds.Value = (int)numberOfWeeds - numberOfWeedsToDestroy2;
 				Color c = Color.Green;
 				switch ((byte)grassType)
 				{
 				case 1:
-					switch (Game1.currentSeason)
+					switch (location.GetSeasonForLocation())
 					{
 					case "spring":
 						c = new Color(60, 180, 58);
@@ -310,6 +341,9 @@ namespace StardewValley.TerrainFeatures
 					break;
 				case 4:
 					c = new Color(165, 93, 58);
+					break;
+				case 6:
+					c = Color.White * 0.6f;
 					break;
 				}
 				Game1.multiplayer.broadcastSprites(location, new TemporaryAnimatedSprite(28, tileLocation * 64f + new Vector2(Game1.random.Next(-16, 16), Game1.random.Next(-16, 16)), c, 8, Game1.random.NextDouble() < 0.5, Game1.random.Next(60, 100)));

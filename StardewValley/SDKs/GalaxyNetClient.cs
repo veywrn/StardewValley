@@ -38,9 +38,9 @@ namespace StardewValley.SDKs
 
 		protected override void connectImpl()
 		{
-			client = new GalaxySocket(Game1.multiplayer.protocolVersion);
+			client = new GalaxySocket("1.5");
 			GalaxyInstance.User().GetGalaxyID();
-			client.JoinLobby(lobbyId);
+			client.JoinLobby(lobbyId, onReceiveError);
 		}
 
 		public override void disconnect(bool neatly = true)
@@ -112,9 +112,9 @@ namespace StardewValley.SDKs
 			pendingDisconnect = Multiplayer.DisconnectType.HostLeft;
 		}
 
-		protected virtual void onReceiveError(string messageKey)
+		protected virtual void onReceiveError(string message)
 		{
-			connectionMessage = messageKey;
+			connectionMessage = message;
 		}
 
 		public override void sendMessage(OutgoingMessage message)

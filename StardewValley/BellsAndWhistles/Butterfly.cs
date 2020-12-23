@@ -23,9 +23,11 @@ namespace StardewValley.BellsAndWhistles
 
 		private bool summerButterfly;
 
+		private bool islandButterfly;
+
 		public bool stayInbounds;
 
-		public Butterfly(Vector2 position)
+		public Butterfly(Vector2 position, bool islandButterfly = false)
 		{
 			base.position = position * 64f;
 			startingPosition = base.position;
@@ -36,6 +38,12 @@ namespace StardewValley.BellsAndWhistles
 			else
 			{
 				baseFrame = ((Game1.random.NextDouble() < 0.5) ? (Game1.random.Next(3) * 4 + 128) : (Game1.random.Next(3) * 4 + 148));
+				summerButterfly = true;
+			}
+			if (islandButterfly)
+			{
+				this.islandButterfly = islandButterfly;
+				baseFrame = Game1.random.Next(4) * 4 + 364;
 				summerButterfly = true;
 			}
 			motion = new Vector2((float)(Game1.random.NextDouble() + 0.25) * 3f * (float)((!(Game1.random.NextDouble() < 0.5)) ? 1 : (-1)) / 2f, (float)(Game1.random.NextDouble() + 0.5) * 3f * (float)((!(Game1.random.NextDouble() < 0.5)) ? 1 : (-1)) / 2f);

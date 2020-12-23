@@ -71,8 +71,26 @@ namespace StardewValley.BellsAndWhistles
 			{
 				return word;
 			}
+			if (word.EndsWith(" Seeds"))
+			{
+				return word;
+			}
+			if (word.EndsWith(" Shorts"))
+			{
+				return word;
+			}
+			if (word.EndsWith(" Bass"))
+			{
+				return word;
+			}
+			if (word.EndsWith(" Flowers"))
+			{
+				return word;
+			}
 			switch (word)
 			{
+			case "Dragon Tooth":
+				return "Dragon Teeth";
 			case "Rice Pudding":
 				return "bowls of Rice Pudding";
 			case "Algae Soup":
@@ -83,7 +101,14 @@ namespace StardewValley.BellsAndWhistles
 				return "pieces of Salt";
 			case "Jelly":
 				return "Jellies";
+			case "Wheat":
+				return "bushels of Wheat";
+			case "Ginger":
+				return "pieces of Ginger";
+			case "Garlic":
+				return "bulbs of Garlic";
 			case "Driftwood":
+			case "Weeds":
 			case "Mixed Seeds":
 			case "Crab Cakes":
 			case "Largemouth Bass":
@@ -92,9 +117,29 @@ namespace StardewValley.BellsAndWhistles
 			case "Bream":
 			case "Chub":
 			case "Ghostfish":
+			case "Broken Glasses":
+			case "Cranberries":
+			case "Dried Sunflowers":
+			case "Fossilized Ribs":
+			case "Glass Shards":
+			case "Glazed Yams":
+			case "Green Canes":
+			case "Hashbrowns":
+			case "Hops":
+			case "Pancakes":
+			case "Pepper Poppers":
+			case "Red Canes":
+			case "Roasted Hazelnuts":
+			case "Smallmouth Bass":
+			case "Star Shards":
+			case "Tea Leaves":
 			case "Pickles":
 				return word;
 			default:
+				if (word.Last() == 'y')
+				{
+					return word.Substring(0, word.Length - 1) + "ies";
+				}
 				if (word.Last() == 's' || word.Last() == 'z' || word.Last() == 'x' || (word.Length > 2 && word.Substring(word.Length - 2) == "sh") || (word.Length > 2 && word.Substring(word.Length - 2) == "ch"))
 				{
 					return word + "es";
@@ -163,6 +208,15 @@ namespace StardewValley.BellsAndWhistles
 				return Game1.content.LoadString("Strings\\Lexicon:Pronoun_Male");
 			}
 			return Game1.content.LoadString("Strings\\Lexicon:Pronoun_Female");
+		}
+
+		public static string getPossessivePronoun(bool isMale)
+		{
+			if (isMale)
+			{
+				return Game1.content.LoadString("Strings\\Lexicon:Possessive_Pronoun_Male");
+			}
+			return Game1.content.LoadString("Strings\\Lexicon:Possessive_Pronoun_Female");
 		}
 	}
 }

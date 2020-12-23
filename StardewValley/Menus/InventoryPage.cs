@@ -130,7 +130,7 @@ namespace StardewValley.Menus
 				leftNeighborID = 104,
 				fullyImmutable = true
 			});
-			if (Game1.player.hasOrWillReceiveMail("canReadJunimoText") && !Game1.player.hasOrWillReceiveMail("JojaMember") && (!Game1.MasterPlayer.hasCompletedCommunityCenter() || (Utility.doesMasterPlayerHaveMailReceivedButNotMailForTomorrow("hasSeenAbandonedJunimoNote") && !Game1.MasterPlayer.hasOrWillReceiveMail("ccMovieTheater"))))
+			if (ShouldShowJunimoNoteIcon())
 			{
 				junimoNoteIcon = new ClickableTextureComponent("", new Rectangle(xPositionOnScreen + width, yPositionOnScreen + 96, 64, 64), "", Game1.content.LoadString("Strings\\UI:GameMenu_JunimoNote_Hover"), Game1.mouseCursors, new Rectangle(331, 374, 15, 14), 4f)
 				{
@@ -139,6 +139,23 @@ namespace StardewValley.Menus
 					downNeighborID = 106
 				};
 			}
+		}
+
+		public static bool ShouldShowJunimoNoteIcon()
+		{
+			if (Game1.player.hasOrWillReceiveMail("canReadJunimoText") && !Game1.player.hasOrWillReceiveMail("JojaMember"))
+			{
+				if (Game1.MasterPlayer.hasCompletedCommunityCenter())
+				{
+					if (Game1.player.hasOrWillReceiveMail("hasSeenAbandonedJunimoNote"))
+					{
+						return !Game1.MasterPlayer.hasOrWillReceiveMail("ccMovieTheater");
+					}
+					return false;
+				}
+				return true;
+			}
+			return false;
 		}
 
 		protected virtual bool checkHeldItem(Func<Item, bool> f = null)

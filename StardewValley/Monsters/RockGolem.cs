@@ -70,6 +70,9 @@ namespace StardewValley.Monsters
 			{
 				objectsToDrop.Add(74);
 			}
+			Sprite.currentFrame = 16;
+			Sprite.loop = false;
+			Sprite.UpdateSourceRect();
 		}
 
 		public RockGolem(Vector2 position, bool alreadySpawned)
@@ -107,7 +110,7 @@ namespace StardewValley.Monsters
 						new Hat(40)
 					};
 				}
-				if (Game1.currentSeason.Equals("spring") && Game1.random.NextDouble() < 0.0625)
+				if (Game1.currentSeason.Equals("spring") && Game1.random.NextDouble() < 0.0825)
 				{
 					List<Item> shoots = new List<Item>();
 					int num = Game1.random.Next(2, 6);
@@ -119,6 +122,13 @@ namespace StardewValley.Monsters
 				}
 			}
 			return base.getExtraDropItems();
+		}
+
+		public override void BuffForAdditionalDifficulty(int additional_difficulty)
+		{
+			base.BuffForAdditionalDifficulty(additional_difficulty);
+			resilience.Value *= 2;
+			base.Speed++;
 		}
 
 		public override int takeDamage(int damage, int xTrajectory, int yTrajectory, bool isBomb, double addedPrecision, Farmer who)
@@ -210,19 +220,19 @@ namespace StardewValley.Monsters
 		{
 			if (base.IsWalkingTowardPlayer)
 			{
-				if (base.FacingDirection == 0)
+				if (FacingDirection == 0)
 				{
 					Sprite.AnimateUp(time);
 				}
-				else if (base.FacingDirection == 3)
+				else if (FacingDirection == 3)
 				{
 					Sprite.AnimateLeft(time);
 				}
-				else if (base.FacingDirection == 1)
+				else if (FacingDirection == 1)
 				{
 					Sprite.AnimateRight(time);
 				}
-				else if (base.FacingDirection == 2)
+				else if (FacingDirection == 2)
 				{
 					Sprite.AnimateDown(time);
 				}

@@ -35,6 +35,8 @@ namespace StardewValley
 
 		public int pingPongMotion = 1;
 
+		public int bombDamage = -1;
+
 		public bool flicker;
 
 		public bool timeBasedMotion;
@@ -74,6 +76,10 @@ namespace StardewValley
 		public bool destroyable = true;
 
 		public bool paused;
+
+		public bool stopAcceleratingWhenVelocityIsZero;
+
+		public bool positionFollowsAttachedCharacter;
 
 		public float rotation;
 
@@ -129,7 +135,7 @@ namespace StardewValley
 
 		public Color lightcolor = Color.White;
 
-		protected Farmer owner;
+		public Farmer owner;
 
 		public Vector2 motion = Vector2.Zero;
 
@@ -153,6 +159,8 @@ namespace StardewValley
 
 		public endBehavior reachedStopCoordinate;
 
+		public Action<TemporaryAnimatedSprite> reachedStopCoordinateSprite;
+
 		public TemporaryAnimatedSprite parentSprite;
 
 		public Character attachedCharacter;
@@ -160,6 +168,10 @@ namespace StardewValley
 		private float pulseTimer;
 
 		private float originalScale;
+
+		public bool drawAboveAlwaysFront;
+
+		public bool dontClearOnAreaEntry;
 
 		private float totalTimer;
 
@@ -203,6 +215,7 @@ namespace StardewValley
 			temporaryAnimatedSprite.yStopCoordinate = yStopCoordinate;
 			temporaryAnimatedSprite.animationLength = animationLength;
 			temporaryAnimatedSprite.bombRadius = bombRadius;
+			temporaryAnimatedSprite.bombDamage = bombDamage;
 			temporaryAnimatedSprite.pingPongMotion = pingPongMotion;
 			temporaryAnimatedSprite.flicker = flicker;
 			temporaryAnimatedSprite.timeBasedMotion = timeBasedMotion;
@@ -255,6 +268,9 @@ namespace StardewValley
 			temporaryAnimatedSprite.yPeriodicRange = yPeriodicRange;
 			temporaryAnimatedSprite.yStopCoordinate = yStopCoordinate;
 			temporaryAnimatedSprite.totalNumberOfLoops = totalNumberOfLoops;
+			temporaryAnimatedSprite.stopAcceleratingWhenVelocityIsZero = stopAcceleratingWhenVelocityIsZero;
+			temporaryAnimatedSprite.positionFollowsAttachedCharacter = positionFollowsAttachedCharacter;
+			temporaryAnimatedSprite.dontClearOnAreaEntry = dontClearOnAreaEntry;
 			return temporaryAnimatedSprite;
 		}
 
@@ -440,6 +456,10 @@ namespace StardewValley
 			if (bitArray[i++])
 			{
 				bombRadius = reader.ReadInt32();
+			}
+			if (bitArray[i++])
+			{
+				bombDamage = reader.ReadInt32();
 			}
 			if (bitArray[i++])
 			{
@@ -661,6 +681,18 @@ namespace StardewValley
 			{
 				owner = Game1.getFarmer(reader.ReadInt64());
 			}
+			if (bitArray[i++])
+			{
+				stopAcceleratingWhenVelocityIsZero = reader.ReadBoolean();
+			}
+			if (bitArray[i++])
+			{
+				positionFollowsAttachedCharacter = reader.ReadBoolean();
+			}
+			if (bitArray[i++])
+			{
+				dontClearOnAreaEntry = reader.ReadBoolean();
+			}
 			parent = location;
 			loadTexture();
 			switch (reader.ReadByte())
@@ -697,6 +729,7 @@ namespace StardewValley
 			checkDirty(dirtyBits, ref i, yStopCoordinate, -1);
 			checkDirty(dirtyBits, ref i, animationLength, 0);
 			checkDirty(dirtyBits, ref i, bombRadius, 0);
+			checkDirty(dirtyBits, ref i, bombDamage, 0);
 			checkDirty(dirtyBits, ref i, pingPongMotion, -1);
 			checkDirty(dirtyBits, ref i, flicker, defaultValue: false);
 			checkDirty(dirtyBits, ref i, timeBasedMotion, defaultValue: false);
@@ -752,6 +785,9 @@ namespace StardewValley
 			checkDirty(dirtyBits, ref i, text);
 			checkDirty(dirtyBits, ref i, texture);
 			checkDirty(dirtyBits, ref i, owner);
+			checkDirty(dirtyBits, ref i, stopAcceleratingWhenVelocityIsZero, defaultValue: false);
+			checkDirty(dirtyBits, ref i, positionFollowsAttachedCharacter, defaultValue: false);
+			checkDirty(dirtyBits, ref i, dontClearOnAreaEntry, defaultValue: false);
 			writer.WriteBitArray(dirtyBits);
 			i = 0;
 			if (dirtyBits[i++])
@@ -793,6 +829,10 @@ namespace StardewValley
 			if (dirtyBits[i++])
 			{
 				writer.Write(bombRadius);
+			}
+			if (dirtyBits[i++])
+			{
+				writer.Write(bombDamage);
 			}
 			if (dirtyBits[i++])
 			{
@@ -1014,6 +1054,18 @@ namespace StardewValley
 			{
 				writer.Write(owner.uniqueMultiplayerID.Value);
 			}
+			if (dirtyBits[i++])
+			{
+				writer.Write(stopAcceleratingWhenVelocityIsZero);
+			}
+			if (dirtyBits[i++])
+			{
+				writer.Write(positionFollowsAttachedCharacter);
+			}
+			if (dirtyBits[i++])
+			{
+				writer.Write(dontClearOnAreaEntry);
+			}
 			if (attachedCharacter == null)
 			{
 				writer.Write((byte)0);
@@ -1040,21 +1092,44 @@ namespace StardewValley
 			{
 				localPosition = true;
 			}
-			if (currentParentTileIndex >= 0 && delayBeforeAnimationStart <= 0 && ticksBeforeAnimationStart <= 0)
+			if (currentParentTileIndex < 0 || delayBeforeAnimationStart > 0 || ticksBeforeAnimationStart > 0)
 			{
-				if (text != null)
+				return;
+			}
+			if (text != null)
+			{
+				spriteBatch.DrawString(Game1.dialogueFont, text, localPosition ? Position : Game1.GlobalToLocal(Game1.viewport, Position), color * alpha * extraAlpha, rotation, Vector2.Zero, scale, SpriteEffects.None, layerDepth);
+			}
+			else if (Texture != null)
+			{
+				if (positionFollowsAttachedCharacter && attachedCharacter != null)
 				{
-					spriteBatch.DrawString(Game1.dialogueFont, text, localPosition ? Position : Game1.GlobalToLocal(Game1.viewport, Position), color * alpha * extraAlpha, rotation, Vector2.Zero, scale, SpriteEffects.None, layerDepth);
+					spriteBatch.Draw(Texture, (localPosition ? Position : Game1.GlobalToLocal(Game1.viewport, attachedCharacter.position + new Vector2((int)Position.X + xOffset, (int)Position.Y + yOffset))) + new Vector2(sourceRect.Width / 2, sourceRect.Height / 2) * scale + new Vector2((shakeIntensity > 0f) ? Game1.random.Next(-(int)shakeIntensity, (int)shakeIntensity + 1) : 0, (shakeIntensity > 0f) ? Game1.random.Next(-(int)shakeIntensity, (int)shakeIntensity + 1) : 0), sourceRect, color * alpha * extraAlpha, rotation, new Vector2(sourceRect.Width / 2, sourceRect.Height / 2), scale, flipped ? SpriteEffects.FlipHorizontally : (verticalFlipped ? SpriteEffects.FlipVertically : SpriteEffects.None), (layerDepth >= 0f) ? layerDepth : ((Position.Y + (float)sourceRect.Height) / 10000f));
 				}
-				else if (Texture != null)
+				else
 				{
 					spriteBatch.Draw(Texture, (localPosition ? Position : Game1.GlobalToLocal(Game1.viewport, new Vector2((int)Position.X + xOffset, (int)Position.Y + yOffset))) + new Vector2(sourceRect.Width / 2, sourceRect.Height / 2) * scale + new Vector2((shakeIntensity > 0f) ? Game1.random.Next(-(int)shakeIntensity, (int)shakeIntensity + 1) : 0, (shakeIntensity > 0f) ? Game1.random.Next(-(int)shakeIntensity, (int)shakeIntensity + 1) : 0), sourceRect, color * alpha * extraAlpha, rotation, new Vector2(sourceRect.Width / 2, sourceRect.Height / 2), scale, flipped ? SpriteEffects.FlipHorizontally : (verticalFlipped ? SpriteEffects.FlipVertically : SpriteEffects.None), (layerDepth >= 0f) ? layerDepth : ((Position.Y + (float)sourceRect.Height) / 10000f));
 				}
-				else if (bigCraftable)
+			}
+			else if (bigCraftable)
+			{
+				spriteBatch.Draw(Game1.bigCraftableSpriteSheet, localPosition ? Position : (Game1.GlobalToLocal(Game1.viewport, new Vector2((int)Position.X + xOffset, (int)Position.Y + yOffset)) + new Vector2(sourceRect.Width / 2, sourceRect.Height / 2)), Object.getSourceRectForBigCraftable(currentParentTileIndex), Color.White * extraAlpha, 0f, new Vector2(sourceRect.Width / 2, sourceRect.Height / 2), scale, SpriteEffects.None, (Position.Y + 32f) / 10000f);
+			}
+			else
+			{
+				if (swordswipe)
 				{
-					spriteBatch.Draw(Game1.bigCraftableSpriteSheet, localPosition ? Position : (Game1.GlobalToLocal(Game1.viewport, new Vector2((int)Position.X + xOffset, (int)Position.Y + yOffset)) + new Vector2(sourceRect.Width / 2, sourceRect.Height / 2)), Object.getSourceRectForBigCraftable(currentParentTileIndex), Color.White * extraAlpha, 0f, new Vector2(sourceRect.Width / 2, sourceRect.Height / 2), scale, SpriteEffects.None, (Position.Y + 32f) / 10000f);
+					return;
 				}
-				else if (!swordswipe)
+				if (attachedCharacter != null)
+				{
+					if (local)
+					{
+						attachedCharacter.Position = new Vector2((float)Game1.viewport.X + Position.X, (float)Game1.viewport.Y + Position.Y);
+					}
+					attachedCharacter.draw(spriteBatch);
+				}
+				else
 				{
 					spriteBatch.Draw(Game1.objectSpriteSheet, localPosition ? Position : (Game1.GlobalToLocal(Game1.viewport, new Vector2((int)Position.X + xOffset, (int)Position.Y + yOffset)) + new Vector2(8f, 8f) * 4f + new Vector2((shakeIntensity > 0f) ? Game1.random.Next(-(int)shakeIntensity, (int)shakeIntensity + 1) : 0, (shakeIntensity > 0f) ? Game1.random.Next(-(int)shakeIntensity, (int)shakeIntensity + 1) : 0)), GameLocation.getSourceRectForObject(currentParentTileIndex), (flash ? (Color.LightBlue * 0.85f) : Color.White) * alpha * extraAlpha, rotation, new Vector2(8f, 8f), 4f * scale, flipped ? SpriteEffects.FlipHorizontally : SpriteEffects.None, (layerDepth >= 0f) ? layerDepth : ((Position.Y + 32f) / 10000f));
 				}
@@ -1176,7 +1251,7 @@ namespace StardewValley
 			{
 				position.Y += motion.Y * (float)((!timeBasedMotion) ? 1 : time.ElapsedGameTime.Milliseconds);
 			}
-			if (attachedCharacter != null)
+			if (attachedCharacter != null && !positionFollowsAttachedCharacter)
 			{
 				if (xPeriodic)
 				{
@@ -1195,8 +1270,20 @@ namespace StardewValley
 					attachedCharacter.position.Y += motion.Y * (float)((!timeBasedMotion) ? 1 : time.ElapsedGameTime.Milliseconds);
 				}
 			}
+			int sign = Math.Sign(motion.X);
 			motion.X += acceleration.X * (float)((!timeBasedMotion) ? 1 : time.ElapsedGameTime.Milliseconds);
+			if (stopAcceleratingWhenVelocityIsZero && Math.Sign(motion.X) != sign)
+			{
+				motion.X = 0f;
+				acceleration.X = 0f;
+			}
+			sign = Math.Sign(motion.Y);
 			motion.Y += acceleration.Y * (float)((!timeBasedMotion) ? 1 : time.ElapsedGameTime.Milliseconds);
+			if (stopAcceleratingWhenVelocityIsZero && Math.Sign(motion.Y) != sign)
+			{
+				motion.Y = 0f;
+				acceleration.Y = 0f;
+			}
 			acceleration.X += accelerationChange.X;
 			acceleration.Y += accelerationChange.Y;
 			if (xStopCoordinate != -1 || yStopCoordinate != -1)
@@ -1220,6 +1307,10 @@ namespace StardewValley
 					if (reachedStopCoordinate != null)
 					{
 						reachedStopCoordinate(oldY);
+					}
+					if (reachedStopCoordinateSprite != null)
+					{
+						reachedStopCoordinateSprite(this);
 					}
 				}
 			}
@@ -1366,7 +1457,7 @@ namespace StardewValley
 							{
 								parent.netAudio.StopPlaying("fuse");
 								parent.playSound("explosion");
-								parent.explode(new Vector2((int)(position.X / 64f), (int)(position.Y / 64f)), bombRadius, owner);
+								parent.explode(new Vector2((int)(position.X / 64f), (int)(position.Y / 64f)), bombRadius, owner, damageFarmers: true, bombDamage);
 							}
 						}
 						unload();
@@ -1383,6 +1474,10 @@ namespace StardewValley
 
 		public bool clearOnAreaEntry()
 		{
+			if (dontClearOnAreaEntry)
+			{
+				return false;
+			}
 			if (bombRadius > 0)
 			{
 				return false;

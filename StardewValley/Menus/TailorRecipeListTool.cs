@@ -29,7 +29,7 @@ namespace StardewValley.Menus
 		public Dictionary<string, Color> _recipeColors;
 
 		public TailorRecipeListTool()
-			: base(Game1.viewport.Width / 2 - (632 + IClickableMenu.borderWidth * 2) / 2, Game1.viewport.Height / 2 - (600 + IClickableMenu.borderWidth * 2) / 2 - 64, 632 + IClickableMenu.borderWidth * 2, 600 + IClickableMenu.borderWidth * 2 + 64)
+			: base(Game1.uiViewport.Width / 2 - (632 + IClickableMenu.borderWidth * 2) / 2, Game1.uiViewport.Height / 2 - (600 + IClickableMenu.borderWidth * 2) / 2 - 64, 632 + IClickableMenu.borderWidth * 2, 600 + IClickableMenu.borderWidth * 2 + 64)
 		{
 			TailoringMenu tailoring_menu = new TailoringMenu();
 			Game1.player.faceDirection(2);
@@ -86,8 +86,8 @@ namespace StardewValley.Menus
 		public override void gameWindowSizeChanged(Rectangle oldBounds, Rectangle newBounds)
 		{
 			base.gameWindowSizeChanged(oldBounds, newBounds);
-			xPositionOnScreen = Game1.viewport.Width / 2 - (632 + IClickableMenu.borderWidth * 2) / 2;
-			yPositionOnScreen = Game1.viewport.Height / 2 - (600 + IClickableMenu.borderWidth * 2) / 2 - 64;
+			xPositionOnScreen = Game1.uiViewport.Width / 2 - (632 + IClickableMenu.borderWidth * 2) / 2;
+			yPositionOnScreen = Game1.uiViewport.Height / 2 - (600 + IClickableMenu.borderWidth * 2) / 2 - 64;
 			RepositionElements();
 		}
 
@@ -243,10 +243,7 @@ namespace StardewValley.Menus
 			Game1.drawDialogueBox(xPositionOnScreen, yPositionOnScreen, width, height, speaker: false, drawOnlyBox: true, null, objectDialogueWithPortrait: false, ignoreTitleSafe2);
 			b.End();
 			Rectangle cached_scissor_rect = b.GraphicsDevice.ScissorRectangle;
-			b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, new RasterizerState
-			{
-				ScissorTestEnable = true
-			});
+			b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, Utility.ScissorEnabled);
 			b.GraphicsDevice.ScissorRectangle = scrollView;
 			foreach (ClickableTextureComponent component in recipeComponents)
 			{

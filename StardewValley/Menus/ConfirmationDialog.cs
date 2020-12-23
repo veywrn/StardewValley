@@ -26,7 +26,7 @@ namespace StardewValley.Menus
 		private bool active = true;
 
 		public ConfirmationDialog(string message, behavior onConfirm, behavior onCancel = null)
-			: base(Game1.viewport.Width / 2 - (int)Game1.dialogueFont.MeasureString(message).X / 2 - IClickableMenu.borderWidth, Game1.viewport.Height / 2 - (int)Game1.dialogueFont.MeasureString(message).Y / 2, (int)Game1.dialogueFont.MeasureString(message).X + IClickableMenu.borderWidth * 2, (int)Game1.dialogueFont.MeasureString(message).Y + IClickableMenu.borderWidth * 2 + 160)
+			: base(Game1.uiViewport.Width / 2 - (int)Game1.dialogueFont.MeasureString(message).X / 2 - IClickableMenu.borderWidth, Game1.uiViewport.Height / 2 - (int)Game1.dialogueFont.MeasureString(message).Y / 2, (int)Game1.dialogueFont.MeasureString(message).X + IClickableMenu.borderWidth * 2, (int)Game1.dialogueFont.MeasureString(message).Y + IClickableMenu.borderWidth * 2 + 160)
 		{
 			if (onCancel == null)
 			{
@@ -55,6 +55,13 @@ namespace StardewValley.Menus
 				populateClickableComponentList();
 				snapToDefaultClickableComponent();
 			}
+		}
+
+		public override void gameWindowSizeChanged(Rectangle oldBounds, Rectangle newBounds)
+		{
+			base.gameWindowSizeChanged(oldBounds, newBounds);
+			okButton.setPosition(xPositionOnScreen + width - IClickableMenu.borderWidth - IClickableMenu.spaceToClearSideBorder - 128 - 4, yPositionOnScreen + height - IClickableMenu.borderWidth - IClickableMenu.spaceToClearTopBorder + 21);
+			cancelButton.setPosition(xPositionOnScreen + width - IClickableMenu.borderWidth - IClickableMenu.spaceToClearSideBorder - 64, yPositionOnScreen + height - IClickableMenu.borderWidth - IClickableMenu.spaceToClearTopBorder + 21);
 		}
 
 		public virtual void closeDialog(Farmer who)
@@ -154,7 +161,7 @@ namespace StardewValley.Menus
 		{
 			if (active)
 			{
-				b.Draw(Game1.fadeToBlackRect, new Rectangle(0, 0, Game1.viewport.Width, Game1.viewport.Height), Color.Black * 0.5f);
+				b.Draw(Game1.fadeToBlackRect, new Rectangle(0, 0, Game1.uiViewport.Width, Game1.uiViewport.Height), Color.Black * 0.5f);
 				Game1.drawDialogueBox(xPositionOnScreen, yPositionOnScreen, width, height, speaker: false, drawOnlyBox: true);
 				b.DrawString(Game1.dialogueFont, message, new Vector2(xPositionOnScreen + IClickableMenu.borderWidth, yPositionOnScreen + IClickableMenu.spaceToClearTopBorder + IClickableMenu.borderWidth / 2), Game1.textColor);
 				okButton.draw(b);

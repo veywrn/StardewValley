@@ -62,7 +62,7 @@ namespace StardewValley.Menus
 		public static bool bundleItemHovered;
 
 		public GameMenu(bool playOpeningSound = true)
-			: base(Game1.viewport.Width / 2 - (800 + IClickableMenu.borderWidth * 2) / 2, Game1.viewport.Height / 2 - (600 + IClickableMenu.borderWidth * 2) / 2, 800 + IClickableMenu.borderWidth * 2, 600 + IClickableMenu.borderWidth * 2, showUpperRightCloseButton: true)
+			: base(Game1.uiViewport.Width / 2 - (800 + IClickableMenu.borderWidth * 2) / 2, Game1.uiViewport.Height / 2 - (600 + IClickableMenu.borderWidth * 2) / 2, 800 + IClickableMenu.borderWidth * 2, 600 + IClickableMenu.borderWidth * 2, showUpperRightCloseButton: true)
 		{
 			tabs.Add(new ClickableComponent(new Rectangle(xPositionOnScreen + 64, yPositionOnScreen + IClickableMenu.tabYPositionRelativeToMenuY + 64, 64, 64), "inventory", Game1.content.LoadString("Strings\\UI:GameMenu_Inventory"))
 			{
@@ -92,7 +92,7 @@ namespace StardewValley.Menus
 				tryDefaultIfNoDownNeighborExists = true,
 				fullyImmutable = true
 			});
-			pages.Add(new SocialPage(xPositionOnScreen, yPositionOnScreen, width, height));
+			pages.Add(new SocialPage(xPositionOnScreen, yPositionOnScreen, width + 36, height));
 			tabs.Add(new ClickableComponent(new Rectangle(xPositionOnScreen + 256, yPositionOnScreen + IClickableMenu.tabYPositionRelativeToMenuY + 64, 64, 64), "map", Game1.content.LoadString("Strings\\UI:GameMenu_Map"))
 			{
 				myID = 12343,
@@ -207,7 +207,7 @@ namespace StardewValley.Menus
 				{
 					changeTab(currentTab + 1);
 				}
-				break;
+				return;
 			case Buttons.LeftTrigger:
 				if (currentTab == 3)
 				{
@@ -218,14 +218,16 @@ namespace StardewValley.Menus
 				{
 					changeTab(currentTab - 1);
 				}
-				break;
+				return;
 			case Buttons.Back:
 				if (currentTab == 0)
 				{
 					pages[currentTab].receiveGamePadButton(b);
+					return;
 				}
 				break;
 			}
+			pages[currentTab].receiveGamePadButton(b);
 		}
 
 		public override void setUpForGamePadMode()
@@ -457,7 +459,7 @@ namespace StardewValley.Menus
 				}
 				Game1.drawDialogueBox(xPositionOnScreen, yPositionOnScreen, pages[currentTab].width, pages[currentTab].height, speaker: false, drawOnlyBox: true);
 				b.End();
-				b.Begin(SpriteSortMode.FrontToBack, BlendState.NonPremultiplied, SamplerState.PointClamp, null, null);
+				b.Begin(SpriteSortMode.FrontToBack, BlendState.AlphaBlend, SamplerState.PointClamp, null, null);
 				foreach (ClickableComponent c in tabs)
 				{
 					int sheetIndex = 0;
@@ -516,9 +518,9 @@ namespace StardewValley.Menus
 			{
 				base.draw(b);
 			}
-			if (!Game1.options.hardwareCursor)
+			if ((!Game1.options.SnappyMenus || !(pages[currentTab] is CollectionsPage) || (pages[currentTab] as CollectionsPage).letterviewerSubMenu == null) && !Game1.options.hardwareCursor)
 			{
-				b.Draw(Game1.mouseCursors, new Vector2(Game1.getMouseX(), Game1.getMouseY()), Game1.getSourceRectForStandardTileSheet(Game1.mouseCursors, Game1.options.gamepadControls ? 44 : 0, 16, 16), Color.White, 0f, Vector2.Zero, 4f + Game1.dialogueButtonScale / 150f, SpriteEffects.None, 1f);
+				drawMouse(b, ignore_transparency: true);
 			}
 		}
 

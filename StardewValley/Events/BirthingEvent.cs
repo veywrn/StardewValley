@@ -157,7 +157,7 @@ namespace StardewValley.Events
 					{
 						Game1.keyboardDispatcher.Subscriber = null;
 					}
-					Game1.player.Position = Utility.PointToVector2(Utility.getHomeOfFarmer(Game1.player).getBedSpot()) * 64f;
+					Game1.player.Position = Utility.PointToVector2(Utility.getHomeOfFarmer(Game1.player).GetPlayerBedSpot()) * 64f;
 					Game1.globalFadeToClear();
 					return true;
 				}

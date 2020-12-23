@@ -3,6 +3,7 @@ using Microsoft.Xna.Framework.Graphics;
 using Netcode;
 using StardewValley.Objects;
 using System;
+using System.Collections.Generic;
 using System.Xml.Serialization;
 
 namespace StardewValley.Buildings
@@ -123,6 +124,11 @@ namespace StardewValley.Buildings
 			base.dayUpdate(dayOfMonth);
 		}
 
+		public override List<Item> GetAdditionalItemsToCheckBeforeDemolish()
+		{
+			return new List<Item>(output.Value.items);
+		}
+
 		public override void drawInMenu(SpriteBatch b, int x, int y)
 		{
 			b.Draw(texture.Value, new Vector2(x, y), getSourceRectForMenu(), color, 0f, new Vector2(0f, 0f), 4f, SpriteEffects.None, 0.89f);
@@ -149,7 +155,7 @@ namespace StardewValley.Buildings
 			}
 			if (output.Value.items.Count > 0 && output.Value.items[0] != null && ((int)output.Value.items[0].parentSheetIndex == 245 || (int)output.Value.items[0].parentSheetIndex == 246 || (int)output.Value.items[0].parentSheetIndex == 423))
 			{
-				float yOffset = 4f * (float)Math.Round(Math.Sin(DateTime.Now.TimeOfDay.TotalMilliseconds / 250.0), 2);
+				float yOffset = 4f * (float)Math.Round(Math.Sin(Game1.currentGameTime.TotalGameTime.TotalMilliseconds / 250.0), 2);
 				b.Draw(Game1.mouseCursors, Game1.GlobalToLocal(Game1.viewport, new Vector2((int)tileX * 64 + 192, (float)((int)tileY * 64 - 96) + yOffset)), new Rectangle(141, 465, 20, 24), Color.White * 0.75f, 0f, Vector2.Zero, 4f, SpriteEffects.None, (float)(((int)tileY + 1) * 64) / 10000f + 1E-06f + (float)(int)tileX / 10000f);
 				b.Draw(Game1.objectSpriteSheet, Game1.GlobalToLocal(Game1.viewport, new Vector2((int)tileX * 64 + 192 + 32 + 4, (float)((int)tileY * 64 - 64 + 8) + yOffset)), Game1.getSourceRectForStandardTileSheet(Game1.objectSpriteSheet, output.Value.items[0].parentSheetIndex, 16, 16), Color.White * 0.75f, 0f, new Vector2(8f, 8f), 4f, SpriteEffects.None, (float)(((int)tileY + 1) * 64) / 10000f + 1E-05f + (float)(int)tileX / 10000f);
 			}

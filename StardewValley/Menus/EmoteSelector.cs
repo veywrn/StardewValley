@@ -25,7 +25,7 @@ namespace StardewValley.Menus
 		protected Texture2D emoteTexture;
 
 		public EmoteSelector(int emote_index, string selected_emote = "")
-			: base(Game1.viewport.Width / 2 - (800 + IClickableMenu.borderWidth * 2) / 2, Game1.viewport.Height / 2 - (600 + IClickableMenu.borderWidth * 2) / 2 - 64, 800 + IClickableMenu.borderWidth * 2, 600 + IClickableMenu.borderWidth * 2 + 64)
+			: base(Game1.uiViewport.Width / 2 - (800 + IClickableMenu.borderWidth * 2) / 2, Game1.uiViewport.Height / 2 - (600 + IClickableMenu.borderWidth * 2) / 2 - 64, 800 + IClickableMenu.borderWidth * 2, 600 + IClickableMenu.borderWidth * 2 + 64)
 		{
 			emoteTexture = Game1.temporaryContent.Load<Texture2D>("LooseSprites\\EmoteMenu");
 			Game1.playSound("shwip");
@@ -84,8 +84,8 @@ namespace StardewValley.Menus
 		public override void gameWindowSizeChanged(Rectangle oldBounds, Rectangle newBounds)
 		{
 			base.gameWindowSizeChanged(oldBounds, newBounds);
-			xPositionOnScreen = Game1.viewport.Width / 2 - (632 + IClickableMenu.borderWidth * 2) / 2;
-			yPositionOnScreen = Game1.viewport.Height / 2 - (600 + IClickableMenu.borderWidth * 2) / 2 - 64;
+			xPositionOnScreen = Game1.uiViewport.Width / 2 - (632 + IClickableMenu.borderWidth * 2) / 2;
+			yPositionOnScreen = Game1.uiViewport.Height / 2 - (600 + IClickableMenu.borderWidth * 2) / 2 - 64;
 			RepositionElements();
 		}
 
@@ -114,30 +114,6 @@ namespace StardewValley.Menus
 		private void RepositionElements()
 		{
 			scrollView = new Rectangle(xPositionOnScreen + 64, yPositionOnScreen + IClickableMenu.borderWidth + IClickableMenu.spaceToClearTopBorder - 4, width - 128, height - IClickableMenu.borderWidth - IClickableMenu.spaceToClearTopBorder - 64 + 8);
-			if (scrollView.Left < Game1.graphics.GraphicsDevice.ScissorRectangle.Left)
-			{
-				int size_difference2 = Game1.graphics.GraphicsDevice.ScissorRectangle.Left - scrollView.Left;
-				scrollView.X += size_difference2;
-				scrollView.Width -= size_difference2;
-			}
-			if (scrollView.Right > Game1.graphics.GraphicsDevice.ScissorRectangle.Right)
-			{
-				int size_difference3 = scrollView.Right - Game1.graphics.GraphicsDevice.ScissorRectangle.Right;
-				scrollView.X -= size_difference3;
-				scrollView.Width -= size_difference3;
-			}
-			if (scrollView.Top < Game1.graphics.GraphicsDevice.ScissorRectangle.Top)
-			{
-				int size_difference4 = Game1.graphics.GraphicsDevice.ScissorRectangle.Top - scrollView.Top;
-				scrollView.Y += size_difference4;
-				scrollView.Width -= size_difference4;
-			}
-			if (scrollView.Bottom > Game1.graphics.GraphicsDevice.ScissorRectangle.Bottom)
-			{
-				int size_difference = scrollView.Bottom - Game1.graphics.GraphicsDevice.ScissorRectangle.Bottom;
-				scrollView.Y -= size_difference;
-				scrollView.Width -= size_difference;
-			}
 			RepositionScrollElements();
 		}
 
@@ -213,17 +189,10 @@ namespace StardewValley.Menus
 
 		public override void draw(SpriteBatch b)
 		{
-			bool ignoreTitleSafe2 = false;
-			ignoreTitleSafe2 = true;
+			bool ignoreTitleSafe = false;
+			ignoreTitleSafe = true;
 			IClickableMenu.drawTextureBox(b, Game1.menuTexture, new Rectangle(0, 256, 60, 60), xPositionOnScreen - 128 - 8, yPositionOnScreen + 128 - 8, 192, 164, Color.White, 1f, drawShadow: false);
-			Game1.drawDialogueBox(xPositionOnScreen, yPositionOnScreen, width, height, speaker: false, drawOnlyBox: true, null, objectDialogueWithPortrait: false, ignoreTitleSafe2);
-			b.End();
-			Rectangle cached_scissor_rect = b.GraphicsDevice.ScissorRectangle;
-			b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, new RasterizerState
-			{
-				ScissorTestEnable = true
-			});
-			b.GraphicsDevice.ScissorRectangle = scrollView;
+			Game1.drawDialogueBox(xPositionOnScreen, yPositionOnScreen, width, height, speaker: false, drawOnlyBox: true, null, objectDialogueWithPortrait: false, ignoreTitleSafe);
 			foreach (ClickableTextureComponent component in emoteButtons)
 			{
 				if (component == currentlySnappedComponent && Game1.options.gamepadControls && component != _selectedEmote && component == _hoveredEmote)
@@ -237,9 +206,6 @@ namespace StardewValley.Menus
 					b.Draw(component.texture, component.getVector2(), new Rectangle(component.sourceRect.X + 80, component.sourceRect.Y, 16, 16), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.99f);
 				}
 			}
-			b.End();
-			b.GraphicsDevice.ScissorRectangle = cached_scissor_rect;
-			b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, null);
 			if (_selectedEmote != null)
 			{
 				for (int i = 0; i < 8; i++)

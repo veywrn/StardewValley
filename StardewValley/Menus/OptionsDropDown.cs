@@ -10,6 +10,7 @@ namespace StardewValley.Menus
 	{
 		public const int pixelsHigh = 11;
 
+		[InstancedStatic]
 		public static OptionsDropDown selected;
 
 		public List<string> dropDownOptions = new List<string>();
@@ -34,6 +35,19 @@ namespace StardewValley.Menus
 			: base(label, x, y, (int)Game1.smallFont.MeasureString("Windowed Borderless Mode   ").X + 48, 44, whichOption)
 		{
 			Game1.options.setDropDownToProperValue(this);
+			RecalculateBounds();
+		}
+
+		public virtual void RecalculateBounds()
+		{
+			foreach (string displayed_option in dropDownDisplayOptions)
+			{
+				float text_width = Game1.smallFont.MeasureString(displayed_option).X;
+				if (text_width >= (float)(bounds.Width - 48))
+				{
+					bounds.Width = (int)(text_width + 64f);
+				}
+			}
 			dropDownBounds = new Rectangle(bounds.X, bounds.Y, bounds.Width - 48, bounds.Height * dropDownOptions.Count);
 		}
 
@@ -43,7 +57,7 @@ namespace StardewValley.Menus
 			{
 				base.leftClickHeld(x, y);
 				clicked = true;
-				dropDownBounds.Y = Math.Min(dropDownBounds.Y, Game1.viewport.Height - dropDownBounds.Height - recentSlotY);
+				dropDownBounds.Y = Math.Min(dropDownBounds.Y, Game1.uiViewport.Height - dropDownBounds.Height - recentSlotY);
 				if (!Game1.options.SnappyMenus)
 				{
 					selectedOption = (int)Math.Max(Math.Min((float)(y - dropDownBounds.Y) / (float)bounds.Height, dropDownOptions.Count - 1), 0f);
@@ -76,9 +90,10 @@ namespace StardewValley.Menus
 					Game1.playSound("drumkit6");
 				}
 				clicked = false;
+				selected = this;
 				if (dropDownBounds.Contains(x, y) || (Game1.options.gamepadControls && !Game1.lastCursorMotionWasMouse))
 				{
-					Game1.options.changeDropDownOption(whichOption, selectedOption, dropDownOptions);
+					Game1.options.changeDropDownOption(whichOption, dropDownOptions[selectedOption]);
 				}
 				else
 				{
@@ -104,7 +119,9 @@ namespace StardewValley.Menus
 					{
 						selectedOption = 0;
 					}
-					Game1.options.changeDropDownOption(whichOption, selectedOption, dropDownOptions);
+					selected = this;
+					Game1.options.changeDropDownOption(whichOption, dropDownOptions[selectedOption]);
+					selected = null;
 				}
 				else if (Game1.options.doesInputListContain(Game1.options.moveLeftButton, key))
 				{
@@ -113,7 +130,9 @@ namespace StardewValley.Menus
 					{
 						selectedOption = dropDownOptions.Count - 1;
 					}
-					Game1.options.changeDropDownOption(whichOption, selectedOption, dropDownOptions);
+					selected = this;
+					Game1.options.changeDropDownOption(whichOption, dropDownOptions[selectedOption]);
+					selected = null;
 				}
 			}
 			else if (Game1.options.doesInputListContain(Game1.options.moveDownButton, key))
@@ -136,14 +155,14 @@ namespace StardewValley.Menus
 			}
 		}
 
-		public override void draw(SpriteBatch b, int slotX, int slotY)
+		public override void draw(SpriteBatch b, int slotX, int slotY, IClickableMenu context = null)
 		{
 			recentSlotY = slotY;
-			base.draw(b, slotX, slotY);
+			base.draw(b, slotX, slotY, context);
 			float alpha = greyedOut ? 0.33f : 1f;
 			if (clicked)
 			{
-				IClickableMenu.drawTextureBox(b, Game1.mouseCursors, dropDownBGSource, slotX + dropDownBounds.X, slotY + dropDownBounds.Y, dropDownBounds.Width, dropDownBounds.Height, Color.White * alpha, 4f, drawShadow: false);
+				IClickableMenu.drawTextureBox(b, Game1.mouseCursors, dropDownBGSource, slotX + dropDownBounds.X, slotY + dropDownBounds.Y, dropDownBounds.Width, dropDownBounds.Height, Color.White * alpha, 4f, drawShadow: false, 0.97f);
 				for (int i = 0; i < dropDownDisplayOptions.Count; i++)
 				{
 					if (i == selectedOption)
@@ -157,10 +176,7 @@ namespace StardewValley.Menus
 			else
 			{
 				IClickableMenu.drawTextureBox(b, Game1.mouseCursors, dropDownBGSource, slotX + bounds.X, slotY + bounds.Y, bounds.Width - 48, bounds.Height, Color.White * alpha, 4f, drawShadow: false);
-				if (selected == null || selected.Equals(this))
-				{
-					b.DrawString(Game1.smallFont, (selectedOption < dropDownDisplayOptions.Count && selectedOption >= 0) ? dropDownDisplayOptions[selectedOption] : "", new Vector2(slotX + bounds.X + 4, slotY + bounds.Y + 8), Game1.textColor * alpha, 0f, Vector2.Zero, 1f, SpriteEffects.None, 0.88f);
-				}
+				b.DrawString(Game1.smallFont, (selectedOption < dropDownDisplayOptions.Count && selectedOption >= 0) ? dropDownDisplayOptions[selectedOption] : "", new Vector2(slotX + bounds.X + 4, slotY + bounds.Y + 8), Game1.textColor * alpha, 0f, Vector2.Zero, 1f, SpriteEffects.None, 0.88f);
 				b.Draw(Game1.mouseCursors, new Vector2(slotX + bounds.X + bounds.Width - 48, slotY + bounds.Y), dropDownButtonSource, Color.White * alpha, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.88f);
 			}
 		}

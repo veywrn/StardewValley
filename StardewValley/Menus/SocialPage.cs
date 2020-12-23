@@ -73,22 +73,22 @@ namespace StardewValley.Menus
 					npcNames.Add(name2, displayName);
 				}
 			}
-			foreach (NPC k in Utility.getAllCharacters())
+			foreach (NPC l in Utility.getAllCharacters())
 			{
-				if (k.CanSocialize)
+				if (l.CanSocialize)
 				{
-					if (Game1.player.friendshipData.ContainsKey(k.Name) && k is Child)
+					if (Game1.player.friendshipData.ContainsKey(l.Name) && l is Child)
 					{
-						kidsNames.Add(k.Name);
-						npcNames[k.Name] = k.Name;
+						kidsNames.Add(l.Name);
+						npcNames[l.Name] = l.Name;
 					}
-					else if (Game1.player.friendshipData.ContainsKey(k.Name))
+					else if (Game1.player.friendshipData.ContainsKey(l.Name))
 					{
-						npcNames[k.Name] = k.displayName;
+						npcNames[l.Name] = l.displayName;
 					}
 					else
 					{
-						npcNames[k.Name] = "???";
+						npcNames[l.Name] = "???";
 					}
 				}
 			}
@@ -105,32 +105,33 @@ namespace StardewValley.Menus
 			}
 			foreach (KeyValuePair<string, string> namePair in npcNames.OrderBy((KeyValuePair<string, string> p) => -Game1.player.getFriendshipLevelForNPC(p.Key)))
 			{
-				NPC j = null;
+				NPC k = null;
 				if (kidsNames.Contains(namePair.Key))
 				{
-					j = Game1.getCharacterFromName<Child>(namePair.Key, mustBeVillager: false);
+					k = Game1.getCharacterFromName<Child>(namePair.Key, mustBeVillager: false);
 				}
 				else if (NPCDispositions.ContainsKey(namePair.Key))
 				{
 					string[] location = NPCDispositions[namePair.Key].Split('/')[10].Split(' ');
+					string texture_name = NPC.getTextureNameForCharacter(namePair.Key);
 					if (location.Length > 2)
 					{
-						j = new NPC(new AnimatedSprite("Characters\\" + namePair.Key, 0, 16, 32), new Vector2(Convert.ToInt32(location[1]) * 64, Convert.ToInt32(location[2]) * 64), location[0], 0, namePair.Key, null, Game1.content.Load<Texture2D>("Portraits\\" + namePair.Key), eventActor: false);
+						k = new NPC(new AnimatedSprite("Characters\\" + texture_name, 0, 16, 32), new Vector2(Convert.ToInt32(location[1]) * 64, Convert.ToInt32(location[2]) * 64), location[0], 0, namePair.Key, null, Game1.content.Load<Texture2D>("Portraits\\" + texture_name), eventActor: false);
 					}
 				}
-				if (j != null)
+				if (k != null)
 				{
-					names.Add(j.Name);
-					sprites.Add(new ClickableTextureComponent("", new Rectangle(x + IClickableMenu.borderWidth + 4, 0, width, 64), null, "", j.Sprite.Texture, j.getMugShotSourceRect(), 4f));
+					names.Add(k.Name);
+					sprites.Add(new ClickableTextureComponent("", new Rectangle(x + IClickableMenu.borderWidth + 4, 0, width, 64), null, "", k.Sprite.Texture, k.getMugShotSourceRect(), 4f));
 				}
 			}
-			for (int i = 0; i < names.Count; i++)
+			for (int j = 0; j < names.Count; j++)
 			{
 				ClickableTextureComponent slot_component = new ClickableTextureComponent(new Rectangle(xPositionOnScreen + IClickableMenu.borderWidth, 0, width - IClickableMenu.borderWidth * 2, rowPosition(1) - rowPosition(0)), null, new Rectangle(0, 0, 0, 0), 4f)
 				{
-					myID = i,
-					downNeighborID = i + 1,
-					upNeighborID = i - 1
+					myID = j,
+					downNeighborID = j + 1,
+					upNeighborID = j - 1
 				};
 				if (slot_component.upNeighborID < 0)
 				{
@@ -142,6 +143,17 @@ namespace StardewValley.Menus
 			downButton = new ClickableTextureComponent(new Rectangle(xPositionOnScreen + width + 16, yPositionOnScreen + height - 64, 44, 48), Game1.mouseCursors, new Rectangle(421, 472, 11, 12), 4f);
 			scrollBar = new ClickableTextureComponent(new Rectangle(upButton.bounds.X + 12, upButton.bounds.Y + upButton.bounds.Height + 4, 24, 40), Game1.mouseCursors, new Rectangle(435, 463, 6, 10), 4f);
 			scrollBarRunner = new Rectangle(scrollBar.bounds.X, upButton.bounds.Y + upButton.bounds.Height + 4, scrollBar.bounds.Width, height - 128 - upButton.bounds.Height - 8);
+			int first_character_index = 0;
+			for (int i = 0; i < names.Count; i++)
+			{
+				if (!(names[i] is long))
+				{
+					first_character_index = i;
+					break;
+				}
+			}
+			slotPosition = first_character_index;
+			setScrollBarToCurrentIndex();
 			updateSlots();
 		}
 
@@ -171,7 +183,10 @@ namespace StardewValley.Menus
 
 		public override void snapToDefaultClickableComponent()
 		{
-			currentlySnappedComponent = characterSlots[0];
+			if (slotPosition < characterSlots.Count)
+			{
+				currentlySnappedComponent = characterSlots[slotPosition];
+			}
 			snapCursorToCurrentSnappedComponent();
 		}
 
@@ -373,21 +388,25 @@ namespace StardewValley.Menus
 			{
 				upArrowPressed();
 				Game1.playSound("shwip");
+				return;
 			}
-			else if (downButton.containsPoint(x, y) && slotPosition < sprites.Count - 5)
+			if (downButton.containsPoint(x, y) && slotPosition < sprites.Count - 5)
 			{
 				downArrowPressed();
 				Game1.playSound("shwip");
+				return;
 			}
-			else if (scrollBar.containsPoint(x, y))
+			if (scrollBar.containsPoint(x, y))
 			{
 				scrolling = true;
+				return;
 			}
-			else if (!downButton.containsPoint(x, y) && x > xPositionOnScreen + width - 96 && x < xPositionOnScreen + width + 128 && y > yPositionOnScreen && y < yPositionOnScreen + height)
+			if (!downButton.containsPoint(x, y) && x > xPositionOnScreen + width && x < xPositionOnScreen + width + 128 && y > yPositionOnScreen && y < yPositionOnScreen + height)
 			{
 				scrolling = true;
 				leftClickHeld(x, y);
 				releaseLeftClick(x, y);
+				return;
 			}
 			for (int i = 0; i < characterSlots.Count; i++)
 			{
@@ -395,13 +414,13 @@ namespace StardewValley.Menus
 				{
 					continue;
 				}
-				bool fail = true;
+				bool fail2 = true;
 				if (names[i] is string)
 				{
 					Character character = Game1.getCharacterFromName((string)names[i]);
 					if (character != null && Game1.player.friendshipData.ContainsKey(character.name))
 					{
-						fail = false;
+						fail2 = false;
 						Game1.playSound("bigSelect");
 						int cached_slot_position = slotPosition;
 						ProfileMenu menu = new ProfileMenu(character);
@@ -436,9 +455,10 @@ namespace StardewValley.Menus
 						{
 							menu.snapToDefaultClickableComponent();
 						}
+						return;
 					}
 				}
-				if (fail)
+				if (fail2)
 				{
 					Game1.playSound("shiny4");
 				}
@@ -497,11 +517,11 @@ namespace StardewValley.Menus
 				}
 				if (hearts < 10)
 				{
-					b.Draw(Game1.mouseCursors, new Vector2(xPositionOnScreen + 320 - 8 + hearts * 32, sprites[i].bounds.Y + 64 - 28), new Rectangle(xSource, 428, 7, 6), (datable && !friendship.IsDating() && !spouse && hearts >= 8) ? (Color.Black * 0.35f) : Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.88f);
+					b.Draw(Game1.mouseCursors, new Vector2(xPositionOnScreen + 320 - 4 + hearts * 32, sprites[i].bounds.Y + 64 - 28), new Rectangle(xSource, 428, 7, 6), (datable && !friendship.IsDating() && !spouse && hearts >= 8) ? (Color.Black * 0.35f) : Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.88f);
 				}
 				else
 				{
-					b.Draw(Game1.mouseCursors, new Vector2(xPositionOnScreen + 320 - 8 + (hearts - 10) * 32, sprites[i].bounds.Y + 64), new Rectangle(xSource, 428, 7, 6), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.88f);
+					b.Draw(Game1.mouseCursors, new Vector2(xPositionOnScreen + 320 - 4 + (hearts - 10) * 32, sprites[i].bounds.Y + 64), new Rectangle(xSource, 428, 7, 6), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.88f);
 				}
 			}
 			if (datable | housemate)
@@ -534,9 +554,11 @@ namespace StardewValley.Menus
 			}
 			if (!getFriendship(name).IsMarried() && !kidsNames.Contains(name))
 			{
-				b.Draw(Game1.mouseCursors, new Vector2(xPositionOnScreen + 384 + 264, sprites[i].bounds.Y + 32 - 12), new Rectangle(229, 410, 14, 14), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.88f);
-				b.Draw(Game1.mouseCursors, new Vector2(xPositionOnScreen + 384 + 324, sprites[i].bounds.Y + 32), new Rectangle(227 + ((getFriendship(name).GiftsThisWeek >= 2) ? 9 : 0), 425, 9, 9), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.88f);
-				b.Draw(Game1.mouseCursors, new Vector2(xPositionOnScreen + 384 + 364, sprites[i].bounds.Y + 32), new Rectangle(227 + ((getFriendship(name).GiftsThisWeek >= 1) ? 9 : 0), 425, 9, 9), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.88f);
+				Utility.drawWithShadow(b, Game1.mouseCursors2, new Vector2(xPositionOnScreen + 384 + 304, sprites[i].bounds.Y - 4), new Rectangle(166, 174, 14, 12), Color.White, 0f, Vector2.Zero, 4f, flipped: false, 0.88f, 0, -1, 0.2f);
+				b.Draw(Game1.mouseCursors, new Vector2(xPositionOnScreen + 384 + 296, sprites[i].bounds.Y + 32 + 20), new Rectangle(227 + ((getFriendship(name).GiftsThisWeek >= 2) ? 9 : 0), 425, 9, 9), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.88f);
+				b.Draw(Game1.mouseCursors, new Vector2(xPositionOnScreen + 384 + 336, sprites[i].bounds.Y + 32 + 20), new Rectangle(227 + ((getFriendship(name).GiftsThisWeek >= 1) ? 9 : 0), 425, 9, 9), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.88f);
+				Utility.drawWithShadow(b, Game1.mouseCursors2, new Vector2(xPositionOnScreen + 384 + 424, sprites[i].bounds.Y), new Rectangle(180, 175, 13, 11), Color.White, 0f, Vector2.Zero, 4f, flipped: false, 0.88f, 0, -1, 0.2f);
+				b.Draw(Game1.mouseCursors, new Vector2(xPositionOnScreen + 384 + 432, sprites[i].bounds.Y + 32 + 20), new Rectangle(227 + (getFriendship(name).TalkedToToday ? 9 : 0), 425, 9, 9), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.88f);
 			}
 			if (spouse)
 			{
@@ -619,10 +641,7 @@ namespace StardewValley.Menus
 		public override void draw(SpriteBatch b)
 		{
 			b.End();
-			b.Begin(SpriteSortMode.Immediate, BlendState.AlphaBlend, SamplerState.PointClamp, null, new RasterizerState
-			{
-				ScissorTestEnable = true
-			});
+			b.Begin(SpriteSortMode.Immediate, BlendState.AlphaBlend, SamplerState.PointClamp, null, Utility.ScissorEnabled);
 			drawHorizontalPartition(b, yPositionOnScreen + IClickableMenu.borderWidth + 128 + 4, small: true);
 			drawHorizontalPartition(b, yPositionOnScreen + IClickableMenu.borderWidth + 192 + 32 + 20, small: true);
 			drawHorizontalPartition(b, yPositionOnScreen + IClickableMenu.borderWidth + 320 + 36, small: true);
@@ -651,13 +670,14 @@ namespace StardewValley.Menus
 				try
 				{
 					drawVerticalPartition(b, xPositionOnScreen + 256 + 12, small: true);
+					drawVerticalPartition(b, xPositionOnScreen + 384 + 368, small: true);
+					drawVerticalPartition(b, xPositionOnScreen + 256 + 12 + 352, small: true);
 				}
 				finally
 				{
 					b.GraphicsDevice.ScissorRectangle = origClip;
 				}
 			}
-			drawVerticalPartition(b, xPositionOnScreen + 256 + 12 + 340, small: true);
 			upButton.draw(b);
 			downButton.draw(b);
 			IClickableMenu.drawTextureBox(b, Game1.mouseCursors, new Rectangle(403, 383, 6, 6), scrollBarRunner.X, scrollBarRunner.Y, scrollBarRunner.Width, scrollBarRunner.Height, Color.White, 4f);

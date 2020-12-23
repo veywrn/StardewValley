@@ -4,6 +4,7 @@ namespace StardewValley
 	{
 		Hide,
 		Draw,
-		Draw_OneInclusive
+		Draw_OneInclusive,
+		HideButShowQuality
 	}
 }

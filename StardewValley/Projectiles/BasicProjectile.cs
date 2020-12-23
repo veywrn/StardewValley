@@ -18,9 +18,13 @@ namespace StardewValley.Projectiles
 
 		private onCollisionBehavior collisionBehavior;
 
+		public NetInt debuff = new NetInt(-1);
+
+		public NetString debuffSound = new NetString("debuffHit");
+
 		public BasicProjectile()
 		{
-			base.NetFields.AddFields(damageToFarmer, collisionSound, explode);
+			base.NetFields.AddFields(damageToFarmer, collisionSound, explode, debuff, debuffSound);
 		}
 
 		public BasicProjectile(int damageToFarmer, int parentSheetIndex, int bouncesTillDestruct, int tailLength, float rotationVelocity, float xVelocity, float yVelocity, Vector2 startingPosition, string collisionSound, string firingSound, bool explode, bool damagesMonsters = false, GameLocation location = null, Character firer = null, bool spriteFromObjectSheet = false, onCollisionBehavior collisionBehavior = null)
@@ -59,11 +63,20 @@ namespace StardewValley.Projectiles
 
 		public override void behaviorOnCollisionWithPlayer(GameLocation location, Farmer player)
 		{
-			if (!damagesMonsters)
+			if ((bool)damagesMonsters)
 			{
-				player.takeDamage(damageToFarmer, overrideParry: false, null);
-				explosionAnimation(location);
+				return;
 			}
+			if (debuff.Value != -1 && player.CanBeDamaged() && Game1.random.Next(11) >= player.immunity && !player.hasBuff(28))
+			{
+				if (Game1.player == player)
+				{
+					Game1.buffsDisplay.addOtherBuff(new Buff(debuff));
+				}
+				location.playSound(debuffSound.Value);
+			}
+			player.takeDamage(damageToFarmer, overrideParry: false, null);
+			explosionAnimation(location);
 		}
 
 		public override void behaviorOnCollisionWithTerrainFeature(TerrainFeature t, Vector2 tileLocation, GameLocation location)
@@ -92,19 +105,21 @@ namespace StardewValley.Projectiles
 			if (n is Monster)
 			{
 				location.damageMonster(n.GetBoundingBox(), damageToFarmer, (int)damageToFarmer + 1, isBomb: false, (theOneWhoFiredMe.Get(location) is Farmer) ? (theOneWhoFiredMe.Get(location) as Farmer) : Game1.player);
-				return;
 			}
-			n.getHitByPlayer((theOneWhoFiredMe.Get(location) == null || !(theOneWhoFiredMe.Get(location) is Farmer)) ? Game1.player : (theOneWhoFiredMe.Get(location) as Farmer), location);
-			string projectileName = "";
-			if (Game1.objectInformation.ContainsKey(currentTileSheetIndex.Value))
+			else if (spriteFromObjectSheet.Value)
 			{
-				projectileName = Game1.objectInformation[currentTileSheetIndex.Value].Split('/')[4];
+				n.getHitByPlayer((theOneWhoFiredMe.Get(location) == null || !(theOneWhoFiredMe.Get(location) is Farmer)) ? Game1.player : (theOneWhoFiredMe.Get(location) as Farmer), location);
+				string projectileName = "";
+				if (Game1.objectInformation.ContainsKey(currentTileSheetIndex.Value))
+				{
+					projectileName = Game1.objectInformation[currentTileSheetIndex.Value].Split('/')[4];
+				}
+				else if (Game1.objectInformation.ContainsKey(currentTileSheetIndex.Value - 1))
+				{
+					projectileName = Game1.objectInformation[currentTileSheetIndex.Value - 1].Split('/')[4];
+				}
+				Game1.multiplayer.globalChatInfoMessage("Slingshot_Hit", ((theOneWhoFiredMe.Get(location) == null || !(theOneWhoFiredMe.Get(location) is Farmer)) ? Game1.player : (theOneWhoFiredMe.Get(location) as Farmer)).Name, (n.Name == null) ? "???" : n.Name, Lexicon.prependArticle(projectileName));
 			}
-			else if (Game1.objectInformation.ContainsKey(currentTileSheetIndex.Value - 1))
-			{
-				projectileName = Game1.objectInformation[currentTileSheetIndex.Value - 1].Split('/')[4];
-			}
-			Game1.multiplayer.globalChatInfoMessage("Slingshot_Hit", ((theOneWhoFiredMe.Get(location) == null || !(theOneWhoFiredMe.Get(location) is Farmer)) ? Game1.player : (theOneWhoFiredMe.Get(location) as Farmer)).Name, (n.Name == null) ? "???" : n.Name, Lexicon.prependArticle(projectileName));
 		}
 
 		private void explosionAnimation(GameLocation location)

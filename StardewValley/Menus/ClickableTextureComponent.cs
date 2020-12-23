@@ -47,6 +47,17 @@ namespace StardewValley.Menus
 			return new Vector2(bounds.X, bounds.Y);
 		}
 
+		public void setPosition(Vector2 position)
+		{
+			setPosition((int)position.X, (int)position.Y);
+		}
+
+		public void setPosition(int x, int y)
+		{
+			bounds.X = x;
+			bounds.Y = y;
+		}
+
 		public void tryHover(int x, int y, float maxScaleIncrease = 0.1f)
 		{
 			if (bounds.Contains(x, y))
@@ -103,11 +114,11 @@ namespace StardewValley.Menus
 			}
 		}
 
-		public void drawItem(SpriteBatch b, int xOffset = 0, int yOffset = 0)
+		public void drawItem(SpriteBatch b, int xOffset = 0, int yOffset = 0, float alpha = 1f)
 		{
 			if (item != null && visible)
 			{
-				item.drawInMenu(b, new Vector2(bounds.X + xOffset, bounds.Y + yOffset), scale / 4f);
+				item.drawInMenu(b, new Vector2(bounds.X + xOffset, bounds.Y + yOffset), scale / 4f, alpha, 0.9f);
 			}
 		}
 	}

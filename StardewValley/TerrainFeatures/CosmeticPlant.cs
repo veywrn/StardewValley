@@ -31,7 +31,6 @@ namespace StardewValley.TerrainFeatures
 		{
 			initFields();
 			flipped.Value = (Game1.random.NextDouble() < 0.5);
-			scale.Value = 1f - ((Game1.random.NextDouble() < 0.5) ? ((float)Game1.random.Next((which == 0) ? 10 : 51) / 100f) : 0f);
 		}
 
 		private void initFields()
@@ -49,7 +48,7 @@ namespace StardewValley.TerrainFeatures
 			return false;
 		}
 
-		protected override string textureName()
+		public override string textureName()
 		{
 			return "TerrainFeatures\\upperCavePlants";
 		}
@@ -67,7 +66,7 @@ namespace StardewValley.TerrainFeatures
 				shake((float)Math.PI * 3f / 32f, (float)Math.PI / 40f, Game1.random.NextDouble() < 0.5);
 				int numberOfWeedsToDestroy2 = 0;
 				numberOfWeedsToDestroy2 = ((explosion <= 0) ? (((int)t.upgradeLevel == 3) ? 3 : ((int)t.upgradeLevel + 1)) : Math.Max(1, explosion + 2 - Game1.random.Next(2)));
-				Game1.createRadialDebris(location, textureName(), new Rectangle(28 + (byte)grassType * 64, 24, 28, 24), (int)tileLocation.X, (int)tileLocation.Y, Game1.random.Next(6, 14));
+				Game1.createRadialDebris(location, textureName(), new Rectangle((byte)grassType * 16, 6, 7, 6), (int)tileLocation.X, (int)tileLocation.Y, Game1.random.Next(6, 14));
 				numberOfWeeds.Value = (int)numberOfWeeds - numberOfWeedsToDestroy2;
 				if ((int)numberOfWeeds <= 0)
 				{
@@ -92,7 +91,7 @@ namespace StardewValley.TerrainFeatures
 
 		public override void draw(SpriteBatch spriteBatch, Vector2 tileLocation)
 		{
-			spriteBatch.Draw(texture.Value, Game1.GlobalToLocal(Game1.viewport, new Vector2(tileLocation.X * 64f, tileLocation.Y * 64f) + new Vector2(32 + (int)xOffset, 60 + (int)yOffset)), new Rectangle((byte)grassType * 64, 0, 64, 96), Color.White, shakeRotation, new Vector2(32f, 92f), scale, flipped ? SpriteEffects.FlipHorizontally : SpriteEffects.None, ((float)(getBoundingBox(tileLocation).Y - 4) + tileLocation.X / 900f + (float)scale / 100f) / 10000f);
+			spriteBatch.Draw(texture.Value, Game1.GlobalToLocal(Game1.viewport, new Vector2(tileLocation.X * 64f, tileLocation.Y * 64f) + new Vector2(32 + (int)xOffset, 60 + (int)yOffset)), new Rectangle((byte)grassType * 16, 0, 16, 24), Color.White, shakeRotation, new Vector2(8f, 23f), 4f * (float)scale, flipped ? SpriteEffects.FlipHorizontally : SpriteEffects.None, ((float)(getBoundingBox(tileLocation).Y - 4) + tileLocation.X / 900f + (float)scale / 100f) / 10000f);
 		}
 	}
 }

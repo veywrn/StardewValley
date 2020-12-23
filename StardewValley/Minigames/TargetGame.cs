@@ -9,6 +9,7 @@ using xTile.Dimensions;
 
 namespace StardewValley.Minigames
 {
+	[InstanceStatics]
 	public class TargetGame : IMinigame
 	{
 		public class Target
@@ -227,6 +228,7 @@ namespace StardewValley.Minigames
 		public bool tick(GameTime time)
 		{
 			location.UpdateWhenCurrentLocation(time);
+			location.wasUpdated = false;
 			location.updateEvenIfFarmerIsntHere(time);
 			Game1.player.Stamina = Game1.player.MaxStamina;
 			Game1.player.Update(time, location);
@@ -288,14 +290,14 @@ namespace StardewValley.Minigames
 				}
 				if (num > 9000 && showResultsTimer <= 9000)
 				{
-					score *= 2;
-					if (score >= 80)
+					if (score >= 40)
 					{
 						Game1.playSound("reward");
-						starTokensWon = (int)((float)((score - 30) / 10) * 2.5f);
-						if (starTokensWon > 140)
+						starTokensWon = (int)((float)((score * 2 - 30) / 10) * 2.5f);
+						starTokensWon *= 2;
+						if (starTokensWon > 280)
 						{
-							starTokensWon = 250;
+							starTokensWon = 500;
 						}
 						Game1.player.festivalScore += starTokensWon;
 					}
@@ -412,6 +414,11 @@ namespace StardewValley.Minigames
 
 		public void receiveKeyPress(Keys k)
 		{
+			if (Game1.options.doesInputListContain(Game1.options.menuButton, k))
+			{
+				Game1.playSound("fishEscape");
+				showResultsTimer = 1;
+			}
 			if (showResultsTimer > 0 || gameEndTimer > 0)
 			{
 				Game1.player.Halt();
@@ -489,10 +496,7 @@ namespace StardewValley.Minigames
 				Game1.mapDisplayDevice.BeginScene(b);
 				location.Map.GetLayer("Front").Draw(Game1.mapDisplayDevice, Game1.viewport, Location.Origin, wrapAround: false, 4);
 				Game1.mapDisplayDevice.EndScene();
-				if (!Game1.options.hardwareCursor && !Game1.options.gamepadControls)
-				{
-					b.Draw(Game1.mouseCursors, new Vector2(Game1.getMouseX(), Game1.getMouseY()), Game1.getSourceRectForStandardTileSheet(Game1.mouseCursors, 0, 16, 16), Color.White, 0f, Vector2.Zero, 4f + Game1.dialogueButtonScale / 150f, SpriteEffects.None, 1f);
-				}
+				location.drawAboveAlwaysFrontLayer(b);
 				Game1.player.CurrentTool.draw(b);
 				Game1.drawWithBorder(Game1.content.LoadString("Strings\\StringsFromCSFiles:FishingGame.cs.10444", score), Color.Black, Color.White, new Vector2(32f, 32f));
 				Game1.drawWithBorder(Game1.content.LoadString("Strings\\StringsFromCSFiles:Event.cs.1514", gameEndTimer / 1000), Color.Black, Color.White, new Vector2(32f, 64f));

@@ -49,7 +49,7 @@ namespace StardewValley.Objects
 
 		public override void addWorkingAnimation(GameLocation environment)
 		{
-			if (environment != null && environment.farmers.Count != 0 && Game1.random.NextDouble() < 0.35)
+			if (environment != null && environment.farmers.Any() && Game1.random.NextDouble() < 0.35)
 			{
 				for (int i = 0; i < 8; i++)
 				{
@@ -180,6 +180,7 @@ namespace StardewValley.Objects
 					readyForHarvest.Value = false;
 					depositedItem.Value = null;
 					heldObject.Value = null;
+					AttemptAutoLoad(who);
 				}
 				return true;
 			}
@@ -253,7 +254,7 @@ namespace StardewValley.Objects
 			{
 				return;
 			}
-			float yOffset = 4f * (float)Math.Round(Math.Sin(DateTime.UtcNow.TimeOfDay.TotalMilliseconds / 250.0), 2);
+			float yOffset = 4f * (float)Math.Round(Math.Sin(Game1.currentGameTime.TotalGameTime.TotalMilliseconds / 250.0), 2);
 			spriteBatch.Draw(Game1.mouseCursors, Game1.GlobalToLocal(Game1.viewport, new Vector2(x * 64 - 8, (float)(y * 64 - 96 - 16) + yOffset)), new Rectangle(141, 465, 20, 24), Color.White * 0.75f, 0f, Vector2.Zero, 4f, SpriteEffects.None, (float)((y + 1) * 64) / 10000f + 1E-06f + tileLocation.X / 10000f + (((int)parentSheetIndex == 105) ? 0.0015f : 0f));
 			if (heldObject.Value != null)
 			{

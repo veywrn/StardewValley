@@ -102,8 +102,8 @@ namespace StardewValley
 				int barGraphWidth = 200;
 				int barGraphHeight = 150;
 				int buffer = 50;
-				bandwidthUpGraph = new BarGraph(bandwidthMonitor.BandwidthLogger.LoggedAvgBitsUp, Game1.viewport.Width - barGraphWidth - buffer, buffer, barGraphWidth, barGraphHeight, 2, BarGraph.DYNAMIC_SCALE_MAX, Color.Yellow * 0.8f, _opaqueWhite);
-				bandwidthDownGraph = new BarGraph(bandwidthMonitor.BandwidthLogger.LoggedAvgBitsDown, Game1.viewport.Width - barGraphWidth - buffer, buffer + barGraphHeight + buffer, barGraphWidth, barGraphHeight, 2, BarGraph.DYNAMIC_SCALE_MAX, Color.Cyan * 0.8f, _opaqueWhite);
+				bandwidthUpGraph = new BarGraph(bandwidthMonitor.BandwidthLogger.LoggedAvgBitsUp, Game1.uiViewport.Width - barGraphWidth - buffer, buffer, barGraphWidth, barGraphHeight, 2, BarGraph.DYNAMIC_SCALE_MAX, Color.Yellow * 0.8f, _opaqueWhite);
+				bandwidthDownGraph = new BarGraph(bandwidthMonitor.BandwidthLogger.LoggedAvgBitsDown, Game1.uiViewport.Width - barGraphWidth - buffer, buffer + barGraphHeight + buffer, barGraphWidth, barGraphHeight, 2, BarGraph.DYNAMIC_SCALE_MAX, Color.Cyan * 0.8f, _opaqueWhite);
 			}
 		}
 

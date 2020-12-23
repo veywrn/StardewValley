@@ -1,6 +1,8 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Netcode;
+using StardewValley.Locations;
+using StardewValley.Objects;
 using System;
 using System.Collections.Generic;
 using System.Xml.Serialization;
@@ -19,7 +21,10 @@ namespace StardewValley.Tools
 
 		public override Item getOne()
 		{
-			return new Pan();
+			Pan pan = new Pan();
+			CopyEnchantments(this, pan);
+			pan._GetOneFrom(this);
+			return pan;
 		}
 
 		protected override string loadDisplayName()
@@ -156,11 +161,23 @@ namespace StardewValley.Tools
 					whichExtra = ((r.NextDouble() < 0.3) ? 82 : ((r.NextDouble() < 0.5) ? 84 : 86));
 					extraPieces = 1;
 				}
+				if (roll3 < (double)who.LuckLevel * 0.002)
+				{
+					items.Add(new Ring(859));
+				}
 			}
 			items.Add(new Object(whichOre, orePieces));
 			if (whichExtra != -1)
 			{
 				items.Add(new Object(whichExtra, extraPieces));
+			}
+			if (location is IslandNorth && (bool)(Game1.getLocationFromName("IslandNorth") as IslandNorth).bridgeFixed && r.NextDouble() < 0.2)
+			{
+				items.Add(new Object(822, 1));
+			}
+			else if (location is IslandLocation && r.NextDouble() < 0.2)
+			{
+				items.Add(new Object(831, r.Next(2, 6)));
 			}
 			return items;
 		}

@@ -1,6 +1,7 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Netcode;
+using StardewValley.Buildings;
 using StardewValley.Locations;
 using System;
 
@@ -36,7 +37,11 @@ namespace StardewValley.Events
 
 		public const int movieTheaterLightning = 12;
 
-		private readonly NetInt whichEvent = new NetInt();
+		public const int willyBoatRepair = 13;
+
+		public const int treehouseBuild = 14;
+
+		public readonly NetInt whichEvent = new NetInt();
 
 		private int cutsceneLengthTimer;
 
@@ -53,6 +58,8 @@ namespace StardewValley.Events
 		private bool kill;
 
 		private bool wasRaining;
+
+		public GameLocation preEventLocation;
 
 		public NetFields NetFields
 		{
@@ -102,6 +109,7 @@ namespace StardewValley.Events
 
 		public bool setUp()
 		{
+			preEventLocation = Game1.currentLocation;
 			Game1.currentLightSources.Clear();
 			location = null;
 			int targetXTile = 0;
@@ -112,6 +120,30 @@ namespace StardewValley.Events
 			Game1.changeMusicTrack("nightTime");
 			switch ((int)whichEvent)
 			{
+			case 13:
+				location = Game1.getLocationFromName("BoatTunnel");
+				location.resetForPlayerEntry();
+				targetXTile = 7;
+				targetYTile = 7;
+				if (Game1.IsMasterGame)
+				{
+					Game1.addMailForTomorrow("willyBoatFixed", noLetter: true);
+				}
+				Game1.mailbox.Add("willyHours");
+				location.temporarySprites.Add(new TemporaryAnimatedSprite("Characters\\Willy", new Rectangle(0, 320, 16, 32), 120f, 3, 999, new Vector2(412f, 332f), flicker: false, flipped: false)
+				{
+					pingPong = true,
+					scale = 4f,
+					layerDepth = 1f
+				});
+				location.temporarySprites.Add(new TemporaryAnimatedSprite("Characters\\Robin", new Rectangle(0, 192, 16, 32), 140f, 4, 999, new Vector2(704f, 256f), flicker: false, flipped: false)
+				{
+					scale = 4f,
+					layerDepth = 1f
+				});
+				soundInterval = 560;
+				sound = "crafting";
+				break;
 			case 12:
 			{
 				cutsceneLengthTimer += 3000;
@@ -203,20 +235,32 @@ namespace StardewValley.Events
 					targetXTile = 39;
 					targetYTile = 32;
 				}
+				if (location != null && location is Farm)
+				{
+					foreach (Building b in (location as Farm).buildings)
+					{
+						if (b is GreenhouseBuilding)
+						{
+							targetXTile = (int)b.tileX + 3;
+							targetYTile = (int)b.tileY + 3;
+							break;
+						}
+					}
+				}
 				location.temporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Rectangle(288, 1349, 19, 28), 150f, 5, 999, new Vector2((targetXTile - 3) * 64 + 8, (targetYTile - 1) * 64 - 32), flicker: false, flipped: false)
 				{
 					scale = 4f,
-					layerDepth = 0.0961f
+					layerDepth = 1f
 				});
 				location.temporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Rectangle(288, 1377, 19, 28), 140f, 5, 999, new Vector2((targetXTile + 3) * 64 - 16, (targetYTile - 2) * 64), flicker: false, flipped: false)
 				{
 					scale = 4f,
-					layerDepth = 0.0961f
+					layerDepth = 1f
 				});
 				location.temporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Rectangle(390, 1405, 18, 32), 1000f, 2, 999, new Vector2(targetXTile * 64 + 8, (targetYTile - 4) * 64), flicker: false, flipped: false)
 				{
 					scale = 4f,
-					layerDepth = 0.0961f
+					layerDepth = 1f
 				});
 				soundInterval = 560;
 				Game1.currentLightSources.Add(new LightSource(4, new Vector2(targetXTile, targetYTile) * 64f, 4f, LightSource.LightContext.None, 0L));
@@ -231,6 +275,18 @@ namespace StardewValley.Events
 				{
 					targetXTile = 39;
 					targetYTile = 32;
+				}
+				if (location != null && location is Farm)
+				{
+					foreach (Building b2 in (location as Farm).buildings)
+					{
+						if (b2 is GreenhouseBuilding)
+						{
+							targetXTile = (int)b2.tileX + 3;
+							targetYTile = (int)b2.tileY + 3;
+							break;
+						}
+					}
 				}
 				Utility.addSprinklesToLocation(location, targetXTile, targetYTile - 1, 7, 7, 15000, 150, Color.LightCyan);
 				Utility.addStarsAndSpirals(location, targetXTile, targetYTile - 1, 7, 7, 15000, 150, Color.White);
@@ -540,6 +596,91 @@ namespace StardewValley.Events
 				Game1.currentLightSources.Add(new LightSource(4, new Vector2(targetXTile, targetYTile) * 64f, 4f, Color.DarkGoldenrod, LightSource.LightContext.None, 0L));
 				soundInterval = 1000;
 				break;
+			case 14:
+			{
+				location = Game1.getLocationFromName("Mountain");
+				location.resetForPlayerEntry();
+				targetXTile = 16;
+				targetYTile = 7;
+				cutsceneLengthTimer = 12000;
+				Game1.currentLightSources.Add(new LightSource(4, new Vector2(targetXTile, targetYTile) * 64f, 4f, Color.DarkGoldenrod, LightSource.LightContext.None, 0L));
+				location.temporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\parrots", new Rectangle(0, 0, 24, 24), new Vector2(14f, 4.5f) * 64f, flipped: false, 0f, Color.White)
+				{
+					id = 777f,
+					scale = 4f,
+					totalNumberOfLoops = 99999,
+					interval = 9999f,
+					animationLength = 1,
+					layerDepth = 1f,
+					drawAboveAlwaysFront = true
+				});
+				DelayedAction.functionAfterDelay(ParrotSquawk, 2000);
+				for (int j = 0; j < 16; j++)
+				{
+					Rectangle rect = new Rectangle(15, 5, 3, 3);
+					TemporaryAnimatedSprite t2 = new TemporaryAnimatedSprite("LooseSprites\\Cursors2", new Rectangle(49 + 16 * Game1.random.Next(3), 229, 16, 6), Utility.getRandomPositionInThisRectangle(rect, Game1.random) * 64f, Game1.random.NextDouble() < 0.5, 0f, Color.White)
+					{
+						motion = new Vector2(Game1.random.Next(-2, 3), -16f),
+						acceleration = new Vector2(0f, 0.5f),
+						rotationChange = (float)Game1.random.Next(-4, 5) * 0.05f,
+						scale = 4f,
+						animationLength = 1,
+						totalNumberOfLoops = 1,
+						interval = 1000 + Game1.random.Next(500),
+						layerDepth = 1f,
+						drawAboveAlwaysFront = true,
+						yStopCoordinate = (rect.Bottom + 1) * 64,
+						delayBeforeAnimationStart = 4000 + j * 250
+					};
+					t2.reachedStopCoordinate = t2.bounce;
+					location.TemporarySprites.Add(t2);
+					t2 = new TemporaryAnimatedSprite("LooseSprites\\Cursors2", new Rectangle(49 + 16 * Game1.random.Next(3), 229, 16, 6), Utility.getRandomPositionInThisRectangle(rect, Game1.random) * 64f, Game1.random.NextDouble() < 0.5, 0f, Color.White)
+					{
+						motion = new Vector2(Game1.random.Next(-2, 3), -16f),
+						acceleration = new Vector2(0f, 0.5f),
+						rotationChange = (float)Game1.random.Next(-4, 5) * 0.05f,
+						scale = 4f,
+						animationLength = 1,
+						totalNumberOfLoops = 1,
+						interval = 1000 + Game1.random.Next(500),
+						layerDepth = 1f,
+						drawAboveAlwaysFront = true,
+						delayBeforeAnimationStart = 4500 + j * 250,
+						yStopCoordinate = (rect.Bottom + 1) * 64
+					};
+					t2.reachedStopCoordinate = t2.bounce;
+					location.TemporarySprites.Add(t2);
+				}
+				for (int i = 0; i < 20; i++)
+				{
+					Vector2 start_point = new Vector2(Utility.RandomFloat(13f, 19f), 0f) * 64f;
+					float x_offset = 1024f - start_point.X;
+					TemporaryAnimatedSprite parrot = new TemporaryAnimatedSprite("LooseSprites\\parrots", new Rectangle(48 + Game1.random.Next(2) * 72, Game1.random.Next(2) * 48, 24, 24), start_point, flipped: false, 0f, Color.White)
+					{
+						motion = new Vector2(x_offset * 0.01f, 10f),
+						acceleration = new Vector2(0f, -0.05f),
+						id = 778f,
+						scale = 4f,
+						yStopCoordinate = 448,
+						totalNumberOfLoops = 99999,
+						interval = 50f,
+						animationLength = 3,
+						flipped = (x_offset > 0f),
+						layerDepth = 1f,
+						drawAboveAlwaysFront = true,
+						delayBeforeAnimationStart = 3500 + i * 250,
+						alpha = 0f,
+						alphaFade = -0.1f
+					};
+					DelayedAction.playSoundAfterDelay("batFlap", 3500 + i * 250);
+					parrot.reachedStopCoordinateSprite = ParrotBounce;
+					location.temporarySprites.Add(parrot);
+				}
+				DelayedAction.functionAfterDelay(FinishTreehouse, 8000);
+				DelayedAction.functionAfterDelay(ParrotSquawk, 9000);
+				DelayedAction.functionAfterDelay(ParrotFlyAway, 11000);
+				break;
+			}
 			}
 			soundTimer = soundInterval;
 			Game1.currentLocation = location;
@@ -551,12 +692,110 @@ namespace StardewValley.Events
 			Game1.player.position.X = -999999f;
 			Game1.viewport.X = Math.Max(0, Math.Min(location.map.DisplayWidth - Game1.viewport.Width, targetXTile * 64 - Game1.viewport.Width / 2));
 			Game1.viewport.Y = Math.Max(0, Math.Min(location.map.DisplayHeight - Game1.viewport.Height, targetYTile * 64 - Game1.viewport.Height / 2));
+			if (!location.IsOutdoors)
+			{
+				Game1.viewport.X = targetXTile * 64 - Game1.viewport.Width / 2;
+				Game1.viewport.Y = targetYTile * 64 - Game1.viewport.Height / 2;
+			}
+			Game1.previousViewportPosition = new Vector2(Game1.viewport.X, Game1.viewport.Y);
+			if (Game1.debrisWeather != null && Game1.debrisWeather.Count > 0)
+			{
+				Game1.randomizeDebrisWeatherPositions(Game1.debrisWeather);
+			}
+			Game1.randomizeRainPositions();
 			return false;
+		}
+
+		public virtual void ParrotFlyAway()
+		{
+			location.removeTemporarySpritesWithIDLocal(777f);
+			location.temporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\parrots", new Rectangle(48, 0, 24, 24), new Vector2(14f, 4.5f) * 64f, flipped: false, 0f, Color.White)
+			{
+				id = 777f,
+				scale = 4f,
+				totalNumberOfLoops = 99999,
+				layerDepth = 1f,
+				drawAboveAlwaysFront = true,
+				interval = 50f,
+				animationLength = 3,
+				motion = new Vector2(-2f, 0f),
+				acceleration = new Vector2(0f, -0.1f)
+			});
+		}
+
+		public virtual void ParrotSquawk()
+		{
+			TemporaryAnimatedSprite temporarySpriteByID = location.getTemporarySpriteByID(777);
+			temporarySpriteByID.shakeIntensity = 1f;
+			temporarySpriteByID.sourceRectStartingPos.X = 24f;
+			temporarySpriteByID.sourceRect.X = 24;
+			Game1.playSound("parrot");
+			DelayedAction.functionAfterDelay(ParrotStopSquawk, 500);
+		}
+
+		public virtual void ParrotStopSquawk()
+		{
+			TemporaryAnimatedSprite temporarySpriteByID = location.getTemporarySpriteByID(777);
+			temporarySpriteByID.shakeIntensity = 0f;
+			temporarySpriteByID.sourceRectStartingPos.X = 0f;
+			temporarySpriteByID.sourceRect.X = 0;
+		}
+
+		public virtual void FinishTreehouse()
+		{
+			Game1.flashAlpha = 1f;
+			Game1.playSound("yoba");
+			Game1.playSound("axchop");
+			(location as Mountain).ApplyTreehouseIfNecessary();
+			location.removeTemporarySpritesWithIDLocal(778f);
+			for (int i = 0; i < 20; i++)
+			{
+				Vector2 start_point = new Vector2(Utility.RandomFloat(13f, 19f), Utility.RandomFloat(4f, 7f)) * 64f;
+				float x_offset = 1024f - start_point.X;
+				TemporaryAnimatedSprite parrot = new TemporaryAnimatedSprite("LooseSprites\\parrots", new Rectangle(192, Game1.random.Next(2) * 48, 24, 24), start_point, flipped: false, 0f, Color.White)
+				{
+					motion = new Vector2(x_offset * -0.01f, Utility.RandomFloat(-2f, 0f)),
+					acceleration = new Vector2(0f, -0.05f),
+					id = 778f,
+					scale = 4f,
+					totalNumberOfLoops = 99999,
+					interval = 50f,
+					animationLength = 3,
+					flipped = (x_offset > 0f),
+					layerDepth = 1f,
+					drawAboveAlwaysFront = true
+				};
+				location.TemporarySprites.Add(parrot);
+			}
+		}
+
+		public void ParrotBounce(TemporaryAnimatedSprite sprite)
+		{
+			float x_offset = 1024f - sprite.Position.X;
+			sprite.motion.X = (float)Math.Sign(x_offset) * Utility.RandomFloat(0.5f, 4f);
+			sprite.motion.Y = Utility.RandomFloat(-15f, -10f);
+			sprite.acceleration.Y = 0.5f;
+			sprite.yStopCoordinate = 448;
+			sprite.flipped = (x_offset > 0f);
+			sprite.sourceRectStartingPos.X = 48 + Game1.random.Next(2) * 72;
+			if (Game1.random.NextDouble() < 0.05000000074505806)
+			{
+				Game1.playSound("axe");
+			}
+			else if (Game1.random.NextDouble() < 0.05000000074505806)
+			{
+				Game1.playSound("crafting");
+			}
+			else
+			{
+				Game1.playSound("dirtyHit");
+			}
 		}
 
 		public bool tickUpdate(GameTime time)
 		{
 			Game1.UpdateGameClock(time);
+			location.updateWater(time);
 			cutsceneLengthTimer -= time.ElapsedGameTime.Milliseconds;
 			if (timerSinceFade > 0)
 			{
@@ -584,6 +823,12 @@ namespace StardewValley.Events
 
 		public void endEvent()
 		{
+			if (preEventLocation != null)
+			{
+				Game1.currentLocation = preEventLocation;
+				Game1.currentLocation.resetForPlayerEntry();
+				preEventLocation = null;
+			}
 			Game1.changeMusicTrack("none");
 			timerSinceFade = 1500;
 			Game1.isRaining = wasRaining;

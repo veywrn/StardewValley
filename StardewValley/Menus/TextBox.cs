@@ -88,7 +88,6 @@ namespace StardewValley.Menus
 						filtered += c.ToString();
 					}
 				}
-				_text = Program.sdk.FilterDirtyWords(filtered);
 				if (limitWidth && _font.MeasureString(_text).X > (float)(Width - 21))
 				{
 					Text = _text.Substring(0, _text.Length - 1);
@@ -183,7 +182,7 @@ namespace StardewValley.Menus
 		public virtual void Draw(SpriteBatch spriteBatch, bool drawShadow = true)
 		{
 			bool caretVisible2 = true;
-			caretVisible2 = ((DateTime.UtcNow.Millisecond % 1000 >= 500) ? true : false);
+			caretVisible2 = ((!(Game1.currentGameTime.TotalGameTime.TotalMilliseconds % 1000.0 < 500.0)) ? true : false);
 			string toDraw = Text;
 			if (PasswordBox)
 			{

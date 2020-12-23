@@ -64,13 +64,18 @@ namespace StardewValley.Events
 			{
 				soundName = "UFO";
 				message = Game1.content.LoadString("Strings\\Events:SoundInTheNight_UFO");
-				for (int attempts2 = 50; attempts2 > 0; attempts2--)
+				int attempts2;
+				for (attempts2 = 50; attempts2 > 0; attempts2--)
 				{
 					targetLocation = new Vector2(r.Next(5, f.map.GetLayer("Back").TileWidth - 4), r.Next(5, f.map.GetLayer("Back").TileHeight - 4));
-					if (!f.isTileLocationTotallyClearAndPlaceable(targetLocation))
+					if (f.isTileLocationTotallyClearAndPlaceable(targetLocation))
 					{
-						return true;
+						break;
 					}
+				}
+				if (attempts2 <= 0)
+				{
+					return true;
 				}
 				break;
 			}
@@ -114,13 +119,18 @@ namespace StardewValley.Events
 			case 3:
 			{
 				soundName = "owl";
-				for (int attempts2 = 50; attempts2 > 0; attempts2--)
+				int attempts2;
+				for (attempts2 = 50; attempts2 > 0; attempts2--)
 				{
 					targetLocation = new Vector2(r.Next(5, f.map.GetLayer("Back").TileWidth - 4), r.Next(5, f.map.GetLayer("Back").TileHeight - 4));
-					if (!f.isTileLocationTotallyClearAndPlaceable(targetLocation))
+					if (f.isTileLocationTotallyClearAndPlaceable(targetLocation))
 					{
-						return true;
+						break;
 					}
+				}
+				if (attempts2 <= 0)
+				{
+					return true;
 				}
 				break;
 			}

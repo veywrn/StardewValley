@@ -35,7 +35,7 @@ namespace StardewValley.Menus
 		public ClickableComponent dropItemInvisibleButton;
 
 		public MenuWithInventory(InventoryMenu.highlightThisItem highlighterMethod = null, bool okButton = false, bool trashCan = false, int inventoryXOffset = 0, int inventoryYOffset = 0, int menuOffsetHack = 0)
-			: base(Game1.viewport.Width / 2 - (800 + IClickableMenu.borderWidth * 2) / 2, Game1.viewport.Height / 2 - (600 + IClickableMenu.borderWidth * 2) / 2 + menuOffsetHack, 800 + IClickableMenu.borderWidth * 2, 600 + IClickableMenu.borderWidth * 2)
+			: base(Game1.uiViewport.Width / 2 - (800 + IClickableMenu.borderWidth * 2) / 2, Game1.uiViewport.Height / 2 - (600 + IClickableMenu.borderWidth * 2) / 2 + menuOffsetHack, 800 + IClickableMenu.borderWidth * 2, 600 + IClickableMenu.borderWidth * 2)
 		{
 			if (yPositionOnScreen < IClickableMenu.borderWidth + IClickableMenu.spaceToClearTopBorder)
 			{
@@ -205,13 +205,22 @@ namespace StardewValley.Menus
 					{
 						int xPosition = xPositionOnScreen + 576 + 42 + ((wiggleWordsTimer > 0) ? Game1.random.Next(-2, 3) : 0);
 						int yPosition = yPositionOnScreen + IClickableMenu.borderWidth + IClickableMenu.spaceToClearTopBorder - 32 + ((wiggleWordsTimer > 0) ? Game1.random.Next(-2, 3) : 0);
+						int max_height = 320;
+						float scale = 0f;
+						string parsed_text2 = "";
+						do
+						{
+							scale = ((scale != 0f) ? (scale - 0.1f) : 1f);
+							parsed_text2 = Game1.parseText(descriptionText, Game1.smallFont, (int)(224f / scale));
+						}
+						while (Game1.smallFont.MeasureString(parsed_text2).Y > (float)max_height / scale && scale > 0.5f);
 						if (red == -1)
 						{
-							Utility.drawTextWithShadow(b, Game1.parseText(descriptionText, Game1.smallFont, 224), Game1.smallFont, new Vector2(xPosition, yPosition), Game1.textColor * 0.75f);
+							Utility.drawTextWithShadow(b, parsed_text2, Game1.smallFont, new Vector2(xPosition, yPosition), Game1.textColor * 0.75f, scale);
 						}
 						else
 						{
-							Utility.drawTextWithColoredShadow(b, Game1.parseText(descriptionText, Game1.smallFont, 224), Game1.smallFont, new Vector2(xPosition, yPosition), Game1.textColor * 0.75f, Color.Black * 0.2f);
+							Utility.drawTextWithColoredShadow(b, parsed_text2, Game1.smallFont, new Vector2(xPosition, yPosition), Game1.textColor * 0.75f, Color.Black * 0.2f, scale);
 						}
 					}
 				}
@@ -239,7 +248,9 @@ namespace StardewValley.Menus
 				xPositionOnScreen = 0;
 			}
 			int yPositionForInventory = yPositionOnScreen + IClickableMenu.spaceToClearTopBorder + IClickableMenu.borderWidth + 192 - 16;
+			string move_item_sound = inventory.moveItemSound;
 			inventory = new InventoryMenu(xPositionOnScreen + IClickableMenu.spaceToClearSideBorder + IClickableMenu.borderWidth / 2, yPositionForInventory, playerInventory: false, null, inventory.highlightMethod);
+			inventory.moveItemSound = move_item_sound;
 			if (okButton != null)
 			{
 				okButton = new ClickableTextureComponent(new Rectangle(xPositionOnScreen + width + 4, yPositionOnScreen + height - 192 - IClickableMenu.borderWidth, 64, 64), Game1.mouseCursors, Game1.getSourceRectForStandardTileSheet(Game1.mouseCursors, 46), 1f);

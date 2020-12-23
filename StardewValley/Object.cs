@@ -2,9 +2,9 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Audio;
 using Microsoft.Xna.Framework.Graphics;
 using Netcode;
+using StardewValley.Characters;
 using StardewValley.Locations;
 using StardewValley.Menus;
-using StardewValley.Minigames;
 using StardewValley.Monsters;
 using StardewValley.Objects;
 using StardewValley.TerrainFeatures;
@@ -23,14 +23,19 @@ namespace StardewValley
 	[XmlInclude(typeof(Wallpaper))]
 	[XmlInclude(typeof(Boots))]
 	[XmlInclude(typeof(Hat))]
+	[XmlInclude(typeof(ItemPedestal))]
 	[XmlInclude(typeof(Clothing))]
+	[XmlInclude(typeof(CombinedRing))]
 	[XmlInclude(typeof(Ring))]
 	[XmlInclude(typeof(TV))]
 	[XmlInclude(typeof(CrabPot))]
 	[XmlInclude(typeof(Chest))]
 	[XmlInclude(typeof(Workbench))]
 	[XmlInclude(typeof(MiniJukebox))]
+	[XmlInclude(typeof(Phone))]
 	[XmlInclude(typeof(StorageFurniture))]
+	[XmlInclude(typeof(FishTankFurniture))]
+	[XmlInclude(typeof(BedFurniture))]
 	[XmlInclude(typeof(WoodChipper))]
 	[XmlInclude(typeof(Cask))]
 	[XmlInclude(typeof(SwitchFloor))]
@@ -384,6 +389,15 @@ namespace StardewValley
 		public bool isTemporarilyInvisible;
 
 		[XmlIgnore]
+		protected NetBool _destroyOvernight = new NetBool(value: false);
+
+		[XmlElement("orderData")]
+		public readonly NetString orderData = new NetString();
+
+		[XmlIgnore]
+		public static Chest autoLoadChest;
+
+		[XmlIgnore]
 		public int shakeTimer;
 
 		[XmlIgnore]
@@ -405,6 +419,18 @@ namespace StardewValley
 		public string displayName;
 
 		protected int health = 10;
+
+		public bool destroyOvernight
+		{
+			get
+			{
+				return _destroyOvernight.Value;
+			}
+			set
+			{
+				_destroyOvernight.Value = value;
+			}
+		}
 
 		[XmlIgnore]
 		public LightSource lightSource
@@ -453,8 +479,12 @@ namespace StardewValley
 				if (Game1.objectInformation != null)
 				{
 					displayName = loadDisplayName();
+					if (orderData.Value != null && orderData.Value == "QI_COOKING")
+					{
+						displayName = Game1.content.LoadString("Strings\\StringsFromCSFiles:Fresh_Prefix", displayName);
+					}
 				}
-				return displayName + (isRecipe ? Game1.content.LoadString("Strings\\StringsFromCSFiles:Object.cs.12657") : "");
+				return displayName + (isRecipe ? (((CraftingRecipe.craftingRecipes.ContainsKey(displayName) && CraftingRecipe.craftingRecipes[displayName].Split('/')[2].Split(' ').Count() > 1) ? (" x" + CraftingRecipe.craftingRecipes[displayName].Split('/')[2].Split(' ')[1]) : "") + Game1.content.LoadString("Strings\\StringsFromCSFiles:Object.cs.12657")) : "");
 			}
 			set
 			{
@@ -675,7 +705,7 @@ namespace StardewValley
 
 		protected virtual void initNetFields()
 		{
-			base.NetFields.AddFields(tileLocation, owner, type, canBeSetDown, canBeGrabbed, isHoedirt, isSpawnedObject, questItem, questId, isOn, fragility, price, edibility, stack, quality, uses, bigCraftable, setOutdoors, setIndoors, readyForHarvest, showNextIndex, flipped, hasBeenPickedUpByFarmer, isRecipe, isLamp, heldObject, minutesUntilReady, boundingBox, preserve, preservedParentSheetIndex, honeyType, netLightSource);
+			base.NetFields.AddFields(tileLocation, owner, type, canBeSetDown, canBeGrabbed, isHoedirt, isSpawnedObject, questItem, questId, isOn, fragility, price, edibility, stack, quality, uses, bigCraftable, setOutdoors, setIndoors, readyForHarvest, showNextIndex, flipped, hasBeenPickedUpByFarmer, isRecipe, isLamp, heldObject, minutesUntilReady, boundingBox, preserve, preservedParentSheetIndex, honeyType, netLightSource, orderData, _destroyOvernight);
 		}
 
 		public Object()
@@ -800,6 +830,9 @@ namespace StardewValley
 				case 14:
 					minutesUntilReady.Value = 12;
 					break;
+				case 25:
+					minutesUntilReady.Value = 8;
+					break;
 				default:
 					minutesUntilReady.Value = 1;
 					break;
@@ -820,6 +853,26 @@ namespace StardewValley
 		protected override void _PopulateContextTags(HashSet<string> tags)
 		{
 			base._PopulateContextTags(tags);
+			if (quality.Value == 0)
+			{
+				tags.Add("quality_none");
+			}
+			else if (quality.Value == 1)
+			{
+				tags.Add("quality_silver");
+			}
+			else if (quality.Value == 2)
+			{
+				tags.Add("quality_gold");
+			}
+			else if (quality.Value == 4)
+			{
+				tags.Add("quality_iridium");
+			}
+			if (orderData.Value == "QI_COOKING")
+			{
+				tags.Add("quality_qi");
+			}
 			if (preserve != null && preserve.Value.HasValue)
 			{
 				if (preserve.Value == PreserveType.Jelly)
@@ -838,6 +891,10 @@ namespace StardewValley
 				{
 					tags.Add("pickle_item");
 				}
+			}
+			if (preservedParentSheetIndex.Value > 0)
+			{
+				tags.Add("preserve_sheet_index_" + preservedParentSheetIndex.Value);
 			}
 		}
 
@@ -945,7 +1002,10 @@ namespace StardewValley
 			{
 				if (location.objects.ContainsKey(tileLocation) && location.objects[tileLocation].Equals(this))
 				{
-					Game1.createRadialDebris(location, 12, (int)tileLocation.X, (int)tileLocation.Y, Game1.random.Next(4, 10), resource: false);
+					if (location.farmers.Count > 0)
+					{
+						Game1.createRadialDebris(location, 12, (int)tileLocation.X, (int)tileLocation.Y, Game1.random.Next(4, 10), resource: false);
+					}
 					location.objects.Remove(tileLocation);
 				}
 				return false;
@@ -996,6 +1056,13 @@ namespace StardewValley
 			}
 			if (name.Contains("Weeds") && t.isHeavyHitter())
 			{
+				if (base.ParentSheetIndex != 319 && base.ParentSheetIndex != 320 && base.ParentSheetIndex != 321 && t.getLastFarmerToUse() != null)
+				{
+					foreach (BaseEnchantment enchantment in t.getLastFarmerToUse().enchantments)
+					{
+						enchantment.OnCutWeed(tileLocation, location, t.getLastFarmerToUse());
+					}
+				}
 				cutWeed(t.getLastFarmerToUse(), location);
 				return true;
 			}
@@ -1007,6 +1074,114 @@ namespace StardewValley
 				Game1.createRadialDebris(location, 12, (int)tileLocation.X, (int)tileLocation.Y, Game1.random.Next(4, 10), resource: false);
 				Game1.multiplayer.broadcastSprites(location, new TemporaryAnimatedSprite(12, new Vector2(tileLocation.X * 64f, tileLocation.Y * 64f), Color.White, 8, Game1.random.NextDouble() < 0.5, 50f));
 				return true;
+			}
+			if (name.Contains("SupplyCrate") && t.isHeavyHitter())
+			{
+				MinutesUntilReady -= (int)t.upgradeLevel + 1;
+				if (MinutesUntilReady <= 0)
+				{
+					fragility.Value = 2;
+					location.playSound("barrelBreak");
+					Random r = new Random((int)((float)(double)Game1.uniqueIDForThisGame + tileLocation.X * 777f + tileLocation.Y * 7f));
+					int houseLevel = t.getLastFarmerToUse().HouseUpgradeLevel;
+					int x = (int)tileLocation.X;
+					int y = (int)tileLocation.Y;
+					switch (houseLevel)
+					{
+					case 0:
+						switch (r.Next(6))
+						{
+						case 0:
+							Game1.createMultipleObjectDebris(770, x, y, r.Next(3, 6), location);
+							break;
+						case 1:
+							Game1.createMultipleObjectDebris(371, x, y, r.Next(5, 8), location);
+							break;
+						case 2:
+							Game1.createMultipleObjectDebris(535, x, y, r.Next(2, 5), location);
+							break;
+						case 3:
+							Game1.createMultipleObjectDebris(241, x, y, r.Next(1, 3), location);
+							break;
+						case 4:
+							Game1.createMultipleObjectDebris(395, x, y, r.Next(1, 3), location);
+							break;
+						case 5:
+							Game1.createMultipleObjectDebris(286, x, y, r.Next(3, 6), location);
+							break;
+						}
+						break;
+					case 1:
+						switch (r.Next(9))
+						{
+						case 0:
+							Game1.createMultipleObjectDebris(770, x, y, r.Next(3, 6), location);
+							break;
+						case 1:
+							Game1.createMultipleObjectDebris(371, x, y, r.Next(5, 8), location);
+							break;
+						case 2:
+							Game1.createMultipleObjectDebris(749, x, y, r.Next(2, 5), location);
+							break;
+						case 3:
+							Game1.createMultipleObjectDebris(253, x, y, r.Next(1, 3), location);
+							break;
+						case 4:
+							Game1.createMultipleObjectDebris(237, x, y, r.Next(1, 3), location);
+							break;
+						case 5:
+							Game1.createMultipleObjectDebris(246, x, y, r.Next(4, 8), location);
+							break;
+						case 6:
+							Game1.createMultipleObjectDebris(247, x, y, r.Next(2, 5), location);
+							break;
+						case 7:
+							Game1.createMultipleObjectDebris(245, x, y, r.Next(4, 8), location);
+							break;
+						case 8:
+							Game1.createMultipleObjectDebris(287, x, y, r.Next(3, 6), location);
+							break;
+						}
+						break;
+					default:
+						switch (r.Next(8))
+						{
+						case 0:
+							Game1.createMultipleObjectDebris(770, x, y, r.Next(3, 6), location);
+							break;
+						case 1:
+							Game1.createMultipleObjectDebris(920, x, y, r.Next(5, 8), location);
+							break;
+						case 2:
+							Game1.createMultipleObjectDebris(749, x, y, r.Next(2, 5), location);
+							break;
+						case 3:
+							Game1.createMultipleObjectDebris(253, x, y, r.Next(2, 4), location);
+							break;
+						case 4:
+							Game1.createMultipleObjectDebris(r.Next(904, 906), x, y, r.Next(1, 3), location);
+							break;
+						case 5:
+							Game1.createMultipleObjectDebris(246, x, y, r.Next(4, 8), location);
+							Game1.createMultipleObjectDebris(247, x, y, r.Next(2, 5), location);
+							Game1.createMultipleObjectDebris(245, x, y, r.Next(4, 8), location);
+							break;
+						case 6:
+							Game1.createMultipleObjectDebris(275, x, y, 2, location);
+							break;
+						case 7:
+							Game1.createMultipleObjectDebris(288, x, y, r.Next(3, 6), location);
+							break;
+						}
+						break;
+					}
+					Game1.createRadialDebris(location, 12, (int)tileLocation.X, (int)tileLocation.Y, Game1.random.Next(4, 10), resource: false);
+					Game1.multiplayer.broadcastSprites(location, new TemporaryAnimatedSprite(12, new Vector2(tileLocation.X * 64f, tileLocation.Y * 64f), Color.White, 8, Game1.random.NextDouble() < 0.5, 50f));
+					return true;
+				}
+				shakeTimer = 200;
+				location.playSound("woodWhack");
+				return false;
 			}
 			if ((int)parentSheetIndex == 590)
 			{
@@ -1031,19 +1206,77 @@ namespace StardewValley
 			}
 			if (type != null && type.Equals("Crafting") && !(t is MeleeWeapon) && t.isHeavyHitter())
 			{
+				if (t is Hoe && IsSprinkler())
+				{
+					return false;
+				}
 				location.playSound("hammer");
 				if ((int)fragility == 1)
 				{
-					Game1.createRadialDebris(location, 12, (int)tileLocation.X, (int)tileLocation.Y, Game1.random.Next(4, 10), resource: false);
+					Game1.createRadialDebris(location, 12, (int)tileLocation.X, (int)tileLocation.Y, Game1.random.Next(3, 6), resource: false);
+					Game1.createRadialDebris(location, 14, (int)tileLocation.X, (int)tileLocation.Y, Game1.random.Next(3, 6), resource: false);
+					DelayedAction.functionAfterDelay(delegate
+					{
+						Game1.createRadialDebris(location, 12, (int)tileLocation.X, (int)tileLocation.Y, Game1.random.Next(2, 5), resource: false);
+						Game1.createRadialDebris(location, 14, (int)tileLocation.X, (int)tileLocation.Y, Game1.random.Next(2, 5), resource: false);
+					}, 80);
+					Game1.multiplayer.broadcastSprites(location, new TemporaryAnimatedSprite(12, new Vector2(tileLocation.X * 64f, tileLocation.Y * 64f), Color.White, 8, Game1.random.NextDouble() < 0.5, 50f));
+					performRemoveAction(tileLocation, location);
 					if (location.objects.ContainsKey(tileLocation))
 					{
 						location.objects.Remove(tileLocation);
 					}
 					return false;
 				}
-				if (name.Equals("Tapper") && t.getLastFarmerToUse().currentLocation.terrainFeatures.ContainsKey(tileLocation) && t.getLastFarmerToUse().currentLocation.terrainFeatures[tileLocation] is Tree)
+				if (name.Contains("Tapper") && t.getLastFarmerToUse().currentLocation.terrainFeatures.ContainsKey(tileLocation) && t.getLastFarmerToUse().currentLocation.terrainFeatures[tileLocation] is Tree)
 				{
 					(t.getLastFarmerToUse().currentLocation.terrainFeatures[tileLocation] as Tree).tapped.Value = false;
+				}
+				if (Name == "Ostrich Incubator")
+				{
+					if (heldObject.Value != null)
+					{
+						base.ParentSheetIndex--;
+						t.getLastFarmerToUse().currentLocation.debris.Add(new Debris((Object)heldObject, tileLocation.Value * 64f + new Vector2(32f, 32f)));
+						heldObject.Value = null;
+						return true;
+					}
+					return true;
+				}
+				if ((bool)bigCraftable && base.ParentSheetIndex == 21 && heldObject.Value != null)
+				{
+					t.getLastFarmerToUse().currentLocation.debris.Add(new Debris((Object)heldObject, tileLocation.Value * 64f + new Vector2(32f, 32f)));
+					heldObject.Value = null;
+				}
+				if (IsSprinkler() && heldObject.Value != null)
+				{
+					if (heldObject.Value.heldObject.Value != null)
+					{
+						Chest chest = heldObject.Value.heldObject.Value as Chest;
+						if (chest != null)
+						{
+							chest.GetMutex().RequestLock(delegate
+							{
+								List<Item> list = new List<Item>(chest.items);
+								chest.items.Clear();
+								foreach (Item current in list)
+								{
+									if (current != null)
+									{
+										t.getLastFarmerToUse().currentLocation.debris.Add(new Debris(current, tileLocation.Value * 64f + new Vector2(32f, 32f)));
+									}
+								}
+								Object value = heldObject.Value;
+								heldObject.Value = null;
+								t.getLastFarmerToUse().currentLocation.debris.Add(new Debris(value, tileLocation.Value * 64f + new Vector2(32f, 32f)));
+								chest.GetMutex().ReleaseLock();
+							});
+						}
+						return false;
+					}
+					t.getLastFarmerToUse().currentLocation.debris.Add(new Debris((Object)heldObject, tileLocation.Value * 64f + new Vector2(32f, 32f)));
+					heldObject.Value = null;
+					return false;
 				}
 				if (heldObject.Value != null && (bool)readyForHarvest)
 				{
@@ -1127,6 +1360,24 @@ namespace StardewValley
 			case 794:
 				toDrop = 770;
 				break;
+			case 882:
+			case 883:
+			case 884:
+				c = new Color(30, 97, 68);
+				if (Game1.MasterPlayer.hasOrWillReceiveMail("islandNorthCaveOpened") && Game1.random.NextDouble() < 0.1 && !Game1.MasterPlayer.hasOrWillReceiveMail("gotMummifiedFrog"))
+				{
+					Game1.addMailForTomorrow("gotMummifiedFrog", noLetter: true, sendToEveryone: true);
+					toDrop = 828;
+				}
+				else if (Game1.random.NextDouble() < 0.01)
+				{
+					toDrop = 828;
+				}
+				else if (Game1.random.NextDouble() < 0.08)
+				{
+					toDrop = 831;
+				}
+				break;
 			}
 			if (sound.Equals("breakingGlass") && Game1.random.NextDouble() < 0.0025)
 			{
@@ -1150,9 +1401,16 @@ namespace StardewValley
 				flipped = true,
 				delayBeforeAnimationStart = 100
 			});
-			if (!sound.Equals("breakingGlass") && Game1.random.NextDouble() < 1E-05)
+			if (!sound.Equals("breakingGlass"))
 			{
-				location.debris.Add(new Debris(new Hat(40), tileLocation.Value * 64f + new Vector2(32f, 32f)));
+				if (Game1.random.NextDouble() < 1E-05)
+				{
+					location.debris.Add(new Debris(new Hat(40), tileLocation.Value * 64f + new Vector2(32f, 32f)));
+				}
+				if (Game1.random.NextDouble() <= 0.01 && Game1.player.team.SpecialOrderRuleActive("DROP_QI_BEANS"))
+				{
+					location.debris.Add(new Debris(new Object(890, 1), tileLocation.Value * 64f + new Vector2(32f, 32f)));
+				}
 			}
 			if (toDrop != -1)
 			{
@@ -1162,7 +1420,7 @@ namespace StardewValley
 			{
 				location.addJumperFrog(tileLocation);
 			}
-			if (who.hasMagnifyingGlass && Game1.random.NextDouble() < 0.009)
+			if (who.currentLocation.HasUnlockedAreaSecretNotes(who) && Game1.random.NextDouble() < 0.009)
 			{
 				Object o = location.tryToCreateUnseenSecretNote(who);
 				if (o != null)
@@ -1216,89 +1474,126 @@ namespace StardewValley
 			return false;
 		}
 
+		public virtual void ApplySprinkler(GameLocation location, Vector2 tile)
+		{
+			if (!(location.doesTileHavePropertyNoNull((int)tile.X, (int)tile.Y, "NoSprinklers", "Back") == "T") && location.terrainFeatures.ContainsKey(tile) && location.terrainFeatures[tile] is HoeDirt && (int)(location.terrainFeatures[tile] as HoeDirt).state != 2)
+			{
+				(location.terrainFeatures[tile] as HoeDirt).state.Value = 1;
+			}
+		}
+
+		public virtual void ApplySprinklerAnimation(GameLocation location)
+		{
+			int radius = GetModifiedRadiusForSprinkler();
+			if (radius >= 0)
+			{
+				switch (radius)
+				{
+				case 0:
+				{
+					int delay = Game1.random.Next(1000);
+					location.temporarySprites.Add(new TemporaryAnimatedSprite(29, tileLocation.Value * 64f + new Vector2(0f, -48f), Color.White * 0.5f, 4, flipped: false, 60f, 100)
+					{
+						delayBeforeAnimationStart = delay,
+						id = tileLocation.X * 4000f + tileLocation.Y
+					});
+					location.temporarySprites.Add(new TemporaryAnimatedSprite(29, tileLocation.Value * 64f + new Vector2(48f, 0f), Color.White * 0.5f, 4, flipped: false, 60f, 100)
+					{
+						rotation = (float)Math.PI / 2f,
+						delayBeforeAnimationStart = delay,
+						id = tileLocation.X * 4000f + tileLocation.Y
+					});
+					location.temporarySprites.Add(new TemporaryAnimatedSprite(29, tileLocation.Value * 64f + new Vector2(0f, 48f), Color.White * 0.5f, 4, flipped: false, 60f, 100)
+					{
+						rotation = (float)Math.PI,
+						delayBeforeAnimationStart = delay,
+						id = tileLocation.X * 4000f + tileLocation.Y
+					});
+					location.temporarySprites.Add(new TemporaryAnimatedSprite(29, tileLocation.Value * 64f + new Vector2(-48f, 0f), Color.White * 0.5f, 4, flipped: false, 60f, 100)
+					{
+						rotation = 4.712389f,
+						delayBeforeAnimationStart = delay,
+						id = tileLocation.X * 4000f + tileLocation.Y
+					});
+					break;
+				}
+				case 1:
+					location.temporarySprites.Add(new TemporaryAnimatedSprite("TileSheets\\animations", new Microsoft.Xna.Framework.Rectangle(0, 1984, 192, 192), 60f, 3, 100, tileLocation.Value * 64f + new Vector2(-64f, -64f), flicker: false, flipped: false)
+					{
+						color = Color.White * 0.4f,
+						delayBeforeAnimationStart = Game1.random.Next(1000),
+						id = tileLocation.X * 4000f + tileLocation.Y
+					});
+					break;
+				default:
+				{
+					float scale = (float)radius / 2f;
+					location.temporarySprites.Add(new TemporaryAnimatedSprite("TileSheets\\animations", new Microsoft.Xna.Framework.Rectangle(0, 2176, 320, 320), 60f, 4, 100, tileLocation.Value * 64f + new Vector2(32f, 32f) + new Vector2(-160f, -160f) * scale, flicker: false, flipped: false)
+					{
+						color = Color.White * 0.4f,
+						delayBeforeAnimationStart = Game1.random.Next(1000),
+						id = tileLocation.X * 4000f + tileLocation.Y,
+						scale = scale
+					});
+					break;
+				}
+				}
+			}
+		}
+
+		public virtual List<Vector2> GetSprinklerTiles()
+		{
+			int radius = GetModifiedRadiusForSprinkler();
+			if (radius == 0)
+			{
+				return Utility.getAdjacentTileLocations(tileLocation);
+			}
+			if (radius > 0)
+			{
+				List<Vector2> tiles = new List<Vector2>();
+				for (int i = (int)tileLocation.X - radius; (float)i <= tileLocation.X + (float)radius; i++)
+				{
+					for (int y = (int)tileLocation.Y - radius; (float)y <= tileLocation.Y + (float)radius; y++)
+					{
+						if (i != 0 || y != 0)
+						{
+							tiles.Add(new Vector2(i, y));
+						}
+					}
+				}
+				return tiles;
+			}
+			return new List<Vector2>();
+		}
+
+		public virtual bool IsInSprinklerRangeBroadphase(Vector2 target)
+		{
+			int radius = GetModifiedRadiusForSprinkler();
+			if (radius == 0)
+			{
+				radius = 1;
+			}
+			if (Math.Abs(target.X - TileLocation.X) <= (float)radius)
+			{
+				return Math.Abs(target.Y - TileLocation.Y) <= (float)radius;
+			}
+			return false;
+		}
+
 		public virtual void DayUpdate(GameLocation location)
 		{
 			health = 10;
-			if (((int)parentSheetIndex == 599 || (int)parentSheetIndex == 621 || (int)parentSheetIndex == 645) && (!Game1.isRaining || !location.isOutdoors))
+			if (IsSprinkler() && (!Game1.IsRainingHere(location) || !location.isOutdoors) && GetModifiedRadiusForSprinkler() >= 0)
 			{
 				location.postFarmEventOvernightActions.Add(delegate
 				{
-					switch ((int)parentSheetIndex)
+					if (!Game1.player.team.SpecialOrderRuleActive("NO_SPRINKLER"))
 					{
-					case 599:
-					{
-						foreach (Vector2 current in Utility.getAdjacentTileLocations(tileLocation))
+						foreach (Vector2 current in GetSprinklerTiles())
 						{
-							if (location.terrainFeatures.ContainsKey(current) && location.terrainFeatures[current] is HoeDirt)
-							{
-								(location.terrainFeatures[current] as HoeDirt).state.Value = 1;
-							}
+							ApplySprinkler(location, current);
 						}
-						int delayBeforeAnimationStart = Game1.random.Next(1000);
-						location.temporarySprites.Add(new TemporaryAnimatedSprite(29, tileLocation.Value * 64f + new Vector2(0f, -48f), Color.White * 0.5f, 4, flipped: false, 60f, 100)
-						{
-							delayBeforeAnimationStart = delayBeforeAnimationStart,
-							id = tileLocation.X * 4000f + tileLocation.Y
-						});
-						location.temporarySprites.Add(new TemporaryAnimatedSprite(29, tileLocation.Value * 64f + new Vector2(48f, 0f), Color.White * 0.5f, 4, flipped: false, 60f, 100)
-						{
-							rotation = (float)Math.PI / 2f,
-							delayBeforeAnimationStart = delayBeforeAnimationStart,
-							id = tileLocation.X * 4000f + tileLocation.Y
-						});
-						location.temporarySprites.Add(new TemporaryAnimatedSprite(29, tileLocation.Value * 64f + new Vector2(0f, 48f), Color.White * 0.5f, 4, flipped: false, 60f, 100)
-						{
-							rotation = (float)Math.PI,
-							delayBeforeAnimationStart = delayBeforeAnimationStart,
-							id = tileLocation.X * 4000f + tileLocation.Y
-						});
-						location.temporarySprites.Add(new TemporaryAnimatedSprite(29, tileLocation.Value * 64f + new Vector2(-48f, 0f), Color.White * 0.5f, 4, flipped: false, 60f, 100)
-						{
-							rotation = 4.712389f,
-							delayBeforeAnimationStart = delayBeforeAnimationStart,
-							id = tileLocation.X * 4000f + tileLocation.Y
-						});
-						break;
-					}
-					case 621:
-					{
-						Vector2[] surroundingTileLocationsArray = Utility.getSurroundingTileLocationsArray(tileLocation);
-						foreach (Vector2 key2 in surroundingTileLocationsArray)
-						{
-							if (location.terrainFeatures.ContainsKey(key2) && location.terrainFeatures[key2] is HoeDirt)
-							{
-								(location.terrainFeatures[key2] as HoeDirt).state.Value = 1;
-							}
-						}
-						location.temporarySprites.Add(new TemporaryAnimatedSprite("TileSheets\\animations", new Microsoft.Xna.Framework.Rectangle(0, 1984, 192, 192), 60f, 3, 100, tileLocation.Value * 64f + new Vector2(-64f, -64f), flicker: false, flipped: false)
-						{
-							color = Color.White * 0.4f,
-							delayBeforeAnimationStart = Game1.random.Next(1000),
-							id = tileLocation.X * 4000f + tileLocation.Y
-						});
-						break;
-					}
-					case 645:
-					{
-						for (int j = (int)tileLocation.X - 2; (float)j <= tileLocation.X + 2f; j++)
-						{
-							for (int k = (int)tileLocation.Y - 2; (float)k <= tileLocation.Y + 2f; k++)
-							{
-								Vector2 key = new Vector2(j, k);
-								if (location.terrainFeatures.ContainsKey(key) && location.terrainFeatures[key] is HoeDirt)
-								{
-									(location.terrainFeatures[key] as HoeDirt).state.Value = 1;
-								}
-							}
-						}
-						location.temporarySprites.Add(new TemporaryAnimatedSprite("TileSheets\\animations", new Microsoft.Xna.Framework.Rectangle(0, 2176, 320, 320), 60f, 4, 100, tileLocation.Value * 64f + new Vector2(-128f, -128f), flicker: false, flipped: false)
-						{
-							color = Color.White * 0.4f,
-							delayBeforeAnimationStart = Game1.random.Next(1000),
-							id = tileLocation.X * 4000f + tileLocation.Y
-						});
-						break;
-					}
+						ApplySprinklerAnimation(location);
 					}
 				});
 			}
@@ -1306,6 +1601,26 @@ namespace StardewValley
 			{
 				switch ((int)parentSheetIndex)
 				{
+				case 231:
+					if (!Game1.IsRainingHere(location) && location.IsOutdoors)
+					{
+						MinutesUntilReady -= 2400;
+						if (MinutesUntilReady <= 0)
+						{
+							readyForHarvest.Value = true;
+						}
+					}
+					break;
+				case 246:
+					heldObject.Value = new Object(395, 1);
+					readyForHarvest.Value = true;
+					break;
+				case 272:
+					foreach (KeyValuePair<long, FarmAnimal> pair in (location as AnimalHouse).animals.Pairs)
+					{
+						pair.Value.pet(Game1.player, is_auto_pet: true);
+					}
+					break;
 				case 165:
 					if (location != null && location is AnimalHouse)
 					{
@@ -1346,11 +1661,16 @@ namespace StardewValley
 						case 439:
 							slime = new GreenSlime(v, 121);
 							break;
+						case 857:
+							slime = new GreenSlime(v, 121);
+							slime.makeTigerSlime();
+							break;
 						}
 						if (slime != null)
 						{
 							Game1.showGlobalMessage(slime.cute ? Game1.content.LoadString("Strings\\StringsFromCSFiles:Object.cs.12689") : Game1.content.LoadString("Strings\\StringsFromCSFiles:Object.cs.12691"));
-							slime.setTilePosition((int)tileLocation.X, (int)tileLocation.Y + 1);
+							Vector2 openSpot = Utility.recursiveFindOpenTileForCharacter(slime, location, tileLocation + new Vector2(0f, 1f), 10, allowOffMap: false);
+							slime.setTilePosition((int)openSpot.X, (int)openSpot.Y);
 							location.characters.Add(slime);
 							heldObject.Value = null;
 							base.ParentSheetIndex = 156;
@@ -1359,7 +1679,7 @@ namespace StardewValley
 					}
 					break;
 				case 10:
-					if (Game1.currentSeason.Equals("winter"))
+					if (location.GetSeasonForLocation().Equals("winter"))
 					{
 						heldObject.Value = null;
 						readyForHarvest.Value = false;
@@ -1369,7 +1689,7 @@ namespace StardewValley
 					else if (heldObject.Value == null)
 					{
 						heldObject.Value = new Object(Vector2.Zero, 340, null, canBeSetDown: false, canBeGrabbed: true, isHoedirt: false, isSpawnedObject: false);
-						minutesUntilReady.Value = 2400 - Game1.timeOfDay + 4320;
+						minutesUntilReady.Value = Utility.CalculateMinutesUntilMorning(Game1.timeOfDay, 4);
 					}
 					break;
 				case 108:
@@ -1425,6 +1745,10 @@ namespace StardewValley
 					minutesUntilReady.Value = 1;
 					heldObject.Value = new Object(386, Game1.random.Next(2, 9));
 					break;
+				case 280:
+					minutesUntilReady.Value = 1;
+					heldObject.Value = new Object(74, 1);
+					break;
 				case 164:
 					if (!(location is Town))
 					{
@@ -1458,7 +1782,7 @@ namespace StardewValley
 						int whichMushroom2 = 404;
 						whichMushroom2 = ((Game1.random.NextDouble() < 0.025) ? 422 : ((Game1.random.NextDouble() < 0.075) ? 281 : ((Game1.random.NextDouble() < 0.09) ? 257 : ((!(Game1.random.NextDouble() < 0.15)) ? 404 : 420))));
 						heldObject.Value = new Object(whichMushroom2, 1);
-						minutesUntilReady.Value = 3000 - Game1.timeOfDay;
+						Utility.CalculateMinutesUntilMorning(Game1.timeOfDay, 2);
 					}
 					break;
 				}
@@ -1472,10 +1796,11 @@ namespace StardewValley
 			{
 				return;
 			}
+			string season = location.GetSeasonForLocation();
 			switch ((int)parentSheetIndex)
 			{
 			case 746:
-				if (Game1.currentSeason.Equals("winter"))
+				if (season.Equals("winter"))
 				{
 					rot();
 				}
@@ -1483,21 +1808,21 @@ namespace StardewValley
 			case 784:
 			case 785:
 			case 786:
-				if (Game1.dayOfMonth == 1 && !Game1.currentSeason.Equals("spring") && (bool)location.isOutdoors)
+				if (Game1.dayOfMonth == 1 && !season.Equals("spring") && (bool)location.isOutdoors)
 				{
 					base.ParentSheetIndex++;
 				}
 				break;
 			case 674:
 			case 675:
-				if (Game1.dayOfMonth == 1 && Game1.currentSeason.Equals("summer") && (bool)location.isOutdoors)
+				if (Game1.dayOfMonth == 1 && season.Equals("summer") && (bool)location.isOutdoors)
 				{
 					base.ParentSheetIndex += 2;
 				}
 				break;
 			case 676:
 			case 677:
-				if (Game1.dayOfMonth == 1 && Game1.currentSeason.Equals("fall") && (bool)location.isOutdoors)
+				if (Game1.dayOfMonth == 1 && season.Equals("fall") && (bool)location.isOutdoors)
 				{
 					base.ParentSheetIndex += 2;
 				}
@@ -1548,6 +1873,115 @@ namespace StardewValley
 			base.actionWhenStopBeingHeld(who);
 		}
 
+		public virtual void ConsumeInventoryItem(Farmer who, int parent_sheet_index, int amount)
+		{
+			IList<Item> items = who.Items;
+			if (autoLoadChest != null)
+			{
+				items = autoLoadChest.items;
+			}
+			int i = items.Count - 1;
+			while (true)
+			{
+				if (i >= 0)
+				{
+					if (Utility.IsNormalObjectAtParentSheetIndex(items[i], parent_sheet_index))
+					{
+						break;
+					}
+					i--;
+					continue;
+				}
+				return;
+			}
+			items[i].Stack--;
+			if (items[i].Stack <= 0)
+			{
+				if (who.ActiveObject == items[i])
+				{
+					who.ActiveObject = null;
+				}
+				items[i] = null;
+			}
+		}
+
+		public virtual void ConsumeInventoryItem(Farmer who, Item drop_in, int amount)
+		{
+			drop_in.Stack -= amount;
+			if (drop_in.Stack > 0)
+			{
+				return;
+			}
+			if (autoLoadChest != null)
+			{
+				bool found_item = false;
+				for (int i = 0; i < autoLoadChest.items.Count; i++)
+				{
+					if (autoLoadChest.items[i] == drop_in)
+					{
+						autoLoadChest.items[i] = null;
+						found_item = true;
+						break;
+					}
+				}
+				if (found_item)
+				{
+					autoLoadChest.clearNulls();
+				}
+			}
+			else
+			{
+				who.removeItemFromInventory(drop_in);
+			}
+		}
+
+		public virtual int GetTallyOfObject(Farmer who, int index, bool big_craftable)
+		{
+			if (autoLoadChest != null)
+			{
+				int tally = 0;
+				{
+					foreach (Item i in autoLoadChest.items)
+					{
+						if (i != null && i is Object && (i as Object).ParentSheetIndex == index && (bool)(i as Object).bigCraftable == big_craftable)
+						{
+							tally += i.Stack;
+						}
+					}
+					return tally;
+				}
+			}
+			return who.getTallyOfObject(index, big_craftable);
+		}
+
+		public virtual Object GetDeconstructorOutput(Item item)
+		{
+			if (!CraftingRecipe.craftingRecipes.ContainsKey(item.Name))
+			{
+				return null;
+			}
+			if (CraftingRecipe.craftingRecipes[item.Name].Split('/')[2].Split(' ').Count() > 1)
+			{
+				return null;
+			}
+			if (Utility.IsNormalObjectAtParentSheetIndex(item, 710))
+			{
+				return new Object(334, 2);
+			}
+			string[] ingredients = CraftingRecipe.craftingRecipes[item.Name].Split('/')[0].Split(' ');
+			List<Object> ingredient_objects = new List<Object>();
+			for (int i = 0; i < ingredients.Count(); i += 2)
+			{
+				ingredient_objects.Add(new Object(Convert.ToInt32(ingredients[i]), Convert.ToInt32(ingredients[i + 1])));
+			}
+			if (ingredient_objects.Count == 0)
+			{
+				return null;
+			}
+			ingredient_objects.Sort((Object a, Object b) => a.sellToStorePrice(-1L) * a.Stack - b.sellToStorePrice(-1L) * b.Stack);
+			return ingredient_objects.Last();
+		}
+
 		public virtual bool performObjectDropInAction(Item dropInItem, bool probe, Farmer who)
 		{
 			if (isTemporarilyInvisible)
@@ -1557,15 +1991,60 @@ namespace StardewValley
 			if (dropInItem is Object)
 			{
 				Object dropIn = dropInItem as Object;
+				if (IsSprinkler() && heldObject.Value == null && (Utility.IsNormalObjectAtParentSheetIndex(dropInItem, 915) || Utility.IsNormalObjectAtParentSheetIndex(dropInItem, 913)))
+				{
+					if (probe)
+					{
+						return true;
+					}
+					if (who.currentLocation is MineShaft || (who.currentLocation is VolcanoDungeon && Utility.IsNormalObjectAtParentSheetIndex(dropInItem, 913)))
+					{
+						Game1.showRedMessage(Game1.content.LoadString("Strings\\StringsFromCSFiles:Object.cs.13053"));
+						return false;
+					}
+					Object attached_object = dropIn.getOne() as Object;
+					if (Utility.IsNormalObjectAtParentSheetIndex(attached_object, 913) && attached_object.heldObject.Value == null)
+					{
+						Chest chest = new Chest();
+						chest.SpecialChestType = Chest.SpecialChestTypes.Enricher;
+						attached_object.heldObject.Value = chest;
+					}
+					who.currentLocation.playSound("axe");
+					heldObject.Value = attached_object;
+					minutesUntilReady.Value = -1;
+					return true;
+				}
 				if (dropInItem is Wallpaper)
 				{
 					return false;
+				}
+				if (dropIn != null && (int)dropIn.parentSheetIndex == 872 && autoLoadChest == null)
+				{
+					if (Name == "Ostrich Incubator" || Name == "Slime Incubator" || Name == "Incubator")
+					{
+						return false;
+					}
+					if (MinutesUntilReady > 0)
+					{
+						if (probe)
+						{
+							return true;
+						}
+						Utility.addSprinklesToLocation(who.currentLocation, (int)tileLocation.X, (int)tileLocation.Y, 1, 2, 400, 40, Color.White);
+						Game1.playSound("yoba");
+						MinutesUntilReady = 10;
+						who.reduceActiveItemByOne();
+						DelayedAction.functionAfterDelay(delegate
+						{
+							minutesElapsed(10, who.currentLocation);
+						}, 50);
+					}
 				}
 				if (heldObject.Value != null && !name.Equals("Recycling Machine") && !name.Equals("Crystalarium"))
 				{
 					return false;
 				}
-				if (dropIn != null && (bool)dropIn.bigCraftable)
+				if (dropIn != null && (bool)dropIn.bigCraftable && !name.Equals("Deconstructor"))
 				{
 					return false;
 				}
@@ -1579,7 +2058,7 @@ namespace StardewValley
 				}
 				if (name.Equals("Incubator"))
 				{
-					if (heldObject.Value == null && (dropIn.Category == -5 || Utility.IsNormalObjectAtParentSheetIndex(dropIn, 107)))
+					if (heldObject.Value == null && dropIn.ParentSheetIndex != 289 && (dropIn.Category == -5 || Utility.IsNormalObjectAtParentSheetIndex(dropIn, 107)))
 					{
 						heldObject.Value = new Object(dropIn.parentSheetIndex, 1);
 						if (!probe)
@@ -1597,6 +2076,32 @@ namespace StardewValley
 							else
 							{
 								base.ParentSheetIndex++;
+							}
+							if (who != null && who.currentLocation != null && who.currentLocation is AnimalHouse)
+							{
+								(who.currentLocation as AnimalHouse).hasShownIncubatorBuildingFullMessage = false;
+							}
+						}
+						return true;
+					}
+				}
+				else if (name.Equals("Ostrich Incubator"))
+				{
+					if (heldObject.Value == null && (int)dropIn.parentSheetIndex == 289)
+					{
+						heldObject.Value = new Object(dropIn.parentSheetIndex, 1);
+						if (!probe)
+						{
+							who.currentLocation.playSound("coin");
+							minutesUntilReady.Value = 15000;
+							if (who.professions.Contains(2))
+							{
+								minutesUntilReady.Value /= 2;
+							}
+							base.ParentSheetIndex++;
+							if (who != null && who.currentLocation != null && who.currentLocation is AnimalHouse)
+							{
+								(who.currentLocation as AnimalHouse).hasShownIncubatorBuildingFullMessage = false;
 							}
 						}
 						return true;
@@ -1618,6 +2123,111 @@ namespace StardewValley
 							base.ParentSheetIndex++;
 						}
 						return true;
+					}
+				}
+				else if (name.Equals("Deconstructor"))
+				{
+					Object deconstructor_output = GetDeconstructorOutput(dropIn);
+					if (deconstructor_output != null)
+					{
+						heldObject.Value = new Object(dropIn.parentSheetIndex, 1);
+						if (!probe)
+						{
+							heldObject.Value = deconstructor_output;
+							MinutesUntilReady = 60;
+							Game1.playSound("furnace");
+							return true;
+						}
+						return true;
+					}
+					if (!probe)
+					{
+						if (autoLoadChest == null)
+						{
+							Game1.showRedMessage(Game1.content.LoadString("Strings\\StringsFromCSFiles:Deconstructor_fail"));
+						}
+						return false;
+					}
+				}
+				else if (name.Equals("Bone Mill"))
+				{
+					int numItemsToTake = 0;
+					switch ((int)dropIn.parentSheetIndex)
+					{
+					case 579:
+					case 580:
+					case 581:
+					case 582:
+					case 583:
+					case 584:
+					case 585:
+					case 586:
+					case 587:
+					case 588:
+					case 589:
+					case 820:
+					case 821:
+					case 822:
+					case 823:
+					case 824:
+					case 825:
+					case 826:
+					case 827:
+					case 828:
+						numItemsToTake = 1;
+						break;
+					case 881:
+						numItemsToTake = 5;
+						break;
+					}
+					if (numItemsToTake == 0)
+					{
+						return false;
+					}
+					if (probe)
+					{
+						return true;
+					}
+					if (dropIn.Stack < numItemsToTake)
+					{
+						if (autoLoadChest == null)
+						{
+							Game1.showRedMessage(Game1.content.LoadString("Strings\\StringsFromCSFiles:bonemill_5"));
+						}
+						return false;
+					}
+					int which = -1;
+					int howMany = 1;
+					switch (Game1.random.Next(4))
+					{
+					case 0:
+						which = 466;
+						howMany = 3;
+						break;
+					case 1:
+						which = 465;
+						howMany = 5;
+						break;
+					case 2:
+						which = 369;
+						howMany = 10;
+						break;
+					case 3:
+						which = 805;
+						howMany = 5;
+						break;
+					}
+					if (Game1.random.NextDouble() < 0.1)
+					{
+						howMany *= 2;
+					}
+					heldObject.Value = new Object(which, howMany);
+					if (!probe)
+					{
+						ConsumeInventoryItem(who, dropIn, numItemsToTake);
+						minutesUntilReady.Value = 240;
+						who.currentLocation.playSound("skeletonStep");
+						DelayedAction.playSoundAfterDelay("skeletonHit", 150);
 					}
 				}
 				else if (name.Equals("Keg"))
@@ -1669,7 +2279,10 @@ namespace StardewValley
 					case 433:
 						if (dropIn.Stack < 5 && !probe)
 						{
-							Game1.showRedMessage(Game1.content.LoadString("Strings\\StringsFromCSFiles:Object.cs.12721"));
+							if (autoLoadChest == null)
+							{
+								Game1.showRedMessage(Game1.content.LoadString("Strings\\StringsFromCSFiles:Object.cs.12721"));
+							}
 							return false;
 						}
 						heldObject.Value = new Object(Vector2.Zero, 395, "Coffee", canBeSetDown: false, canBeGrabbed: true, isHoedirt: false, isSpawnedObject: false);
@@ -1678,11 +2291,7 @@ namespace StardewValley
 							heldObject.Value.name = "Coffee";
 							who.currentLocation.playSound("Ship");
 							who.currentLocation.playSound("bubbles");
-							dropIn.Stack -= 4;
-							if (dropIn.Stack <= 0)
-							{
-								who.removeItemFromInventory(dropIn);
-							}
+							ConsumeInventoryItem(who, dropIn, 4);
 							minutesUntilReady.Value = 120;
 							Game1.multiplayer.broadcastSprites(who.currentLocation, new TemporaryAnimatedSprite("TileSheets\\animations", new Microsoft.Xna.Framework.Rectangle(256, 1856, 64, 128), 80f, 6, 999999, tileLocation.Value * 64f + new Vector2(0f, -128f), flicker: false, flipped: false, (tileLocation.Y + 1f) * 64f / 10000f + 0.0001f, 0f, Color.DarkGray * 0.75f, 1f, 0f, 0f, 0f)
 							{
@@ -1780,8 +2389,25 @@ namespace StardewValley
 						}
 						return true;
 					}
-					int num = dropIn.parentSheetIndex;
-					if (num == 812)
+					switch ((int)dropIn.parentSheetIndex)
+					{
+					case 829:
+						heldObject.Value = new Object(Vector2.Zero, 342, "Pickled " + dropIn.Name, canBeSetDown: false, canBeGrabbed: true, isHoedirt: false, isSpawnedObject: false);
+						heldObject.Value.Price = 50 + dropIn.Price * 2;
+						if (!probe)
+						{
+							heldObject.Value.name = "Pickled " + dropIn.Name;
+							heldObject.Value.preserve.Value = PreserveType.Pickle;
+							heldObject.Value.preservedParentSheetIndex.Value = dropIn.parentSheetIndex;
+							who.currentLocation.playSound("Ship");
+							minutesUntilReady.Value = 4000;
+							Game1.multiplayer.broadcastSprites(who.currentLocation, new TemporaryAnimatedSprite("TileSheets\\animations", new Microsoft.Xna.Framework.Rectangle(256, 1856, 64, 128), 80f, 6, 999999, tileLocation.Value * 64f + new Vector2(0f, -128f), flicker: false, flipped: false, (tileLocation.Y + 1f) * 64f / 10000f + 0.0001f, 0f, Color.White * 0.75f, 1f, 0f, 0f, 0f)
+							{
+								alphaFade = 0.005f
+							});
+						}
+						return true;
+					case 812:
 					{
 						if ((int)dropIn.preservedParentSheetIndex == 698)
 						{
@@ -1816,6 +2442,7 @@ namespace StardewValley
 							});
 						}
 						return true;
+					}
 					}
 				}
 				else if (name.Equals("Cheese Press"))
@@ -1875,6 +2502,16 @@ namespace StardewValley
 				{
 					switch (dropIn.ParentSheetIndex)
 					{
+					case 289:
+						heldObject.Value = new Object(Vector2.Zero, 306, null, canBeSetDown: false, canBeGrabbed: true, isHoedirt: false, isSpawnedObject: false);
+						if (!probe)
+						{
+							minutesUntilReady.Value = 180;
+							who.currentLocation.playSound("Ship");
+							heldObject.Value.Stack = 10;
+							heldObject.Value.Quality = dropIn.Quality;
+						}
+						return true;
 					case 174:
 					case 182:
 						heldObject.Value = new Object(Vector2.Zero, 306, null, canBeSetDown: false, canBeGrabbed: true, isHoedirt: false, isSpawnedObject: false)
@@ -1920,14 +2557,26 @@ namespace StardewValley
 							who.currentLocation.playSound("Ship");
 						}
 						return true;
+					case 928:
+						heldObject.Value = new Object(Vector2.Zero, 306, null, canBeSetDown: false, canBeGrabbed: true, isHoedirt: false, isSpawnedObject: false)
+						{
+							Quality = 2
+						};
+						if (!probe)
+						{
+							minutesUntilReady.Value = 180;
+							heldObject.Value.Stack = 3;
+							who.currentLocation.playSound("Ship");
+						}
+						return true;
 					}
 				}
 				else if (name.Equals("Loom"))
 				{
 					float doubleChance = ((int)dropIn.quality == 0) ? 0f : (((int)dropIn.quality == 2) ? 0.25f : (((int)dropIn.quality == 4) ? 0.5f : 0.1f));
 					int stack = (!(Game1.random.NextDouble() <= (double)doubleChance)) ? 1 : 2;
-					int num = dropIn.ParentSheetIndex;
-					if (num == 440)
+					int parentSheetIndex = dropIn.ParentSheetIndex;
+					if (parentSheetIndex == 440)
 					{
 						heldObject.Value = new Object(Vector2.Zero, 428, null, canBeSetDown: false, canBeGrabbed: true, isHoedirt: false, isSpawnedObject: false)
 						{
@@ -2002,6 +2651,10 @@ namespace StardewValley
 				else if (name.Equals("Seed Maker"))
 				{
 					if (dropIn != null && (int)dropIn.parentSheetIndex == 433)
+					{
+						return false;
+					}
+					if (dropIn != null && (int)dropIn.parentSheetIndex == 771)
 					{
 						return false;
 					}
@@ -2085,9 +2738,9 @@ namespace StardewValley
 				}
 				else if (name.Equals("Furnace"))
 				{
-					if (who.IsLocalPlayer && who.getTallyOfObject(382, bigCraftable: false) <= 0)
+					if (who.IsLocalPlayer && GetTallyOfObject(who, 382, big_craftable: false) <= 0)
 					{
-						if (!probe && who.IsLocalPlayer)
+						if (!probe && who.IsLocalPlayer && autoLoadChest == null)
 						{
 							Game1.showRedMessage(Game1.content.LoadString("Strings\\StringsFromCSFiles:Object.cs.12772"));
 						}
@@ -2097,7 +2750,7 @@ namespace StardewValley
 					{
 						if ((int)dropIn.stack < 5 && (int)dropIn.parentSheetIndex != 80 && (int)dropIn.parentSheetIndex != 82 && (int)dropIn.parentSheetIndex != 330 && (int)dropIn.parentSheetIndex != 458)
 						{
-							if (!probe && who.IsLocalPlayer)
+							if (!probe && who.IsLocalPlayer && autoLoadChest == null)
 							{
 								Game1.showRedMessage(Game1.content.LoadString("Strings\\StringsFromCSFiles:Object.cs.12777"));
 							}
@@ -2158,6 +2811,13 @@ namespace StardewValley
 								toRemove = 1;
 							}
 							break;
+						case 909:
+							heldObject.Value = new Object(910, 1);
+							if (!probe)
+							{
+								minutesUntilReady.Value = 560;
+							}
+							break;
 						default:
 							return false;
 						}
@@ -2172,18 +2832,7 @@ namespace StardewValley
 						{
 							alphaFade = 0.005f
 						});
-						for (int i = who.items.Count - 1; i >= 0; i--)
-						{
-							if (who.Items[i] is Object && (who.Items[i] as Object).ParentSheetIndex == 382)
-							{
-								who.Items[i].Stack--;
-								if (who.Items[i].Stack <= 0)
-								{
-									who.Items[i] = null;
-								}
-								break;
-							}
-						}
+						ConsumeInventoryItem(who, 382, 1);
 						dropIn.Stack -= toRemove;
 						if (dropIn.Stack <= 0)
 						{
@@ -2196,11 +2845,63 @@ namespace StardewValley
 						return true;
 					}
 				}
+				else if (name.Equals("Geode Crusher"))
+				{
+					if (who.IsLocalPlayer && GetTallyOfObject(who, 382, big_craftable: false) <= 0)
+					{
+						if (!probe && who.IsLocalPlayer && autoLoadChest == null)
+						{
+							Game1.showRedMessage(Game1.content.LoadString("Strings\\StringsFromCSFiles:Object.cs.12772"));
+						}
+						return false;
+					}
+					if (heldObject.Value == null)
+					{
+						if (!Utility.IsGeode(dropIn, disallow_special_geodes: true))
+						{
+							return false;
+						}
+						Object geode_item = (Object)Utility.getTreasureFromGeode(dropIn);
+						if (geode_item == null)
+						{
+							return false;
+						}
+						heldObject.Value = geode_item;
+						if (!probe)
+						{
+							Game1.stats.GeodesCracked++;
+							minutesUntilReady.Value = 60;
+						}
+						if (probe)
+						{
+							return true;
+						}
+						showNextIndex.Value = true;
+						Utility.addSmokePuff(who.currentLocation, tileLocation.Value * 64f + new Vector2(4f, -48f), 200);
+						Utility.addSmokePuff(who.currentLocation, tileLocation.Value * 64f + new Vector2(-16f, -56f), 300);
+						Utility.addSmokePuff(who.currentLocation, tileLocation.Value * 64f + new Vector2(16f, -52f), 400);
+						Utility.addSmokePuff(who.currentLocation, tileLocation.Value * 64f + new Vector2(32f, -56f), 200);
+						Utility.addSmokePuff(who.currentLocation, tileLocation.Value * 64f + new Vector2(40f, -44f), 500);
+						Game1.playSound("drumkit4");
+						Game1.playSound("stoneCrack");
+						DelayedAction.playSoundAfterDelay("steam", 200);
+						ConsumeInventoryItem(who, 382, 1);
+						dropIn.Stack--;
+						if (dropIn.Stack <= 0)
+						{
+							return true;
+						}
+					}
+					else if (probe)
+					{
+						return true;
+					}
+				}
 				else if (name.Equals("Charcoal Kiln"))
 				{
 					if (who.IsLocalPlayer && ((int)dropIn.parentSheetIndex != 388 || dropIn.Stack < 10))
 					{
-						if (!probe && who.IsLocalPlayer)
+						if (!probe && who.IsLocalPlayer && autoLoadChest == null)
 						{
 							Game1.showRedMessage(Game1.content.LoadString("Strings\\StringsFromCSFiles:Object.cs.12783"));
 						}
@@ -2208,11 +2909,7 @@ namespace StardewValley
 					}
 					if (heldObject.Value == null && !probe && (int)dropIn.parentSheetIndex == 388 && dropIn.Stack >= 10)
 					{
-						dropIn.Stack -= 10;
-						if (dropIn.Stack <= 0)
-						{
-							who.removeItemFromInventory(dropIn);
-						}
+						ConsumeInventoryItem(who, dropIn, 10);
 						who.currentLocation.playSound("openBox");
 						DelayedAction.playSoundAfterDelay("fireball", 50);
 						showNextIndex.Value = true;
@@ -2233,7 +2930,7 @@ namespace StardewValley
 				{
 					if (who.IsLocalPlayer && ((int)dropIn.parentSheetIndex != 766 || dropIn.Stack < 100))
 					{
-						if (!probe && who.IsLocalPlayer)
+						if (!probe && who.IsLocalPlayer && autoLoadChest == null)
 						{
 							Game1.showRedMessage(Game1.content.LoadString("Strings\\StringsFromCSFiles:Object.cs.12787"));
 						}
@@ -2241,11 +2938,7 @@ namespace StardewValley
 					}
 					if (heldObject.Value == null && !probe && (int)dropIn.parentSheetIndex == 766 && dropIn.Stack >= 100)
 					{
-						dropIn.Stack -= 100;
-						if (dropIn.Stack <= 0)
-						{
-							who.removeItemFromInventory(dropIn);
-						}
+						ConsumeInventoryItem(who, dropIn, 100);
 						who.currentLocation.playSound("slimeHit");
 						DelayedAction.playSoundAfterDelay("bubbles", 50);
 						Game1.multiplayer.broadcastSprites(who.currentLocation, new TemporaryAnimatedSprite("TileSheets\\animations", new Microsoft.Xna.Framework.Rectangle(256, 1856, 64, 128), 80f, 6, 999999, tileLocation.Value * 64f + new Vector2(0f, -160f), flicker: false, flipped: false, (tileLocation.Y + 1f) * 64f / 10000f + 0.0001f, 0f, Color.Lime, 1f, 0f, 0f, 0f)
@@ -2274,7 +2967,7 @@ namespace StardewValley
 						return true;
 					}
 				}
-				else if (name.Contains("Hopper") && dropIn.ParentSheetIndex == 178)
+				else if (name.Contains("Feed Hopper") && dropIn.ParentSheetIndex == 178)
 				{
 					if (probe)
 					{
@@ -2283,7 +2976,10 @@ namespace StardewValley
 					}
 					if (Utility.numSilos() <= 0)
 					{
-						Game1.showRedMessage(Game1.content.LoadString("Strings\\Buildings:NeedSilo"));
+						if (autoLoadChest == null)
+						{
+							Game1.showRedMessage(Game1.content.LoadString("Strings\\Buildings:NeedSilo"));
+						}
 						return false;
 					}
 					who.currentLocation.playSound("Ship");
@@ -2292,10 +2988,10 @@ namespace StardewValley
 					{
 						dropIn.Stack = 1;
 					}
-					int num2 = (Game1.getLocationFromName("Farm") as Farm).piecesOfHay;
+					int num = (Game1.getLocationFromName("Farm") as Farm).piecesOfHay;
 					int numLeft = (Game1.getLocationFromName("Farm") as Farm).tryToAddHay(dropIn.Stack);
 					int now = (Game1.getLocationFromName("Farm") as Farm).piecesOfHay;
-					if (num2 <= 0 && now > 0)
+					if (num <= 0 && now > 0)
 					{
 						showNextIndex.Value = true;
 					}
@@ -2338,6 +3034,15 @@ namespace StardewValley
 			}
 			if (heldObject != null)
 			{
+				if (heldObject.ParentSheetIndex == 913 && IsSprinkler() && heldObject.heldObject.Value is Chest)
+				{
+					Chest chest = heldObject.heldObject.Value as Chest;
+					chest.mutex.Update(environment);
+					if (Game1.activeClickableMenu == null && chest.GetMutex().IsLockHeld())
+					{
+						chest.GetMutex().ReleaseLock();
+					}
+				}
 				lightSource = heldObject.netLightSource.Get();
 				if (lightSource != null && !environment.hasLightSource(lightSource.Identifier))
 				{
@@ -2366,7 +3071,7 @@ namespace StardewValley
 		{
 			isTemporarilyInvisible = false;
 			health = 10;
-			if (name != null && name.Contains("Hopper"))
+			if (name != null && name.Contains("Feed Hopper"))
 			{
 				showNextIndex.Value = ((int)(Game1.getLocationFromName("Farm") as Farm).piecesOfHay > 0);
 			}
@@ -2379,6 +3084,10 @@ namespace StardewValley
 				return false;
 			}
 			if (!bigCraftable && (int)parentSheetIndex == 460)
+			{
+				return false;
+			}
+			if (Utility.IsNormalObjectAtParentSheetIndex(this, 911))
 			{
 				return false;
 			}
@@ -2405,6 +3114,10 @@ namespace StardewValley
 			{
 				lightSource = new LightSource(4, new Vector2(tileLocation.X * 64f + 32f, tileLocation.Y * 64f - 64f), 2.5f, new Color(0, 80, 160), identifier, LightSource.LightContext.None, 0L);
 			}
+			else if (this is Furniture && (int)(this as Furniture).furniture_type == 16 && (bool)(this as Furniture).isOn)
+			{
+				lightSource = new LightSource(4, new Vector2(tileLocation.X * 64f + 32f, tileLocation.Y * 64f - 64f), 1.5f, new Color(0, 80, 160), identifier, LightSource.LightContext.None, 0L);
+			}
 			else if ((bool)bigCraftable)
 			{
 				if (this is Torch && (bool)isOn)
@@ -2429,24 +3142,33 @@ namespace StardewValley
 					lightSource = new LightSource(4, new Vector2(tileLocation.X * 64f + 32f, tileLocation.Y * 64f), 1f, Color.HotPink * 0.75f, identifier, LightSource.LightContext.None, 0L);
 				}
 			}
-			else if ((int)parentSheetIndex == 93 || (int)parentSheetIndex == 94)
+			else
 			{
-				Color c = Color.White;
-				switch ((int)parentSheetIndex)
+				if (!Utility.IsNormalObjectAtParentSheetIndex(this, parentSheetIndex) && !(this is Torch))
 				{
-				case 93:
-				case 746:
-					c = new Color(1, 1, 1) * 0.9f;
-					break;
-				case 94:
-					c = Color.Yellow;
-					break;
+					return;
 				}
-				lightSource = new LightSource(4, new Vector2(tileLocation.X * 64f + 16f, tileLocation.Y * 64f + 16f), mineShaft ? 1.5f : 1.25f, c, identifier, LightSource.LightContext.None, 0L);
-			}
-			else if ((int)parentSheetIndex == 746)
-			{
-				lightSource = new LightSource(4, new Vector2(tileLocation.X * 64f + 32f, tileLocation.Y * 64f + 48f), 0.5f, new Color(1, 1, 1) * 0.65f, identifier, LightSource.LightContext.None, 0L);
+				if ((int)parentSheetIndex == 93 || (int)parentSheetIndex == 94 || (int)parentSheetIndex == 95)
+				{
+					Color c = Color.White;
+					switch ((int)parentSheetIndex)
+					{
+					case 93:
+						c = new Color(1, 1, 1) * 0.9f;
+						break;
+					case 94:
+						c = Color.Yellow;
+						break;
+					case 95:
+						c = new Color(70, 0, 150) * 0.9f;
+						break;
+					}
+					lightSource = new LightSource(4, new Vector2(tileLocation.X * 64f + 16f, tileLocation.Y * 64f + 16f), mineShaft ? 1.5f : 1.25f, c, identifier, LightSource.LightContext.None, 0L);
+				}
+				else if (Utility.IsNormalObjectAtParentSheetIndex(this, 746))
+				{
+					lightSource = new LightSource(4, new Vector2(tileLocation.X * 64f + 32f, tileLocation.Y * 64f + 48f), 0.5f, new Color(1, 1, 1) * 0.65f, identifier, LightSource.LightContext.None, 0L);
+				}
 			}
 		}
 
@@ -2459,7 +3181,7 @@ namespace StardewValley
 			}
 			if ((bool)bigCraftable)
 			{
-				if (base.ParentSheetIndex == 105 && environment != null && environment.terrainFeatures != null && environment.terrainFeatures.ContainsKey(tileLocation) && environment.terrainFeatures[tileLocation] is Tree)
+				if ((base.ParentSheetIndex == 105 || (int)parentSheetIndex == 264) && environment != null && environment.terrainFeatures != null && environment.terrainFeatures.ContainsKey(tileLocation) && environment.terrainFeatures[tileLocation] is Tree)
 				{
 					(environment.terrainFeatures[tileLocation] as Tree).tapped.Value = false;
 				}
@@ -2497,42 +3219,46 @@ namespace StardewValley
 			{
 				return false;
 			}
-			switch ((int)parentSheetIndex)
+			if (Utility.IsNormalObjectAtParentSheetIndex(this, parentSheetIndex))
 			{
-			case 93:
-			case 286:
-			case 287:
-			case 288:
-			case 293:
-			case 297:
-			case 328:
-			case 329:
-			case 331:
-			case 333:
-			case 401:
-			case 405:
-			case 407:
-			case 409:
-			case 411:
-			case 415:
-			case 590:
-				return true;
-			default:
-				if (base.Category == -74 || base.Category == -19)
+				switch ((int)parentSheetIndex)
 				{
-					if (isSapling())
-					{
-						return false;
-					}
-					int num = parentSheetIndex;
-					if ((uint)(num - 301) <= 1u || num == 473)
-					{
-						return false;
-					}
+				case 93:
+				case 286:
+				case 287:
+				case 288:
+				case 293:
+				case 297:
+				case 328:
+				case 329:
+				case 331:
+				case 333:
+				case 401:
+				case 405:
+				case 407:
+				case 409:
+				case 411:
+				case 415:
+				case 590:
+				case 840:
+				case 841:
 					return true;
 				}
-				return false;
 			}
+			if (base.Category == -74 || base.Category == -19)
+			{
+				if (isSapling())
+				{
+					return false;
+				}
+				int num = parentSheetIndex;
+				if ((uint)(num - 301) <= 1u || num == 473)
+				{
+					return false;
+				}
+				return true;
+			}
+			return false;
 		}
 
 		public virtual void reloadSprite()
@@ -2578,6 +3304,10 @@ namespace StardewValley
 
 		public override bool canBeGivenAsGift()
 		{
+			if (Utility.IsNormalObjectAtParentSheetIndex(this, 911))
+			{
+				return false;
+			}
 			if (!bigCraftable && !(this is Furniture))
 			{
 				return !(this is Wallpaper);
@@ -2596,7 +3326,7 @@ namespace StardewValley
 				if (heldObject.Value == null)
 				{
 					heldObject.Value = new Object(685, Game1.random.Next(2, 6));
-					minutesUntilReady.Value = 2600 - Game1.timeOfDay;
+					minutesUntilReady.Value = Utility.CalculateMinutesUntilMorning(Game1.timeOfDay);
 				}
 				return false;
 			}
@@ -2605,15 +3335,24 @@ namespace StardewValley
 				if (heldObject.Value == null)
 				{
 					heldObject.Value = new Object(Vector2.Zero, 340, null, canBeSetDown: false, canBeGrabbed: true, isHoedirt: false, isSpawnedObject: false);
-					minutesUntilReady.Value = 2400 - Game1.timeOfDay + 4320;
+					minutesUntilReady.Value = Utility.CalculateMinutesUntilMorning(Game1.timeOfDay, 4);
+				}
+				return false;
+			}
+			if (name.Equals("Solar Panel"))
+			{
+				if (heldObject.Value == null)
+				{
+					heldObject.Value = new Object(Vector2.Zero, 787, null, canBeSetDown: false, canBeGrabbed: true, isHoedirt: false, isSpawnedObject: false);
+					minutesUntilReady.Value = 16800;
 				}
 				return false;
 			}
 			if (name.Contains("Strange Capsule"))
 			{
-				minutesUntilReady.Value = 6000 - Game1.timeOfDay;
+				minutesUntilReady.Value = Utility.CalculateMinutesUntilMorning(Game1.timeOfDay, 3);
 			}
-			else if (name.Contains("Hopper"))
+			else if (name.Contains("Feed Hopper"))
 			{
 				showNextIndex.Value = false;
 				if ((int)(Game1.getLocationFromName("Farm") as Farm).piecesOfHay >= 0)
@@ -2656,15 +3395,23 @@ namespace StardewValley
 			switch ((int)parentSheetIndex)
 			{
 			case 688:
+			{
+				int warp_location_x = 48;
+				int warp_location_y = 7;
 				if (Game1.whichFarm == 5)
 				{
-					Game1.warpFarmer("Farm", 48, 39, flip: false);
+					warp_location_x = 48;
+					warp_location_y = 39;
 				}
-				else
+				else if (Game1.whichFarm == 6)
 				{
-					Game1.warpFarmer("Farm", 48, 7, flip: false);
+					warp_location_x = 82;
+					warp_location_y = 29;
 				}
+				Point warp_location = Game1.getFarm().GetMapPropertyPosition("WarpTotemEntry", warp_location_x, warp_location_y);
+				Game1.warpFarmer("Farm", warp_location.X, warp_location.Y, flip: false);
 				break;
+			}
 			case 689:
 				Game1.warpFarmer("Mountain", 31, 20, flip: false);
 				break;
@@ -2674,6 +3421,9 @@ namespace StardewValley
 			case 261:
 				Game1.warpFarmer("Desert", 35, 43, flip: false);
 				break;
+			case 886:
+				Game1.warpFarmer("IslandSouth", 11, 11, flip: false);
+				break;
 			}
 			Game1.fadeToBlackAlpha = 0.99f;
 			Game1.screenGlow = false;
@@ -2682,11 +3432,60 @@ namespace StardewValley
 			Game1.displayFarmer = true;
 		}
 
+		public void MonsterMusk(Farmer who)
+		{
+			who.FarmerSprite.PauseForSingleAnimation = false;
+			who.FarmerSprite.StopAnimation();
+			who.FarmerSprite.animateOnce(new FarmerSprite.AnimationFrame[4]
+			{
+				new FarmerSprite.AnimationFrame(104, 350, secondaryArm: false, flip: false),
+				new FarmerSprite.AnimationFrame(105, 350, secondaryArm: false, flip: false),
+				new FarmerSprite.AnimationFrame(104, 350, secondaryArm: false, flip: false),
+				new FarmerSprite.AnimationFrame(105, 350, secondaryArm: false, flip: false)
+			});
+			who.currentLocation.playSound("croak");
+			Game1.buffsDisplay.addOtherBuff(new Buff(24));
+		}
+
+		public override string[] ModifyItemBuffs(string[] buffs)
+		{
+			if (buffs != null && base.Category == -7)
+			{
+				int buff_bonus = 0;
+				if (Quality != 0)
+				{
+					buff_bonus = 1;
+				}
+				if (buff_bonus > 0)
+				{
+					int value = 0;
+					for (int i = 0; i < buffs.Length; i++)
+					{
+						if (buffs[i] != "0" && int.TryParse(buffs[i], out value))
+						{
+							value += buff_bonus;
+							buffs[i] = value.ToString();
+						}
+					}
+				}
+			}
+			return base.ModifyItemBuffs(buffs);
+		}
+
 		private void rainTotem(Farmer who)
 		{
-			if (!Utility.isFestivalDay(Game1.dayOfMonth + 1, Game1.currentSeason))
+			GameLocation.LocationContext location_context = Game1.currentLocation.GetLocationContext();
+			if (location_context == GameLocation.LocationContext.Default)
 			{
-				Game1.netWorldState.Value.WeatherForTomorrow = (Game1.weatherForTomorrow = 1);
+				if (!Utility.isFestivalDay(Game1.dayOfMonth + 1, Game1.currentSeason))
+				{
+					Game1.netWorldState.Value.WeatherForTomorrow = (Game1.weatherForTomorrow = 1);
+					Game1.pauseThenMessage(2000, Game1.content.LoadString("Strings\\StringsFromCSFiles:Object.cs.12822"), showProgressBar: false);
+				}
+			}
+			else
+			{
+				Game1.netWorldState.Value.GetWeatherForLocation(location_context).weatherForTomorrow.Value = 1;
 				Game1.pauseThenMessage(2000, Game1.content.LoadString("Strings\\StringsFromCSFiles:Object.cs.12822"), showProgressBar: false);
 			}
 			Game1.screenGlow = false;
@@ -2739,9 +3538,10 @@ namespace StardewValley
 			{
 				return false;
 			}
+			bool normal_gameplay = !Game1.eventUp && !Game1.isFestival() && !Game1.fadeToBlack && !Game1.player.swimming && !Game1.player.bathingClothes && !Game1.player.onBridge.Value;
 			if (name != null && name.Contains("Totem"))
 			{
-				if (!Game1.eventUp && !Game1.isFestival() && !Game1.fadeToBlack && !Game1.player.swimming && !Game1.player.bathingClothes)
+				if (normal_gameplay)
 				{
 					switch ((int)parentSheetIndex)
 					{
@@ -2752,6 +3552,7 @@ namespace StardewValley
 					case 688:
 					case 689:
 					case 690:
+					case 886:
 					{
 						Game1.player.jitterStrength = 1f;
 						Color sprinkleColor = ((int)parentSheetIndex == 681) ? Color.SlateBlue : (((int)parentSheetIndex == 688) ? Color.LimeGreen : (((int)parentSheetIndex == 689) ? Color.OrangeRed : (((int)parentSheetIndex == 261) ? new Color(255, 200, 0) : Color.LightBlue)));
@@ -2827,22 +3628,144 @@ namespace StardewValley
 					}
 				}
 			}
-			else if (name != null && name.Contains("Secret Note"))
+			else
 			{
-				int which = (!name.Contains('#')) ? 1 : Convert.ToInt32(name.Split('#')[1]);
-				if (!Game1.player.secretNotesSeen.Contains(which))
+				if (name != null && name.Contains("Secret Note"))
 				{
-					Game1.player.secretNotesSeen.Add(which);
-					if (which == 23 && !Game1.player.eventsSeen.Contains(2120303))
+					int which3 = (!name.Contains('#')) ? 1 : Convert.ToInt32(name.Split('#')[1]);
+					if (!Game1.player.secretNotesSeen.Contains(which3))
 					{
-						Game1.player.addQuest(29);
+						Game1.player.secretNotesSeen.Add(which3);
+						if (which3 == 23 && !Game1.player.eventsSeen.Contains(2120303))
+						{
+							Game1.player.addQuest(29);
+						}
+						else if (which3 == 10 && !Game1.player.mailReceived.Contains("qiCave"))
+						{
+							Game1.player.addQuest(30);
+						}
 					}
-					else if (which == 10 && !Game1.player.mailReceived.Contains("qiCave"))
-					{
-						Game1.player.addQuest(30);
-					}
+					Game1.activeClickableMenu = new LetterViewerMenu(which3);
+					return true;
 				}
-				Game1.activeClickableMenu = new LetterViewerMenu(which);
+				if (name != null && name.Contains("Journal Scrap"))
+				{
+					int which2 = (!name.Contains('#')) ? 1 : Convert.ToInt32(name.Split('#')[1]);
+					which2 += GameLocation.JOURNAL_INDEX;
+					if (!Game1.player.secretNotesSeen.Contains(which2))
+					{
+						Game1.player.secretNotesSeen.Add(which2);
+					}
+					Game1.activeClickableMenu = new LetterViewerMenu(which2);
+					return true;
+				}
+			}
+			if (base.ParentSheetIndex == 911)
+			{
+				if (!normal_gameplay)
+				{
+					return false;
+				}
+				switch (Utility.GetHorseWarpRestrictionsForFarmer(Game1.player))
+				{
+				case 1:
+					Game1.showRedMessage(Game1.content.LoadString("Strings\\StringsFromCSFiles:HorseFlute_NoHorse"));
+					break;
+				case 2:
+					Game1.showRedMessage(Game1.content.LoadString("Strings\\StringsFromCSFiles:HorseFlute_InvalidLocation"));
+					break;
+				case 3:
+					Game1.showRedMessage(Game1.content.LoadString("Strings\\StringsFromCSFiles:HorseFlute_NoClearance"));
+					break;
+				case 4:
+					Game1.showRedMessage(Game1.content.LoadString("Strings\\StringsFromCSFiles:HorseFlute_InUse"));
+					break;
+				case 0:
+				{
+					Horse horse = null;
+					foreach (NPC character in Game1.player.currentLocation.characters)
+					{
+						if (character is Horse)
+						{
+							Horse location_horse = character as Horse;
+							if (location_horse.getOwner() == Game1.player)
+							{
+								horse = location_horse;
+								break;
+							}
+						}
+					}
+					if (horse == null || Math.Abs(Game1.player.getTileX() - horse.getTileX()) > 1 || Math.Abs(Game1.player.getTileY() - horse.getTileY()) > 1)
+					{
+						Game1.player.faceDirection(2);
+						Game1.soundBank.PlayCue("horse_flute");
+						Game1.player.FarmerSprite.animateOnce(new FarmerSprite.AnimationFrame[6]
+						{
+							new FarmerSprite.AnimationFrame(98, 400, secondaryArm: true, flip: false),
+							new FarmerSprite.AnimationFrame(99, 200, secondaryArm: true, flip: false),
+							new FarmerSprite.AnimationFrame(100, 200, secondaryArm: true, flip: false),
+							new FarmerSprite.AnimationFrame(99, 200, secondaryArm: true, flip: false),
+							new FarmerSprite.AnimationFrame(98, 400, secondaryArm: true, flip: false),
+							new FarmerSprite.AnimationFrame(99, 200, secondaryArm: true, flip: false)
+						});
+						Game1.player.freezePause = 1500;
+						DelayedAction.functionAfterDelay(delegate
+						{
+							switch (Utility.GetHorseWarpRestrictionsForFarmer(Game1.player))
+							{
+							case 0:
+								Game1.player.team.requestHorseWarpEvent.Fire(Game1.player.UniqueMultiplayerID);
+								break;
+							case 1:
+								Game1.showRedMessage(Game1.content.LoadString("Strings\\StringsFromCSFiles:HorseFlute_NoHorse"));
+								break;
+							case 2:
+								Game1.showRedMessage(Game1.content.LoadString("Strings\\StringsFromCSFiles:HorseFlute_InvalidLocation"));
+								break;
+							case 3:
+								Game1.showRedMessage(Game1.content.LoadString("Strings\\StringsFromCSFiles:HorseFlute_NoClearance"));
+								break;
+							}
+						}, 1500);
+					}
+					stack.Value += 1;
+					return true;
+				}
+				default:
+					stack.Value += 1;
+					return true;
+				}
+			}
+			if (base.ParentSheetIndex == 879)
+			{
+				if (!normal_gameplay)
+				{
+					return false;
+				}
+				Game1.player.faceDirection(2);
+				Game1.player.freezePause = 1750;
+				Game1.player.FarmerSprite.animateOnce(new FarmerSprite.AnimationFrame[2]
+				{
+					new FarmerSprite.AnimationFrame(57, 750, secondaryArm: false, flip: false),
+					new FarmerSprite.AnimationFrame((short)Game1.player.FarmerSprite.CurrentFrame, 0, secondaryArm: false, flip: false, MonsterMusk, behaviorAtEndOfFrame: true)
+				});
+				for (int i = 0; i < 3; i++)
+				{
+					Game1.multiplayer.broadcastSprites(location, new TemporaryAnimatedSprite(5, new Vector2(16f, -64 + 32 * i), Color.Purple)
+					{
+						motion = new Vector2(Utility.RandomFloat(-1f, 1f), -0.5f),
+						scaleChange = 0.005f,
+						scale = 0.5f,
+						alpha = 1f,
+						alphaFade = 0.0075f,
+						shakeIntensity = 1f,
+						delayBeforeAnimationStart = 100 * i,
+						layerDepth = 0.9999f,
+						positionFollowsAttachedCharacter = true,
+						attachedCharacter = Game1.player
+					});
+				}
+				location.playSound("steam");
 				return true;
 			}
 			_ = name;
@@ -2912,6 +3835,14 @@ namespace StardewValley
 		{
 			if (this is Furniture)
 			{
+				if ((this as Furniture).placementRestriction == 1)
+				{
+					return Game1.content.LoadString("Strings\\StringsFromCSFiles:Furniture_Outdoors");
+				}
+				if ((this as Furniture).placementRestriction == 2)
+				{
+					return Game1.content.LoadString("Strings\\StringsFromCSFiles:Furniture_Decoration");
+				}
 				return Game1.content.LoadString("Strings\\StringsFromCSFiles:Object.cs.12847");
 			}
 			if (type.Value != null && type.Value.Equals("Arch"))
@@ -3004,18 +3935,45 @@ namespace StardewValley
 			}
 		}
 
+		public static bool HighlightFertilizers(Item i)
+		{
+			if (i is Object)
+			{
+				return (int)(i as Object).category == -19;
+			}
+			return false;
+		}
+
+		private void AttachToSprinklerAttachment(Item i, Farmer who)
+		{
+			if (i != null && i is Object && IsSprinkler() && heldObject.Value != null)
+			{
+				who.removeItemFromInventory(i);
+				heldObject.Value.heldObject.Value = (i as Object);
+				if (Game1.player.ActiveObject == null)
+				{
+					Game1.player.showNotCarrying();
+					Game1.player.Halt();
+				}
+			}
+		}
+
 		public override int healthRecoveredOnConsumption()
 		{
 			if (Edibility < 0)
 			{
 				return 0;
 			}
+			if (base.ParentSheetIndex == 874)
+			{
+				return (int)((float)staminaRecoveredOnConsumption() * 0.68f);
+			}
 			return (int)((float)staminaRecoveredOnConsumption() * 0.45f);
 		}
 
 		public override int staminaRecoveredOnConsumption()
 		{
-			return (int)Math.Ceiling((double)Edibility * 2.5) + (int)quality * Edibility;
+			return (int)Math.Ceiling((double)Edibility * 2.5) + Quality * Edibility;
 		}
 
 		public virtual bool checkForAction(Farmer who, bool justCheckingForActivity = false)
@@ -3028,260 +3986,403 @@ namespace StardewValley
 			{
 				performToolAction(null, who.currentLocation);
 			}
-			if ((bool)bigCraftable && (int)parentSheetIndex == 165)
+			if ((bool)bigCraftable)
 			{
-				if (heldObject.Value != null && heldObject.Value is Chest && !(heldObject.Value as Chest).isEmpty())
+				if (justCheckingForActivity)
+				{
+					return true;
+				}
+				switch ((int)parentSheetIndex)
+				{
+				case 231:
+					if (readyForHarvest.Value && who.IsLocalPlayer)
+					{
+						Object item3 = heldObject.Value;
+						heldObject.Value = null;
+						if (!who.addItemToInventoryBool(item3))
+						{
+							heldObject.Value = item3;
+							Game1.showRedMessage(Game1.content.LoadString("Strings\\StringsFromCSFiles:Crop.cs.588"));
+							return false;
+						}
+						heldObject.Value = new Object(Vector2.Zero, 787, null, canBeSetDown: false, canBeGrabbed: true, isHoedirt: false, isSpawnedObject: false);
+						minutesUntilReady.Value = 16800;
+						Game1.playSound("coin");
+						readyForHarvest.Value = false;
+						return true;
+					}
+					break;
+				case 247:
+					Game1.activeClickableMenu = new TailoringMenu();
+					return true;
+				case 165:
+					if (heldObject.Value != null && heldObject.Value is Chest && !(heldObject.Value as Chest).isEmpty())
+					{
+						if (justCheckingForActivity)
+						{
+							return true;
+						}
+						Game1.activeClickableMenu = new ItemGrabMenu((heldObject.Value as Chest).items, reverseGrab: false, showReceivingMenu: true, InventoryMenu.highlightAllItems, (heldObject.Value as Chest).grabItemFromInventory, null, grabItemFromAutoGrabber, snapToBottom: false, canBeExitedWithKey: true, playRightClickSound: true, allowRightClick: true, showOrganizeButton: true, 1, null, -1, this);
+						return true;
+					}
+					break;
+				case 239:
+					shakeTimer = 500;
+					who.currentLocation.localSound("DwarvishSentry");
+					who.freezePause = 500;
+					DelayedAction.functionAfterDelay(delegate
+					{
+						int totalCrops = Game1.getFarm().getTotalCrops();
+						int totalOpenHoeDirt = Game1.getFarm().getTotalOpenHoeDirt();
+						int totalCropsReadyForHarvest = Game1.getFarm().getTotalCropsReadyForHarvest();
+						int totalUnwateredCrops = Game1.getFarm().getTotalUnwateredCrops();
+						int totalGreenhouseCropsReadyForHarvest = Game1.getFarm().getTotalGreenhouseCropsReadyForHarvest();
+						int totalForageItems = Game1.getFarm().getTotalForageItems();
+						int numberOfMachinesReadyForHarvest = Game1.getFarm().getNumberOfMachinesReadyForHarvest();
+						bool flag = Game1.getFarm().doesFarmCaveNeedHarvesting();
+						Game1.multipleDialogues(new string[1]
+						{
+							Game1.content.LoadString("Strings\\StringsFromCSFiles:FarmComputer_Intro", Game1.player.farmName.Value) + "^--------------^" + Game1.content.LoadString("Strings\\StringsFromCSFiles:FarmComputer_PiecesHay", (Game1.getLocationFromName("Farm") as Farm).piecesOfHay, Utility.numSilos() * 240) + "  ^" + Game1.content.LoadString("Strings\\StringsFromCSFiles:FarmComputer_TotalCrops", totalCrops) + "  ^" + Game1.content.LoadString("Strings\\StringsFromCSFiles:FarmComputer_CropsReadyForHarvest", totalCropsReadyForHarvest) + "  ^" + Game1.content.LoadString("Strings\\StringsFromCSFiles:FarmComputer_CropsUnwatered", totalUnwateredCrops) + "  ^" + ((totalGreenhouseCropsReadyForHarvest != -1) ? (Game1.content.LoadString("Strings\\StringsFromCSFiles:FarmComputer_CropsReadyForHarvest_Greenhouse", totalGreenhouseCropsReadyForHarvest) + "  ^") : "") + Game1.content.LoadString("Strings\\StringsFromCSFiles:FarmComputer_TotalOpenHoeDirt", totalOpenHoeDirt) + "  ^" + ((Game1.whichFarm == 2 || Game1.whichFarm == 6) ? (Game1.content.LoadString("Strings\\StringsFromCSFiles:FarmComputer_TotalForage", totalForageItems) + "  ^") : "") + Game1.content.LoadString("Strings\\StringsFromCSFiles:FarmComputer_MachinesReady", numberOfMachinesReadyForHarvest) + "  ^" + Game1.content.LoadString("Strings\\StringsFromCSFiles:FarmComputer_FarmCave", flag ? Game1.content.LoadString("Strings\\Lexicon:QuestionDialogue_Yes") : Game1.content.LoadString("Strings\\Lexicon:QuestionDialogue_No")) + "  "
+						});
+					}, 500);
+					return true;
+				case 238:
 				{
 					if (justCheckingForActivity)
 					{
 						return true;
 					}
-					Game1.activeClickableMenu = new ItemGrabMenu((heldObject.Value as Chest).items, reverseGrab: false, showReceivingMenu: true, InventoryMenu.highlightAllItems, (heldObject.Value as Chest).grabItemFromInventory, null, grabItemFromAutoGrabber, snapToBottom: false, canBeExitedWithKey: true, playRightClickSound: true, allowRightClick: true, showOrganizeButton: true, 1, null, -1, this);
+					Vector2 obelisk = Vector2.Zero;
+					Vector2 obelisk2 = Vector2.Zero;
+					foreach (KeyValuePair<Vector2, Object> o in who.currentLocation.objects.Pairs)
+					{
+						if ((bool)o.Value.bigCraftable && o.Value.ParentSheetIndex == 238)
+						{
+							if (obelisk.Equals(Vector2.Zero))
+							{
+								obelisk = o.Key;
+							}
+							else if (obelisk2.Equals(Vector2.Zero))
+							{
+								obelisk2 = o.Key;
+								break;
+							}
+						}
+					}
+					if (obelisk2.Equals(Vector2.Zero))
+					{
+						Game1.showRedMessage(Game1.content.LoadString("Strings\\StringsFromCSFiles:MiniObelisk_NeedsPair"));
+						return false;
+					}
+					Vector2 target = (!(Vector2.Distance(who.getTileLocation(), obelisk) > Vector2.Distance(who.getTileLocation(), obelisk2))) ? obelisk2 : obelisk;
+					foreach (Vector2 v in new List<Vector2>
+					{
+						new Vector2(target.X, target.Y + 1f),
+						new Vector2(target.X - 1f, target.Y),
+						new Vector2(target.X + 1f, target.Y),
+						new Vector2(target.X, target.Y - 1f)
+					})
+					{
+						if (who.currentLocation.isTileLocationTotallyClearAndPlaceableIgnoreFloors(v))
+						{
+							for (int k = 0; k < 12; k++)
+							{
+								who.currentLocation.temporarySprites.Add(new TemporaryAnimatedSprite(354, Game1.random.Next(25, 75), 6, 1, new Vector2(Game1.random.Next((int)who.Position.X - 256, (int)who.Position.X + 192), Game1.random.Next((int)who.Position.Y - 256, (int)who.Position.Y + 192)), flicker: false, (Game1.random.NextDouble() < 0.5) ? true : false));
+							}
+							who.currentLocation.playSound("wand");
+							Game1.displayFarmer = false;
+							Game1.player.freezePause = 800;
+							Game1.flashAlpha = 1f;
+							DelayedAction.fadeAfterDelay(delegate
+							{
+								who.setTileLocation(v);
+								Game1.displayFarmer = true;
+								Game1.globalFadeToClear();
+							}, 800);
+							new Microsoft.Xna.Framework.Rectangle(who.GetBoundingBox().X, who.GetBoundingBox().Y, 64, 64).Inflate(192, 192);
+							int j = 0;
+							for (int x = who.getTileX() + 8; x >= who.getTileX() - 8; x--)
+							{
+								who.currentLocation.temporarySprites.Add(new TemporaryAnimatedSprite(6, new Vector2(x, who.getTileY()) * 64f, Color.White, 8, flipped: false, 50f)
+								{
+									layerDepth = 1f,
+									delayBeforeAnimationStart = j * 25,
+									motion = new Vector2(-0.25f, 0f)
+								});
+								j++;
+							}
+							return true;
+						}
+					}
+					Game1.showRedMessage(Game1.content.LoadString("Strings\\StringsFromCSFiles:MiniObelisk_NeedsSpace"));
+					return false;
+				}
+				}
+			}
+			if (name.Equals("Prairie King Arcade System"))
+			{
+				if (justCheckingForActivity)
+				{
 					return true;
+				}
+				Game1.currentLocation.showPrairieKingMenu();
+				return true;
+			}
+			if (name.Equals("Junimo Kart Arcade System"))
+			{
+				if (justCheckingForActivity)
+				{
+					return true;
+				}
+				Response[] responses = new Response[3]
+				{
+					new Response("Progress", Game1.content.LoadString("Strings\\StringsFromCSFiles:Object.cs.12873")),
+					new Response("Endless", Game1.content.LoadString("Strings\\StringsFromCSFiles:Object.cs.12875")),
+					new Response("Exit", Game1.content.LoadString("Strings\\StringsFromCSFiles:TitleMenu.cs.11738"))
+				};
+				who.currentLocation.createQuestionDialogue(Game1.content.LoadString("Strings\\Locations:Saloon_Arcade_Minecart_Menu"), responses, "MinecartGame");
+				return true;
+			}
+			if (name.Equals("Staircase"))
+			{
+				if (who.currentLocation is MineShaft && (who.currentLocation as MineShaft).shouldCreateLadderOnThisLevel())
+				{
+					if (justCheckingForActivity)
+					{
+						return true;
+					}
+					Game1.enterMine(Game1.CurrentMineLevel + 1);
+					Game1.playSound("stairsdown");
 				}
 			}
 			else
 			{
-				if (name.Equals("Prairie King Arcade System"))
+				if (name.Equals("Slime Ball"))
 				{
 					if (justCheckingForActivity)
 					{
 						return true;
 					}
-					Game1.currentMinigame = new AbigailGame();
+					who.currentLocation.objects.Remove(tileLocation);
+					DelayedAction.playSoundAfterDelay("slimedead", 40);
+					DelayedAction.playSoundAfterDelay("slimeHit", 100);
+					who.currentLocation.playSound("slimeHit");
+					Random r = new Random((int)Game1.stats.daysPlayed + (int)Game1.uniqueIDForThisGame + (int)tileLocation.X * 77 + (int)tileLocation.Y * 777 + 2);
+					Game1.createMultipleObjectDebris(766, (int)tileLocation.X, (int)tileLocation.Y, r.Next(10, 21), 1f + ((who.FacingDirection == 2) ? 0f : ((float)Game1.random.NextDouble())));
+					Utility.makeTemporarySpriteJuicier(new TemporaryAnimatedSprite(44, tileLocation.Value * 64f, Color.Lime, 10)
+					{
+						interval = 70f,
+						holdLastFrame = true,
+						alphaFade = 0.01f
+					}, who.currentLocation);
+					Game1.multiplayer.broadcastSprites(who.currentLocation, new TemporaryAnimatedSprite(44, tileLocation.Value * 64f + new Vector2(-16f, 0f), Color.Lime, 10)
+					{
+						interval = 70f,
+						delayBeforeAnimationStart = 0,
+						holdLastFrame = true,
+						alphaFade = 0.01f
+					});
+					Game1.multiplayer.broadcastSprites(who.currentLocation, new TemporaryAnimatedSprite(44, tileLocation.Value * 64f + new Vector2(0f, 16f), Color.Lime, 10)
+					{
+						interval = 70f,
+						delayBeforeAnimationStart = 100,
+						holdLastFrame = true,
+						alphaFade = 0.01f
+					});
+					Game1.multiplayer.broadcastSprites(who.currentLocation, new TemporaryAnimatedSprite(44, tileLocation.Value * 64f + new Vector2(16f, 0f), Color.Lime, 10)
+					{
+						interval = 70f,
+						delayBeforeAnimationStart = 200,
+						holdLastFrame = true,
+						alphaFade = 0.01f
+					});
+					while (r.NextDouble() < 0.33)
+					{
+						Game1.createObjectDebris(557, (int)tileLocation.X, (int)tileLocation.Y, who.UniqueMultiplayerID);
+					}
 					return true;
 				}
-				if (name.Equals("Junimo Kart Arcade System"))
+				if (name.Equals("Furnace") && who.ActiveObject == null && !readyForHarvest)
 				{
-					if (justCheckingForActivity)
+					if (heldObject.Value != null)
 					{
 						return true;
-					}
-					Response[] responses = new Response[3]
-					{
-						new Response("Progress", Game1.content.LoadString("Strings\\StringsFromCSFiles:Object.cs.12873")),
-						new Response("Endless", Game1.content.LoadString("Strings\\StringsFromCSFiles:Object.cs.12875")),
-						new Response("Exit", Game1.content.LoadString("Strings\\StringsFromCSFiles:TitleMenu.cs.11738"))
-					};
-					who.currentLocation.createQuestionDialogue(Game1.content.LoadString("Strings\\Locations:Saloon_Arcade_Minecart_Menu"), responses, "MinecartGame");
-					return true;
-				}
-				if (name.Equals("Staircase"))
-				{
-					if (who.currentLocation is MineShaft && (who.currentLocation as MineShaft).shouldCreateLadderOnThisLevel())
-					{
-						if (justCheckingForActivity)
-						{
-							return true;
-						}
-						Game1.enterMine(Game1.CurrentMineLevel + 1);
-						Game1.playSound("stairsdown");
 					}
 				}
 				else
 				{
-					if (name.Equals("Slime Ball"))
-					{
-						if (justCheckingForActivity)
-						{
-							return true;
-						}
-						who.currentLocation.objects.Remove(tileLocation);
-						DelayedAction.playSoundAfterDelay("slimedead", 40);
-						DelayedAction.playSoundAfterDelay("slimeHit", 100);
-						who.currentLocation.playSound("slimeHit");
-						Random r = new Random((int)Game1.stats.daysPlayed + (int)Game1.uniqueIDForThisGame + (int)tileLocation.X * 77 + (int)tileLocation.Y * 777 + 2);
-						Game1.createMultipleObjectDebris(766, (int)tileLocation.X, (int)tileLocation.Y, r.Next(10, 21), 1f + ((who.FacingDirection == 2) ? 0f : ((float)Game1.random.NextDouble())));
-						Utility.makeTemporarySpriteJuicier(new TemporaryAnimatedSprite(44, tileLocation.Value * 64f, Color.Lime, 10)
-						{
-							interval = 70f,
-							holdLastFrame = true,
-							alphaFade = 0.01f
-						}, who.currentLocation);
-						Game1.multiplayer.broadcastSprites(who.currentLocation, new TemporaryAnimatedSprite(44, tileLocation.Value * 64f + new Vector2(-16f, 0f), Color.Lime, 10)
-						{
-							interval = 70f,
-							delayBeforeAnimationStart = 0,
-							holdLastFrame = true,
-							alphaFade = 0.01f
-						});
-						Game1.multiplayer.broadcastSprites(who.currentLocation, new TemporaryAnimatedSprite(44, tileLocation.Value * 64f + new Vector2(0f, 16f), Color.Lime, 10)
-						{
-							interval = 70f,
-							delayBeforeAnimationStart = 100,
-							holdLastFrame = true,
-							alphaFade = 0.01f
-						});
-						Game1.multiplayer.broadcastSprites(who.currentLocation, new TemporaryAnimatedSprite(44, tileLocation.Value * 64f + new Vector2(16f, 0f), Color.Lime, 10)
-						{
-							interval = 70f,
-							delayBeforeAnimationStart = 200,
-							holdLastFrame = true,
-							alphaFade = 0.01f
-						});
-						while (r.NextDouble() < 0.33)
-						{
-							Game1.createObjectDebris(557, (int)tileLocation.X, (int)tileLocation.Y, who.UniqueMultiplayerID);
-						}
-						return true;
-					}
-					if (name.Equals("Furnace") && who.ActiveObject == null && !readyForHarvest)
+					if (name.Contains("Table"))
 					{
 						if (heldObject.Value != null)
 						{
+							if (justCheckingForActivity)
+							{
+								return true;
+							}
+							Object item2 = heldObject.Value;
+							heldObject.Value = null;
+							if (who.isMoving())
+							{
+								Game1.haltAfterCheck = false;
+							}
+							if (who.addItemToInventoryBool(item2))
+							{
+								Game1.playSound("coin");
+							}
+							else
+							{
+								heldObject.Value = item2;
+							}
 							return true;
 						}
-					}
-					else
-					{
-						if (name.Contains("Table"))
-						{
-							if (heldObject.Value != null)
-							{
-								if (justCheckingForActivity)
-								{
-									return true;
-								}
-								Object item2 = heldObject.Value;
-								heldObject.Value = null;
-								if (who.isMoving())
-								{
-									Game1.haltAfterCheck = false;
-								}
-								if (who.addItemToInventoryBool(item2))
-								{
-									Game1.playSound("coin");
-								}
-								else
-								{
-									heldObject.Value = item2;
-								}
-								return true;
-							}
-							if (name.Equals("Tile Table"))
-							{
-								if (justCheckingForActivity)
-								{
-									return true;
-								}
-								base.ParentSheetIndex++;
-								if ((int)parentSheetIndex == 322)
-								{
-									base.ParentSheetIndex -= 9;
-									return false;
-								}
-								return true;
-							}
-							return false;
-						}
-						if (name.Contains("Stool"))
+						if (name.Equals("Tile Table"))
 						{
 							if (justCheckingForActivity)
 							{
 								return true;
 							}
 							base.ParentSheetIndex++;
-							if ((int)parentSheetIndex == 305)
+							if ((int)parentSheetIndex == 322)
 							{
 								base.ParentSheetIndex -= 9;
 								return false;
 							}
 							return true;
 						}
-						if ((bool)bigCraftable && (name.Contains("Chair") || name.Contains("Painting") || name.Equals("House Plant")))
+						return false;
+					}
+					if (name.Contains("Stool"))
+					{
+						if (justCheckingForActivity)
+						{
+							return true;
+						}
+						base.ParentSheetIndex++;
+						if ((int)parentSheetIndex == 305)
+						{
+							base.ParentSheetIndex -= 9;
+							return false;
+						}
+						return true;
+					}
+					if ((bool)bigCraftable && (name.Contains("Chair") || name.Contains("Painting") || name.Equals("House Plant")))
+					{
+						if (justCheckingForActivity)
+						{
+							return true;
+						}
+						base.ParentSheetIndex++;
+						int total = -1;
+						int baseIndex = -1;
+						switch (name)
+						{
+						case "Red Chair":
+							total = 4;
+							baseIndex = 44;
+							break;
+						case "Patio Chair":
+							total = 4;
+							baseIndex = 52;
+							break;
+						case "Dark Chair":
+							total = 4;
+							baseIndex = 60;
+							break;
+						case "Wood Chair":
+							total = 4;
+							baseIndex = 24;
+							break;
+						case "House Plant":
+							total = 8;
+							baseIndex = 0;
+							break;
+						case "Painting":
+							total = 8;
+							baseIndex = 32;
+							break;
+						}
+						if ((int)parentSheetIndex == baseIndex + total)
+						{
+							base.ParentSheetIndex -= total;
+							return false;
+						}
+						return true;
+					}
+					if (name.Equals("Flute Block"))
+					{
+						if (justCheckingForActivity)
+						{
+							return true;
+						}
+						preservedParentSheetIndex.Value = (preservedParentSheetIndex.Value + 100) % 2400;
+						shakeTimer = 200;
+						if (Game1.soundBank != null)
+						{
+							if (internalSound != null)
+							{
+								internalSound.Stop(AudioStopOptions.Immediate);
+								internalSound = Game1.soundBank.GetCue("flute");
+							}
+							else
+							{
+								internalSound = Game1.soundBank.GetCue("flute");
+							}
+							internalSound.SetVariable("Pitch", preservedParentSheetIndex.Value);
+							internalSound.Play();
+						}
+						scale.Y = 1.3f;
+						shakeTimer = 200;
+						return true;
+					}
+					if (name.Equals("Drum Block"))
+					{
+						if (justCheckingForActivity)
+						{
+							return true;
+						}
+						preservedParentSheetIndex.Value = (preservedParentSheetIndex.Value + 1) % 7;
+						shakeTimer = 200;
+						if (Game1.soundBank != null)
+						{
+							if (internalSound != null)
+							{
+								internalSound.Stop(AudioStopOptions.Immediate);
+								internalSound = Game1.soundBank.GetCue("drumkit" + preservedParentSheetIndex.Value);
+							}
+							else
+							{
+								internalSound = Game1.soundBank.GetCue("drumkit" + preservedParentSheetIndex.Value);
+							}
+							internalSound.Play();
+						}
+						scale.Y = 1.3f;
+						shakeTimer = 200;
+						return true;
+					}
+					if (IsSprinkler())
+					{
+						if (heldObject.Value != null && heldObject.Value.ParentSheetIndex == 913)
 						{
 							if (justCheckingForActivity)
 							{
 								return true;
 							}
-							base.ParentSheetIndex++;
-							int total = -1;
-							int baseIndex = -1;
-							switch (name)
+							if (!Game1.didPlayerJustRightClick(ignoreNonMouseHeldInput: true))
 							{
-							case "Red Chair":
-								total = 4;
-								baseIndex = 44;
-								break;
-							case "Patio Chair":
-								total = 4;
-								baseIndex = 52;
-								break;
-							case "Dark Chair":
-								total = 4;
-								baseIndex = 60;
-								break;
-							case "Wood Chair":
-								total = 4;
-								baseIndex = 24;
-								break;
-							case "House Plant":
-								total = 8;
-								baseIndex = 0;
-								break;
-							case "Painting":
-								total = 8;
-								baseIndex = 32;
-								break;
-							}
-							if ((int)parentSheetIndex == baseIndex + total)
-							{
-								base.ParentSheetIndex -= total;
 								return false;
 							}
-							return true;
+							if (heldObject.Value.heldObject.Value is Chest)
+							{
+								Chest chest = heldObject.Value.heldObject.Value as Chest;
+								chest.GetMutex().RequestLock(delegate
+								{
+									chest.ShowMenu();
+								});
+							}
 						}
-						if (name.Equals("Flute Block"))
-						{
-							if (justCheckingForActivity)
-							{
-								return true;
-							}
-							preservedParentSheetIndex.Value = (preservedParentSheetIndex.Value + 100) % 2400;
-							shakeTimer = 200;
-							if (Game1.soundBank != null)
-							{
-								if (internalSound != null)
-								{
-									internalSound.Stop(AudioStopOptions.Immediate);
-									internalSound = Game1.soundBank.GetCue("flute");
-								}
-								else
-								{
-									internalSound = Game1.soundBank.GetCue("flute");
-								}
-								internalSound.SetVariable("Pitch", preservedParentSheetIndex.Value);
-								internalSound.Play();
-							}
-							scale.Y = 1.3f;
-							shakeTimer = 200;
-							return true;
-						}
-						if (name.Equals("Drum Block"))
-						{
-							if (justCheckingForActivity)
-							{
-								return true;
-							}
-							preservedParentSheetIndex.Value = (preservedParentSheetIndex.Value + 1) % 7;
-							shakeTimer = 200;
-							if (Game1.soundBank != null)
-							{
-								if (internalSound != null)
-								{
-									internalSound.Stop(AudioStopOptions.Immediate);
-									internalSound = Game1.soundBank.GetCue("drumkit" + preservedParentSheetIndex.Value);
-								}
-								else
-								{
-									internalSound = Game1.soundBank.GetCue("drumkit" + preservedParentSheetIndex.Value);
-								}
-								internalSound.Play();
-							}
-							scale.Y = 1.3f;
-							shakeTimer = 200;
-							return true;
-						}
+					}
+					else
+					{
 						if (name.Contains("arecrow"))
 						{
 							if (justCheckingForActivity)
@@ -3302,7 +4403,7 @@ namespace StardewValley
 							}
 							if (!Game1.didPlayerJustRightClick(ignoreNonMouseHeldInput: true))
 							{
-								return true;
+								return false;
 							}
 							shakeTimer = 100;
 							if (base.SpecialVariable == 0)
@@ -3332,7 +4433,7 @@ namespace StardewValley
 								return true;
 							}
 						}
-						else if (name.Contains("Hopper") && who.ActiveObject == null)
+						else if (name.Contains("Feed Hopper") && who.ActiveObject == null)
 						{
 							if (justCheckingForActivity)
 							{
@@ -3398,6 +4499,7 @@ namespace StardewValley
 				{
 					Game1.haltAfterCheck = false;
 				}
+				bool check_for_reload = false;
 				if (name.Equals("Bee House"))
 				{
 					int honey_type = -1;
@@ -3435,6 +4537,7 @@ namespace StardewValley
 							}
 						}
 						Game1.playSound("coin");
+						check_for_reload = true;
 					}
 				}
 				else if (who.IsLocalPlayer)
@@ -3447,6 +4550,7 @@ namespace StardewValley
 						return false;
 					}
 					Game1.playSound("coin");
+					check_for_reload = true;
 					switch (name)
 					{
 					case "Keg":
@@ -3472,7 +4576,7 @@ namespace StardewValley
 					minutesUntilReady.Value = getMinutesForCrystalarium(objectThatWasHeld.ParentSheetIndex);
 					heldObject.Value = (Object)objectThatWasHeld.getOne();
 				}
-				else if (name.Equals("Tapper"))
+				else if (name.Contains("Tapper"))
 				{
 					if (who.currentLocation.terrainFeatures.ContainsKey(tileLocation) && who.currentLocation.terrainFeatures[tileLocation] is Tree)
 					{
@@ -3485,19 +4589,58 @@ namespace StardewValley
 				}
 				readyForHarvest.Value = false;
 				showNextIndex.Value = false;
-				if (name.Equals("Bee House") && !Game1.currentSeason.Equals("winter"))
+				if (name.Equals("Bee House") && !Game1.GetSeasonForLocation(who.currentLocation).Equals("winter"))
 				{
 					heldObject.Value = new Object(Vector2.Zero, 340, null, canBeSetDown: false, canBeGrabbed: true, isHoedirt: false, isSpawnedObject: false);
-					minutesUntilReady.Value = 2400 - Game1.timeOfDay + 4320;
+					minutesUntilReady.Value = Utility.CalculateMinutesUntilMorning(Game1.timeOfDay, 4);
 				}
 				else if (name.Equals("Worm Bin"))
 				{
 					heldObject.Value = new Object(685, Game1.random.Next(2, 6));
-					minutesUntilReady.Value = 2600 - Game1.timeOfDay;
+					minutesUntilReady.Value = Utility.CalculateMinutesUntilMorning(Game1.timeOfDay, 1);
+				}
+				if (check_for_reload)
+				{
+					AttemptAutoLoad(who);
 				}
 				return true;
 			}
 			return false;
+		}
+
+		public virtual void AttemptAutoLoad(Farmer who)
+		{
+			Object source_object = null;
+			if (who.currentLocation.objects.TryGetValue(new Vector2(TileLocation.X, TileLocation.Y - 1f), out source_object) && source_object != null && source_object is Chest)
+			{
+				Chest chest = source_object as Chest;
+				if (chest.specialChestType.Value == Chest.SpecialChestTypes.AutoLoader)
+				{
+					chest.GetMutex().RequestLock(delegate
+					{
+						chest.GetMutex().ReleaseLock();
+						Object value = heldObject.Value;
+						heldObject.Value = null;
+						foreach (Item current in chest.items)
+						{
+							autoLoadChest = chest;
+							bool num = performObjectDropInAction(current, probe: true, who);
+							heldObject.Value = value;
+							if (num)
+							{
+								if (performObjectDropInAction(current, probe: false, who))
+								{
+									ConsumeInventoryItem(who, current, 1);
+								}
+								autoLoadChest = null;
+								return;
+							}
+						}
+						autoLoadChest = null;
+						heldObject.Value = value;
+					});
+				}
+			}
 		}
 
 		public virtual void farmerAdjacentAction(GameLocation location)
@@ -3517,6 +4660,10 @@ namespace StardewValley
 				scale.Y = 1.3f;
 				shakeTimer = 200;
 				lastNoteBlockSoundTime = (int)Game1.currentGameTime.TotalGameTime.TotalMilliseconds;
+				if (location is IslandSouthEast)
+				{
+					(location as IslandSouthEast).OnFlutePlayed(preservedParentSheetIndex.Value);
+				}
 			}
 			else if (name.Equals("Drum Block") && (internalSound == null || (Game1.currentGameTime.TotalGameTime.TotalMilliseconds - (double)lastNoteBlockSoundTime >= 1000.0 && !internalSound.IsPlaying)) && !Game1.dialogueUp)
 			{
@@ -3585,7 +4732,7 @@ namespace StardewValley
 
 		public virtual void addWorkingAnimation(GameLocation environment)
 		{
-			if (environment == null || environment.farmers.Count == 0)
+			if (environment == null || !environment.farmers.Any())
 			{
 				return;
 			}
@@ -3673,6 +4820,14 @@ namespace StardewValley
 				{
 					return false;
 				}
+				if (IsSprinkler())
+				{
+					return false;
+				}
+				if ((bool)bigCraftable && (int)parentSheetIndex == 231)
+				{
+					return false;
+				}
 				if (Game1.IsMasterGame)
 				{
 					minutesUntilReady.Value -= minutes;
@@ -3719,6 +4874,10 @@ namespace StardewValley
 					{
 						environment.objects.Remove(tileLocation);
 						environment.objects.Add(tileLocation, new Object(tileLocation, 98));
+						if (!Game1.MasterPlayer.mailReceived.Contains("Capsule_Broken"))
+						{
+							Game1.MasterPlayer.mailReceived.Add("Capsule_Broken");
+						}
 					}
 					break;
 				case 141:
@@ -3794,11 +4953,16 @@ namespace StardewValley
 
 		public static bool isIndexOkForBasicShippedCategory(int index)
 		{
-			if (index == 434)
+			switch (index)
 			{
+			case 434:
 				return false;
+			case 889:
+			case 928:
+				return false;
+			default:
+				return true;
 			}
-			return true;
 		}
 
 		public static bool isPotentialBasicShippedCategory(int index, string category)
@@ -3842,7 +5006,7 @@ namespace StardewValley
 				scale.Y = Math.Max(4f, scale.Y - 0.04f);
 				return scale;
 			}
-			if ((heldObject.Value == null && (int)minutesUntilReady <= 0) || (bool)readyForHarvest || name.Equals("Bee House") || name.Contains("Table") || name.Equals("Tapper") || (int)parentSheetIndex == 165)
+			if ((heldObject.Value == null && (int)minutesUntilReady <= 0) || (bool)readyForHarvest || (int)parentSheetIndex == 10 || name.Contains("Table") || (int)parentSheetIndex == 105 || (int)parentSheetIndex == 264 || (int)parentSheetIndex == 165 || (int)parentSheetIndex == 231)
 			{
 				return Vector2.Zero;
 			}
@@ -3889,24 +5053,43 @@ namespace StardewValley
 
 		public virtual void drawPlacementBounds(SpriteBatch spriteBatch, GameLocation location)
 		{
-			if (isPlaceable() && !(this is Wallpaper))
+			if (!isPlaceable() || this is Wallpaper)
 			{
-				int X = (int)Game1.GetPlacementGrabTile().X * 64;
-				int Y = (int)Game1.GetPlacementGrabTile().Y * 64;
-				Game1.isCheckingNonMousePlacement = !Game1.IsPerformingMousePlacement();
-				if (Game1.isCheckingNonMousePlacement)
+				return;
+			}
+			int X = (int)Game1.GetPlacementGrabTile().X * 64;
+			int Y = (int)Game1.GetPlacementGrabTile().Y * 64;
+			Game1.isCheckingNonMousePlacement = !Game1.IsPerformingMousePlacement();
+			if (Game1.isCheckingNonMousePlacement)
+			{
+				Vector2 nearbyValidPlacementPosition = Utility.GetNearbyValidPlacementPosition(Game1.player, location, this, X, Y);
+				X = (int)nearbyValidPlacementPosition.X;
+				Y = (int)nearbyValidPlacementPosition.Y;
+			}
+			if (Utility.isThereAnObjectHereWhichAcceptsThisItem(location, this, X, Y))
+			{
+				return;
+			}
+			bool canPlaceHere = Utility.playerCanPlaceItemHere(location, this, X, Y, Game1.player) || (Utility.isThereAnObjectHereWhichAcceptsThisItem(location, this, X, Y) && Utility.withinRadiusOfPlayer(X, Y, 1, Game1.player));
+			Game1.isCheckingNonMousePlacement = false;
+			int width = 1;
+			int height = 1;
+			if (this is Furniture)
+			{
+				Furniture obj = this as Furniture;
+				width = obj.getTilesWide();
+				height = obj.getTilesHigh();
+			}
+			for (int x_offset = 0; x_offset < width; x_offset++)
+			{
+				for (int y_offset = 0; y_offset < height; y_offset++)
 				{
-					Vector2 nearbyValidPlacementPosition = Utility.GetNearbyValidPlacementPosition(Game1.player, location, this, X, Y);
-					X = (int)nearbyValidPlacementPosition.X;
-					Y = (int)nearbyValidPlacementPosition.Y;
+					spriteBatch.Draw(Game1.mouseCursors, new Vector2((X / 64 + x_offset) * 64 - Game1.viewport.X, (Y / 64 + y_offset) * 64 - Game1.viewport.Y), new Microsoft.Xna.Framework.Rectangle(canPlaceHere ? 194 : 210, 388, 16, 16), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.01f);
 				}
-				bool canPlaceHere = Utility.playerCanPlaceItemHere(location, this, X, Y, Game1.player) || (Utility.isThereAnObjectHereWhichAcceptsThisItem(location, this, X, Y) && Utility.withinRadiusOfPlayer(X, Y, 1, Game1.player));
-				Game1.isCheckingNonMousePlacement = false;
-				spriteBatch.Draw(Game1.mouseCursors, new Vector2(X / 64 * 64 - Game1.viewport.X, Y / 64 * 64 - Game1.viewport.Y), new Microsoft.Xna.Framework.Rectangle(canPlaceHere ? 194 : 210, 388, 16, 16), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.01f);
-				if ((bool)bigCraftable || this is Furniture || ((int)category != -74 && (int)category != -19))
-				{
-					draw(spriteBatch, X / 64, Y / 64, 0.5f);
-				}
+			}
+			if ((bool)bigCraftable || this is Furniture || ((int)category != -74 && (int)category != -19))
+			{
+				draw(spriteBatch, X / 64, Y / 64, 0.5f);
 			}
 		}
 
@@ -3944,8 +5127,10 @@ namespace StardewValley
 				}
 				if (drawStackNumber != 0 && (int)quality > 0)
 				{
+					Microsoft.Xna.Framework.Rectangle quality_rect = ((int)quality < 4) ? new Microsoft.Xna.Framework.Rectangle(338 + ((int)quality - 1) * 8, 400, 8, 8) : new Microsoft.Xna.Framework.Rectangle(346, 392, 8, 8);
+					Texture2D quality_sheet = Game1.mouseCursors;
 					float yOffset = ((int)quality < 4) ? 0f : (((float)Math.Cos((double)Game1.currentGameTime.TotalGameTime.Milliseconds * Math.PI / 512.0) + 1f) * 0.05f);
-					spriteBatch.Draw(Game1.mouseCursors, location + new Vector2(12f, 52f + yOffset), ((int)quality < 4) ? new Microsoft.Xna.Framework.Rectangle(338 + ((int)quality - 1) * 8, 400, 8, 8) : new Microsoft.Xna.Framework.Rectangle(346, 392, 8, 8), color * transparency, 0f, new Vector2(4f, 4f), 3f * scaleSize * (1f + yOffset), SpriteEffects.None, layerDepth);
+					spriteBatch.Draw(quality_sheet, location + new Vector2(12f, 52f + yOffset), quality_rect, color * transparency, 0f, new Vector2(4f, 4f), 3f * scaleSize * (1f + yOffset), SpriteEffects.None, layerDepth);
 				}
 				if (base.Category == -22 && uses.Value > 0)
 				{
@@ -3972,7 +5157,7 @@ namespace StardewValley
 				Vector2 scaleFactor = getScale();
 				scaleFactor *= 4f;
 				Vector2 position = Game1.GlobalToLocal(Game1.viewport, new Vector2(x * 64, y * 64 - 64));
-				b.Draw(destinationRectangle: new Microsoft.Xna.Framework.Rectangle((int)(position.X - scaleFactor.X / 2f), (int)(position.Y - scaleFactor.Y / 2f), (int)(64f + scaleFactor.X), (int)(128f + scaleFactor.Y / 2f)), texture: Game1.bigCraftableSpriteSheet, sourceRectangle: getSourceRectForBigCraftable(showNextIndex ? (base.ParentSheetIndex + 1) : base.ParentSheetIndex), color: Color.White, rotation: 0f, origin: Vector2.Zero, effects: SpriteEffects.None, layerDepth: Math.Max(0f, (float)((y + 1) * 64 - 1) / 10000f) + (((int)parentSheetIndex == 105) ? 0.0015f : 0f));
+				b.Draw(destinationRectangle: new Microsoft.Xna.Framework.Rectangle((int)(position.X - scaleFactor.X / 2f), (int)(position.Y - scaleFactor.Y / 2f), (int)(64f + scaleFactor.X), (int)(128f + scaleFactor.Y / 2f)), texture: Game1.bigCraftableSpriteSheet, sourceRectangle: getSourceRectForBigCraftable(showNextIndex ? (base.ParentSheetIndex + 1) : base.ParentSheetIndex), color: Color.White, rotation: 0f, origin: Vector2.Zero, effects: SpriteEffects.None, layerDepth: Math.Max(0f, (float)((y + 1) * 64 - 1) / 10000f) + (((int)parentSheetIndex == 105 || (int)parentSheetIndex == 264) ? 0.0015f : 0f));
 				if (Name.Equals("Loom") && (int)minutesUntilReady > 0)
 				{
 					b.Draw(Game1.objectSpriteSheet, getLocalPosition(Game1.viewport) + new Vector2(32f, 0f), Game1.getSourceRectForStandardTileSheet(Game1.objectSpriteSheet, 435), Color.White, scale.X, new Vector2(32f, 32f), 1f, SpriteEffects.None, Math.Max(0f, (float)((y + 1) * 64 - 1) / 10000f + 0.0001f));
@@ -4005,9 +5190,15 @@ namespace StardewValley
 				Vector2 position = Game1.GlobalToLocal(Game1.viewport, new Vector2(x * 64, y * 64 - 64));
 				Microsoft.Xna.Framework.Rectangle destination = new Microsoft.Xna.Framework.Rectangle((int)(position.X - scaleFactor.X / 2f) + ((shakeTimer > 0) ? Game1.random.Next(-1, 2) : 0), (int)(position.Y - scaleFactor.Y / 2f) + ((shakeTimer > 0) ? Game1.random.Next(-1, 2) : 0), (int)(64f + scaleFactor.X), (int)(128f + scaleFactor.Y / 2f));
 				float draw_layer = Math.Max(0f, (float)((y + 1) * 64 - 24) / 10000f) + (float)x * 1E-05f;
-				if (base.ParentSheetIndex == 105)
+				if (base.ParentSheetIndex == 105 || base.ParentSheetIndex == 264)
 				{
 					draw_layer = Math.Max(0f, (float)((y + 1) * 64 + 2) / 10000f) + (float)x / 1000000f;
+				}
+				if ((int)parentSheetIndex == 272)
+				{
+					spriteBatch.Draw(Game1.bigCraftableSpriteSheet, destination, getSourceRectForBigCraftable(base.ParentSheetIndex + 1), Color.White * alpha, 0f, Vector2.Zero, SpriteEffects.None, draw_layer);
+					spriteBatch.Draw(Game1.bigCraftableSpriteSheet, position + new Vector2(8.5f, 12f) * 4f, getSourceRectForBigCraftable(base.ParentSheetIndex + 2), Color.White * alpha, (float)Game1.currentGameTime.TotalGameTime.TotalSeconds * -1.5f, new Vector2(7.5f, 15.5f), 4f, SpriteEffects.None, draw_layer + 1E-05f);
+					return;
 				}
 				spriteBatch.Draw(Game1.bigCraftableSpriteSheet, destination, getSourceRectForBigCraftable(showNextIndex ? (base.ParentSheetIndex + 1) : base.ParentSheetIndex), Color.White * alpha, 0f, Vector2.Zero, SpriteEffects.None, draw_layer);
 				if (Name.Equals("Loom") && (int)minutesUntilReady > 0)
@@ -4047,19 +5238,39 @@ namespace StardewValley
 				Vector2 origin2 = new Vector2(8f, 8f);
 				_ = scale;
 				spriteBatch.Draw(objectSpriteSheet, position3, sourceRectangle2, color2, 0f, origin2, (scale.Y > 1f) ? getScale().Y : 4f, flipped ? SpriteEffects.FlipHorizontally : SpriteEffects.None, (float)(isPassable() ? getBoundingBox(new Vector2(x, y)).Top : getBoundingBox(new Vector2(x, y)).Bottom) / 10000f);
+				if (heldObject.Value != null && IsSprinkler())
+				{
+					Vector2 offset = Vector2.Zero;
+					if (heldObject.Value.ParentSheetIndex == 913)
+					{
+						offset = new Vector2(0f, -20f);
+					}
+					Texture2D objectSpriteSheet2 = Game1.objectSpriteSheet;
+					Vector2 position4 = Game1.GlobalToLocal(Game1.viewport, new Vector2(x * 64 + 32 + ((shakeTimer > 0) ? Game1.random.Next(-1, 2) : 0), y * 64 + 32 + ((shakeTimer > 0) ? Game1.random.Next(-1, 2) : 0)) + offset);
+					Microsoft.Xna.Framework.Rectangle? sourceRectangle3 = GameLocation.getSourceRectForObject(heldObject.Value.ParentSheetIndex + 1);
+					Color color3 = Color.White * alpha;
+					Vector2 origin3 = new Vector2(8f, 8f);
+					_ = scale;
+					spriteBatch.Draw(objectSpriteSheet2, position4, sourceRectangle3, color3, 0f, origin3, (scale.Y > 1f) ? getScale().Y : 4f, flipped ? SpriteEffects.FlipHorizontally : SpriteEffects.None, (float)(isPassable() ? getBoundingBox(new Vector2(x, y)).Top : getBoundingBox(new Vector2(x, y)).Bottom) / 10000f + 1E-05f);
+				}
 			}
 			if (!readyForHarvest)
 			{
 				return;
 			}
-			float yOffset = 4f * (float)Math.Round(Math.Sin(DateTime.UtcNow.TimeOfDay.TotalMilliseconds / 250.0), 2);
-			spriteBatch.Draw(Game1.mouseCursors, Game1.GlobalToLocal(Game1.viewport, new Vector2(x * 64 - 8, (float)(y * 64 - 96 - 16) + yOffset)), new Microsoft.Xna.Framework.Rectangle(141, 465, 20, 24), Color.White * 0.75f, 0f, Vector2.Zero, 4f, SpriteEffects.None, (float)((y + 1) * 64) / 10000f + 1E-06f + tileLocation.X / 10000f + (((int)parentSheetIndex == 105) ? 0.0015f : 0f));
+			float base_sort = (float)((y + 1) * 64) / 10000f + tileLocation.X / 50000f;
+			if ((int)parentSheetIndex == 105 || (int)parentSheetIndex == 264)
+			{
+				base_sort += 0.02f;
+			}
+			float yOffset = 4f * (float)Math.Round(Math.Sin(Game1.currentGameTime.TotalGameTime.TotalMilliseconds / 250.0), 2);
+			spriteBatch.Draw(Game1.mouseCursors, Game1.GlobalToLocal(Game1.viewport, new Vector2(x * 64 - 8, (float)(y * 64 - 96 - 16) + yOffset)), new Microsoft.Xna.Framework.Rectangle(141, 465, 20, 24), Color.White * 0.75f, 0f, Vector2.Zero, 4f, SpriteEffects.None, base_sort + 1E-06f);
 			if (heldObject.Value != null)
 			{
-				spriteBatch.Draw(Game1.objectSpriteSheet, Game1.GlobalToLocal(Game1.viewport, new Vector2(x * 64 + 32, (float)(y * 64 - 64 - 8) + yOffset)), Game1.getSourceRectForStandardTileSheet(Game1.objectSpriteSheet, heldObject.Value.parentSheetIndex, 16, 16), Color.White * 0.75f, 0f, new Vector2(8f, 8f), 4f, SpriteEffects.None, (float)((y + 1) * 64) / 10000f + 1E-05f + tileLocation.X / 10000f + (((int)parentSheetIndex == 105) ? 0.0015f : 0f));
+				spriteBatch.Draw(Game1.objectSpriteSheet, Game1.GlobalToLocal(Game1.viewport, new Vector2(x * 64 + 32, (float)(y * 64 - 64 - 8) + yOffset)), Game1.getSourceRectForStandardTileSheet(Game1.objectSpriteSheet, heldObject.Value.parentSheetIndex, 16, 16), Color.White * 0.75f, 0f, new Vector2(8f, 8f), 4f, SpriteEffects.None, base_sort + 1E-05f);
 				if (heldObject.Value is ColoredObject)
 				{
-					spriteBatch.Draw(Game1.objectSpriteSheet, Game1.GlobalToLocal(Game1.viewport, new Vector2(x * 64 + 32, (float)(y * 64 - 64 - 8) + yOffset)), Game1.getSourceRectForStandardTileSheet(Game1.objectSpriteSheet, (int)heldObject.Value.parentSheetIndex + 1, 16, 16), (heldObject.Value as ColoredObject).color.Value * 0.75f, 0f, new Vector2(8f, 8f), 4f, SpriteEffects.None, (float)((y + 1) * 64) / 10000f + 1E-05f + tileLocation.X / 10000f + (((int)parentSheetIndex == 105) ? 0.0015f : 1E-05f));
+					spriteBatch.Draw(Game1.objectSpriteSheet, Game1.GlobalToLocal(Game1.viewport, new Vector2(x * 64 + 32, (float)(y * 64 - 64 - 8) + yOffset)), Game1.getSourceRectForStandardTileSheet(Game1.objectSpriteSheet, (int)heldObject.Value.parentSheetIndex + 1, 16, 16), (heldObject.Value as ColoredObject).color.Value * 0.75f, 0f, new Vector2(8f, 8f), 4f, SpriteEffects.None, base_sort + 1.1E-05f);
 				}
 			}
 		}
@@ -4135,6 +5346,10 @@ namespace StardewValley
 
 		public override int maximumStackSize()
 		{
+			if (base.ParentSheetIndex == 911)
+			{
+				return 1;
+			}
 			if (base.Category == -22)
 			{
 				return 1;
@@ -4210,7 +5425,14 @@ namespace StardewValley
 			@object.questId.Value = questId;
 			@object.preserve.Value = preserve.Value;
 			@object.preservedParentSheetIndex.Value = preservedParentSheetIndex.Value;
+			@object._GetOneFrom(this);
 			return @object;
+		}
+
+		public override void _GetOneFrom(Item source)
+		{
+			orderData.Value = (source as Object).orderData.Value;
+			base._GetOneFrom(source);
 		}
 
 		public override bool canBePlacedHere(GameLocation l, Vector2 tile)
@@ -4223,7 +5445,7 @@ namespace StardewValley
 				}
 				return false;
 			}
-			if ((int)parentSheetIndex == 105 && (bool)bigCraftable && l.terrainFeatures.ContainsKey(tile) && l.terrainFeatures[tile] is Tree && !l.objects.ContainsKey(tile))
+			if (((int)parentSheetIndex == 105 || (int)parentSheetIndex == 264) && (bool)bigCraftable && l.terrainFeatures.ContainsKey(tile) && l.terrainFeatures[tile] is Tree && !l.objects.ContainsKey(tile))
 			{
 				return true;
 			}
@@ -4235,7 +5457,7 @@ namespace StardewValley
 			{
 				return true;
 			}
-			if (isWildTreeSeed())
+			if (isWildTreeSeed(parentSheetIndex))
 			{
 				if (!l.isTileOccupiedForPlacement(tile, this))
 				{
@@ -4247,6 +5469,8 @@ namespace StardewValley
 			{
 				switch ((int)parentSheetIndex)
 				{
+				case 69:
+				case 292:
 				case 309:
 				case 310:
 				case 311:
@@ -4256,9 +5480,11 @@ namespace StardewValley
 				case 631:
 				case 632:
 				case 633:
+				case 835:
+				case 891:
 					if (!l.isTileOccupiedForPlacement(tile, this))
 					{
-						if (!l.isGreenhouse)
+						if (!l.CanPlantTreesHere(parentSheetIndex, (int)tile.X, (int)tile.Y))
 						{
 							return l.isOutdoors;
 						}
@@ -4270,7 +5496,7 @@ namespace StardewValley
 					{
 						if (!l.isOutdoors)
 						{
-							if ((bool)l.isGreenhouse)
+							if (l.IsGreenhouse)
 							{
 								return l.doesTileHaveProperty((int)tile.X, (int)tile.Y, "Diggable", "Back") != null;
 							}
@@ -4298,18 +5524,18 @@ namespace StardewValley
 					return false;
 				}
 			}
-			if (l is DecoratableLocation)
+			if (l != null)
 			{
 				Vector2 nonTile = tile * 64f * 64f;
 				nonTile.X += 32f;
 				nonTile.Y += 32f;
-				foreach (Furniture f in (l as DecoratableLocation).furniture)
+				foreach (Furniture f in l.furniture)
 				{
 					if ((int)f.furniture_type == 11 && f.getBoundingBox(f.tileLocation).Contains((int)nonTile.X, (int)nonTile.Y) && f.heldObject.Value == null)
 					{
 						return true;
 					}
-					if (f.getBoundingBox(f.TileLocation).Intersects(new Microsoft.Xna.Framework.Rectangle((int)tile.X * 64, (int)tile.Y * 64, 64, 64)) && !f.isPassable())
+					if (f.getBoundingBox(f.TileLocation).Intersects(new Microsoft.Xna.Framework.Rectangle((int)tile.X * 64, (int)tile.Y * 64, 64, 64)) && !f.isPassable() && !f.AllowPlacementOnThisTile((int)tile.X, (int)tile.Y))
 					{
 						return false;
 					}
@@ -4320,14 +5546,42 @@ namespace StardewValley
 
 		public override bool isPlaceable()
 		{
-			if (Utility.IsNormalObjectAtParentSheetIndex(this, 681) || Utility.IsNormalObjectAtParentSheetIndex(this, 688) || Utility.IsNormalObjectAtParentSheetIndex(this, 689) || Utility.IsNormalObjectAtParentSheetIndex(this, 690) || Utility.IsNormalObjectAtParentSheetIndex(this, 261))
+			if (Utility.IsNormalObjectAtParentSheetIndex(this, 681) || Utility.IsNormalObjectAtParentSheetIndex(this, 688) || Utility.IsNormalObjectAtParentSheetIndex(this, 689) || Utility.IsNormalObjectAtParentSheetIndex(this, 690) || Utility.IsNormalObjectAtParentSheetIndex(this, 261) || Utility.IsNormalObjectAtParentSheetIndex(this, 886))
+			{
+				return false;
+			}
+			if (Utility.IsNormalObjectAtParentSheetIndex(this, 896))
+			{
+				return false;
+			}
+			if (Utility.IsNormalObjectAtParentSheetIndex(this, 911))
+			{
+				return false;
+			}
+			if (Utility.IsNormalObjectAtParentSheetIndex(this, 879))
 			{
 				return false;
 			}
 			_ = base.Category;
-			if (type.Value != null && (base.Category == -8 || base.Category == -9 || type.Value.Equals("Crafting") || isSapling() || (int)parentSheetIndex == 710 || base.Category == -74 || base.Category == -19) && (int)edibility < 0)
+			if (type.Value != null && (base.Category == -8 || base.Category == -9 || type.Value.Equals("Crafting") || isSapling() || (int)parentSheetIndex == 710 || base.Category == -74 || base.Category == -19) && ((int)edibility < 0 || (int)parentSheetIndex == 292 || (int)parentSheetIndex == 891))
 			{
 				return true;
+			}
+			return false;
+		}
+
+		public bool IsConsideredReadyMachineForComputer()
+		{
+			if (bigCraftable.Value && heldObject.Value != null)
+			{
+				if (!(heldObject.Value is Chest))
+				{
+					return minutesUntilReady.Value <= 0;
+				}
+				if (!(heldObject.Value as Chest).isEmpty())
+				{
+					return true;
+				}
 			}
 			return false;
 		}
@@ -4349,11 +5603,11 @@ namespace StardewValley
 			return false;
 		}
 
-		public bool isWildTreeSeed()
+		public static bool isWildTreeSeed(int index)
 		{
-			if ((int)parentSheetIndex != 309 && (int)parentSheetIndex != 310)
+			if (index != 309 && index != 310 && index != 311 && index != 292)
 			{
-				return (int)parentSheetIndex == 311;
+				return index == 891;
 			}
 			return true;
 		}
@@ -4363,13 +5617,53 @@ namespace StardewValley
 			bool isTileDiggable = location.doesTileHaveProperty((int)tile.X, (int)tile.Y, "Diggable", "Back") != null;
 			string noSpawn = location.doesTileHaveProperty((int)tile.X, (int)tile.Y, "NoSpawn", "Back");
 			bool cantSpawnHere = noSpawn != null && (noSpawn.Equals("Tree") || noSpawn.Equals("All") || noSpawn.Equals("True"));
-			bool num = location is Farm || location.IsGreenhouse;
+			bool num = location is Farm || location.CanPlantTreesHere(parentSheetIndex, (int)tile.X, (int)tile.Y);
 			bool isBlocked = location.objects.ContainsKey(tile) || (location.terrainFeatures.ContainsKey(tile) && !(location.terrainFeatures[tile] is HoeDirt));
 			if ((num | isTileDiggable) && !cantSpawnHere)
 			{
 				return !isBlocked;
 			}
 			return false;
+		}
+
+		public virtual bool IsSprinkler()
+		{
+			if (GetBaseRadiusForSprinkler() >= 0)
+			{
+				return true;
+			}
+			return false;
+		}
+
+		public virtual int GetModifiedRadiusForSprinkler()
+		{
+			int radius = GetBaseRadiusForSprinkler();
+			if (radius < 0)
+			{
+				return -1;
+			}
+			if (heldObject.Value != null && Utility.IsNormalObjectAtParentSheetIndex((Object)heldObject, 915))
+			{
+				radius++;
+			}
+			return radius;
+		}
+
+		public virtual int GetBaseRadiusForSprinkler()
+		{
+			if (Utility.IsNormalObjectAtParentSheetIndex(this, 599))
+			{
+				return 0;
+			}
+			if (Utility.IsNormalObjectAtParentSheetIndex(this, 621))
+			{
+				return 1;
+			}
+			if (Utility.IsNormalObjectAtParentSheetIndex(this, 645))
+			{
+				return 2;
+			}
+			return -1;
 		}
 
 		public virtual bool placementAction(GameLocation location, int x, int y, Farmer who = null)
@@ -4386,25 +5680,69 @@ namespace StardewValley
 			}
 			if (!bigCraftable && !(this is Furniture))
 			{
+				if (IsSprinkler() && location.doesTileHavePropertyNoNull((int)placementTile.X, (int)placementTile.Y, "NoSprinklers", "Back") == "T")
+				{
+					Game1.showRedMessage(Game1.content.LoadString("Strings\\StringsFromCSFiles:NoSprinklers"));
+					return false;
+				}
 				switch (base.ParentSheetIndex)
 				{
+				case 926:
+					if (location.objects.ContainsKey(placementTile) || location.terrainFeatures.ContainsKey(placementTile))
+					{
+						return false;
+					}
+					location.objects.Add(placementTile, new Torch(placementTile, 278, bigCraftable: true)
+					{
+						Fragility = 1,
+						destroyOvernight = true
+					});
+					Utility.addSmokePuff(location, new Vector2(x, y));
+					Utility.addSmokePuff(location, new Vector2(x + 16, y + 16));
+					Utility.addSmokePuff(location, new Vector2(x + 32, y));
+					Utility.addSmokePuff(location, new Vector2(x + 48, y + 16));
+					Utility.addSmokePuff(location, new Vector2(x + 32, y + 32));
+					Game1.playSound("fireball");
+					return true;
+				case 292:
 				case 309:
 				case 310:
 				case 311:
+				case 891:
 				{
 					if (!canPlaceWildTreeSeed(location, placementTile))
 					{
 						Game1.showRedMessage(Game1.content.LoadString("Strings\\StringsFromCSFiles:Object.cs.13021"));
 						return false;
 					}
+					Vector2 v = default(Vector2);
+					for (int l = x / 64 - 2; l <= x / 64 + 2; l++)
+					{
+						for (int k = y / 64 - 2; k <= y / 64 + 2; k++)
+						{
+							v.X = l;
+							v.Y = k;
+							if (location.terrainFeatures.ContainsKey(v) && location.terrainFeatures[v] is FruitTree)
+							{
+								Game1.showRedMessage(Game1.content.LoadString("Strings\\StringsFromCSFiles:Object.cs.13060_Fruit"));
+								return false;
+							}
+						}
+					}
 					int whichTree = 1;
 					switch ((int)parentSheetIndex)
 					{
+					case 292:
+						whichTree = 8;
+						break;
 					case 310:
 						whichTree = 2;
 						break;
 					case 311:
 						whichTree = 3;
+						break;
+					case 891:
+						whichTree = 7;
 						break;
 					}
 					location.terrainFeatures.Remove(placementTile);
@@ -4421,28 +5759,28 @@ namespace StardewValley
 							return false;
 						}
 					}
-					int idNum3 = Game1.random.Next();
+					int idNum = Game1.random.Next();
 					location.playSound("thudStep");
 					Game1.multiplayer.broadcastSprites(location, new TemporaryAnimatedSprite(parentSheetIndex, 100f, 1, 24, placementTile * 64f, flicker: true, flipped: false, location, who)
 					{
 						shakeIntensity = 0.5f,
 						shakeIntensityChange = 0.002f,
-						extraInfoForEndBehavior = idNum3,
+						extraInfoForEndBehavior = idNum,
 						endFunction = location.removeTemporarySpritesWithID
 					});
 					Game1.multiplayer.broadcastSprites(location, new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(598, 1279, 3, 4), 53f, 5, 9, placementTile * 64f + new Vector2(5f, 3f) * 4f, flicker: true, flipped: false, (float)(y + 7) / 10000f, 0f, Color.Yellow, 4f, 0f, 0f, 0f)
 					{
-						id = idNum3
+						id = idNum
 					});
 					Game1.multiplayer.broadcastSprites(location, new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(598, 1279, 3, 4), 53f, 5, 9, placementTile * 64f + new Vector2(5f, 3f) * 4f, flicker: true, flipped: true, (float)(y + 7) / 10000f, 0f, Color.Orange, 4f, 0f, 0f, 0f)
 					{
 						delayBeforeAnimationStart = 100,
-						id = idNum3
+						id = idNum
 					});
 					Game1.multiplayer.broadcastSprites(location, new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(598, 1279, 3, 4), 53f, 5, 9, placementTile * 64f + new Vector2(5f, 3f) * 4f, flicker: true, flipped: false, (float)(y + 7) / 10000f, 0f, Color.White, 3f, 0f, 0f, 0f)
 					{
 						delayBeforeAnimationStart = 200,
-						id = idNum3
+						id = idNum
 					});
 					location.netAudio.StartPlaying("fuse");
 					return true;
@@ -4456,28 +5794,28 @@ namespace StardewValley
 							return false;
 						}
 					}
-					int idNum3 = Game1.random.Next();
+					int idNum = Game1.random.Next();
 					location.playSound("thudStep");
 					Game1.multiplayer.broadcastSprites(location, new TemporaryAnimatedSprite(parentSheetIndex, 100f, 1, 24, placementTile * 64f, flicker: true, flipped: false, location, who)
 					{
 						shakeIntensity = 0.5f,
 						shakeIntensityChange = 0.002f,
-						extraInfoForEndBehavior = idNum3,
+						extraInfoForEndBehavior = idNum,
 						endFunction = location.removeTemporarySpritesWithID
 					});
 					Game1.multiplayer.broadcastSprites(location, new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(598, 1279, 3, 4), 53f, 5, 9, placementTile * 64f, flicker: true, flipped: false, (float)(y + 7) / 10000f, 0f, Color.Yellow, 4f, 0f, 0f, 0f)
 					{
-						id = idNum3
+						id = idNum
 					});
 					Game1.multiplayer.broadcastSprites(location, new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(598, 1279, 3, 4), 53f, 5, 9, placementTile * 64f, flicker: true, flipped: false, (float)(y + 7) / 10000f, 0f, Color.Orange, 4f, 0f, 0f, 0f)
 					{
 						delayBeforeAnimationStart = 100,
-						id = idNum3
+						id = idNum
 					});
 					Game1.multiplayer.broadcastSprites(location, new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(598, 1279, 3, 4), 53f, 5, 9, placementTile * 64f, flicker: true, flipped: false, (float)(y + 7) / 10000f, 0f, Color.White, 3f, 0f, 0f, 0f)
 					{
 						delayBeforeAnimationStart = 200,
-						id = idNum3
+						id = idNum
 					});
 					location.netAudio.StartPlaying("fuse");
 					return true;
@@ -4491,28 +5829,28 @@ namespace StardewValley
 							return false;
 						}
 					}
-					int idNum3 = Game1.random.Next();
+					int idNum = Game1.random.Next();
 					location.playSound("thudStep");
 					Game1.multiplayer.broadcastSprites(location, new TemporaryAnimatedSprite(parentSheetIndex, 100f, 1, 24, placementTile * 64f, flicker: true, flipped: false, location, who)
 					{
 						shakeIntensity = 0.5f,
 						shakeIntensityChange = 0.002f,
-						extraInfoForEndBehavior = idNum3,
+						extraInfoForEndBehavior = idNum,
 						endFunction = location.removeTemporarySpritesWithID
 					});
 					Game1.multiplayer.broadcastSprites(location, new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(598, 1279, 3, 4), 53f, 5, 9, placementTile * 64f + new Vector2(5f, 0f) * 4f, flicker: true, flipped: false, (float)(y + 7) / 10000f, 0f, Color.Yellow, 4f, 0f, 0f, 0f)
 					{
-						id = idNum3
+						id = idNum
 					});
 					Game1.multiplayer.broadcastSprites(location, new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(598, 1279, 3, 4), 53f, 5, 9, placementTile * 64f + new Vector2(5f, 0f) * 4f, flicker: true, flipped: true, (float)(y + 7) / 10000f, 0f, Color.Orange, 4f, 0f, 0f, 0f)
 					{
 						delayBeforeAnimationStart = 100,
-						id = idNum3
+						id = idNum
 					});
 					Game1.multiplayer.broadcastSprites(location, new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(598, 1279, 3, 4), 53f, 5, 9, placementTile * 64f + new Vector2(5f, 0f) * 4f, flicker: true, flipped: false, (float)(y + 7) / 10000f, 0f, Color.White, 3f, 0f, 0f, 0f)
 					{
 						delayBeforeAnimationStart = 200,
-						id = idNum3
+						id = idNum
 					});
 					location.netAudio.StartPlaying("fuse");
 					return true;
@@ -4653,6 +5991,22 @@ namespace StardewValley
 					location.terrainFeatures.Add(placementTile, new Flooring(8));
 					location.playSound("stoneStep");
 					return true;
+				case 840:
+					if (location.terrainFeatures.ContainsKey(placementTile))
+					{
+						return false;
+					}
+					location.terrainFeatures.Add(placementTile, new Flooring(11));
+					location.playSound("stoneStep");
+					return true;
+				case 841:
+					if (location.terrainFeatures.ContainsKey(placementTile))
+					{
+						return false;
+					}
+					location.terrainFeatures.Add(placementTile, new Flooring(12));
+					location.playSound("stoneStep");
+					return true;
 				case 93:
 					if (location.objects.ContainsKey(placementTile))
 					{
@@ -4690,6 +6044,7 @@ namespace StardewValley
 				{
 				case 37:
 				case 38:
+				case 39:
 					if (location.objects.ContainsKey(placementTile))
 					{
 						return false;
@@ -4712,16 +6067,17 @@ namespace StardewValley
 					}
 					return false;
 				case 130:
-					if (location.objects.ContainsKey(placementTile) || location is MineShaft)
+				case 232:
+					if (location.objects.ContainsKey(placementTile) || location is MineShaft || location is VolcanoDungeon)
 					{
 						Game1.showRedMessage(Game1.content.LoadString("Strings\\StringsFromCSFiles:Object.cs.13053"));
 						return false;
 					}
-					location.objects.Add(placementTile, new Chest(playerChest: true, placementTile)
+					location.objects.Add(placementTile, new Chest(playerChest: true, placementTile, parentSheetIndex)
 					{
 						shakeTimer = 50
 					});
-					location.playSound("axe");
+					location.playSound(((int)parentSheetIndex == 130) ? "axe" : "hammer");
 					return true;
 				case 163:
 					location.objects.Add(placementTile, new Cask(placementTile));
@@ -4760,6 +6116,17 @@ namespace StardewValley
 					}
 					wood_chipper.placementAction(location, x, y);
 					location.objects.Add(placementTile, wood_chipper);
+					location.playSound("hammer");
+					return true;
+				}
+				case 214:
+				{
+					Phone phone = this as Phone;
+					if (phone == null)
+					{
+						phone = new Phone(placementTile);
+					}
+					location.objects.Add(placementTile, phone);
 					location.playSound("hammer");
 					return true;
 				}
@@ -4809,6 +6176,7 @@ namespace StardewValley
 					return true;
 				}
 				case 105:
+				case 264:
 					if (location.terrainFeatures.ContainsKey(placementTile) && location.terrainFeatures[placementTile] is Tree)
 					{
 						Tree tree = location.terrainFeatures[placementTile] as Tree;
@@ -4825,6 +6193,87 @@ namespace StardewValley
 						}
 					}
 					return false;
+				case 248:
+					if (location.objects.ContainsKey(placementTile) || location is MineShaft || location is VolcanoDungeon)
+					{
+						Game1.showRedMessage(Game1.content.LoadString("Strings\\StringsFromCSFiles:Object.cs.13053"));
+						return false;
+					}
+					location.objects.Add(placementTile, new Chest(playerChest: true, placementTile, parentSheetIndex)
+					{
+						shakeTimer = 50,
+						SpecialChestType = Chest.SpecialChestTypes.MiniShippingBin
+					});
+					location.playSound("axe");
+					return true;
+				case 238:
+				{
+					if (!(location is Farm))
+					{
+						Game1.showRedMessage(Game1.content.LoadString("Strings\\StringsFromCSFiles:OnlyPlaceOnFarm"));
+						return false;
+					}
+					Vector2 obelisk3 = Vector2.Zero;
+					Vector2 obelisk2 = Vector2.Zero;
+					foreach (KeyValuePair<Vector2, Object> o2 in location.objects.Pairs)
+					{
+						if ((bool)o2.Value.bigCraftable && o2.Value.ParentSheetIndex == 238)
+						{
+							if (obelisk3.Equals(Vector2.Zero))
+							{
+								obelisk3 = o2.Key;
+							}
+							else if (obelisk2.Equals(Vector2.Zero))
+							{
+								obelisk2 = o2.Key;
+								break;
+							}
+						}
+					}
+					if (!obelisk3.Equals(Vector2.Zero) && !obelisk2.Equals(Vector2.Zero))
+					{
+						Game1.showRedMessage(Game1.content.LoadString("Strings\\StringsFromCSFiles:OnlyPlaceTwo"));
+						return false;
+					}
+					break;
+				}
+				case 254:
+					if (!(location is AnimalHouse) || !(location as AnimalHouse).name.Contains("Barn"))
+					{
+						Game1.showRedMessage(Game1.content.LoadString("Strings\\StringsFromCSFiles:MustBePlacedInBarn"));
+						return false;
+					}
+					break;
+				case 256:
+					if (location.objects.ContainsKey(placementTile) || location is MineShaft || location is VolcanoDungeon)
+					{
+						Game1.showRedMessage(Game1.content.LoadString("Strings\\StringsFromCSFiles:Object.cs.13053"));
+						return false;
+					}
+					location.objects.Add(placementTile, new Chest(playerChest: true, placementTile, parentSheetIndex)
+					{
+						shakeTimer = 50,
+						SpecialChestType = Chest.SpecialChestTypes.JunimoChest
+					});
+					location.playSound("axe");
+					return true;
+				case 275:
+				{
+					if (location.objects.ContainsKey(placementTile) || location is MineShaft || location is VolcanoDungeon)
+					{
+						Game1.showRedMessage(Game1.content.LoadString("Strings\\StringsFromCSFiles:Object.cs.13053"));
+						return false;
+					}
+					Chest chest = new Chest(playerChest: true, placementTile, parentSheetIndex)
+					{
+						shakeTimer = 50,
+						SpecialChestType = Chest.SpecialChestTypes.AutoLoader
+					};
+					chest.lidFrameCount.Value = 2;
+					location.objects.Add(placementTile, chest);
+					location.playSound("axe");
+					return true;
+				}
 				}
 			}
 			if (base.Category == -19 && location.terrainFeatures.ContainsKey(placementTile) && location.terrainFeatures[placementTile] is HoeDirt && (location.terrainFeatures[placementTile] as HoeDirt).crop != null && (base.ParentSheetIndex == 369 || base.ParentSheetIndex == 368) && (int)(location.terrainFeatures[placementTile] as HoeDirt).crop.currentPhase != 0)
@@ -4836,19 +6285,24 @@ namespace StardewValley
 			{
 				if ((int)parentSheetIndex != 251)
 				{
-					Vector2 v = default(Vector2);
+					Vector2 v2 = default(Vector2);
 					for (int j = x / 64 - 2; j <= x / 64 + 2; j++)
 					{
 						for (int i = y / 64 - 2; i <= y / 64 + 2; i++)
 						{
-							v.X = j;
-							v.Y = i;
-							if (location.terrainFeatures.ContainsKey(v) && (location.terrainFeatures[v] is Tree || location.terrainFeatures[v] is FruitTree))
+							v2.X = j;
+							v2.Y = i;
+							if (location.terrainFeatures.ContainsKey(v2) && (location.terrainFeatures[v2] is Tree || location.terrainFeatures[v2] is FruitTree))
 							{
 								Game1.showRedMessage(Game1.content.LoadString("Strings\\StringsFromCSFiles:Object.cs.13060"));
 								return false;
 							}
 						}
+					}
+					if (FruitTree.IsGrowthBlocked(new Vector2(x / 64, y / 64), location))
+					{
+						Game1.showRedMessage(Game1.content.LoadString("Strings\\UI:FruitTree_PlacementWarning", DisplayName));
+						return false;
 					}
 				}
 				if (location.terrainFeatures.ContainsKey(placementTile))
@@ -4859,7 +6313,7 @@ namespace StardewValley
 					}
 					location.terrainFeatures.Remove(placementTile);
 				}
-				if ((location is Farm && (location.doesTileHaveProperty((int)placementTile.X, (int)placementTile.Y, "Diggable", "Back") != null || location.doesTileHavePropertyNoNull((int)placementTile.X, (int)placementTile.Y, "Type", "Back").Equals("Grass") || location.doesTileHavePropertyNoNull((int)placementTile.X, (int)placementTile.Y, "Type", "Back").Equals("Dirt")) && !location.doesTileHavePropertyNoNull((int)placementTile.X, (int)placementTile.Y, "NoSpawn", "Back").Equals("Tree")) || (location.IsGreenhouse && (location.doesTileHaveProperty((int)placementTile.X, (int)placementTile.Y, "Diggable", "Back") != null || location.doesTileHavePropertyNoNull((int)placementTile.X, (int)placementTile.Y, "Type", "Back").Equals("Stone"))))
+				if ((location is Farm && (location.doesTileHaveProperty((int)placementTile.X, (int)placementTile.Y, "Diggable", "Back") != null || location.doesTileHavePropertyNoNull((int)placementTile.X, (int)placementTile.Y, "Type", "Back").Equals("Grass") || location.doesTileHavePropertyNoNull((int)placementTile.X, (int)placementTile.Y, "Type", "Back").Equals("Dirt")) && !location.doesTileHavePropertyNoNull((int)placementTile.X, (int)placementTile.Y, "NoSpawn", "Back").Equals("Tree")) || (location.CanPlantTreesHere(parentSheetIndex, (int)placementTile.X, (int)placementTile.Y) && (location.doesTileHaveProperty((int)placementTile.X, (int)placementTile.Y, "Diggable", "Back") != null || location.doesTileHavePropertyNoNull((int)placementTile.X, (int)placementTile.Y, "Type", "Back").Equals("Stone"))))
 				{
 					location.playSound("dirtyHit");
 					DelayedAction.playSoundAfterDelay("coin", 100);
@@ -4868,9 +6322,10 @@ namespace StardewValley
 						location.terrainFeatures.Add(placementTile, new Bush(placementTile, 3, location));
 						return true;
 					}
+					bool actAsGreenhouse = location.IsGreenhouse || (((int)parentSheetIndex == 69 || (int)parentSheetIndex == 835) && location is IslandWest);
 					location.terrainFeatures.Add(placementTile, new FruitTree(parentSheetIndex)
 					{
-						GreenHouseTree = location.IsGreenhouse,
+						GreenHouseTree = actAsGreenhouse,
 						GreenHouseTileTree = location.doesTileHavePropertyNoNull((int)placementTile.X, (int)placementTile.Y, "Type", "Back").Equals("Stone")
 					});
 					return true;
@@ -4886,6 +6341,36 @@ namespace StardewValley
 					{
 						if (((HoeDirt)location.terrainFeatures[placementTile]).plant(who.ActiveObject.ParentSheetIndex, (int)placementTile.X, (int)placementTile.Y, who, who.ActiveObject.Category == -19, location) && who.IsLocalPlayer)
 						{
+							if (base.Category == -74)
+							{
+								foreach (Object o in location.Objects.Values)
+								{
+									if (o.IsSprinkler() && o.heldObject.Value != null && o.heldObject.Value.ParentSheetIndex == 913 && o.IsInSprinklerRangeBroadphase(placementTile) && o.GetSprinklerTiles().Contains(placementTile))
+									{
+										Chest chest2 = o.heldObject.Value.heldObject.Value as Chest;
+										if (chest2 != null && chest2.items.Count > 0 && chest2.items[0] != null && !chest2.GetMutex().IsLocked())
+										{
+											chest2.GetMutex().RequestLock(delegate
+											{
+												if (chest2.items.Count > 0 && chest2.items[0] != null)
+												{
+													Item item = chest2.items[0];
+													if (item.Category == -19 && ((HoeDirt)location.terrainFeatures[placementTile]).plant(item.ParentSheetIndex, (int)placementTile.X, (int)placementTile.Y, who, isFertilizer: true, location))
+													{
+														item.Stack--;
+														if (item.Stack <= 0)
+														{
+															chest2.items[0] = null;
+														}
+													}
+												}
+												chest2.GetMutex().ReleaseLock();
+											});
+											break;
+										}
+									}
+								}
+							}
 							Game1.haltAfterCheck = false;
 							return true;
 						}
@@ -4899,7 +6384,7 @@ namespace StardewValley
 			{
 				Object toPlace = (Object)getOne();
 				bool place_furniture_instance_instead = false;
-				if (toPlace.GetType() == typeof(Furniture) && (base.ParentSheetIndex == 704 || base.ParentSheetIndex == 709 || base.ParentSheetIndex == 714 || base.ParentSheetIndex == 719))
+				if (toPlace.GetType() == typeof(Furniture) && Furniture.GetFurnitureInstance(parentSheetIndex, new Vector2(x / 64, y / 64)).GetType() != toPlace.GetType())
 				{
 					toPlace = new StorageFurniture(parentSheetIndex, new Vector2(x / 64, y / 64));
 					(toPlace as Furniture).currentRotation.Value = (this as Furniture).currentRotation.Value;
@@ -4926,11 +6411,11 @@ namespace StardewValley
 				{
 					if (place_furniture_instance_instead)
 					{
-						(location as DecoratableLocation).furniture.Add(toPlace as Furniture);
+						location.furniture.Add(toPlace as Furniture);
 					}
 					else
 					{
-						(location as DecoratableLocation).furniture.Add(this as Furniture);
+						location.furniture.Add(this as Furniture);
 					}
 				}
 				else
@@ -5019,7 +6504,7 @@ namespace StardewValley
 			{
 				return (int)((float)(int)price * (1f + (float)(int)quality * 0.25f) * (((float)(FishingRod.maxTackleUses - uses.Value) + 0f) / (float)FishingRod.maxTackleUses));
 			}
-			float salePrice2 = (int)((float)(int)price * (1f + (float)(int)quality * 0.25f));
+			float salePrice2 = (int)((float)(int)price * (1f + (float)Quality * 0.25f));
 			salePrice2 = getPriceAfterMultipliers(salePrice2, specificPlayerID);
 			if ((int)parentSheetIndex == 493)
 			{
@@ -5095,7 +6580,7 @@ namespace StardewValley
 		private float getPriceAfterMultipliers(float startPrice, long specificPlayerID = -1L)
 		{
 			bool animalGood = false;
-			if (name.ToLower().Contains("mayonnaise") || name.ToLower().Contains("cheese") || name.ToLower().Contains("cloth") || name.ToLower().Contains("wool"))
+			if (name != null && (name.ToLower().Contains("mayonnaise") || name.ToLower().Contains("cheese") || name.ToLower().Contains("cloth") || name.ToLower().Contains("wool")))
 			{
 				animalGood = true;
 			}

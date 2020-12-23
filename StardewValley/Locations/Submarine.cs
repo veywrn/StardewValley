@@ -206,7 +206,7 @@ namespace StardewValley.Locations
 					if (isOpenWater(p.X, p.Y))
 					{
 						int toLand = FishingRod.distanceToLand(p.X, p.Y, this);
-						if (toLand > 1 && toLand <= 5)
+						if (toLand > 1 && toLand < 5)
 						{
 							break;
 						}
@@ -521,11 +521,16 @@ namespace StardewValley.Locations
 
 		public override Object getFish(float millisecondsAfterNibble, int bait, int waterDepth, Farmer who, double baitPotency, Vector2 bobberTile, string locationName = null)
 		{
-			if (Game1.random.NextDouble() < 0.1)
+			bool bobberAddition = false;
+			if (who != null && who.CurrentTool is FishingRod && (who.CurrentTool as FishingRod).getBobberAttachmentIndex() == 856)
+			{
+				bobberAddition = true;
+			}
+			if (Game1.random.NextDouble() < 0.1 + (bobberAddition ? 0.1 : 0.0))
 			{
 				return new Object(800, 1);
 			}
-			if (Game1.random.NextDouble() < 0.18)
+			if (Game1.random.NextDouble() < 0.18 + (bobberAddition ? 0.05 : 0.0))
 			{
 				return new Object(799, 1);
 			}
@@ -537,7 +542,7 @@ namespace StardewValley.Locations
 			{
 				return new Object(154, 1);
 			}
-			if (Game1.random.NextDouble() < 0.08)
+			if (Game1.random.NextDouble() < 0.08 + (bobberAddition ? 0.1 : 0.0))
 			{
 				return new Object(155, 1);
 			}
@@ -545,7 +550,7 @@ namespace StardewValley.Locations
 			{
 				return new Object(149, 1);
 			}
-			if (Game1.random.NextDouble() < 0.01)
+			if (Game1.random.NextDouble() < 0.01 + (bobberAddition ? 0.02 : 0.0))
 			{
 				return new Object(797, 1);
 			}

@@ -220,14 +220,14 @@ namespace StardewValley.Menus
 			Texture2D portrait2 = null;
 			try
 			{
-				portrait2 = Game1.content.Load<Texture2D>("Portraits\\" + character.name);
+				portrait2 = Game1.content.Load<Texture2D>("Portraits\\" + (character as NPC).getTextureName());
 			}
 			catch (Exception)
 			{
 				return null;
 			}
 			int height = (character.name.Contains("Dwarf") || character.name.Equals("Krobus")) ? 96 : 128;
-			return new NPC(new AnimatedSprite("Characters\\" + character.name, 0, 16, height / 4), new Vector2(0f, 0f), character.Name, character.facingDirection, character.name, null, portrait2, eventActor: true);
+			return new NPC(new AnimatedSprite("Characters\\" + (character as NPC).getTextureName(), 0, 16, height / 4), new Vector2(0f, 0f), character.Name, character.facingDirection, character.name, null, portrait2, eventActor: true);
 		}
 
 		protected void _SetCharacter(Character character)
@@ -662,22 +662,34 @@ namespace StardewValley.Menus
 
 		public void PlayHiddenEmote()
 		{
-			if (GetCharacter() != null)
+			if (GetCharacter() == null)
 			{
-				_ = (string)GetCharacter().name;
-				if (Game1.player.getFriendshipHeartLevelForNPC(GetCharacter().name) >= 4)
+				return;
+			}
+			string name = GetCharacter().name;
+			if (Game1.player.getFriendshipHeartLevelForNPC(GetCharacter().name) >= 4)
+			{
+				_currentDirection = 2;
+				_characterSpriteRandomInt = Game1.random.Next(4);
+				if (name == "Leo")
 				{
-					_currentDirection = 2;
-					_hiddenEmoteTimer = 4000f;
-					_characterSpriteRandomInt = Game1.random.Next(4);
-					Game1.playSound("drumkit6");
+					if (_hiddenEmoteTimer <= 0f)
+					{
+						Game1.playSound("parrot_squawk");
+						_hiddenEmoteTimer = 300f;
+					}
 				}
 				else
 				{
-					_currentDirection = 2;
-					_directionChangeTimer = 5000f;
-					Game1.playSound("Cowboy_Footstep");
+					Game1.playSound("drumkit6");
+					_hiddenEmoteTimer = 4000f;
 				}
+			}
+			else
+			{
+				_currentDirection = 2;
+				_directionChangeTimer = 5000f;
+				Game1.playSound("Cowboy_Footstep");
 			}
 		}
 
@@ -755,12 +767,16 @@ namespace StardewValley.Menus
 			}
 			if (_hiddenEmoteTimer > 0f)
 			{
-				_hiddenEmoteTimer += time.ElapsedGameTime.Milliseconds;
+				_hiddenEmoteTimer -= time.ElapsedGameTime.Milliseconds;
 				if (_hiddenEmoteTimer <= 0f)
 				{
 					_hiddenEmoteTimer = -1f;
 					_currentDirection = 2;
 					_directionChangeTimer = 2000f;
+					if (GetCharacter() != null && (string)GetCharacter().name == "Leo")
+					{
+						GetCharacter().Sprite.AnimateDown(time);
+					}
 				}
 			}
 			else if (_directionChangeTimer > 0f)
@@ -893,6 +909,9 @@ namespace StardewValley.Menus
 					break;
 				case "Sandy":
 					_animatedSprite.Animate(time, 16, 2, 200f);
+					break;
+				case "Leo":
+					_animatedSprite.Animate(time, 17, 1, 200f);
 					break;
 				default:
 					_animatedSprite.AnimateDown(time, 2);
@@ -1156,10 +1175,7 @@ namespace StardewValley.Menus
 			bool drew_items = false;
 			b.End();
 			Rectangle cached_scissor_rect = b.GraphicsDevice.ScissorRectangle;
-			b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, new RasterizerState
-			{
-				ScissorTestEnable = true
-			});
+			b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, Utility.ScissorEnabled);
 			b.GraphicsDevice.ScissorRectangle = _itemDisplayRect;
 			if (_profileItems.Count > 0)
 			{
@@ -1191,10 +1207,7 @@ namespace StardewValley.Menus
 				clickableTextureComponent.draw(b);
 			}
 			base.draw(b);
-			if (!Game1.options.hardwareCursor)
-			{
-				b.Draw(Game1.mouseCursors, new Vector2(Game1.getMouseX(), Game1.getMouseY()), Game1.getSourceRectForStandardTileSheet(Game1.mouseCursors, 0, 16, 16), Color.White, 0f, Vector2.Zero, 4f + Game1.dialogueButtonScale / 150f, SpriteEffects.None, 1f);
-			}
+			drawMouse(b, ignore_transparency: true);
 			if (hoveredItem != null)
 			{
 				bool draw_tooltip = true;

@@ -14,7 +14,9 @@ namespace StardewValley.Tools
 
 		public override Item getOne()
 		{
-			return new Raft();
+			Raft raft = new Raft();
+			raft._GetOneFrom(this);
+			return raft;
 		}
 
 		protected override string loadDisplayName()

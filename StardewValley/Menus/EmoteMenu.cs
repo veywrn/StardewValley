@@ -56,7 +56,7 @@ namespace StardewValley.Menus
 			{
 				emotes.Add(emote_string);
 			}
-			_mouseStartPosition = Game1.getMousePosition();
+			_mouseStartPosition = Game1.getMousePosition(ui_scale: false);
 			_alpha = 0f;
 			_menuCloseGracePeriod = 300;
 			_CreateEmoteButtons();
@@ -113,6 +113,8 @@ namespace StardewValley.Menus
 
 		public override void performHoverAction(int x, int y)
 		{
+			x = (int)Utility.ModifyCoordinateFromUIScale(x);
+			y = (int)Utility.ModifyCoordinateFromUIScale(y);
 			if (gamepadMode)
 			{
 				return;
@@ -189,7 +191,7 @@ namespace StardewValley.Menus
 			Vector2 offset = default(Vector2);
 			if (gamepadMode)
 			{
-				_mouseStartPosition = Game1.getMousePosition();
+				_mouseStartPosition = Game1.getMousePosition(ui_scale: false);
 				if (Math.Abs(Game1.input.GetGamePadState().ThumbSticks.Right.X) > 0.5f || Math.Abs(Game1.input.GetGamePadState().ThumbSticks.Right.Y) > 0.5f)
 				{
 					_hasSelectedEmote = true;
@@ -253,6 +255,8 @@ namespace StardewValley.Menus
 
 		public override void receiveRightClick(int x, int y, bool playSound = true)
 		{
+			x = (int)Utility.ModifyCoordinateFromUIScale(x);
+			y = (int)Utility.ModifyCoordinateFromUIScale(y);
 			for (int i = 0; i < _emoteButtons.Count; i++)
 			{
 				if (_emoteButtons[i].containsPoint(x, y) && Game1.activeClickableMenu == null)
@@ -267,6 +271,8 @@ namespace StardewValley.Menus
 
 		public override void receiveLeftClick(int x, int y, bool playSound = true)
 		{
+			x = (int)Utility.ModifyCoordinateFromUIScale(x);
+			y = (int)Utility.ModifyCoordinateFromUIScale(y);
 			ConfirmSelection();
 			base.receiveLeftClick(x, y, playSound);
 		}
@@ -282,6 +288,7 @@ namespace StardewValley.Menus
 
 		public override void draw(SpriteBatch b)
 		{
+			Game1.StartWorldDrawInUI(b);
 			Color background_color = Color.White;
 			background_color.A = (byte)Utility.Lerp(0f, 255f, _alpha);
 			foreach (ClickableTextureComponent emoteButton in _emoteButtons)
@@ -306,7 +313,7 @@ namespace StardewValley.Menus
 				draw_position.X += 16f;
 				if (!gamepadMode)
 				{
-					draw_position = Utility.PointToVector2(Game1.getMousePosition()) + new Vector2(32f, 32f);
+					draw_position = Utility.PointToVector2(Game1.getMousePosition(ui_scale: false)) + new Vector2(32f, 32f);
 					b.Draw(menuBackgroundTexture, draw_position, new Rectangle(64, 0, 16, 16), Color.White, 0f, Vector2.Zero, 2f, SpriteEffects.None, 0.99f);
 				}
 				else
@@ -316,6 +323,7 @@ namespace StardewValley.Menus
 				draw_position.X += 32f;
 				b.Draw(menuBackgroundTexture, draw_position, new Rectangle(64, 16, 16, 16), Color.White, 0f, Vector2.Zero, 2f, SpriteEffects.None, 0.99f);
 			}
+			Game1.EndWorldDrawInUI(b);
 		}
 	}
 }

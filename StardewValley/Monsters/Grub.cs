@@ -1,6 +1,7 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Netcode;
+using StardewValley.Locations;
 using System;
 using System.Xml.Serialization;
 
@@ -37,7 +38,7 @@ namespace StardewValley.Monsters
 			{
 				leftDrift.Value = true;
 			}
-			base.FacingDirection = Game1.random.Next(4);
+			FacingDirection = Game1.random.Next(4);
 			targetRotation.Value = (rotation = (float)Game1.random.Next(4) / (float)Math.PI);
 			this.hard.Value = hard;
 			if (hard)
@@ -105,7 +106,7 @@ namespace StardewValley.Monsters
 				if (base.Health <= 0)
 				{
 					base.currentLocation.playSound("slimedead");
-					Utility.makeTemporarySpriteJuicier(new TemporaryAnimatedSprite(44, base.Position, Color.Orange, 10)
+					Utility.makeTemporarySpriteJuicier(new TemporaryAnimatedSprite(44, base.Position, isHardModeMonster ? Color.LimeGreen : Color.Orange, 10)
 					{
 						holdLastFrame = true,
 						alphaFade = 0.01f,
@@ -119,6 +120,13 @@ namespace StardewValley.Monsters
 		public override void defaultMovementBehavior(GameTime time)
 		{
 			base.Scale = 1f + (float)(0.125 * Math.Sin(time.TotalGameTime.TotalMilliseconds / (double)(500f + base.Position.X / 100f)));
+		}
+
+		public override void BuffForAdditionalDifficulty(int additional_difficulty)
+		{
+			base.BuffForAdditionalDifficulty(additional_difficulty);
+			rotation = 0f;
+			targetRotation.Value = 0f;
 		}
 
 		public override void update(GameTime time, GameLocation location)
@@ -169,19 +177,19 @@ namespace StardewValley.Monsters
 			}
 			else if (isMoving())
 			{
-				if (base.FacingDirection == 0)
+				if (FacingDirection == 0)
 				{
 					Sprite.AnimateUp(time);
 				}
-				else if (base.FacingDirection == 3)
+				else if (FacingDirection == 3)
 				{
 					Sprite.AnimateLeft(time);
 				}
-				else if (base.FacingDirection == 1)
+				else if (FacingDirection == 1)
 				{
 					Sprite.AnimateRight(time);
 				}
-				else if (base.FacingDirection == 2)
+				else if (FacingDirection == 2)
 				{
 					Sprite.AnimateDown(time);
 				}
@@ -207,13 +215,23 @@ namespace StardewValley.Monsters
 					base.Health = -500;
 					Game1.createRadialDebris(base.currentLocation, Sprite.textureName, new Rectangle(208, 424, 32, 40), 4, getStandingX(), getStandingY(), 25, (int)getTileLocation().Y);
 					Game1.createRadialDebris(base.currentLocation, Sprite.textureName, new Rectangle(208, 424, 32, 40), 8, getStandingX(), getStandingY(), 15, (int)getTileLocation().Y);
-					base.currentLocation.characters.Add(new Fly(base.Position, hard)
+					if (base.currentLocation is MineShaft)
 					{
-						currentLocation = base.currentLocation
-					});
+						base.currentLocation.characters.Add((base.currentLocation as MineShaft).BuffMonsterIfNecessary(new Fly(base.Position, hard)
+						{
+							currentLocation = base.currentLocation
+						}));
+					}
+					else
+					{
+						base.currentLocation.characters.Add(new Fly(base.Position, hard)
+						{
+							currentLocation = base.currentLocation
+						});
+					}
 				}
 			}
-			else if (base.Health <= 8 || ((bool)hard && base.Health < base.MaxHealth))
+			else if (base.Health <= base.MaxHealth / 2 - 2 || ((bool)hard && base.Health < base.MaxHealth))
 			{
 				metamorphCounter -= time.ElapsedGameTime.Milliseconds;
 				if (metamorphCounter <= 0)

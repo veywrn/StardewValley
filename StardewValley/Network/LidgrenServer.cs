@@ -2,6 +2,8 @@ using Lidgren.Network;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using System.Net;
 
 namespace StardewValley.Network
 {
@@ -9,7 +11,7 @@ namespace StardewValley.Network
 	{
 		public const int defaultPort = 24642;
 
-		protected NetServer server;
+		public NetServer server;
 
 		private HashSet<NetConnection> introductionsSent = new HashSet<NetConnection>();
 
@@ -121,6 +123,24 @@ namespace StardewValley.Network
 			peers.Clear();
 		}
 
+		public static bool IsLocal(string host_name_or_address)
+		{
+			if (string.IsNullOrEmpty(host_name_or_address))
+			{
+				return false;
+			}
+			try
+			{
+				IPAddress[] hostAddresses = Dns.GetHostAddresses(host_name_or_address);
+				IPAddress[] local_ips = Dns.GetHostAddresses(Dns.GetHostName());
+				return hostAddresses.Any((IPAddress host_ip) => IPAddress.IsLoopback(host_ip) || local_ips.Contains(host_ip));
+			}
+			catch
+			{
+				return false;
+			}
+		}
+
 		public override void receiveMessages()
 		{
 			NetIncomingMessage inc;
@@ -133,13 +153,13 @@ namespace StardewValley.Network
 				switch (inc.MessageType)
 				{
 				case NetIncomingMessageType.DiscoveryRequest:
-					if (Game1.options.ipConnectionsEnabled && !gameServer.isUserBanned(inc.SenderEndPoint.Address.ToString()))
+					if ((Game1.options.ipConnectionsEnabled || gameServer.IsLocalMultiplayerInitiatedServer()) && (!gameServer.IsLocalMultiplayerInitiatedServer() || IsLocal(inc.SenderEndPoint.Address.ToString())) && !gameServer.isUserBanned(inc.SenderEndPoint.Address.ToString()))
 					{
 						sendVersionInfo(inc);
 					}
 					break;
 				case NetIncomingMessageType.ConnectionApproval:
-					if (Game1.options.ipConnectionsEnabled)
+					if (Game1.options.ipConnectionsEnabled || gameServer.IsLocalMultiplayerInitiatedServer())
 					{
 						inc.SenderConnection.Approve();
 					}
@@ -196,7 +216,7 @@ namespace StardewValley.Network
 		private void sendVersionInfo(NetIncomingMessage message)
 		{
 			NetOutgoingMessage response = server.CreateMessage();
-			response.Write(Game1.multiplayer.protocolVersion);
+			response.Write("1.5");
 			response.Write("StardewValley");
 			server.SendDiscoveryResponse(response, message.SenderEndPoint);
 			if (bandwidthLogger != null)

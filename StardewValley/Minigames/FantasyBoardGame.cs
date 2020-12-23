@@ -51,7 +51,9 @@ namespace StardewValley.Minigames
 			Game1.currentLocation.currentEvent.checkForNextCommand(Game1.currentLocation, time);
 			if (Game1.activeClickableMenu != null)
 			{
+				Game1.PushUIMode();
 				Game1.activeClickableMenu.update(time);
+				Game1.PopUIMode();
 			}
 			if (endTimer > 0)
 			{
@@ -63,7 +65,9 @@ namespace StardewValley.Minigames
 			}
 			if (Game1.activeClickableMenu != null)
 			{
+				Game1.PushUIMode();
 				Game1.activeClickableMenu.performHoverAction(Game1.getOldMouseX(), Game1.getOldMouseY());
+				Game1.PopUIMode();
 			}
 			return false;
 		}
@@ -79,7 +83,9 @@ namespace StardewValley.Minigames
 		{
 			if (Game1.activeClickableMenu != null)
 			{
+				Game1.PushUIMode();
 				Game1.activeClickableMenu.receiveLeftClick(x, y);
+				Game1.PopUIMode();
 			}
 		}
 
@@ -92,7 +98,9 @@ namespace StardewValley.Minigames
 			Game1.pressActionButton(Game1.GetKeyboardState(), Game1.input.GetMouseState(), Game1.input.GetGamePadState());
 			if (Game1.activeClickableMenu != null)
 			{
+				Game1.PushUIMode();
 				Game1.activeClickableMenu.receiveRightClick(x, y);
+				Game1.PopUIMode();
 			}
 		}
 
@@ -121,7 +129,9 @@ namespace StardewValley.Minigames
 			}
 			else if (Game1.activeClickableMenu != null)
 			{
+				Game1.PushUIMode();
 				Game1.activeClickableMenu.receiveKeyPress(k);
+				Game1.PopUIMode();
 			}
 		}
 
@@ -148,11 +158,15 @@ namespace StardewValley.Minigames
 				float yOffset = (float)Math.Sin(endTimer / 1000) * 8f;
 				Game1.drawWithBorder(s, Game1.textColor, Color.Purple, new Vector2((float)(Game1.graphics.GraphicsDevice.Viewport.Width / 2) - Game1.dialogueFont.MeasureString(s).X / 2f, yOffset + (float)(Game1.graphics.GraphicsDevice.Viewport.Height / 2)));
 			}
+			b.End();
 			if (Game1.activeClickableMenu != null)
 			{
+				Game1.PushUIMode();
+				b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, null);
 				Game1.activeClickableMenu.draw(b);
+				b.End();
+				Game1.PopUIMode();
 			}
-			b.End();
 		}
 
 		public void changeScreenSize()

@@ -103,6 +103,8 @@ namespace StardewValley.Tools
 		[XmlIgnore]
 		protected bool _hasPlayerAdjustedBobber;
 
+		private bool lastCatchWasJunk;
+
 		[XmlIgnore]
 		public bool doneWithAnimation;
 
@@ -159,6 +161,9 @@ namespace StardewValley.Tools
 
 		[XmlIgnore]
 		private int originalFacingDirection;
+
+		[XmlIgnore]
+		private string itemCategory;
 
 		[XmlIgnore]
 		private int recastTimerMs;
@@ -296,11 +301,13 @@ namespace StardewValley.Tools
 
 		public override Item getOne()
 		{
-			FishingRod fishingRod = new FishingRod();
-			fishingRod.UpgradeLevel = base.UpgradeLevel;
-			fishingRod.numAttachmentSlots.Value = numAttachmentSlots.Value;
-			fishingRod.IndexOfMenuItemView = base.IndexOfMenuItemView;
-			return fishingRod;
+			FishingRod result = new FishingRod();
+			result.UpgradeLevel = base.UpgradeLevel;
+			result.numAttachmentSlots.Value = numAttachmentSlots.Value;
+			result.IndexOfMenuItemView = base.IndexOfMenuItemView;
+			CopyEnchantments(this, result);
+			result._GetOneFrom(this);
+			return result;
 		}
 
 		protected override string loadDisplayName()
@@ -358,6 +365,10 @@ namespace StardewValley.Tools
 
 		private int getAddedDistance(Farmer who)
 		{
+			if (who.FishingLevel >= 15)
+			{
+				return 4;
+			}
 			if (who.FishingLevel >= 8)
 			{
 				return 3;
@@ -402,7 +413,7 @@ namespace StardewValley.Tools
 			}
 			if (!isFishing && !castedButBobberStillInAir && !pullingOutOfWater && !isNibbling && !hit && !showingTreasure)
 			{
-				if (!Game1.eventUp && who.IsLocalPlayer)
+				if (!Game1.eventUp && who.IsLocalPlayer && !hasEnchantmentOfType<EfficientToolEnchantment>())
 				{
 					float oldStamina = who.Stamina;
 					who.Stamina -= 8f - (float)who.FishingLevel * 0.1f;
@@ -487,9 +498,35 @@ namespace StardewValley.Tools
 					{
 						favBait = true;
 					}
-					if ((o.Category == -20 || o.ParentSheetIndex == 152 || o.ParentSheetIndex == 153 || (int)o.parentSheetIndex == 157 || (int)o.parentSheetIndex == 797 || (int)o.parentSheetIndex == 79 || (int)o.parentSheetIndex == GameLocation.CAROLINES_NECKLACE_ITEM) | fromFishPond)
+					Dictionary<int, string> data = Game1.content.Load<Dictionary<int, string>>("Data\\Fish");
+					bool non_fishable_fish = false;
+					if (o is Furniture)
 					{
-						pullFishFromWater(o.ParentSheetIndex, -1, 0, 0, treasureCaught: false, wasPerfect: false, fromFishPond);
+						non_fishable_fish = true;
+					}
+					else if (Utility.IsNormalObjectAtParentSheetIndex(o, o.ParentSheetIndex) && data.ContainsKey(o.ParentSheetIndex))
+					{
+						string[] array = data[o.ParentSheetIndex].Split('/');
+						int difficulty = -1;
+						if (!int.TryParse(array[1], out difficulty))
+						{
+							non_fishable_fish = true;
+						}
+					}
+					else
+					{
+						non_fishable_fish = true;
+					}
+					lastCatchWasJunk = false;
+					if ((o.Category == -20 || o.ParentSheetIndex == 152 || o.ParentSheetIndex == 153 || (int)o.parentSheetIndex == 157 || (int)o.parentSheetIndex == 797 || (int)o.parentSheetIndex == 79 || (int)o.parentSheetIndex == 73 || o.ParentSheetIndex == 842 || (o.ParentSheetIndex >= 820 && o.ParentSheetIndex <= 828) || (int)o.parentSheetIndex == GameLocation.CAROLINES_NECKLACE_ITEM || o.ParentSheetIndex == 890) | fromFishPond | non_fishable_fish)
+					{
+						lastCatchWasJunk = true;
+						string categoryName = "Object";
+						if (o is Furniture)
+						{
+							categoryName = "Furniture";
+						}
+						pullFishFromWater(o.ParentSheetIndex, -1, 0, 0, treasureCaught: false, wasPerfect: false, fromFishPond, caughtDouble: false, categoryName);
 					}
 					else if (!hit && who.IsLocalPlayer)
 					{
@@ -639,7 +676,6 @@ namespace StardewValley.Tools
 				lastUser.FarmerSprite.setCurrentSingleFrame(48, 32000, secondaryArm: false, flip: true);
 				break;
 			}
-			lastUser.FarmerSprite.PauseForSingleAnimation = true;
 			float fishSize5 = 1f;
 			fishSize5 *= (float)clearWaterDistance / 5f;
 			int minimumSizeContribution = 1 + lastUser.FishingLevel / 2;
@@ -743,6 +779,7 @@ namespace StardewValley.Tools
 
 		public override void drawAttachments(SpriteBatch b, int x, int y)
 		{
+			y += ((enchantments.Count() > 0) ? 8 : 4);
 			if ((int)upgradeLevel > 1)
 			{
 				if (attachments[0] == null)
@@ -840,7 +877,7 @@ namespace StardewValley.Tools
 			}
 		}
 
-		public void pullFishFromWater(int whichFish, int fishSize, int fishQuality, int fishDifficulty, bool treasureCaught, bool wasPerfect, bool fromFishPond, bool caughtDouble = false)
+		public void pullFishFromWater(int whichFish, int fishSize, int fishQuality, int fishDifficulty, bool treasureCaught, bool wasPerfect, bool fromFishPond, bool caughtDouble = false, string itemCategory = "Object")
 		{
 			pullFishFromWaterEvent.Fire(delegate(BinaryWriter writer)
 			{
@@ -852,6 +889,7 @@ namespace StardewValley.Tools
 				writer.Write(wasPerfect);
 				writer.Write(fromFishPond);
 				writer.Write(caughtDouble);
+				writer.Write(itemCategory);
 			});
 		}
 
@@ -865,12 +903,14 @@ namespace StardewValley.Tools
 			bool wasPerfect = argReader.ReadBoolean();
 			bool fromFishPond = argReader.ReadBoolean();
 			bool caughtDouble = argReader.ReadBoolean();
+			string itemCategory = argReader.ReadString();
 			this.treasureCaught = treasureCaught;
 			this.fishSize = fishSize;
 			this.fishQuality = fishQuality;
 			this.whichFish = whichFish;
 			this.fromFishPond = fromFishPond;
 			caughtDoubleFish = caughtDouble;
+			this.itemCategory = itemCategory;
 			if (fishQuality >= 2 && wasPerfect)
 			{
 				this.fishQuality = 4;
@@ -883,7 +923,7 @@ namespace StardewValley.Tools
 			{
 				return;
 			}
-			if (!Game1.isFestival() && lastUser.IsLocalPlayer && !fromFishPond)
+			if (!Game1.isFestival() && lastUser.IsLocalPlayer && !fromFishPond && itemCategory == "Object")
 			{
 				bossFish = isFishBossFish(whichFish);
 				int experience = Math.Max(1, (fishQuality + 1) * 3 + fishDifficulty / 3);
@@ -905,6 +945,18 @@ namespace StardewValley.Tools
 			{
 				this.fishQuality = 0;
 			}
+			string sprite_sheet_name2 = "";
+			Rectangle sprite_rect2 = default(Rectangle);
+			if (itemCategory == "Object")
+			{
+				sprite_sheet_name2 = "Maps\\springobjects";
+				sprite_rect2 = Game1.getSourceRectForStandardTileSheet(Game1.objectSpriteSheet, whichFish, 16, 16);
+			}
+			else
+			{
+				sprite_sheet_name2 = "LooseSprites\\Cursors";
+				sprite_rect2 = new Rectangle(228, 408, 16, 16);
+			}
 			float t2 = 35f;
 			if (lastUser.FacingDirection == 1 || lastUser.FacingDirection == 3)
 			{
@@ -919,7 +971,7 @@ namespace StardewValley.Tools
 				}
 				float xVelocity2 = (float)((double)yVelocity2 * (1.0 / Math.Tan(angle2)));
 				t2 = distance2 / xVelocity2;
-				animations.Add(new TemporaryAnimatedSprite("Maps\\springobjects", Game1.getSourceRectForStandardTileSheet(Game1.objectSpriteSheet, whichFish, 16, 16), t2, 1, 0, bobber, flicker: false, flipped: false, bobber.Y / 10000f, 0f, Color.White, 4f, 0f, 0f, 0f)
+				animations.Add(new TemporaryAnimatedSprite(sprite_sheet_name2, sprite_rect2, t2, 1, 0, bobber, flicker: false, flipped: false, bobber.Y / 10000f, 0f, Color.White, 4f, 0f, 0f, 0f)
 				{
 					motion = new Vector2((float)((lastUser.FacingDirection != 3) ? 1 : (-1)) * (0f - xVelocity2), 0f - yVelocity2),
 					acceleration = new Vector2(0f, gravity2),
@@ -941,7 +993,7 @@ namespace StardewValley.Tools
 					}
 					xVelocity2 = (float)((double)yVelocity2 * (1.0 / Math.Tan(angle2)));
 					t2 = distance2 / xVelocity2;
-					animations.Add(new TemporaryAnimatedSprite("Maps\\springobjects", Game1.getSourceRectForStandardTileSheet(Game1.objectSpriteSheet, whichFish, 16, 16), t2, 1, 0, bobber, flicker: false, flipped: false, bobber.Y / 10000f, 0f, Color.White, 4f, 0f, 0f, 0f)
+					animations.Add(new TemporaryAnimatedSprite(sprite_sheet_name2, sprite_rect2, t2, 1, 0, bobber, flicker: false, flipped: false, bobber.Y / 10000f, 0f, Color.White, 4f, 0f, 0f, 0f)
 					{
 						motion = new Vector2((float)((lastUser.FacingDirection != 3) ? 1 : (-1)) * (0f - xVelocity2), 0f - yVelocity2),
 						acceleration = new Vector2(0f, gravity2),
@@ -967,7 +1019,7 @@ namespace StardewValley.Tools
 				{
 					xVelocity4 = (lastUser.Position.X - bobber.X) / t2;
 				}
-				animations.Add(new TemporaryAnimatedSprite("Maps\\springobjects", Game1.getSourceRectForStandardTileSheet(Game1.objectSpriteSheet, whichFish, 16, 16), t2, 1, 0, new Vector2(bobber.X, bobber.Y), flicker: false, flipped: false, bobber.Y / 10000f, 0f, Color.White, 4f, 0f, 0f, 0f)
+				animations.Add(new TemporaryAnimatedSprite(sprite_sheet_name2, sprite_rect2, t2, 1, 0, new Vector2(bobber.X, bobber.Y), flicker: false, flipped: false, bobber.Y / 10000f, 0f, Color.White, 4f, 0f, 0f, 0f)
 				{
 					motion = new Vector2(xVelocity4, 0f - velocity2),
 					acceleration = new Vector2(0f, gravity4),
@@ -992,7 +1044,7 @@ namespace StardewValley.Tools
 					{
 						xVelocity4 = (lastUser.Position.X - bobber.X) / t2;
 					}
-					animations.Add(new TemporaryAnimatedSprite("Maps\\springobjects", Game1.getSourceRectForStandardTileSheet(Game1.objectSpriteSheet, whichFish, 16, 16), t2, 1, 0, new Vector2(bobber.X, bobber.Y), flicker: false, flipped: false, bobber.Y / 10000f, 0f, Color.White, 4f, 0f, 0f, 0f)
+					animations.Add(new TemporaryAnimatedSprite(sprite_sheet_name2, sprite_rect2, t2, 1, 0, new Vector2(bobber.X, bobber.Y), flicker: false, flipped: false, bobber.Y / 10000f, 0f, Color.White, 4f, 0f, 0f, 0f)
 					{
 						motion = new Vector2(xVelocity4, 0f - velocity2),
 						acceleration = new Vector2(0f, gravity4),
@@ -1281,21 +1333,37 @@ namespace StardewValley.Tools
 					lastPosition = current;
 				}
 			}
-			else if (fishCaught)
+			else
 			{
-				float yOffset = 4f * (float)Math.Round(Math.Sin(DateTime.UtcNow.TimeOfDay.TotalMilliseconds / 250.0), 2);
+				if (!fishCaught)
+				{
+					return;
+				}
+				float yOffset = 4f * (float)Math.Round(Math.Sin(Game1.currentGameTime.TotalGameTime.TotalMilliseconds / 250.0), 2);
 				b.Draw(Game1.mouseCursors, Game1.GlobalToLocal(Game1.viewport, lastUser.Position + new Vector2(-120f, -288f + yOffset)), new Rectangle(31, 1870, 73, 49), Color.White * 0.8f, 0f, Vector2.Zero, 4f, SpriteEffects.None, (float)lastUser.getStandingY() / 10000f + 0.06f);
-				b.Draw(Game1.objectSpriteSheet, Game1.GlobalToLocal(Game1.viewport, lastUser.Position + new Vector2(-124f, -284f + yOffset) + new Vector2(44f, 68f)), Game1.getSourceRectForStandardTileSheet(Game1.objectSpriteSheet, whichFish, 16, 16), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, (float)lastUser.getStandingY() / 10000f + 0.0001f + 0.06f);
-				if (caughtDoubleFish)
+				if (itemCategory == "Object")
 				{
-					Utility.drawTinyDigits(2, b, Game1.GlobalToLocal(Game1.viewport, lastUser.Position + new Vector2(-120f, -284f + yOffset) + new Vector2(23f, 29f) * 4f), 3f, (float)lastUser.getStandingY() / 10000f + 0.0001f + 0.061f, Color.White);
+					b.Draw(Game1.objectSpriteSheet, Game1.GlobalToLocal(Game1.viewport, lastUser.Position + new Vector2(-124f, -284f + yOffset) + new Vector2(44f, 68f)), Game1.getSourceRectForStandardTileSheet(Game1.objectSpriteSheet, whichFish, 16, 16), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, (float)lastUser.getStandingY() / 10000f + 0.0001f + 0.06f);
+					if (caughtDoubleFish)
+					{
+						Utility.drawTinyDigits(2, b, Game1.GlobalToLocal(Game1.viewport, lastUser.Position + new Vector2(-120f, -284f + yOffset) + new Vector2(23f, 29f) * 4f), 3f, (float)lastUser.getStandingY() / 10000f + 0.0001f + 0.061f, Color.White);
+					}
+					b.Draw(Game1.objectSpriteSheet, Game1.GlobalToLocal(Game1.viewport, lastUser.Position + new Vector2(0f, -56f)), Game1.getSourceRectForStandardTileSheet(Game1.objectSpriteSheet, whichFish, 16, 16), Color.White, (fishSize == -1 || whichFish == 800 || whichFish == 798 || whichFish == 149 || whichFish == 151) ? 0f : ((float)Math.PI * 3f / 4f), new Vector2(8f, 8f), 3f, SpriteEffects.None, (float)lastUser.getStandingY() / 10000f + 0.002f + 0.06f);
+					if (caughtDoubleFish)
+					{
+						b.Draw(Game1.objectSpriteSheet, Game1.GlobalToLocal(Game1.viewport, lastUser.Position + new Vector2(-8f, -56f)), Game1.getSourceRectForStandardTileSheet(Game1.objectSpriteSheet, whichFish, 16, 16), Color.White, (fishSize == -1 || whichFish == 800 || whichFish == 798 || whichFish == 149 || whichFish == 151) ? 0f : ((float)Math.PI * 4f / 5f), new Vector2(8f, 8f), 3f, SpriteEffects.None, (float)lastUser.getStandingY() / 10000f + 0.002f + 0.058f);
+					}
 				}
-				b.Draw(Game1.objectSpriteSheet, Game1.GlobalToLocal(Game1.viewport, lastUser.Position + new Vector2(0f, -56f)), Game1.getSourceRectForStandardTileSheet(Game1.objectSpriteSheet, whichFish, 16, 16), Color.White, (fishSize == -1 || whichFish == 800 || whichFish == 798 || whichFish == 149 || whichFish == 151) ? 0f : ((float)Math.PI * 3f / 4f), new Vector2(8f, 8f), 3f, SpriteEffects.None, (float)lastUser.getStandingY() / 10000f + 0.002f + 0.06f);
-				if (caughtDoubleFish)
+				else
 				{
-					b.Draw(Game1.objectSpriteSheet, Game1.GlobalToLocal(Game1.viewport, lastUser.Position + new Vector2(-8f, -56f)), Game1.getSourceRectForStandardTileSheet(Game1.objectSpriteSheet, whichFish, 16, 16), Color.White, (fishSize == -1 || whichFish == 800 || whichFish == 798 || whichFish == 149 || whichFish == 151) ? 0f : ((float)Math.PI * 4f / 5f), new Vector2(8f, 8f), 3f, SpriteEffects.None, (float)lastUser.getStandingY() / 10000f + 0.002f + 0.058f);
+					b.Draw(Game1.mouseCursors, Game1.GlobalToLocal(Game1.viewport, lastUser.Position + new Vector2(-124f, -284f + yOffset) + new Vector2(44f, 68f)), new Rectangle(228, 408, 16, 16), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, (float)lastUser.getStandingY() / 10000f + 0.0001f + 0.06f);
+					b.Draw(Game1.mouseCursors, Game1.GlobalToLocal(Game1.viewport, lastUser.Position + new Vector2(0f, -56f)), new Rectangle(228, 408, 16, 16), Color.White, 0f, new Vector2(8f, 8f), 3f, SpriteEffects.None, (float)lastUser.getStandingY() / 10000f + 0.002f + 0.06f);
 				}
-				string name = Game1.objectInformation[whichFish].Split('/')[4];
+				string name = "???";
+				if (itemCategory == "Object")
+				{
+					name = Game1.objectInformation[whichFish].Split('/')[4];
+				}
 				b.DrawString(Game1.smallFont, name, Game1.GlobalToLocal(Game1.viewport, lastUser.Position + new Vector2(26f - Game1.smallFont.MeasureString(name).X / 2f, -278f + yOffset)), bossFish ? new Color(126, 61, 237) : Game1.textColor, 0f, Vector2.Zero, 1f, SpriteEffects.None, (float)lastUser.getStandingY() / 10000f + 0.002f + 0.06f);
 				if (fishSize != -1)
 				{
@@ -1348,6 +1416,7 @@ namespace StardewValley.Tools
 			_lastAppliedMotion = Vector2.Zero;
 			who.UsingTool = true;
 			whichFish = -1;
+			itemCategory = "";
 			recastTimerMs = 0;
 			who.canMove = false;
 			fishCaught = false;
@@ -1366,24 +1435,27 @@ namespace StardewValley.Tools
 
 		public void setTimingCastAnimation(Farmer who)
 		{
-			switch (who.FacingDirection)
+			if (who.CurrentTool != null)
 			{
-			case 0:
-				who.FarmerSprite.setCurrentFrame(295);
-				who.CurrentTool.Update(0, 0, who);
-				break;
-			case 1:
-				who.FarmerSprite.setCurrentFrame(296);
-				who.CurrentTool.Update(1, 0, who);
-				break;
-			case 2:
-				who.FarmerSprite.setCurrentFrame(297);
-				who.CurrentTool.Update(2, 0, who);
-				break;
-			case 3:
-				who.FarmerSprite.setCurrentFrame(298);
-				who.CurrentTool.Update(3, 0, who);
-				break;
+				switch (who.FacingDirection)
+				{
+				case 0:
+					who.FarmerSprite.setCurrentFrame(295);
+					who.CurrentTool.Update(0, 0, who);
+					break;
+				case 1:
+					who.FarmerSprite.setCurrentFrame(296);
+					who.CurrentTool.Update(1, 0, who);
+					break;
+				case 2:
+					who.FarmerSprite.setCurrentFrame(297);
+					who.CurrentTool.Update(2, 0, who);
+					break;
+				case 3:
+					who.FarmerSprite.setCurrentFrame(298);
+					who.CurrentTool.Update(3, 0, who);
+					break;
+				}
 			}
 		}
 
@@ -1396,7 +1468,12 @@ namespace StardewValley.Tools
 		{
 			if (consumeBaitAndTackle && lastUser != null && lastUser.IsLocalPlayer)
 			{
-				if (attachments[0] != null)
+				float consumeChance = 1f;
+				if (hasEnchantmentOfType<PreservingEnchantment>())
+				{
+					consumeChance = 0.5f;
+				}
+				if (attachments[0] != null && Game1.random.NextDouble() < (double)consumeChance)
 				{
 					attachments[0].Stack--;
 					if (attachments[0].Stack <= 0)
@@ -1405,7 +1482,7 @@ namespace StardewValley.Tools
 						Game1.showGlobalMessage(Game1.content.LoadString("Strings\\StringsFromCSFiles:FishingRod.cs.14085"));
 					}
 				}
-				if (attachments[1] != null)
+				if (attachments[1] != null && !lastCatchWasJunk && Game1.random.NextDouble() < (double)consumeChance)
 				{
 					attachments[1].uses.Value++;
 					if (attachments[1].uses.Value >= maxTackleUses)
@@ -1437,17 +1514,22 @@ namespace StardewValley.Tools
 			if (chargeSound != null && chargeSound.IsPlaying && lastUser.IsLocalPlayer)
 			{
 				chargeSound.Stop(AudioStopOptions.Immediate);
+				chargeSound = null;
 			}
 			if (reelSound != null && reelSound.IsPlaying)
 			{
 				reelSound.Stop(AudioStopOptions.Immediate);
+				reelSound = null;
 			}
 			if (lastUser != null)
 			{
 				lastUser.UsingTool = false;
 				lastUser.CanMove = true;
 				lastUser.completelyStopAnimatingOrDoingAction();
-				lastUser.faceDirection(originalFacingDirection);
+				if (lastUser == Game1.player)
+				{
+					lastUser.faceDirection(originalFacingDirection);
+				}
 			}
 		}
 
@@ -1488,7 +1570,6 @@ namespace StardewValley.Tools
 				{
 					castingEndEnableMovement();
 				}
-				lastUser.FarmerSprite.ignoreDefaultActionThisTime = false;
 			}
 		}
 
@@ -1561,7 +1642,7 @@ namespace StardewValley.Tools
 			if (castingChosenCountdown > 0f)
 			{
 				castingChosenCountdown -= time.ElapsedGameTime.Milliseconds;
-				if (castingChosenCountdown <= 0f)
+				if (castingChosenCountdown <= 0f && who.CurrentTool != null)
 				{
 					switch (who.FacingDirection)
 					{
@@ -1669,7 +1750,7 @@ namespace StardewValley.Tools
 				{
 					castingTimerSpeed = 0f - castingTimerSpeed;
 				}
-				who.armOffset.Y = 2f * (float)Math.Round(Math.Sin(DateTime.UtcNow.TimeOfDay.TotalMilliseconds / 250.0), 2);
+				who.armOffset.Y = 2f * (float)Math.Round(Math.Sin(Game1.currentGameTime.TotalGameTime.TotalMilliseconds / 250.0), 2);
 				who.jitterStrength = Math.Max(0f, castingPower - 0.5f);
 				if (who.IsLocalPlayer && ((!usedGamePadToCast && Game1.input.GetMouseState().LeftButton == ButtonState.Released) || (usedGamePadToCast && Game1.options.gamepadControls && Game1.input.GetGamePadState().IsButtonUp(Buttons.X))) && Game1.areAllOfTheseKeysUp(Game1.GetKeyboardState(), Game1.options.useToolButton))
 				{
@@ -1700,7 +1781,7 @@ namespace StardewValley.Tools
 						who.FarmerSprite.setCurrentSingleFrame(72, 100, secondaryArm: false, flip: true);
 						break;
 					}
-					who.armOffset.Y = (float)Math.Round(Math.Sin(DateTime.UtcNow.TimeOfDay.TotalMilliseconds / 250.0), 2);
+					who.armOffset.Y = (float)Math.Round(Math.Sin(Game1.currentGameTime.TotalGameTime.TotalMilliseconds / 250.0), 2);
 					who.jitterStrength = 1f;
 				}
 				else
@@ -1730,7 +1811,7 @@ namespace StardewValley.Tools
 			{
 				if (lastUser.IsLocalPlayer)
 				{
-					bobber.Y += (float)(0.10000000149011612 * Math.Sin(DateTime.UtcNow.TimeOfDay.TotalMilliseconds / 250.0));
+					bobber.Y += (float)(0.10000000149011612 * Math.Sin(Game1.currentGameTime.TotalGameTime.TotalMilliseconds / 250.0));
 				}
 				who.canReleaseTool = true;
 				bobberTimeAccumulator += time.ElapsedGameTime.Milliseconds;
@@ -1749,7 +1830,7 @@ namespace StardewValley.Tools
 					who.FarmerSprite.setCurrentFrame(89, 0, 10, 1, flip: true, secondaryArm: false);
 					break;
 				}
-				who.armOffset.Y = (float)Math.Round(Math.Sin(DateTime.UtcNow.TimeOfDay.TotalMilliseconds / 250.0), 2) + (float)((who.FacingDirection == 1 || who.FacingDirection == 3) ? 1 : (-1));
+				who.armOffset.Y = (float)Math.Round(Math.Sin(Game1.currentGameTime.TotalGameTime.TotalMilliseconds / 250.0), 2) + (float)((who.FacingDirection == 1 || who.FacingDirection == 3) ? 1 : (-1));
 				if (!who.IsLocalPlayer)
 				{
 					return;
@@ -1762,7 +1843,15 @@ namespace StardewValley.Tools
 						fishingBiteAccumulator = 0f;
 						timeUntilFishingBite = -1f;
 						isNibbling = true;
-						who.currentLocation.localSound("fishBite");
+						if (hasEnchantmentOfType<AutoHookEnchantment>())
+						{
+							timePerBobberBob = 1f;
+							timeUntilFishingNibbleDone = maxTimeToNibble;
+							DoFunction(who.currentLocation, (int)bobber.X, (int)bobber.Y, 1, who);
+							Rumble.rumble(0.95f, 200f);
+							return;
+						}
+						who.PlayFishBiteChime();
 						Rumble.rumble(0.75f, 250f);
 						timeUntilFishingNibbleDone = maxTimeToNibble;
 						if (Game1.currentMinigame == null)
@@ -1798,17 +1887,17 @@ namespace StardewValley.Tools
 				motion = Vector2.Zero;
 				if (Game1.isOneOfTheseKeysDown(Game1.oldKBState, Game1.options.moveDownButton))
 				{
-					goto IL_0d54;
+					goto IL_0d9f;
 				}
 				if (Game1.options.gamepadControls)
 				{
 					_ = Game1.oldPadState;
-					if (Game1.oldPadState.IsButtonDown(Buttons.DPadDown) || GamePad.GetState(PlayerIndex.One).ThumbSticks.Left.Y < 0f)
+					if (Game1.oldPadState.IsButtonDown(Buttons.DPadDown) || Game1.input.GetGamePadState().ThumbSticks.Left.Y < 0f)
 					{
-						goto IL_0d54;
+						goto IL_0d9f;
 					}
 				}
-				goto IL_0d7c;
+				goto IL_0dc7;
 			}
 			if (showingTreasure)
 			{
@@ -1836,31 +1925,49 @@ namespace StardewValley.Tools
 				if (!treasureCaught)
 				{
 					recastTimerMs = 200;
-					Object item = new Object(whichFish, 1, isRecipe: false, -1, fishQuality);
-					if (whichFish == GameLocation.CAROLINES_NECKLACE_ITEM)
+					Object item2 = null;
+					if (itemCategory == "Object")
 					{
-						item.questItem.Value = true;
-					}
-					if (whichFish == 79)
-					{
-						item = who.currentLocation.tryToCreateUnseenSecretNote(lastUser);
-						if (item == null)
+						item2 = new Object(whichFish, 1, isRecipe: false, -1, fishQuality);
+						if (whichFish == GameLocation.CAROLINES_NECKLACE_ITEM)
 						{
-							return;
+							item2.questItem.Value = true;
+						}
+						if (whichFish == 79 || whichFish == 842)
+						{
+							item2 = who.currentLocation.tryToCreateUnseenSecretNote(lastUser);
+							if (item2 == null)
+							{
+								return;
+							}
+						}
+						if (caughtDoubleFish)
+						{
+							item2.Stack = 2;
 						}
 					}
-					if (caughtDoubleFish)
+					else if (itemCategory == "Furniture")
 					{
-						item.Stack = 2;
+						item2 = new Furniture(whichFish, Vector2.Zero);
 					}
 					bool cachedFromFishPond = fromFishPond;
 					lastUser.completelyStopAnimatingOrDoingAction();
 					doneFishing(lastUser, !cachedFromFishPond);
-					if (!Game1.isFestival() && !lastUser.addItemToInventoryBool(item))
+					if (!Game1.isFestival() && !cachedFromFishPond && itemCategory == "Object" && Game1.player.team.specialOrders != null)
+					{
+						foreach (SpecialOrder order2 in Game1.player.team.specialOrders)
+						{
+							if (order2.onFishCaught != null)
+							{
+								order2.onFishCaught(Game1.player, item2);
+							}
+						}
+					}
+					if (!Game1.isFestival() && !lastUser.addItemToInventoryBool(item2))
 					{
 						Game1.activeClickableMenu = new ItemGrabMenu(new List<Item>
 						{
-							item
+							item2
 						}, this).setEssential(essential: true);
 					}
 				}
@@ -1874,7 +1981,18 @@ namespace StardewValley.Tools
 					{
 						stack = 2;
 					}
-					bool hadroomForfish = lastUser.addItemToInventoryBool(new Object(whichFish, stack, isRecipe: false, -1, fishQuality));
+					Object item = new Object(whichFish, stack, isRecipe: false, -1, fishQuality);
+					if (Game1.player.team.specialOrders != null)
+					{
+						foreach (SpecialOrder order in Game1.player.team.specialOrders)
+						{
+							if (order.onFishCaught != null)
+							{
+								order.onFishCaught(Game1.player, item);
+							}
+						}
+					}
+					bool hadroomForfish = lastUser.addItemToInventoryBool(item);
 					animations.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Rectangle(64, 1920, 32, 32), 500f, 1, 0, lastUser.Position + new Vector2(-32f, -160f), flicker: false, flipped: false, (float)lastUser.getStandingY() / 10000f + 0.001f, 0f, Color.White, 4f, 0f, 0f, 0f)
 					{
 						motion = new Vector2(0f, -0.128f),
@@ -1903,7 +2021,7 @@ namespace StardewValley.Tools
 					who.FarmerSprite.setCurrentFrame(89, 0, 10, 1, flip: true, secondaryArm: false);
 					break;
 				}
-				who.armOffset.Y = (float)Math.Round(Math.Sin(DateTime.UtcNow.TimeOfDay.TotalMilliseconds / 250.0), 2);
+				who.armOffset.Y = (float)Math.Round(Math.Sin(Game1.currentGameTime.TotalGameTime.TotalMilliseconds / 250.0), 2);
 			}
 			else if (!castedButBobberStillInAir && whichFish != -1 && animations.Count > 0 && animations[0].timer > 500f && !Game1.eventUp)
 			{
@@ -1911,21 +2029,7 @@ namespace StardewValley.Tools
 				lastUser.FarmerSprite.setCurrentFrame(57);
 			}
 			return;
-			IL_0e7f:
-			if (Game1.isOneOfTheseKeysDown(Game1.oldKBState, Game1.options.moveLeftButton))
-			{
-				goto IL_0ed8;
-			}
-			if (Game1.options.gamepadControls)
-			{
-				_ = Game1.oldPadState;
-				if (Game1.oldPadState.IsButtonDown(Buttons.DPadLeft) || GamePad.GetState(PlayerIndex.One).ThumbSticks.Left.X < 0f)
-				{
-					goto IL_0ed8;
-				}
-			}
-			goto IL_0f01;
-			IL_0f01:
+			IL_0f58:
 			if (!_hasPlayerAdjustedBobber)
 			{
 				Vector2 bobber_tile = calculateBobberTile();
@@ -1993,62 +2097,76 @@ namespace StardewValley.Tools
 			_lastAppliedMotion = applied_motion;
 			animations[0].position += applied_motion;
 			return;
-			IL_0dd5:
+			IL_0e4d:
+			if (Game1.isOneOfTheseKeysDown(Game1.oldKBState, Game1.options.moveUpButton))
+			{
+				goto IL_0eaa;
+			}
+			if (Game1.options.gamepadControls)
+			{
+				_ = Game1.oldPadState;
+				if (Game1.oldPadState.IsButtonDown(Buttons.DPadUp) || Game1.input.GetGamePadState().ThumbSticks.Left.Y > 0f)
+				{
+					goto IL_0eaa;
+				}
+			}
+			goto IL_0ed2;
+			IL_0ed2:
+			if (Game1.isOneOfTheseKeysDown(Game1.oldKBState, Game1.options.moveLeftButton))
+			{
+				goto IL_0f2f;
+			}
+			if (Game1.options.gamepadControls)
+			{
+				_ = Game1.oldPadState;
+				if (Game1.oldPadState.IsButtonDown(Buttons.DPadLeft) || Game1.input.GetGamePadState().ThumbSticks.Left.X < 0f)
+				{
+					goto IL_0f2f;
+				}
+			}
+			goto IL_0f58;
+			IL_0e24:
 			if (who.FacingDirection != 1 && who.FacingDirection != 3)
 			{
 				motion.X += 2f;
 				_hasPlayerAdjustedBobber = true;
 			}
-			goto IL_0dfe;
-			IL_0d54:
-			if (who.FacingDirection != 2 && who.FacingDirection != 0)
+			goto IL_0e4d;
+			IL_0dc7:
+			if (Game1.isOneOfTheseKeysDown(Game1.oldKBState, Game1.options.moveRightButton))
 			{
-				motion.Y += 4f;
-				_hasPlayerAdjustedBobber = true;
-			}
-			goto IL_0d7c;
-			IL_0dfe:
-			if (Game1.isOneOfTheseKeysDown(Game1.oldKBState, Game1.options.moveUpButton))
-			{
-				goto IL_0e57;
+				goto IL_0e24;
 			}
 			if (Game1.options.gamepadControls)
 			{
 				_ = Game1.oldPadState;
-				if (Game1.oldPadState.IsButtonDown(Buttons.DPadUp) || GamePad.GetState(PlayerIndex.One).ThumbSticks.Left.Y > 0f)
+				if (Game1.oldPadState.IsButtonDown(Buttons.DPadRight) || Game1.input.GetGamePadState().ThumbSticks.Left.X > 0f)
 				{
-					goto IL_0e57;
+					goto IL_0e24;
 				}
 			}
-			goto IL_0e7f;
-			IL_0ed8:
-			if (who.FacingDirection != 3 && who.FacingDirection != 1)
-			{
-				motion.X -= 2f;
-				_hasPlayerAdjustedBobber = true;
-			}
-			goto IL_0f01;
-			IL_0e57:
+			goto IL_0e4d;
+			IL_0eaa:
 			if (who.FacingDirection != 0 && who.FacingDirection != 2)
 			{
 				motion.Y -= 4f;
 				_hasPlayerAdjustedBobber = true;
 			}
-			goto IL_0e7f;
-			IL_0d7c:
-			if (Game1.isOneOfTheseKeysDown(Game1.oldKBState, Game1.options.moveRightButton))
+			goto IL_0ed2;
+			IL_0d9f:
+			if (who.FacingDirection != 2 && who.FacingDirection != 0)
 			{
-				goto IL_0dd5;
+				motion.Y += 4f;
+				_hasPlayerAdjustedBobber = true;
 			}
-			if (Game1.options.gamepadControls)
+			goto IL_0dc7;
+			IL_0f2f:
+			if (who.FacingDirection != 3 && who.FacingDirection != 1)
 			{
-				_ = Game1.oldPadState;
-				if (Game1.oldPadState.IsButtonDown(Buttons.DPadRight) || GamePad.GetState(PlayerIndex.One).ThumbSticks.Left.X > 0f)
-				{
-					goto IL_0dd5;
-				}
+				motion.X -= 2f;
+				_hasPlayerAdjustedBobber = true;
 			}
-			goto IL_0dfe;
+			goto IL_0f58;
 		}
 
 		private void startCasting()
@@ -2136,6 +2254,10 @@ namespace StardewValley.Tools
 				if (caughtDoubleFish && Game1.random.NextDouble() < 0.5)
 				{
 					treasures.Add(new Object(774, 2 + ((Game1.random.NextDouble() < 0.25) ? 2 : 0)));
+				}
+				if (Game1.random.NextDouble() <= 0.33 && Game1.player.team.SpecialOrderRuleActive("DROP_QI_BEANS"))
+				{
+					treasures.Add(new Object(890, Game1.random.Next(1, 3) + ((Game1.random.NextDouble() < 0.25) ? 2 : 0)));
 				}
 				switch (Game1.random.Next(4))
 				{
@@ -2326,6 +2448,10 @@ namespace StardewValley.Tools
 						if (Game1.random.NextDouble() < 0.01 * (double)luckModifier)
 						{
 							treasures.Add(new Boots(Game1.random.Next(504, 514)));
+						}
+						if (Game1.MasterPlayer.mailReceived.Contains("Farm_Eternal") && Game1.random.NextDouble() < 0.01 * (double)luckModifier)
+						{
+							treasures.Add(new Object(928, 1));
 						}
 						if (treasures.Count == 1)
 						{

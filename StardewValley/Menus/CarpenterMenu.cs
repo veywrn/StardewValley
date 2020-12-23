@@ -28,6 +28,8 @@ namespace StardewValley.Menus
 
 		public const int region_cancelButton = 107;
 
+		public const int region_paintButton = 108;
+
 		public int maxWidthOfBuildingViewer = 448;
 
 		public int maxHeightOfBuildingViewer = 512;
@@ -51,6 +53,8 @@ namespace StardewValley.Menus
 		public ClickableTextureComponent demolishButton;
 
 		public ClickableTextureComponent moveButton;
+
+		public ClickableTextureComponent paintButton;
 
 		private Building currentBuilding;
 
@@ -78,7 +82,27 @@ namespace StardewValley.Menus
 
 		private bool magicalConstruction;
 
+		private bool painting;
+
+		protected BluePrint _demolishCheckBlueprint;
+
 		private string hoverText = "";
+
+		public bool readOnly
+		{
+			set
+			{
+				if (value)
+				{
+					upgradeIcon.visible = false;
+					demolishButton.visible = false;
+					moveButton.visible = false;
+					okButton.visible = false;
+					paintButton.visible = false;
+					cancelButton.leftNeighborID = 102;
+				}
+			}
+		}
 
 		public BluePrint CurrentBlueprint => blueprints[currentBlueprintIndex];
 
@@ -94,6 +118,10 @@ namespace StardewValley.Menus
 				blueprints.Add(new BluePrint("Earth Obelisk"));
 				blueprints.Add(new BluePrint("Water Obelisk"));
 				blueprints.Add(new BluePrint("Desert Obelisk"));
+				if (Game1.stats.getStat("boatRidesToIsland") >= 1)
+				{
+					blueprints.Add(new BluePrint("Island Obelisk"));
+				}
 				blueprints.Add(new BluePrint("Gold Clock"));
 			}
 			else
@@ -147,6 +175,11 @@ namespace StardewValley.Menus
 			}
 		}
 
+		public override bool shouldClampGamePadCursor()
+		{
+			return onFarm;
+		}
+
 		public override void snapToDefaultClickableComponent()
 		{
 			currentlySnappedComponent = getComponentWithID(107);
@@ -155,8 +188,8 @@ namespace StardewValley.Menus
 
 		private void resetBounds()
 		{
-			xPositionOnScreen = Game1.viewport.Width / 2 - maxWidthOfBuildingViewer - IClickableMenu.spaceToClearSideBorder;
-			yPositionOnScreen = Game1.viewport.Height / 2 - maxHeightOfBuildingViewer / 2 - IClickableMenu.spaceToClearTopBorder + 32;
+			xPositionOnScreen = Game1.uiViewport.Width / 2 - maxWidthOfBuildingViewer - IClickableMenu.spaceToClearSideBorder;
+			yPositionOnScreen = Game1.uiViewport.Height / 2 - maxHeightOfBuildingViewer / 2 - IClickableMenu.spaceToClearTopBorder + 32;
 			width = maxWidthOfBuildingViewer + maxWidthOfDescription + IClickableMenu.spaceToClearSideBorder * 2 + 64;
 			height = maxHeightOfBuildingViewer + IClickableMenu.spaceToClearTopBorder;
 			initialize(xPositionOnScreen, yPositionOnScreen, width, height, showUpperRightCloseButton: true);
@@ -180,7 +213,7 @@ namespace StardewValley.Menus
 			{
 				myID = 102,
 				leftNeighborID = 101,
-				rightNeighborID = 105
+				rightNeighborID = -99998
 			};
 			demolishButton = new ClickableTextureComponent(Game1.content.LoadString("Strings\\UI:Carpenter_Demolish"), new Microsoft.Xna.Framework.Rectangle(xPositionOnScreen + width - IClickableMenu.borderWidth - IClickableMenu.spaceToClearSideBorder - 128 - 8, yPositionOnScreen + maxHeightOfBuildingViewer + 64 - 4, 64, 64), null, null, Game1.mouseCursors, new Microsoft.Xna.Framework.Rectangle(348, 372, 17, 17), 4f)
 			{
@@ -198,18 +231,34 @@ namespace StardewValley.Menus
 			{
 				myID = 105,
 				rightNeighborID = 106,
-				leftNeighborID = 102
+				leftNeighborID = -99998
+			};
+			paintButton = new ClickableTextureComponent(Game1.content.LoadString("Strings\\UI:Carpenter_PaintBuildings"), new Microsoft.Xna.Framework.Rectangle(xPositionOnScreen + width - IClickableMenu.borderWidth - IClickableMenu.spaceToClearSideBorder - 320 - 20, yPositionOnScreen + maxHeightOfBuildingViewer + 64, 64, 64), null, null, Game1.mouseCursors2, new Microsoft.Xna.Framework.Rectangle(80, 208, 16, 16), 4f)
+			{
+				myID = 105,
+				rightNeighborID = -99998,
+				leftNeighborID = -99998
 			};
 			bool has_owned_buildings = false;
+			bool has_paintable_buildings = CanPaintHouse() && HasPermissionsToPaint(null);
 			foreach (Building building in Game1.getFarm().buildings)
 			{
 				if (building.hasCarpenterPermissions())
 				{
 					has_owned_buildings = true;
 				}
+				if (building.CanBePainted() && HasPermissionsToPaint(building))
+				{
+					has_paintable_buildings = true;
+				}
 			}
 			demolishButton.visible = Game1.IsMasterGame;
 			moveButton.visible = (Game1.IsMasterGame || Game1.player.team.farmhandsCanMoveBuildings.Value == FarmerTeam.RemoteBuildingPermissions.On || (Game1.player.team.farmhandsCanMoveBuildings.Value == FarmerTeam.RemoteBuildingPermissions.OwnedBuildings && has_owned_buildings));
+			paintButton.visible = has_paintable_buildings;
+			if (magicalConstruction)
+			{
+				paintButton.visible = false;
+			}
 			if (!demolishButton.visible)
 			{
 				upgradeIcon.rightNeighborID = demolishButton.rightNeighborID;
@@ -219,7 +268,7 @@ namespace StardewValley.Menus
 			if (!moveButton.visible)
 			{
 				upgradeIcon.leftNeighborID = moveButton.leftNeighborID;
-				forwardButton.rightNeighborID = moveButton.rightNeighborID;
+				forwardButton.rightNeighborID = -99998;
 				okButton.leftNeighborID = moveButton.leftNeighborID;
 			}
 		}
@@ -250,6 +299,10 @@ namespace StardewValley.Menus
 			{
 				currentBuilding = new FishPond(blueprints[currentBlueprintIndex], Vector2.Zero);
 			}
+			else if (blueprints[currentBlueprintIndex].name.Contains("Greenhouse"))
+			{
+				currentBuilding = new GreenhouseBuilding(blueprints[currentBlueprintIndex], Vector2.Zero);
+			}
 			else
 			{
 				currentBuilding = new Building(blueprints[currentBlueprintIndex], Vector2.Zero);
@@ -275,11 +328,12 @@ namespace StardewValley.Menus
 				okButton.tryHover(x, y);
 				demolishButton.tryHover(x, y);
 				moveButton.tryHover(x, y);
+				paintButton.tryHover(x, y);
 				if (CurrentBlueprint.isUpgrade() && upgradeIcon.containsPoint(x, y))
 				{
 					hoverText = Game1.content.LoadString("Strings\\UI:Carpenter_Upgrade", new BluePrint(CurrentBlueprint.nameOfBuildingToUpgrade).displayName);
 				}
-				else if (demolishButton.containsPoint(x, y))
+				else if (demolishButton.containsPoint(x, y) && CanDemolishThis(CurrentBlueprint))
 				{
 					hoverText = Game1.content.LoadString("Strings\\UI:Carpenter_Demolish");
 				}
@@ -291,6 +345,10 @@ namespace StardewValley.Menus
 				{
 					hoverText = Game1.content.LoadString("Strings\\UI:Carpenter_Build");
 				}
+				else if (paintButton.containsPoint(x, y))
+				{
+					hoverText = paintButton.name;
+				}
 				else
 				{
 					hoverText = "";
@@ -298,21 +356,27 @@ namespace StardewValley.Menus
 			}
 			else
 			{
-				if ((!upgrading && !demolishing && !moving) || freeze)
+				if ((!upgrading && !demolishing && !moving && !painting) || freeze)
 				{
 					return;
+				}
+				Farm farm = Game1.getFarm();
+				Vector2 tile_pos = new Vector2((Game1.viewport.X + Game1.getOldMouseX(ui_scale: false)) / 64, (Game1.viewport.Y + Game1.getOldMouseY(ui_scale: false)) / 64);
+				if (painting && farm.GetHouseRect().Contains(Utility.Vector2ToPoint(tile_pos)) && HasPermissionsToPaint(null) && CanPaintHouse())
+				{
+					farm.frameHouseColor = Color.Lime;
 				}
 				foreach (Building building in ((Farm)Game1.getLocationFromName("Farm")).buildings)
 				{
 					building.color.Value = Color.White;
 				}
-				Building b = ((Farm)Game1.getLocationFromName("Farm")).getBuildingAt(new Vector2((Game1.viewport.X + Game1.getOldMouseX()) / 64, (Game1.viewport.Y + Game1.getOldMouseY()) / 64));
+				Building b = ((Farm)Game1.getLocationFromName("Farm")).getBuildingAt(tile_pos);
 				if (b == null)
 				{
-					b = ((Farm)Game1.getLocationFromName("Farm")).getBuildingAt(new Vector2((Game1.viewport.X + Game1.getOldMouseX()) / 64, (Game1.viewport.Y + Game1.getOldMouseY() + 128) / 64));
+					b = ((Farm)Game1.getLocationFromName("Farm")).getBuildingAt(new Vector2((Game1.viewport.X + Game1.getOldMouseX(ui_scale: false)) / 64, (Game1.viewport.Y + Game1.getOldMouseY(ui_scale: false) + 128) / 64));
 					if (b == null)
 					{
-						b = ((Farm)Game1.getLocationFromName("Farm")).getBuildingAt(new Vector2((Game1.viewport.X + Game1.getOldMouseX()) / 64, (Game1.viewport.Y + Game1.getOldMouseY() + 192) / 64));
+						b = ((Farm)Game1.getLocationFromName("Farm")).getBuildingAt(new Vector2((Game1.viewport.X + Game1.getOldMouseX(ui_scale: false)) / 64, (Game1.viewport.Y + Game1.getOldMouseY(ui_scale: false) + 192) / 64));
 					}
 				}
 				if (upgrading)
@@ -328,12 +392,19 @@ namespace StardewValley.Menus
 				}
 				else if (demolishing)
 				{
-					if (b != null && hasPermissionsToDemolish(b))
+					if (b != null && hasPermissionsToDemolish(b) && CanDemolishThis(b))
 					{
 						b.color.Value = Color.Red * 0.8f;
 					}
 				}
-				else if (moving && b != null && hasPermissionsToMove(b))
+				else if (moving)
+				{
+					if (b != null && hasPermissionsToMove(b))
+					{
+						b.color.Value = Color.Lime * 0.8f;
+					}
+				}
+				else if (painting && b != null && b.CanBePainted() && HasPermissionsToPaint(b))
 				{
 					b.color.Value = Color.Lime * 0.8f;
 				}
@@ -344,13 +415,52 @@ namespace StardewValley.Menus
 		{
 			if (Game1.IsMasterGame)
 			{
-				return true;
+				return CanDemolishThis(b);
 			}
 			return false;
 		}
 
+		public bool CanPaintHouse()
+		{
+			return Game1.MasterPlayer.HouseUpgradeLevel >= 2;
+		}
+
+		public bool HasPermissionsToPaint(Building b)
+		{
+			if (b == null)
+			{
+				if (Game1.player.UniqueMultiplayerID == Game1.MasterPlayer.UniqueMultiplayerID)
+				{
+					return true;
+				}
+				if (Game1.player.spouse == Game1.MasterPlayer.UniqueMultiplayerID.ToString())
+				{
+					return true;
+				}
+				return false;
+			}
+			if (b.isCabin && b.indoors.Value is Cabin)
+			{
+				Farmer cabin_owner = (b.indoors.Value as Cabin).owner;
+				if (Game1.player.UniqueMultiplayerID == cabin_owner.UniqueMultiplayerID)
+				{
+					return true;
+				}
+				if (Game1.player.spouse == cabin_owner.UniqueMultiplayerID.ToString())
+				{
+					return true;
+				}
+				return false;
+			}
+			return true;
+		}
+
 		public bool hasPermissionsToMove(Building b)
 		{
+			if (!Game1.getFarm().greenhouseUnlocked.Value && b is GreenhouseBuilding)
+			{
+				return false;
+			}
 			if (Game1.IsMasterGame)
 			{
 				return true;
@@ -397,11 +507,11 @@ namespace StardewValley.Menus
 			{
 				base.receiveKeyPress(key);
 			}
-			if (Game1.globalFade || !onFarm)
+			if (Game1.IsFading() || !onFarm)
 			{
 				return;
 			}
-			if (Game1.options.doesInputListContain(Game1.options.menuButton, key) && readyToClose())
+			if (Game1.options.doesInputListContain(Game1.options.menuButton, key) && readyToClose() && Game1.locationRequest == null)
 			{
 				returnToCarpentryMenu();
 			}
@@ -429,10 +539,10 @@ namespace StardewValley.Menus
 		public override void update(GameTime time)
 		{
 			base.update(time);
-			if (onFarm && !Game1.globalFade)
+			if (onFarm && !Game1.IsFading())
 			{
-				int mouseX = Game1.getOldMouseX() + Game1.viewport.X;
-				int mouseY = Game1.getOldMouseY() + Game1.viewport.Y;
+				int mouseX = Game1.getOldMouseX(ui_scale: false) + Game1.viewport.X;
+				int mouseY = Game1.getOldMouseY(ui_scale: false) + Game1.viewport.Y;
 				if (mouseX - Game1.viewport.X < 64)
 				{
 					Game1.panScreen(-8, 0);
@@ -510,7 +620,7 @@ namespace StardewValley.Menus
 				backButton.scale = backButton.baseScale;
 				Game1.playSound("shwip");
 			}
-			if (!onFarm && demolishButton.containsPoint(x, y) && demolishButton.visible)
+			if (!onFarm && demolishButton.containsPoint(x, y) && demolishButton.visible && CanDemolishThis(blueprints[currentBlueprintIndex]))
 			{
 				Game1.globalFadeToBlack(setUpForBuildingPlacement);
 				Game1.playSound("smallSelect");
@@ -524,20 +634,27 @@ namespace StardewValley.Menus
 				onFarm = true;
 				moving = true;
 			}
-			if (okButton.containsPoint(x, y) && !onFarm && Game1.player.Money >= price && blueprints[currentBlueprintIndex].doesFarmerHaveEnoughResourcesToBuild())
+			if (!onFarm && paintButton.containsPoint(x, y) && paintButton.visible)
+			{
+				Game1.globalFadeToBlack(setUpForBuildingPlacement);
+				Game1.playSound("smallSelect");
+				onFarm = true;
+				painting = true;
+			}
+			if (okButton.containsPoint(x, y) && !onFarm && price >= 0 && Game1.player.Money >= price && blueprints[currentBlueprintIndex].doesFarmerHaveEnoughResourcesToBuild())
 			{
 				Game1.globalFadeToBlack(setUpForBuildingPlacement);
 				Game1.playSound("smallSelect");
 				onFarm = true;
 			}
-			if (!onFarm || freeze || Game1.globalFade)
+			if (!onFarm || freeze || Game1.IsFading())
 			{
 				return;
 			}
 			if (demolishing)
 			{
 				Farm farm = Game1.getLocationFromName("Farm") as Farm;
-				Building destroyed = farm.getBuildingAt(new Vector2((Game1.viewport.X + Game1.getOldMouseX()) / 64, (Game1.viewport.Y + Game1.getOldMouseY()) / 64));
+				Building destroyed = farm.getBuildingAt(new Vector2((Game1.viewport.X + Game1.getOldMouseX(ui_scale: false)) / 64, (Game1.viewport.Y + Game1.getOldMouseY(ui_scale: false)) / 64));
 				Action buildingLockFailed = delegate
 				{
 					if (demolishing)
@@ -557,7 +674,7 @@ namespace StardewValley.Menus
 						{
 							Game1.addHUDMessage(new HUDMessage(Game1.content.LoadString("Strings\\UI:Carpenter_CantDemolish_AnimalsHere"), Color.Red, 3500f));
 						}
-						else if (destroyed.indoors.Value != null && destroyed.indoors.Value.farmers.Count() > 0)
+						else if (destroyed.indoors.Value != null && destroyed.indoors.Value.farmers.Any())
 						{
 							Game1.addHUDMessage(new HUDMessage(Game1.content.LoadString("Strings\\UI:Carpenter_CantDemolish_PlayerHere"), Color.Red, 3500f));
 						}
@@ -580,6 +697,7 @@ namespace StardewValley.Menus
 							}
 							else
 							{
+								destroyed.BeforeDemolish();
 								Chest chest = null;
 								if (destroyed.indoors.Value is Cabin)
 								{
@@ -618,6 +736,11 @@ namespace StardewValley.Menus
 						destroyed = null;
 						return;
 					}
+					if (!CanDemolishThis(destroyed))
+					{
+						destroyed = null;
+						return;
+					}
 					if (!Game1.IsMasterGame && !hasPermissionsToDemolish(destroyed))
 					{
 						destroyed = null;
@@ -651,7 +774,7 @@ namespace StardewValley.Menus
 			}
 			else if (upgrading)
 			{
-				Building toUpgrade = ((Farm)Game1.getLocationFromName("Farm")).getBuildingAt(new Vector2((Game1.viewport.X + Game1.getOldMouseX()) / 64, (Game1.viewport.Y + Game1.getOldMouseY()) / 64));
+				Building toUpgrade = ((Farm)Game1.getLocationFromName("Farm")).getBuildingAt(new Vector2((Game1.viewport.X + Game1.getOldMouseX(ui_scale: false)) / 64, (Game1.viewport.Y + Game1.getOldMouseY(ui_scale: false)) / 64));
 				if (toUpgrade != null && CurrentBlueprint.name != null && toUpgrade.buildingType.Equals(CurrentBlueprint.nameOfBuildingToUpgrade))
 				{
 					CurrentBlueprint.consumeResources();
@@ -660,17 +783,54 @@ namespace StardewValley.Menus
 					Game1.playSound("axe");
 					DelayedAction.functionAfterDelay(returnToCarpentryMenuAfterSuccessfulBuild, 1500);
 					freeze = true;
+					Game1.multiplayer.globalChatInfoMessage("BuildingBuild", Game1.player.Name, Utility.AOrAn(CurrentBlueprint.displayName), CurrentBlueprint.displayName, Game1.player.farmName);
 				}
 				else if (toUpgrade != null)
 				{
 					Game1.addHUDMessage(new HUDMessage(Game1.content.LoadString("Strings\\UI:Carpenter_CantUpgrade_BuildingType"), Color.Red, 3500f));
 				}
 			}
+			else if (painting)
+			{
+				Farm farm_location = Game1.getFarm();
+				Vector2 tile_position = new Vector2((Game1.viewport.X + Game1.getMouseX(ui_scale: false)) / 64, (Game1.viewport.Y + Game1.getMouseY(ui_scale: false)) / 64);
+				Building paint_building = farm_location.getBuildingAt(tile_position);
+				if (paint_building != null)
+				{
+					if (!paint_building.CanBePainted())
+					{
+						Game1.addHUDMessage(new HUDMessage(Game1.content.LoadString("Strings\\UI:Carpenter_CannotPaint"), Color.Red, 3500f));
+						return;
+					}
+					if (!HasPermissionsToPaint(paint_building))
+					{
+						Game1.addHUDMessage(new HUDMessage(Game1.content.LoadString("Strings\\UI:Carpenter_CannotPaint_Permission"), Color.Red, 3500f));
+						return;
+					}
+					paint_building.color.Value = Color.White;
+					SetChildMenu(new BuildingPaintMenu(paint_building));
+				}
+				else if (farm_location.GetHouseRect().Contains(Utility.Vector2ToPoint(tile_position)))
+				{
+					if (!CanPaintHouse())
+					{
+						Game1.addHUDMessage(new HUDMessage(Game1.content.LoadString("Strings\\UI:Carpenter_CannotPaint"), Color.Red, 3500f));
+					}
+					else if (!HasPermissionsToPaint(null))
+					{
+						Game1.addHUDMessage(new HUDMessage(Game1.content.LoadString("Strings\\UI:Carpenter_CannotPaint_Permission"), Color.Red, 3500f));
+					}
+					else
+					{
+						SetChildMenu(new BuildingPaintMenu("House", () => (farm_location.paintedHouseTexture != null) ? farm_location.paintedHouseTexture : Farm.houseTextures, farm_location.houseSource.Value, farm_location.housePaintColor.Value));
+					}
+				}
+			}
 			else if (moving)
 			{
 				if (buildingToMove == null)
 				{
-					buildingToMove = ((Farm)Game1.getLocationFromName("Farm")).getBuildingAt(new Vector2((Game1.viewport.X + Game1.getMouseX()) / 64, (Game1.viewport.Y + Game1.getMouseY()) / 64));
+					buildingToMove = ((Farm)Game1.getLocationFromName("Farm")).getBuildingAt(new Vector2((Game1.viewport.X + Game1.getMouseX(ui_scale: false)) / 64, (Game1.viewport.Y + Game1.getMouseY(ui_scale: false)) / 64));
 					if (buildingToMove != null)
 					{
 						if ((int)buildingToMove.daysOfConstructionLeft > 0)
@@ -678,7 +838,7 @@ namespace StardewValley.Menus
 							buildingToMove = null;
 							return;
 						}
-						if (!Game1.IsMasterGame && !hasPermissionsToMove(buildingToMove))
+						if (!hasPermissionsToMove(buildingToMove))
 						{
 							buildingToMove = null;
 							return;
@@ -687,12 +847,16 @@ namespace StardewValley.Menus
 						Game1.playSound("axchop");
 					}
 				}
-				else if (((Farm)Game1.getLocationFromName("Farm")).buildStructure(buildingToMove, new Vector2((Game1.viewport.X + Game1.getMouseX()) / 64, (Game1.viewport.Y + Game1.getMouseY()) / 64), Game1.player))
+				else if (((Farm)Game1.getLocationFromName("Farm")).buildStructure(buildingToMove, new Vector2((Game1.viewport.X + Game1.getMouseX(ui_scale: false)) / 64, (Game1.viewport.Y + Game1.getMouseY(ui_scale: false)) / 64), Game1.player))
 				{
 					buildingToMove.isMoving = false;
 					if (buildingToMove is ShippingBin)
 					{
 						(buildingToMove as ShippingBin).initLid();
+					}
+					if (buildingToMove is GreenhouseBuilding)
+					{
+						Game1.getFarm().greenhouseMoved.Value = true;
 					}
 					buildingToMove.performActionOnBuildingPlacement();
 					buildingToMove = null;
@@ -729,7 +893,7 @@ namespace StardewValley.Menus
 
 		public bool tryToBuild()
 		{
-			return ((Farm)Game1.getLocationFromName("Farm")).buildStructure(CurrentBlueprint, new Vector2((Game1.viewport.X + Game1.getOldMouseX()) / 64, (Game1.viewport.Y + Game1.getOldMouseY()) / 64), Game1.player, magicalConstruction);
+			return ((Farm)Game1.getLocationFromName("Farm")).buildStructure(CurrentBlueprint, new Vector2((Game1.viewport.X + Game1.getOldMouseX(ui_scale: false)) / 64, (Game1.viewport.Y + Game1.getOldMouseY(ui_scale: false)) / 64), Game1.player, magicalConstruction);
 		}
 
 		public void returnToCarpentryMenu()
@@ -742,6 +906,7 @@ namespace StardewValley.Menus
 				resetBounds();
 				upgrading = false;
 				moving = false;
+				painting = false;
 				buildingToMove = null;
 				freeze = false;
 				Game1.displayHUD = true;
@@ -812,8 +977,8 @@ namespace StardewValley.Menus
 			Game1.currentLocation.resetForPlayerEntry();
 			Game1.globalFadeToClear();
 			onFarm = true;
-			cancelButton.bounds.X = Game1.viewport.Width - 128;
-			cancelButton.bounds.Y = Game1.viewport.Height - 128;
+			cancelButton.bounds.X = Game1.uiViewport.Width - 128;
+			cancelButton.bounds.Y = Game1.uiViewport.Height - 128;
 			Game1.displayHUD = false;
 			Game1.viewportFreeze = true;
 			Game1.viewport.Location = new Location(3136, 320);
@@ -821,7 +986,7 @@ namespace StardewValley.Menus
 			drawBG = false;
 			freeze = false;
 			Game1.displayFarmer = false;
-			if (!demolishing && CurrentBlueprint.nameOfBuildingToUpgrade != null && CurrentBlueprint.nameOfBuildingToUpgrade.Length > 0 && !moving)
+			if (!demolishing && CurrentBlueprint.nameOfBuildingToUpgrade != null && CurrentBlueprint.nameOfBuildingToUpgrade.Length > 0 && !moving && !painting)
 			{
 				upgrading = true;
 			}
@@ -832,13 +997,58 @@ namespace StardewValley.Menus
 			resetBounds();
 		}
 
+		public virtual bool CanDemolishThis(Building building)
+		{
+			if (building == null)
+			{
+				return false;
+			}
+			if (_demolishCheckBlueprint == null || _demolishCheckBlueprint.name != building.buildingType.Value)
+			{
+				_demolishCheckBlueprint = new BluePrint(building.buildingType);
+			}
+			if (_demolishCheckBlueprint != null)
+			{
+				return CanDemolishThis(_demolishCheckBlueprint);
+			}
+			return true;
+		}
+
+		public virtual bool CanDemolishThis(BluePrint blueprint)
+		{
+			if (blueprint.moneyRequired < 0)
+			{
+				return false;
+			}
+			if (blueprint.name == "Shipping Bin")
+			{
+				int bins = 0;
+				foreach (Building building in Game1.getFarm().buildings)
+				{
+					if (building is ShippingBin)
+					{
+						bins++;
+					}
+					if (bins > 1)
+					{
+						break;
+					}
+				}
+				if (bins <= 1)
+				{
+					return false;
+				}
+			}
+			return true;
+		}
+
 		public override void draw(SpriteBatch b)
 		{
 			if (drawBG)
 			{
 				b.Draw(Game1.fadeToBlackRect, Game1.graphics.GraphicsDevice.Viewport.Bounds, Color.Black * 0.5f);
 			}
-			if (Game1.globalFade || freeze)
+			if (Game1.IsFading() || freeze)
 			{
 				return;
 			}
@@ -888,13 +1098,16 @@ namespace StardewValley.Menus
 				{
 					ingredientsPosition.Y += 64f;
 				}
-				SpriteText.drawString(b, "$", (int)ingredientsPosition.X, (int)ingredientsPosition.Y);
-				if (magicalConstruction)
+				if (price >= 0)
 				{
-					Utility.drawTextWithShadow(b, Game1.content.LoadString("Strings\\StringsFromCSFiles:LoadGameMenu.cs.11020", price), Game1.dialogueFont, new Vector2(ingredientsPosition.X + 64f, ingredientsPosition.Y + 8f), Game1.textColor * 0.5f, 1f, -1f, -1, -1, magicalConstruction ? 0f : 0.25f);
-					Utility.drawTextWithShadow(b, Game1.content.LoadString("Strings\\StringsFromCSFiles:LoadGameMenu.cs.11020", price), Game1.dialogueFont, new Vector2(ingredientsPosition.X + 64f + 4f - 1f, ingredientsPosition.Y + 8f), Game1.textColor * 0.25f, 1f, -1f, -1, -1, magicalConstruction ? 0f : 0.25f);
+					SpriteText.drawString(b, "$", (int)ingredientsPosition.X, (int)ingredientsPosition.Y);
+					if (magicalConstruction)
+					{
+						Utility.drawTextWithShadow(b, Game1.content.LoadString("Strings\\StringsFromCSFiles:LoadGameMenu.cs.11020", price), Game1.dialogueFont, new Vector2(ingredientsPosition.X + 64f, ingredientsPosition.Y + 8f), Game1.textColor * 0.5f, 1f, -1f, -1, -1, magicalConstruction ? 0f : 0.25f);
+						Utility.drawTextWithShadow(b, Game1.content.LoadString("Strings\\StringsFromCSFiles:LoadGameMenu.cs.11020", price), Game1.dialogueFont, new Vector2(ingredientsPosition.X + 64f + 4f - 1f, ingredientsPosition.Y + 8f), Game1.textColor * 0.25f, 1f, -1f, -1, -1, magicalConstruction ? 0f : 0.25f);
+					}
+					Utility.drawTextWithShadow(b, Game1.content.LoadString("Strings\\StringsFromCSFiles:LoadGameMenu.cs.11020", price), Game1.dialogueFont, new Vector2(ingredientsPosition.X + 64f + 4f, ingredientsPosition.Y + 4f), (Game1.player.Money < price) ? Color.Red : (magicalConstruction ? Color.PaleGoldenrod : Game1.textColor), 1f, -1f, -1, -1, magicalConstruction ? 0f : 0.25f);
 				}
-				Utility.drawTextWithShadow(b, Game1.content.LoadString("Strings\\StringsFromCSFiles:LoadGameMenu.cs.11020", price), Game1.dialogueFont, new Vector2(ingredientsPosition.X + 64f + 4f, ingredientsPosition.Y + 4f), (Game1.player.Money < price) ? Color.Red : (magicalConstruction ? Color.PaleGoldenrod : Game1.textColor), 1f, -1f, -1, -1, magicalConstruction ? 0f : 0.25f);
 				ingredientsPosition.X -= 16f;
 				ingredientsPosition.Y -= 21f;
 				foreach (Item i in ingredients)
@@ -912,40 +1125,55 @@ namespace StardewValley.Menus
 				backButton.draw(b);
 				forwardButton.draw(b);
 				okButton.draw(b, blueprints[currentBlueprintIndex].doesFarmerHaveEnoughResourcesToBuild() ? Color.White : (Color.Gray * 0.8f), 0.88f);
-				demolishButton.draw(b);
+				demolishButton.draw(b, CanDemolishThis(blueprints[currentBlueprintIndex]) ? Color.White : (Color.Gray * 0.8f), 0.88f);
 				moveButton.draw(b);
+				paintButton.draw(b);
 			}
 			else
 			{
-				string message = upgrading ? Game1.content.LoadString("Strings\\UI:Carpenter_SelectBuilding_Upgrade", new BluePrint(CurrentBlueprint.nameOfBuildingToUpgrade).displayName) : (demolishing ? Game1.content.LoadString("Strings\\UI:Carpenter_SelectBuilding_Demolish") : Game1.content.LoadString("Strings\\UI:Carpenter_ChooseLocation"));
-				SpriteText.drawStringWithScrollBackground(b, message, Game1.viewport.Width / 2 - SpriteText.getWidthOfString(message) / 2, 16);
-				if (!upgrading && !demolishing && !moving)
+				string message2 = "";
+				message2 = (upgrading ? Game1.content.LoadString("Strings\\UI:Carpenter_SelectBuilding_Upgrade", new BluePrint(CurrentBlueprint.nameOfBuildingToUpgrade).displayName) : (demolishing ? Game1.content.LoadString("Strings\\UI:Carpenter_SelectBuilding_Demolish") : ((!painting) ? Game1.content.LoadString("Strings\\UI:Carpenter_ChooseLocation") : Game1.content.LoadString("Strings\\UI:Carpenter_SelectBuilding_Paint"))));
+				SpriteText.drawStringWithScrollBackground(b, message2, Game1.uiViewport.Width / 2 - SpriteText.getWidthOfString(message2) / 2, 16);
+				Game1.StartWorldDrawInUI(b);
+				if (!upgrading && !demolishing && !moving && !painting)
 				{
-					Vector2 mousePositionTile2 = new Vector2((Game1.viewport.X + Game1.getOldMouseX()) / 64, (Game1.viewport.Y + Game1.getOldMouseY()) / 64);
-					for (int y2 = 0; y2 < CurrentBlueprint.tilesHeight; y2++)
+					Vector2 mousePositionTile2 = new Vector2((Game1.viewport.X + Game1.getOldMouseX(ui_scale: false)) / 64, (Game1.viewport.Y + Game1.getOldMouseY(ui_scale: false)) / 64);
+					for (int y4 = 0; y4 < CurrentBlueprint.tilesHeight; y4++)
 					{
-						for (int x2 = 0; x2 < CurrentBlueprint.tilesWidth; x2++)
+						for (int x3 = 0; x3 < CurrentBlueprint.tilesWidth; x3++)
 						{
-							int sheetIndex2 = CurrentBlueprint.getTileSheetIndexForStructurePlacementTile(x2, y2);
-							Vector2 currentGlobalTilePosition2 = new Vector2(mousePositionTile2.X + (float)x2, mousePositionTile2.Y + (float)y2);
-							if (!(Game1.currentLocation as BuildableGameLocation).isBuildable(currentGlobalTilePosition2))
+							int sheetIndex3 = CurrentBlueprint.getTileSheetIndexForStructurePlacementTile(x3, y4);
+							Vector2 currentGlobalTilePosition3 = new Vector2(mousePositionTile2.X + (float)x3, mousePositionTile2.Y + (float)y4);
+							if (!(Game1.currentLocation as BuildableGameLocation).isBuildable(currentGlobalTilePosition3))
 							{
-								sheetIndex2++;
+								sheetIndex3++;
 							}
-							b.Draw(Game1.mouseCursors, Game1.GlobalToLocal(Game1.viewport, currentGlobalTilePosition2 * 64f), new Microsoft.Xna.Framework.Rectangle(194 + sheetIndex2 * 16, 388, 16, 16), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.999f);
+							b.Draw(Game1.mouseCursors, Game1.GlobalToLocal(Game1.viewport, currentGlobalTilePosition3 * 64f), new Microsoft.Xna.Framework.Rectangle(194 + sheetIndex3 * 16, 388, 16, 16), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.999f);
 						}
 					}
+					foreach (Point additionalPlacementTile in CurrentBlueprint.additionalPlacementTiles)
+					{
+						int x4 = additionalPlacementTile.X;
+						int y3 = additionalPlacementTile.Y;
+						int sheetIndex4 = CurrentBlueprint.getTileSheetIndexForStructurePlacementTile(x4, y3);
+						Vector2 currentGlobalTilePosition4 = new Vector2(mousePositionTile2.X + (float)x4, mousePositionTile2.Y + (float)y3);
+						if (!(Game1.currentLocation as BuildableGameLocation).isBuildable(currentGlobalTilePosition4))
+						{
+							sheetIndex4++;
+						}
+						b.Draw(Game1.mouseCursors, Game1.GlobalToLocal(Game1.viewport, currentGlobalTilePosition4 * 64f), new Microsoft.Xna.Framework.Rectangle(194 + sheetIndex4 * 16, 388, 16, 16), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.999f);
+					}
 				}
-				else if (moving && buildingToMove != null)
+				else if (!painting && moving && buildingToMove != null)
 				{
-					Vector2 mousePositionTile = new Vector2((Game1.viewport.X + Game1.getOldMouseX()) / 64, (Game1.viewport.Y + Game1.getOldMouseY()) / 64);
+					Vector2 mousePositionTile = new Vector2((Game1.viewport.X + Game1.getOldMouseX(ui_scale: false)) / 64, (Game1.viewport.Y + Game1.getOldMouseY(ui_scale: false)) / 64);
 					BuildableGameLocation bl = Game1.currentLocation as BuildableGameLocation;
-					for (int y = 0; y < (int)buildingToMove.tilesHigh; y++)
+					for (int y2 = 0; y2 < (int)buildingToMove.tilesHigh; y2++)
 					{
 						for (int x = 0; x < (int)buildingToMove.tilesWide; x++)
 						{
-							int sheetIndex = buildingToMove.getTileSheetIndexForStructurePlacementTile(x, y);
-							Vector2 currentGlobalTilePosition = new Vector2(mousePositionTile.X + (float)x, mousePositionTile.Y + (float)y);
+							int sheetIndex = buildingToMove.getTileSheetIndexForStructurePlacementTile(x, y2);
+							Vector2 currentGlobalTilePosition = new Vector2(mousePositionTile.X + (float)x, mousePositionTile.Y + (float)y2);
 							bool occupiedByBuilding = bl.buildings.Contains(buildingToMove) && buildingToMove.occupiesTile(currentGlobalTilePosition);
 							if (!bl.isBuildable(currentGlobalTilePosition) && !occupiedByBuilding)
 							{
@@ -954,7 +1182,21 @@ namespace StardewValley.Menus
 							b.Draw(Game1.mouseCursors, Game1.GlobalToLocal(Game1.viewport, currentGlobalTilePosition * 64f), new Microsoft.Xna.Framework.Rectangle(194 + sheetIndex * 16, 388, 16, 16), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.999f);
 						}
 					}
+					foreach (Point additionalPlacementTile2 in buildingToMove.additionalPlacementTiles)
+					{
+						int x2 = additionalPlacementTile2.X;
+						int y = additionalPlacementTile2.Y;
+						int sheetIndex2 = buildingToMove.getTileSheetIndexForStructurePlacementTile(x2, y);
+						Vector2 currentGlobalTilePosition2 = new Vector2(mousePositionTile.X + (float)x2, mousePositionTile.Y + (float)y);
+						bool occupiedByBuilding2 = bl.buildings.Contains(buildingToMove) && buildingToMove.occupiesTile(currentGlobalTilePosition2);
+						if (!bl.isBuildable(currentGlobalTilePosition2) && !occupiedByBuilding2)
+						{
+							sheetIndex2++;
+						}
+						b.Draw(Game1.mouseCursors, Game1.GlobalToLocal(Game1.viewport, currentGlobalTilePosition2 * 64f), new Microsoft.Xna.Framework.Rectangle(194 + sheetIndex2 * 16, 388, 16, 16), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.999f);
+					}
 				}
+				Game1.EndWorldDrawInUI(b);
 			}
 			cancelButton.draw(b);
 			drawMouse(b);

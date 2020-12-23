@@ -4,6 +4,7 @@ using Netcode;
 using StardewValley.BellsAndWhistles;
 using StardewValley.Characters;
 using StardewValley.Locations;
+using StardewValley.Network;
 using StardewValley.Objects;
 using StardewValley.Tools;
 using System;
@@ -25,6 +26,8 @@ namespace StardewValley.TerrainFeatures
 
 		public const int greenTeaBush = 3;
 
+		public const int walnutBush = 4;
+
 		public const int daysToMatureGreenTeaBush = 20;
 
 		[XmlElement("size")]
@@ -35,6 +38,9 @@ namespace StardewValley.TerrainFeatures
 
 		[XmlElement("tileSheetOffset")]
 		public readonly NetInt tileSheetOffset = new NetInt();
+
+		[XmlElement("overrideSeason")]
+		public readonly NetInt overrideSeason = new NetInt(-1);
 
 		public float health;
 
@@ -65,6 +71,9 @@ namespace StardewValley.TerrainFeatures
 		[XmlElement("sourceRect")]
 		private readonly NetRectangle sourceRect = new NetRectangle();
 
+		[XmlIgnore]
+		public NetMutex uniqueSpawnMutex = new NetMutex();
+
 		public static Lazy<Texture2D> texture = new Lazy<Texture2D>(() => Game1.content.Load<Texture2D>("TileSheets\\bushes"));
 
 		public static Rectangle treeTopSourceRect = new Rectangle(0, 0, 48, 96);
@@ -78,7 +87,7 @@ namespace StardewValley.TerrainFeatures
 		public Bush()
 			: base(needsTick: true)
 		{
-			base.NetFields.AddFields(size, tileSheetOffset, flipped, townBush, drawShadow, sourceRect, datePlanted, greenhouseBush);
+			base.NetFields.AddFields(size, tileSheetOffset, flipped, townBush, drawShadow, sourceRect, datePlanted, greenhouseBush, overrideSeason, uniqueSpawnMutex.NetFields);
 		}
 
 		public Bush(Vector2 tileLocation, int size, GameLocation location, int datePlantedOverride = -1)
@@ -103,7 +112,15 @@ namespace StardewValley.TerrainFeatures
 			{
 				greenhouseBush.Value = true;
 			}
+			if (size == 4)
+			{
+				tileSheetOffset.Value = 1;
+				overrideSeason.Value = 1;
+			}
+			GameLocation old_location = currentLocation;
+			currentLocation = location;
 			loadSprite();
+			currentLocation = old_location;
 			flipped.Value = (Game1.random.NextDouble() < 0.5);
 		}
 
@@ -114,7 +131,7 @@ namespace StardewValley.TerrainFeatures
 
 		public void setUpSourceRect()
 		{
-			int seasonNumber = Utility.getSeasonNumber(Game1.currentSeason);
+			int seasonNumber = ((int)overrideSeason == -1) ? Utility.getSeasonNumber(Game1.GetSeasonForLocation(currentLocation)) : ((int)overrideSeason);
 			if (greenhouseBush.Value)
 			{
 				seasonNumber = 0;
@@ -174,10 +191,22 @@ namespace StardewValley.TerrainFeatures
 					break;
 				}
 			}
+			else if ((int)size == 4)
+			{
+				sourceRect.Value = new Rectangle(tileSheetOffset.Value * 32, 320, 32, 32);
+			}
 		}
 
 		public bool inBloom(string season, int dayOfMonth)
 		{
+			if ((int)size == 4)
+			{
+				return tileSheetOffset.Value == 1;
+			}
+			if ((int)overrideSeason != -1)
+			{
+				season = Utility.getSeasonNameFromNumber(overrideSeason);
+			}
 			if ((int)size == 3)
 			{
 				if (getAge() >= 20 && dayOfMonth >= 22 && (!season.Equals("winter") || (bool)greenhouseBush))
@@ -208,17 +237,20 @@ namespace StardewValley.TerrainFeatures
 		public override void loadSprite()
 		{
 			Random r = new Random((int)Game1.stats.DaysPlayed + (int)Game1.uniqueIDForThisGame + (int)tilePosition.X + (int)tilePosition.Y * 777);
-			if ((int)size == 1 && (int)tileSheetOffset == 0 && r.NextDouble() < 0.5 && inBloom(Game1.currentSeason, Game1.dayOfMonth))
+			if ((int)size != 4)
 			{
-				tileSheetOffset.Value = 1;
-			}
-			else if (!Game1.currentSeason.Equals("summer") && !inBloom(Game1.currentSeason, Game1.dayOfMonth))
-			{
-				tileSheetOffset.Value = 0;
+				if ((int)size == 1 && (int)tileSheetOffset == 0 && r.NextDouble() < 0.5 && inBloom(Game1.GetSeasonForLocation(currentLocation), Game1.dayOfMonth))
+				{
+					tileSheetOffset.Value = 1;
+				}
+				else if (!Game1.GetSeasonForLocation(currentLocation).Equals("summer") && !inBloom(Game1.GetSeasonForLocation(currentLocation), Game1.dayOfMonth))
+				{
+					tileSheetOffset.Value = 0;
+				}
 			}
 			if ((int)size == 3)
 			{
-				tileSheetOffset.Value = (inBloom(Game1.currentSeason, Game1.dayOfMonth) ? 1 : 0);
+				tileSheetOffset.Value = (inBloom(Game1.GetSeasonForLocation(currentLocation), Game1.dayOfMonth) ? 1 : 0);
 			}
 			setUpSourceRect();
 		}
@@ -231,6 +263,7 @@ namespace StardewValley.TerrainFeatures
 			case 3:
 				return new Rectangle((int)tileLocation.X * 64, (int)tileLocation.Y * 64, 64, 64);
 			case 1:
+			case 4:
 				return new Rectangle((int)tileLocation.X * 64, (int)tileLocation.Y * 64, 128, 64);
 			case 2:
 				return new Rectangle((int)tileLocation.X * 64, (int)tileLocation.Y * 64, 192, 64);
@@ -247,6 +280,7 @@ namespace StardewValley.TerrainFeatures
 			case 3:
 				return new Rectangle((int)tileLocation.X * 64, (int)(tileLocation.Y - 1f) * 64, 64, 160);
 			case 1:
+			case 4:
 				return new Rectangle((int)tileLocation.X * 64, (int)(tileLocation.Y - 2f) * 64, 128, 256);
 			case 2:
 				return new Rectangle((int)tileLocation.X * 64, (int)(tileLocation.Y - 2f) * 64, 192, 256);
@@ -257,11 +291,20 @@ namespace StardewValley.TerrainFeatures
 
 		public override bool performUseAction(Vector2 tileLocation, GameLocation location)
 		{
-			if (maxShake == 0f && ((bool)greenhouseBush || (int)size != 3 || !Game1.currentSeason.Equals("winter")))
+			string season = ((int)overrideSeason == -1) ? Game1.GetSeasonForLocation(location) : Utility.getSeasonNameFromNumber(overrideSeason);
+			if (Game1.didPlayerJustRightClick(ignoreNonMouseHeldInput: true))
 			{
-				location.localSound("leafrustle");
+				shakeTimer = 0f;
 			}
-			shake(tileLocation, doEvenIfStillShaking: false);
+			if (shakeTimer <= 0f)
+			{
+				if (maxShake == 0f && ((bool)greenhouseBush || (int)size != 3 || !season.Equals("winter")))
+				{
+					location.localSound("leafrustle");
+				}
+				shake(tileLocation, doEvenIfStillShaking: false);
+				shakeTimer = 500f;
+			}
 			return true;
 		}
 
@@ -270,6 +313,10 @@ namespace StardewValley.TerrainFeatures
 			if (shakeTimer > 0f)
 			{
 				shakeTimer -= time.ElapsedGameTime.Milliseconds;
+			}
+			if ((int)size == 4)
+			{
+				uniqueSpawnMutex.Update(location);
 			}
 			alpha = Math.Min(1f, alpha + 0.05f);
 			if (maxShake > 0f)
@@ -306,13 +353,13 @@ namespace StardewValley.TerrainFeatures
 			}
 			shakeLeft = (Game1.player.getTileLocation().X > tileLocation.X || ((Game1.player.getTileLocation().X == tileLocation.X && Game1.random.NextDouble() < 0.5) ? true : false));
 			maxShake = (float)Math.PI / 128f;
-			if (!townBush && (int)tileSheetOffset == 1 && inBloom(Game1.currentSeason, Game1.dayOfMonth))
+			if (!townBush && (int)tileSheetOffset == 1 && inBloom(Game1.GetSeasonForLocation(currentLocation), Game1.dayOfMonth))
 			{
+				string season = ((int)overrideSeason == -1) ? Game1.GetSeasonForLocation(currentLocation) : Utility.getSeasonNameFromNumber(overrideSeason);
 				int shakeOff = -1;
-				string currentSeason = Game1.currentSeason;
-				if (!(currentSeason == "spring"))
+				if (!(season == "spring"))
 				{
-					if (currentSeason == "fall")
+					if (season == "fall")
 					{
 						shakeOff = 410;
 					}
@@ -325,6 +372,10 @@ namespace StardewValley.TerrainFeatures
 				{
 					shakeOff = 815;
 				}
+				if ((int)size == 4)
+				{
+					shakeOff = 73;
+				}
 				if (shakeOff == -1)
 				{
 					return;
@@ -332,18 +383,29 @@ namespace StardewValley.TerrainFeatures
 				tileSheetOffset.Value = 0;
 				setUpSourceRect();
 				Random r = new Random((int)tileLocation.X + (int)tileLocation.Y * 5000 + (int)Game1.uniqueIDForThisGame + (int)Game1.stats.DaysPlayed);
-				if ((int)size == 3)
+				if ((int)size == 3 || (int)size == 4)
 				{
-					int number2 = 1;
-					for (int j = 0; j < number2; j++)
+					int number = 1;
+					for (int i = 0; i < number; i++)
 					{
-						Game1.createObjectDebris(815, (int)tileLocation.X, (int)tileLocation.Y);
+						if ((int)size == 4)
+						{
+							uniqueSpawnMutex.RequestLock(delegate
+							{
+								Game1.player.team.MarkCollectedNut("Bush_" + currentLocation.Name + "_" + tileLocation.X + "_" + tileLocation.Y);
+								Game1.createItemDebris(new Object(shakeOff, 1), new Vector2(getBoundingBox().Center.X, getBoundingBox().Bottom - 2), 0, currentLocation, getBoundingBox().Bottom);
+							});
+						}
+						else
+						{
+							Game1.createObjectDebris(shakeOff, (int)tileLocation.X, (int)tileLocation.Y);
+						}
 					}
 				}
 				else
 				{
-					int number = r.Next(1, 2) + Game1.player.ForagingLevel / 4;
-					for (int i = 0; i < number; i++)
+					int number2 = r.Next(1, 2) + Game1.player.ForagingLevel / 4;
+					for (int j = 0; j < number2; j++)
 					{
 						Game1.createItemDebris(new Object(shakeOff, 1, isRecipe: false, -1, Game1.player.professions.Contains(16) ? 4 : 0), Utility.PointToVector2(getBoundingBox().Center), Game1.random.Next(1, 4));
 					}
@@ -383,30 +445,39 @@ namespace StardewValley.TerrainFeatures
 
 		public override void dayUpdate(GameLocation environment, Vector2 tileLocation)
 		{
-			if ((int)size == 1 && (int)tileSheetOffset == 0 && Game1.random.NextDouble() < 0.2 && inBloom(Game1.currentSeason, Game1.dayOfMonth))
+			string season = ((int)overrideSeason == -1) ? Game1.GetSeasonForLocation(environment) : Utility.getSeasonNameFromNumber(overrideSeason);
+			if ((int)size != 4)
 			{
-				tileSheetOffset.Value = 1;
-			}
-			else if (!Game1.currentSeason.Equals("summer") && !inBloom(Game1.currentSeason, Game1.dayOfMonth))
-			{
-				tileSheetOffset.Value = 0;
-			}
-			if ((int)size == 3)
-			{
-				tileSheetOffset.Value = (inBloom(Game1.currentSeason, Game1.dayOfMonth) ? 1 : 0);
-			}
-			setUpSourceRect();
-			if (tileLocation.X != 6f || tileLocation.Y != 7f || !(environment.Name == "Sunroom"))
-			{
-				health = 0f;
+				if ((int)size == 1 && (int)tileSheetOffset == 0 && Game1.random.NextDouble() < 0.2 && inBloom(season, Game1.dayOfMonth))
+				{
+					tileSheetOffset.Value = 1;
+				}
+				else if (!season.Equals("summer") && !inBloom(season, Game1.dayOfMonth))
+				{
+					tileSheetOffset.Value = 0;
+				}
+				if ((int)size == 3)
+				{
+					tileSheetOffset.Value = (inBloom(season, Game1.dayOfMonth) ? 1 : 0);
+				}
+				setUpSourceRect();
+				if (tileLocation.X != 6f || tileLocation.Y != 7f || !(environment.Name == "Sunroom"))
+				{
+					health = 0f;
+				}
 			}
 		}
 
 		public override bool seasonUpdate(bool onLoad)
 		{
+			if ((int)size == 4)
+			{
+				return false;
+			}
 			if (!Game1.IsMultiplayer || Game1.IsServer)
 			{
-				if ((int)size == 1 && Game1.currentSeason.Equals("summer") && Game1.random.NextDouble() < 0.5)
+				string season = ((int)overrideSeason == -1) ? Game1.GetSeasonForLocation(currentLocation) : Utility.getSeasonNameFromNumber(overrideSeason);
+				if ((int)size == 1 && season.Equals("summer") && Game1.random.NextDouble() < 0.5)
 				{
 					tileSheetOffset.Value = 1;
 				}
@@ -425,6 +496,10 @@ namespace StardewValley.TerrainFeatures
 			{
 				location = Game1.currentLocation;
 			}
+			if ((int)size == 4)
+			{
+				return false;
+			}
 			if (explosion > 0)
 			{
 				shake(tileLocation, doEvenIfStillShaking: true);
@@ -442,7 +517,8 @@ namespace StardewValley.TerrainFeatures
 						location.playSound("treethud");
 						DelayedAction.playSoundAfterDelay("leafrustle", 100);
 						Color c = Color.Green;
-						switch (Game1.currentSeason)
+						string season = ((int)overrideSeason == -1) ? Game1.GetSeasonForLocation(location) : Utility.getSeasonNameFromNumber(overrideSeason);
+						switch (season)
 						{
 						case "spring":
 							c = Color.Green;
@@ -473,7 +549,7 @@ namespace StardewValley.TerrainFeatures
 						{
 							for (int i = 0; i < 12; i++)
 							{
-								Game1.multiplayer.broadcastSprites(location, new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Rectangle(355, 1200 + (Game1.IsFall ? 16 : (Game1.IsWinter ? (-16) : 0)), 16, 16), Utility.getRandomPositionInThisRectangle(getBoundingBox(), Game1.random) - new Vector2(0f, Game1.random.Next(64)), flipped: false, 0.01f, c)
+								Game1.multiplayer.broadcastSprites(location, new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Rectangle(355, 1200 + (season.Equals("fall") ? 16 : (season.Equals("winter") ? (-16) : 0)), 16, 16), Utility.getRandomPositionInThisRectangle(getBoundingBox(), Game1.random) - new Vector2(0f, Game1.random.Next(64)), flipped: false, 0.01f, c)
 								{
 									motion = new Vector2((float)Game1.random.Next(-10, 11) / 10f, -Game1.random.Next(5, 7)),
 									acceleration = new Vector2(0f, (float)Game1.random.Next(13, 17) / 100f),
@@ -524,6 +600,8 @@ namespace StardewValley.TerrainFeatures
 					return new Rectangle(32, 11, 11, 25).Contains((int)tile.X, (int)tile.Y);
 				case 3:
 					return new Rectangle(24, 56, 10, 8).Contains((int)tile.X, (int)tile.Y);
+				case 6:
+					return new Rectangle(20, 44, 36, 44).Contains((int)tile.X, (int)tile.Y);
 				}
 			}
 			return false;
@@ -538,7 +616,8 @@ namespace StardewValley.TerrainFeatures
 		public override void performPlayerEntryAction(Vector2 tileLocation)
 		{
 			base.performPlayerEntryAction(tileLocation);
-			if (!Game1.currentSeason.Equals("winter") && !Game1.isRaining && Game1.isDarkOut() && Game1.random.NextDouble() < (Game1.currentSeason.Equals("summer") ? 0.08 : 0.04))
+			string season = ((int)overrideSeason == -1) ? Game1.GetSeasonForLocation(currentLocation) : Utility.getSeasonNameFromNumber(overrideSeason);
+			if (!season.Equals("winter") && !Game1.IsRainingHere(currentLocation) && Game1.isDarkOut() && Game1.random.NextDouble() < (season.Equals("summer") ? 0.08 : 0.04))
 			{
 				AmbientLocationSounds.addSound(tileLocation, 3);
 				Game1.debugOutput = Game1.debugOutput + "  added cricket at " + tileLocation.ToString();
@@ -550,6 +629,10 @@ namespace StardewValley.TerrainFeatures
 			if ((int)size == 3)
 			{
 				return 0;
+			}
+			if ((int)size == 4)
+			{
+				return 1;
 			}
 			return size;
 		}
@@ -573,7 +656,7 @@ namespace StardewValley.TerrainFeatures
 					spriteBatch.Draw(Game1.shadowTexture, Game1.GlobalToLocal(Game1.viewport, new Vector2(tileLocation.X * 64f + 32f, tileLocation.Y * 64f + 64f - 4f + yDrawOffset)), Game1.shadowTexture.Bounds, Color.White * alpha, 0f, new Vector2(Game1.shadowTexture.Bounds.Center.X, Game1.shadowTexture.Bounds.Center.Y), 4f, SpriteEffects.None, 1E-06f);
 				}
 			}
-			spriteBatch.Draw(texture.Value, Game1.GlobalToLocal(Game1.viewport, new Vector2(tileLocation.X * 64f + (float)((getEffectiveSize() + 1) * 64 / 2), (tileLocation.Y + 1f) * 64f - (float)((getEffectiveSize() > 0 && (!townBush || getEffectiveSize() != 1)) ? 64 : 0) + yDrawOffset)), sourceRect, Color.White * alpha, shakeRotation, new Vector2((getEffectiveSize() + 1) * 16 / 2, 32f), 4f, flipped ? SpriteEffects.FlipHorizontally : SpriteEffects.None, (float)(getBoundingBox(tileLocation).Center.Y + 48) / 10000f - tileLocation.X / 1000000f);
+			spriteBatch.Draw(texture.Value, Game1.GlobalToLocal(Game1.viewport, new Vector2(tileLocation.X * 64f + (float)((getEffectiveSize() + 1) * 64 / 2), (tileLocation.Y + 1f) * 64f - (float)((getEffectiveSize() > 0 && (!townBush || getEffectiveSize() != 1) && (int)size != 4) ? 64 : 0) + yDrawOffset)), sourceRect, Color.White * alpha, shakeRotation, new Vector2((getEffectiveSize() + 1) * 16 / 2, 32f), 4f, flipped ? SpriteEffects.FlipHorizontally : SpriteEffects.None, (float)(getBoundingBox(tileLocation).Center.Y + 48) / 10000f - tileLocation.X / 1000000f);
 		}
 	}
 }

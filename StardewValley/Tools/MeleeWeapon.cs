@@ -17,9 +17,9 @@ namespace StardewValley.Tools
 
 		public const int attackSwordCooldownTime = 2000;
 
-		public const int daggerCooldownTime = 6000;
+		public const int daggerCooldownTime = 3000;
 
-		public const int clubCooldownTime = 4000;
+		public const int clubCooldownTime = 6000;
 
 		public const int millisecondsPerSpeedPoint = 40;
 
@@ -38,6 +38,8 @@ namespace StardewValley.Tools
 		public const int scythe = 47;
 
 		public const int goldenScythe = 53;
+
+		public const int MAX_FORGES = 3;
 
 		[XmlElement("type")]
 		public readonly NetInt type = new NetInt();
@@ -68,6 +70,9 @@ namespace StardewValley.Tools
 
 		[XmlElement("critMultiplier")]
 		public readonly NetFloat critMultiplier = new NetFloat();
+
+		[XmlElement("appearance")]
+		public readonly NetInt appearance = new NetInt(-1);
 
 		public bool isOnSpecial;
 
@@ -106,7 +111,7 @@ namespace StardewValley.Tools
 		private readonly NetEvent0 defenseSwordEvent = new NetEvent0();
 
 		[XmlIgnore]
-		private readonly NetEvent0 daggerEvent = new NetEvent0();
+		private readonly NetEvent1Field<int, NetInt> daggerEvent = new NetEvent1Field<int, NetInt>();
 
 		private bool anotherClick;
 
@@ -114,7 +119,7 @@ namespace StardewValley.Tools
 
 		public MeleeWeapon()
 		{
-			base.NetFields.AddFields(type, minDamage, maxDamage, speed, addedPrecision, addedDefense, addedAreaOfEffect, knockback, critChance, critMultiplier);
+			base.NetFields.AddFields(type, minDamage, maxDamage, speed, addedPrecision, addedDefense, addedAreaOfEffect, knockback, critChance, critMultiplier, appearance);
 			base.Category = -98;
 		}
 
@@ -153,9 +158,19 @@ namespace StardewValley.Tools
 			}
 		}
 
+		public override int GetMaxForges()
+		{
+			return 3;
+		}
+
 		public override Item getOne()
 		{
-			return new MeleeWeapon(base.InitialParentTileIndex);
+			MeleeWeapon weapon = new MeleeWeapon(base.InitialParentTileIndex);
+			weapon.appearance.Value = appearance.Value;
+			weapon.IndexOfMenuItemView = base.IndexOfMenuItemView;
+			CopyEnchantments(this, weapon);
+			weapon._GetOneFrom(this);
+			return weapon;
 		}
 
 		protected override string loadDisplayName()
@@ -213,38 +228,41 @@ namespace StardewValley.Tools
 		{
 			float coolDownLevel = 0f;
 			float addedScale = 0f;
-			switch ((int)type)
+			if (!isScythe())
 			{
-			case 0:
-			case 3:
-				if (defenseCooldown > 0)
+				switch ((int)type)
 				{
-					coolDownLevel = (float)defenseCooldown / 1500f;
+				case 0:
+				case 3:
+					if (defenseCooldown > 0)
+					{
+						coolDownLevel = (float)defenseCooldown / 1500f;
+					}
+					addedScale = addedSwordScale;
+					break;
+				case 2:
+					if (clubCooldown > 0)
+					{
+						coolDownLevel = (float)clubCooldown / 6000f;
+					}
+					addedScale = addedClubScale;
+					break;
+				case 1:
+					if (daggerCooldown > 0)
+					{
+						coolDownLevel = (float)daggerCooldown / 3000f;
+					}
+					addedScale = addedDaggerScale;
+					break;
 				}
-				addedScale = addedSwordScale;
-				break;
-			case 2:
-				if (clubCooldown > 0)
-				{
-					coolDownLevel = (float)clubCooldown / 4000f;
-				}
-				addedScale = addedClubScale;
-				break;
-			case 1:
-				if (daggerCooldown > 0)
-				{
-					coolDownLevel = (float)daggerCooldown / 6000f;
-				}
-				addedScale = addedDaggerScale;
-				break;
 			}
 			bool drawing_as_debris = drawShadow && drawStackNumber == StackDrawType.Hide;
 			if (!drawShadow | drawing_as_debris)
 			{
 				addedScale = 0f;
 			}
-			spriteBatch.Draw(Tool.weaponsTexture, location + (((int)type == 1) ? new Vector2(42f, 21f) : new Vector2(32f, 32f)), Game1.getSourceRectForStandardTileSheet(Tool.weaponsTexture, base.IndexOfMenuItemView, 16, 16), color * transparency, 0f, new Vector2(8f, 8f), 4f * (scaleSize + addedScale), SpriteEffects.None, layerDepth);
-			if (coolDownLevel > 0f && drawShadow && !drawing_as_debris)
+			spriteBatch.Draw(Tool.weaponsTexture, location + (((int)type == 1) ? new Vector2(38f, 25f) : new Vector2(32f, 32f)), Game1.getSourceRectForStandardTileSheet(Tool.weaponsTexture, base.IndexOfMenuItemView, 16, 16), color * transparency, 0f, new Vector2(8f, 8f), 4f * (scaleSize + addedScale), SpriteEffects.None, layerDepth);
+			if (coolDownLevel > 0f && drawShadow && !drawing_as_debris && !isScythe())
 			{
 				spriteBatch.Draw(Game1.staminaRect, new Rectangle((int)location.X, (int)location.Y + (64 - (int)(coolDownLevel * 64f)), 64, (int)(coolDownLevel * 64f)), Color.Red * 0.66f);
 			}
@@ -326,7 +344,7 @@ namespace StardewValley.Tools
 			if (isOnSpecial && (int)type == 1 && daggerHitsLeft > 0 && !who.UsingTool)
 			{
 				quickStab(who);
-				triggerDaggerFunction(who);
+				triggerDaggerFunction(who, daggerHitsLeft);
 			}
 			if (anotherClick)
 			{
@@ -350,7 +368,13 @@ namespace StardewValley.Tools
 			{
 				number++;
 			}
-			if ((double)(float)critChance / 0.02 >= 2.0)
+			float effectiveCritChance2 = critChance;
+			if ((int)type == 1)
+			{
+				effectiveCritChance2 += 0.005f;
+				effectiveCritChance2 *= 1.12f;
+			}
+			if ((double)effectiveCritChance2 / 0.02 >= 1.1000000238418579)
 			{
 				number++;
 			}
@@ -362,12 +386,16 @@ namespace StardewValley.Tools
 			{
 				number++;
 			}
+			if (enchantments.Count > 0 && enchantments[enchantments.Count - 1] is DiamondEnchantment)
+			{
+				number++;
+			}
 			return number;
 		}
 
 		public override void leftClick(Farmer who)
 		{
-			if (who.health > 0 && Game1.activeClickableMenu == null && Game1.farmEvent == null && !Game1.eventUp && !who.swimming.Value && !who.bathingClothes.Value)
+			if (who.health > 0 && Game1.activeClickableMenu == null && Game1.farmEvent == null && !Game1.eventUp && !who.swimming.Value && !who.bathingClothes.Value && !who.onBridge.Value)
 			{
 				if (!isScythe() && who.FarmerSprite.currentAnimationIndex > (((int)type == 2) ? 5 : (((int)type != 1) ? 5 : 0)))
 				{
@@ -399,14 +427,15 @@ namespace StardewValley.Tools
 
 		public int getItemLevel()
 		{
-			int weaponPoints3 = 0;
-			weaponPoints3 += (int)((double)(((int)maxDamage + (int)minDamage) / 2) * (1.0 + 0.1 * (double)(Math.Max(0, speed) + (((int)type == 1) ? 15 : 0))));
-			weaponPoints3 += (int)((double)((int)addedPrecision / 2 + (int)addedDefense) + ((double)(float)critChance - 0.02) * 100.0 + (double)(((float)critMultiplier - 3f) * 20f));
-			if ((int)type == 2)
+			float weaponPoints3 = 0f;
+			weaponPoints3 += (float)(int)((double)(((int)maxDamage + (int)minDamage) / 2) * (1.0 + 0.03 * (double)(Math.Max(0, speed) + (((int)type == 1) ? 15 : 0))));
+			weaponPoints3 += (float)(int)((double)((int)addedPrecision / 2 + (int)addedDefense) + ((double)(float)critChance - 0.02) * 200.0 + (double)(((float)critMultiplier - 3f) * 6f));
+			if (base.InitialParentTileIndex == 2)
 			{
-				weaponPoints3 /= 2;
+				weaponPoints3 += 20f;
 			}
-			return weaponPoints3 / 5 + 1;
+			weaponPoints3 += (float)((int)addedDefense * 2);
+			return (int)(weaponPoints3 / 7f + 1f);
 		}
 
 		public override string getDescription()
@@ -663,24 +692,27 @@ namespace StardewValley.Tools
 			who.yVelocity = 0f;
 		}
 
-		public void triggerDaggerFunction(Farmer who)
+		public void triggerDaggerFunction(Farmer who, int dagger_hits_left)
 		{
-			daggerEvent.Fire();
+			daggerEvent.Fire(dagger_hits_left);
 		}
 
-		private void doDaggerFunction()
+		private void doDaggerFunction(int dagger_hits)
 		{
 			Vector2 v = lastUser.getUniformPositionAwayFromBox(lastUser.FacingDirection, 48);
-			float tmpKnockBack = knockback;
-			knockback.Value = 0.1f;
+			int num = daggerHitsLeft;
+			daggerHitsLeft = dagger_hits;
 			DoDamage(Game1.currentLocation, (int)v.X, (int)v.Y, lastUser.FacingDirection, 1, lastUser);
-			knockback.Value = tmpKnockBack;
-			daggerHitsLeft--;
+			daggerHitsLeft = num;
+			if (lastUser != null && lastUser.IsLocalPlayer)
+			{
+				daggerHitsLeft--;
+			}
 			isOnSpecial = false;
 			lastUser.UsingTool = false;
 			lastUser.CanMove = true;
 			lastUser.FarmerSprite.PauseForSingleAnimation = false;
-			if (daggerHitsLeft > 0)
+			if (daggerHitsLeft > 0 && lastUser != null && lastUser.IsLocalPlayer)
 			{
 				quickStab(lastUser);
 			}
@@ -724,7 +756,10 @@ namespace StardewValley.Tools
 
 		private void quickStab(Farmer who)
 		{
-			AnimatedSprite.endOfAnimationBehavior endOfAnimFunc = triggerDaggerFunction;
+			AnimatedSprite.endOfAnimationBehavior endOfAnimFunc = delegate(Farmer f)
+			{
+				triggerDaggerFunction(f, daggerHitsLeft);
+			};
 			if (!lastUser.IsLocalPlayer)
 			{
 				endOfAnimFunc = null;
@@ -828,6 +863,10 @@ namespace StardewValley.Tools
 				{
 					defenseCooldown /= 2;
 				}
+				if (hasEnchantmentOfType<ArtfulEnchantment>())
+				{
+					defenseCooldown /= 2;
+				}
 			}
 			else if ((int)type == 2)
 			{
@@ -859,9 +898,13 @@ namespace StardewValley.Tools
 				beginSpecialMove(lastUser);
 				if (lastUser.IsLocalPlayer)
 				{
-					clubCooldown = 4000;
+					clubCooldown = 6000;
 				}
 				if (lastUser.professions.Contains(28))
+				{
+					clubCooldown /= 2;
+				}
+				if (hasEnchantmentOfType<ArtfulEnchantment>())
 				{
 					clubCooldown /= 2;
 				}
@@ -872,9 +915,13 @@ namespace StardewValley.Tools
 				quickStab(lastUser);
 				if (lastUser.IsLocalPlayer)
 				{
-					daggerCooldown = 6000;
+					daggerCooldown = 3000;
 				}
 				if (lastUser.professions.Contains(28))
+				{
+					daggerCooldown /= 2;
+				}
+				if (hasEnchantmentOfType<ArtfulEnchantment>())
 				{
 					daggerCooldown /= 2;
 				}
@@ -923,7 +970,10 @@ namespace StardewValley.Tools
 					_ = f.FacingDirection;
 					_ = 2;
 				}
-				f.currentLocation.localSound("swordswipe");
+				if (f.ShouldHandleAnimationSound())
+				{
+					f.currentLocation.localSound("swordswipe");
+				}
 				break;
 			case 2:
 				if (f.CurrentTool == this)
@@ -961,6 +1011,16 @@ namespace StardewValley.Tools
 			hasBegunWeaponEndPause = false;
 			swipeSpeed = 400 - (int)speed * 40 - who.addedSpeed * 40;
 			swipeSpeed *= 1f - who.weaponSpeedModifier;
+			if (who.IsLocalPlayer)
+			{
+				foreach (BaseEnchantment enchantment in enchantments)
+				{
+					if (enchantment is BaseWeaponEnchantment)
+					{
+						(enchantment as BaseWeaponEnchantment).OnSwing(this, who);
+					}
+				}
+			}
 			if ((int)type != 1)
 			{
 				doSwipe(type, who.Position, who.FacingDirection, swipeSpeed / (float)(((int)type == 2) ? 5 : 8), who);
@@ -1004,6 +1064,11 @@ namespace StardewValley.Tools
 			}
 		}
 
+		public override void actionWhenBeingHeld(Farmer who)
+		{
+			base.actionWhenBeingHeld(who);
+		}
+
 		public override void actionWhenStopBeingHeld(Farmer who)
 		{
 			who.UsingTool = false;
@@ -1014,6 +1079,49 @@ namespace StardewValley.Tools
 		public override void endUsing(GameLocation location, Farmer who)
 		{
 			base.endUsing(location, who);
+		}
+
+		public void RecalculateAppliedForges(bool force = false)
+		{
+			if (enchantments.Count == 0 && !force)
+			{
+				return;
+			}
+			foreach (BaseEnchantment enchantment2 in enchantments)
+			{
+				if (enchantment2.IsForge())
+				{
+					enchantment2.UnapplyTo(this);
+				}
+			}
+			Dictionary<int, string> weapon_data = Game1.content.Load<Dictionary<int, string>>("Data\\weapons");
+			int index = base.InitialParentTileIndex;
+			if (weapon_data.ContainsKey(index))
+			{
+				string[] split = weapon_data[index].Split('/');
+				base.BaseName = split[0];
+				minDamage.Value = Convert.ToInt32(split[2]);
+				maxDamage.Value = Convert.ToInt32(split[3]);
+				knockback.Value = (float)Convert.ToDouble(split[4], CultureInfo.InvariantCulture);
+				speed.Value = Convert.ToInt32(split[5]);
+				addedPrecision.Value = Convert.ToInt32(split[6]);
+				addedDefense.Value = Convert.ToInt32(split[7]);
+				type.Set(Convert.ToInt32(split[8]));
+				if ((int)type == 0)
+				{
+					type.Set(3);
+				}
+				addedAreaOfEffect.Value = Convert.ToInt32(split[11]);
+				critChance.Value = (float)Convert.ToDouble(split[12], CultureInfo.InvariantCulture);
+				critMultiplier.Value = (float)Convert.ToDouble(split[13], CultureInfo.InvariantCulture);
+			}
+			foreach (BaseEnchantment enchantment in enchantments)
+			{
+				if (enchantment.IsForge())
+				{
+					enchantment.ApplyTo(this);
+				}
+			}
 		}
 
 		public void DoDamage(GameLocation location, int x, int y, int facingDirection, int power, Farmer who)
@@ -1030,14 +1138,20 @@ namespace StardewValley.Tools
 				Vector2 tileLocation2 = Vector2.Zero;
 				Rectangle areaOfEffect = getAreaOfEffect(x, y, facingDirection, ref tileLocation3, ref tileLocation2, who.GetBoundingBox(), who.FarmerSprite.currentAnimationIndex);
 				mostRecentArea = areaOfEffect;
-				if (location.damageMonster(areaOfEffect, (int)((float)(int)minDamage * (1f + who.attackIncreaseModifier)), (int)((float)(int)maxDamage * (1f + who.attackIncreaseModifier)), isBomb: false, (float)knockback * (1f + who.knockbackModifier), (int)((float)(int)addedPrecision * (1f + who.weaponPrecisionModifier)), (float)critChance * (1f + who.critChanceModifier), (float)critMultiplier * (1f + who.critPowerModifier), (int)type != 1 || !isOnSpecial, lastUser) && (int)type == 2)
+				float effectiveCritChance2 = critChance;
+				if ((int)type == 1)
+				{
+					effectiveCritChance2 += 0.005f;
+					effectiveCritChance2 *= 1.12f;
+				}
+				if (location.damageMonster(areaOfEffect, (int)((float)(int)minDamage * (1f + who.attackIncreaseModifier)), (int)((float)(int)maxDamage * (1f + who.attackIncreaseModifier)), isBomb: false, (float)knockback * (1f + who.knockbackModifier), (int)((float)(int)addedPrecision * (1f + who.weaponPrecisionModifier)), effectiveCritChance2 * (1f + who.critChanceModifier), (float)critMultiplier * (1f + who.critPowerModifier), (int)type != 1 || !isOnSpecial, lastUser) && (int)type == 2)
 				{
 					location.playSound("clubhit");
 				}
 				string soundToPlay = "";
 				location.projectiles.Filter(delegate(Projectile projectile)
 				{
-					if (areaOfEffect.Intersects(projectile.getBoundingBox()))
+					if (areaOfEffect.Intersects(projectile.getBoundingBox()) && !projectile.ignoreMeleeAttacks.Value)
 					{
 						projectile.behaviorOnCollisionWithOther(location);
 					}
@@ -1070,55 +1184,119 @@ namespace StardewValley.Tools
 			}
 		}
 
+		public int getDrawnItemIndex()
+		{
+			if (appearance.Value < 0)
+			{
+				return base.InitialParentTileIndex;
+			}
+			return appearance.Value;
+		}
+
 		public static Rectangle getSourceRect(int index)
 		{
 			return Game1.getSourceRectForStandardTileSheet(Tool.weaponsTexture, index, 16, 16);
 		}
 
-		public override void drawTooltip(SpriteBatch spriteBatch, ref int x, ref int y, SpriteFont font, float alpha, string overrideText)
+		public override void drawTooltip(SpriteBatch spriteBatch, ref int x, ref int y, SpriteFont font, float alpha, StringBuilder overrideText)
 		{
 			Utility.drawTextWithShadow(spriteBatch, Game1.parseText(base.description, Game1.smallFont, getDescriptionWidth()), font, new Vector2(x + 16, y + 16 + 4), Game1.textColor);
 			y += (int)font.MeasureString(Game1.parseText(base.description, Game1.smallFont, getDescriptionWidth())).Y;
-			if (!isScythe(base.IndexOfMenuItemView))
+			if (isScythe(base.IndexOfMenuItemView))
 			{
-				Utility.drawWithShadow(spriteBatch, Game1.mouseCursors, new Vector2(x + 16 + 4, y + 16 + 4), new Rectangle(120, 428, 10, 10), Color.White, 0f, Vector2.Zero, 4f, flipped: false, 1f);
-				Utility.drawTextWithShadow(spriteBatch, Game1.content.LoadString("Strings\\UI:ItemHover_Damage", minDamage, maxDamage), font, new Vector2(x + 16 + 52, y + 16 + 12), Game1.textColor * 0.9f * alpha);
+				return;
+			}
+			Utility.drawWithShadow(spriteBatch, Game1.mouseCursors, new Vector2(x + 16 + 4, y + 16 + 4), new Rectangle(120, 428, 10, 10), Color.White, 0f, Vector2.Zero, 4f, flipped: false, 1f);
+			Color co = Game1.textColor;
+			if (hasEnchantmentOfType<RubyEnchantment>())
+			{
+				co = new Color(0, 120, 120);
+			}
+			Utility.drawTextWithShadow(spriteBatch, Game1.content.LoadString("Strings\\UI:ItemHover_Damage", minDamage, maxDamage), font, new Vector2(x + 16 + 52, y + 16 + 12), co * 0.9f * alpha);
+			y += (int)Math.Max(font.MeasureString("TT").Y, 48f);
+			if ((int)speed != (((int)type == 2) ? (-8) : 0))
+			{
+				Utility.drawWithShadow(spriteBatch, Game1.mouseCursors, new Vector2(x + 16 + 4, y + 16 + 4), new Rectangle(130, 428, 10, 10), Color.White, 0f, Vector2.Zero, 4f, flipped: false, 1f);
+				bool negativeSpeed = ((int)type == 2 && (int)speed < -8) || ((int)type != 2 && (int)speed < 0);
+				Color c6 = Game1.textColor;
+				if (hasEnchantmentOfType<EmeraldEnchantment>())
+				{
+					c6 = new Color(0, 120, 120);
+				}
+				Utility.drawTextWithShadow(spriteBatch, Game1.content.LoadString("Strings\\UI:ItemHover_Speed", (((((int)type == 2) ? ((int)speed - -8) : ((int)speed)) > 0) ? "+" : "") + (((int)type == 2) ? ((int)speed - -8) : ((int)speed)) / 2), font, new Vector2(x + 16 + 52, y + 16 + 12), negativeSpeed ? Color.DarkRed : (c6 * 0.9f * alpha));
 				y += (int)Math.Max(font.MeasureString("TT").Y, 48f);
-				if ((int)speed != (((int)type == 2) ? (-8) : 0))
+			}
+			if ((int)addedDefense > 0)
+			{
+				Color c5 = Game1.textColor;
+				if (hasEnchantmentOfType<TopazEnchantment>())
 				{
-					Utility.drawWithShadow(spriteBatch, Game1.mouseCursors, new Vector2(x + 16 + 4, y + 16 + 4), new Rectangle(130, 428, 10, 10), Color.White, 0f, Vector2.Zero, 4f, flipped: false, 1f);
-					bool negativeSpeed = ((int)type == 2 && (int)speed < -8) || ((int)type != 2 && (int)speed < 0);
-					Utility.drawTextWithShadow(spriteBatch, Game1.content.LoadString("Strings\\UI:ItemHover_Speed", (((((int)type == 2) ? ((int)speed - -8) : ((int)speed)) > 0) ? "+" : "") + (((int)type == 2) ? ((int)speed - -8) : ((int)speed)) / 2), font, new Vector2(x + 16 + 52, y + 16 + 12), negativeSpeed ? Color.DarkRed : (Game1.textColor * 0.9f * alpha));
-					y += (int)Math.Max(font.MeasureString("TT").Y, 48f);
+					c5 = new Color(0, 120, 120);
 				}
-				if ((int)addedDefense > 0)
+				Utility.drawWithShadow(spriteBatch, Game1.mouseCursors, new Vector2(x + 16 + 4, y + 16 + 4), new Rectangle(110, 428, 10, 10), Color.White, 0f, Vector2.Zero, 4f, flipped: false, 1f);
+				Utility.drawTextWithShadow(spriteBatch, Game1.content.LoadString("Strings\\UI:ItemHover_DefenseBonus", addedDefense), font, new Vector2(x + 16 + 52, y + 16 + 12), c5 * 0.9f * alpha);
+				y += (int)Math.Max(font.MeasureString("TT").Y, 48f);
+			}
+			float effectiveCritChance2 = critChance;
+			if ((int)type == 1)
+			{
+				effectiveCritChance2 += 0.005f;
+				effectiveCritChance2 *= 1.12f;
+			}
+			if ((double)effectiveCritChance2 / 0.02 >= 1.1000000238418579)
+			{
+				Color c4 = Game1.textColor;
+				if (hasEnchantmentOfType<AquamarineEnchantment>())
 				{
-					Utility.drawWithShadow(spriteBatch, Game1.mouseCursors, new Vector2(x + 16 + 4, y + 16 + 4), new Rectangle(110, 428, 10, 10), Color.White, 0f, Vector2.Zero, 4f, flipped: false, 1f);
-					Utility.drawTextWithShadow(spriteBatch, Game1.content.LoadString("Strings\\UI:ItemHover_DefenseBonus", addedDefense), font, new Vector2(x + 16 + 52, y + 16 + 12), Game1.textColor * 0.9f * alpha);
-					y += (int)Math.Max(font.MeasureString("TT").Y, 48f);
+					c4 = new Color(0, 120, 120);
 				}
-				if ((double)(float)critChance / 0.02 >= 2.0)
+				Utility.drawWithShadow(spriteBatch, Game1.mouseCursors, new Vector2(x + 16 + 4, y + 16 + 4), new Rectangle(40, 428, 10, 10), Color.White, 0f, Vector2.Zero, 4f, flipped: false, 1f);
+				Utility.drawTextWithShadow(spriteBatch, Game1.content.LoadString("Strings\\UI:ItemHover_CritChanceBonus", (int)Math.Round((double)(effectiveCritChance2 - 0.001f) / 0.02)), font, new Vector2(x + 16 + 52, y + 16 + 12), c4 * 0.9f * alpha);
+				y += (int)Math.Max(font.MeasureString("TT").Y, 48f);
+			}
+			if ((double)((float)critMultiplier - 3f) / 0.02 >= 1.0)
+			{
+				Color c3 = Game1.textColor;
+				if (hasEnchantmentOfType<JadeEnchantment>())
 				{
-					Utility.drawWithShadow(spriteBatch, Game1.mouseCursors, new Vector2(x + 16 + 4, y + 16 + 4), new Rectangle(40, 428, 10, 10), Color.White, 0f, Vector2.Zero, 4f, flipped: false, 1f);
-					Utility.drawTextWithShadow(spriteBatch, Game1.content.LoadString("Strings\\UI:ItemHover_CritChanceBonus", (int)((double)(float)critChance / 0.02)), font, new Vector2(x + 16 + 52, y + 16 + 12), Game1.textColor * 0.9f * alpha);
-					y += (int)Math.Max(font.MeasureString("TT").Y, 48f);
+					c3 = new Color(0, 120, 120);
 				}
-				if ((double)((float)critMultiplier - 3f) / 0.02 >= 1.0)
+				Utility.drawWithShadow(spriteBatch, Game1.mouseCursors, new Vector2(x + 16, y + 16 + 4), new Rectangle(160, 428, 10, 10), Color.White, 0f, Vector2.Zero, 4f, flipped: false, 1f);
+				Utility.drawTextWithShadow(spriteBatch, Game1.content.LoadString("Strings\\UI:ItemHover_CritPowerBonus", (int)((double)((float)critMultiplier - 3f) / 0.02)), font, new Vector2(x + 16 + 44, y + 16 + 12), c3 * 0.9f * alpha);
+				y += (int)Math.Max(font.MeasureString("TT").Y, 48f);
+			}
+			if ((float)knockback != defaultKnockBackForThisType(type))
+			{
+				Color c2 = Game1.textColor;
+				if (hasEnchantmentOfType<AmethystEnchantment>())
 				{
-					Utility.drawWithShadow(spriteBatch, Game1.mouseCursors, new Vector2(x + 16, y + 16 + 4), new Rectangle(160, 428, 10, 10), Color.White, 0f, Vector2.Zero, 4f, flipped: false, 1f);
-					Utility.drawTextWithShadow(spriteBatch, Game1.content.LoadString("Strings\\UI:ItemHover_CritPowerBonus", (int)((double)((float)critMultiplier - 3f) / 0.02)), font, new Vector2(x + 16 + 44, y + 16 + 12), Game1.textColor * 0.9f * alpha);
-					y += (int)Math.Max(font.MeasureString("TT").Y, 48f);
+					c2 = new Color(0, 120, 120);
 				}
-				if ((float)knockback != defaultKnockBackForThisType(type))
+				Utility.drawWithShadow(spriteBatch, Game1.mouseCursors, new Vector2(x + 16 + 4, y + 16 + 4), new Rectangle(70, 428, 10, 10), Color.White, 0f, Vector2.Zero, 4f, flipped: false, 1f);
+				Utility.drawTextWithShadow(spriteBatch, Game1.content.LoadString("Strings\\UI:ItemHover_Weight", (((float)(int)Math.Ceiling(Math.Abs((float)knockback - defaultKnockBackForThisType(type)) * 10f) > defaultKnockBackForThisType(type)) ? "+" : "") + (int)Math.Ceiling(Math.Abs((float)knockback - defaultKnockBackForThisType(type)) * 10f)), font, new Vector2(x + 16 + 52, y + 16 + 12), c2 * 0.9f * alpha);
+				y += (int)Math.Max(font.MeasureString("TT").Y, 48f);
+			}
+			if (enchantments.Count > 0 && enchantments[enchantments.Count - 1] is DiamondEnchantment)
+			{
+				Color c = new Color(0, 120, 120);
+				int random_forges = GetMaxForges() - GetTotalForgeLevels();
+				string random_forge_string2 = "";
+				random_forge_string2 = ((random_forges != 1) ? Game1.content.LoadString("Strings\\UI:ItemHover_DiamondForge_Plural", random_forges) : Game1.content.LoadString("Strings\\UI:ItemHover_DiamondForge_Singular", random_forges));
+				Utility.drawTextWithShadow(spriteBatch, random_forge_string2, font, new Vector2(x + 16, y + 16 + 12), c * 0.9f * alpha);
+				y += (int)Math.Max(font.MeasureString("TT").Y, 48f);
+			}
+			foreach (BaseEnchantment enchantment in enchantments)
+			{
+				if (enchantment.ShouldBeDisplayed())
 				{
-					Utility.drawWithShadow(spriteBatch, Game1.mouseCursors, new Vector2(x + 16 + 4, y + 16 + 4), new Rectangle(70, 428, 10, 10), Color.White, 0f, Vector2.Zero, 4f, flipped: false, 1f);
-					Utility.drawTextWithShadow(spriteBatch, Game1.content.LoadString("Strings\\UI:ItemHover_Weight", (((float)(int)Math.Ceiling(Math.Abs((float)knockback - defaultKnockBackForThisType(type)) * 10f) > defaultKnockBackForThisType(type)) ? "+" : "") + (int)Math.Ceiling(Math.Abs((float)knockback - defaultKnockBackForThisType(type)) * 10f)), font, new Vector2(x + 16 + 52, y + 16 + 12), Game1.textColor * 0.9f * alpha);
+					Utility.drawWithShadow(spriteBatch, Game1.mouseCursors2, new Vector2(x + 16 + 4, y + 16 + 4), new Rectangle(127, 35, 10, 10), Color.White, 0f, Vector2.Zero, 4f, flipped: false, 1f);
+					Utility.drawTextWithShadow(spriteBatch, BaseEnchantment.hideEnchantmentName ? "???" : enchantment.GetDisplayName(), font, new Vector2(x + 16 + 52, y + 16 + 12), new Color(120, 0, 210) * 0.9f * alpha);
 					y += (int)Math.Max(font.MeasureString("TT").Y, 48f);
 				}
 			}
 		}
 
-		public override Point getExtraSpaceNeededForTooltipSpecialIcons(SpriteFont font, int minWidth, int horizontalBuffer, int startingHeight, string descriptionText, string boldTitleText, int moneyAmountToDisplayAtBottom)
+		public override Point getExtraSpaceNeededForTooltipSpecialIcons(SpriteFont font, int minWidth, int horizontalBuffer, int startingHeight, StringBuilder descriptionText, string boldTitleText, int moneyAmountToDisplayAtBottom)
 		{
 			int maxStat = 9999;
 			Point dimensions = new Point(0, 0);
@@ -1126,12 +1304,75 @@ namespace StardewValley.Tools
 			dimensions.Y += ((!isScythe()) ? (getNumberOfDescriptionCategories() * 4 * 12) : 0);
 			dimensions.Y += (int)font.MeasureString(Game1.parseText(base.description, Game1.smallFont, getDescriptionWidth())).Y;
 			dimensions.X = (int)Math.Max(minWidth, Math.Max(font.MeasureString(Game1.content.LoadString("Strings\\UI:ItemHover_Damage", maxStat, maxStat)).X + (float)horizontalBuffer, Math.Max(font.MeasureString(Game1.content.LoadString("Strings\\UI:ItemHover_Speed", maxStat)).X + (float)horizontalBuffer, Math.Max(font.MeasureString(Game1.content.LoadString("Strings\\UI:ItemHover_DefenseBonus", maxStat)).X + (float)horizontalBuffer, Math.Max(font.MeasureString(Game1.content.LoadString("Strings\\UI:ItemHover_CritChanceBonus", maxStat)).X + (float)horizontalBuffer, Math.Max(font.MeasureString(Game1.content.LoadString("Strings\\UI:ItemHover_CritPowerBonus", maxStat)).X + (float)horizontalBuffer, font.MeasureString(Game1.content.LoadString("Strings\\UI:ItemHover_Weight", maxStat)).X + (float)horizontalBuffer))))));
+			if (enchantments.Count > 0 && enchantments[enchantments.Count - 1] is DiamondEnchantment)
+			{
+				dimensions.X = (int)Math.Max(dimensions.X, font.MeasureString(Game1.content.LoadString("Strings\\UI:ItemHover_DiamondForge_Plural", GetMaxForges())).X);
+			}
+			foreach (BaseEnchantment enchantment in enchantments)
+			{
+				if (enchantment.ShouldBeDisplayed())
+				{
+					dimensions.Y += (int)Math.Max(font.MeasureString("TT").Y, 48f);
+				}
+			}
 			return dimensions;
 		}
 
 		public void drawDuringUse(int frameOfFarmerAnimation, int facingDirection, SpriteBatch spriteBatch, Vector2 playerPosition, Farmer f)
 		{
-			drawDuringUse(frameOfFarmerAnimation, facingDirection, spriteBatch, playerPosition, f, getSourceRect(base.InitialParentTileIndex), type, isOnSpecial);
+			drawDuringUse(frameOfFarmerAnimation, facingDirection, spriteBatch, playerPosition, f, getSourceRect(getDrawnItemIndex()), type, isOnSpecial);
+		}
+
+		public override bool CanForge(Item item)
+		{
+			MeleeWeapon other_weapon;
+			if ((other_weapon = (item as MeleeWeapon)) != null && other_weapon.type == type)
+			{
+				return true;
+			}
+			return base.CanForge(item);
+		}
+
+		public override bool CanAddEnchantment(BaseEnchantment enchantment)
+		{
+			if (enchantment is GalaxySoulEnchantment && !isGalaxyWeapon())
+			{
+				return false;
+			}
+			return base.CanAddEnchantment(enchantment);
+		}
+
+		public bool isGalaxyWeapon()
+		{
+			if (base.InitialParentTileIndex != 4 && base.InitialParentTileIndex != 23)
+			{
+				return base.InitialParentTileIndex == 29;
+			}
+			return true;
+		}
+
+		public void transform(int newIndex)
+		{
+			base.CurrentParentTileIndex = newIndex;
+			base.InitialParentTileIndex = newIndex;
+			base.IndexOfMenuItemView = newIndex;
+			appearance.Value = -1;
+			RecalculateAppliedForges(force: true);
+		}
+
+		public override bool Forge(Item item, bool count_towards_stats = false)
+		{
+			if (isScythe())
+			{
+				return false;
+			}
+			MeleeWeapon other_weapon;
+			if ((other_weapon = (item as MeleeWeapon)) != null && other_weapon.type == type)
+			{
+				int num2 = appearance.Value = (base.IndexOfMenuItemView = other_weapon.getDrawnItemIndex());
+				return true;
+			}
+			return base.Forge(item, count_towards_stats);
 		}
 
 		public static void drawDuringUse(int frameOfFarmerAnimation, int facingDirection, SpriteBatch spriteBatch, Vector2 playerPosition, Farmer f, Rectangle sourceRect, int type, bool isOnSpecial)
@@ -1155,7 +1396,7 @@ namespace StardewValley.Tools
 							spriteBatch.Draw(Tool.weaponsTexture, new Vector2(playerPosition.X + 64f - 52f, playerPosition.Y + 4f), sourceRect, Color.White, -5.105088f, center, 4f, SpriteEffects.None, Math.Max(0f, (float)(f.getStandingY() + 2) / 10000f));
 							break;
 						case 3:
-							spriteBatch.Draw(Tool.weaponsTexture, new Vector2(playerPosition.X + 64f - 56f, playerPosition.Y - 4f), sourceRect, Color.White, (float)Math.PI * -5f / 16f, center, 4f, SpriteEffects.None, Math.Max(0f, (float)(f.getStandingY() + 1) / 10000f));
+							spriteBatch.Draw(Tool.weaponsTexture, new Vector2(playerPosition.X + 64f - 56f, playerPosition.Y - 4f), sourceRect, Color.White, (float)Math.PI * 3f / 16f, new Vector2(15f, 15f), 4f, SpriteEffects.FlipHorizontally, Math.Max(0f, (float)(f.getStandingY() + 1) / 10000f));
 							break;
 						}
 						break;

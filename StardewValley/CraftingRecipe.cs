@@ -15,15 +15,15 @@ namespace StardewValley
 
 		public string DisplayName;
 
-		private string description;
+		public string description;
 
 		public static Dictionary<string, string> craftingRecipes;
 
 		public static Dictionary<string, string> cookingRecipes;
 
-		private Dictionary<int, int> recipeList = new Dictionary<int, int>();
+		public Dictionary<int, int> recipeList = new Dictionary<int, int>();
 
-		private List<int> itemToProduce = new List<int>();
+		public List<int> itemToProduce = new List<int>();
 
 		public bool bigCraftable;
 
@@ -33,10 +33,33 @@ namespace StardewValley
 
 		public int numberProducedPerCraft;
 
+		public string itemType;
+
+		public string ItemType
+		{
+			get
+			{
+				if (itemType != null && !(itemType == ""))
+				{
+					return itemType;
+				}
+				if (!bigCraftable)
+				{
+					return "O";
+				}
+				return "BO";
+			}
+		}
+
 		public static void InitShared()
 		{
-			craftingRecipes = Game1.content.Load<Dictionary<string, string>>("Data//CraftingRecipes");
-			cookingRecipes = Game1.content.Load<Dictionary<string, string>>("Data//CookingRecipes");
+			craftingRecipes = Game1.content.Load<Dictionary<string, string>>("Data\\CraftingRecipes");
+			cookingRecipes = Game1.content.Load<Dictionary<string, string>>("Data\\CookingRecipes");
+		}
+
+		public CraftingRecipe(string name)
+			: this(name, cookingRecipes.ContainsKey(name))
+		{
 		}
 
 		public CraftingRecipe(string name, bool isCookingRecipe)
@@ -62,7 +85,22 @@ namespace StardewValley
 				itemToProduce.Add(Convert.ToInt32(itemToProduceList[i]));
 				numberProducedPerCraft = ((itemToProduceList.Length <= 1) ? 1 : Convert.ToInt32(itemToProduceList[i + 1]));
 			}
-			bigCraftable = (!isCookingRecipe && Convert.ToBoolean(infoSplit[3]));
+			if (!isCookingRecipe)
+			{
+				if (infoSplit[3] == "true")
+				{
+					itemType = "BO";
+					bigCraftable = true;
+				}
+				else if (infoSplit[3] == "false")
+				{
+					itemType = "O";
+				}
+				else
+				{
+					itemType = infoSplit[3];
+				}
+			}
 			try
 			{
 				description = (bigCraftable ? Game1.bigCraftablesInformation[itemToProduce[0]].Split('/')[4] : Game1.objectInformation[itemToProduce[0]].Split('/')[5]);
@@ -97,7 +135,7 @@ namespace StardewValley
 			return itemToProduce[0];
 		}
 
-		public bool doesFarmerHaveIngredientsInInventory(IList<Item> extraToCheck = null)
+		public virtual bool doesFarmerHaveIngredientsInInventory(IList<Item> extraToCheck = null)
 		{
 			foreach (KeyValuePair<int, int> kvp in recipeList)
 			{
@@ -119,7 +157,7 @@ namespace StardewValley
 			return true;
 		}
 
-		public void drawMenuView(SpriteBatch b, int x, int y, float layerDepth = 0.88f, bool shadow = true)
+		public virtual void drawMenuView(SpriteBatch b, int x, int y, float layerDepth = 0.88f, bool shadow = true)
 		{
 			if (bigCraftable)
 			{
@@ -131,7 +169,7 @@ namespace StardewValley
 			}
 		}
 
-		public Item createItem()
+		public virtual Item createItem()
 		{
 			int index = itemToProduce.ElementAt(Game1.random.Next(itemToProduce.Count));
 			if (bigCraftable)
@@ -150,7 +188,13 @@ namespace StardewValley
 			{
 				return new Ring(index);
 			}
-			return new Object(Vector2.Zero, index, numberProducedPerCraft);
+			Item item = Utility.getItemFromStandardTextDescription(ItemType + " " + index + " " + numberProducedPerCraft, Game1.player);
+			if (isCookingRecipe && item is Object && Game1.player.team.SpecialOrderRuleActive("QI_COOKING"))
+			{
+				(item as Object).orderData.Value = "QI_COOKING";
+				item.MarkContextTagsDirty();
+			}
+			return item;
 		}
 
 		public static bool isThereSpecialIngredientRule(Object potentialIngredient, int requiredIngredient)
@@ -227,7 +271,95 @@ namespace StardewValley
 			}
 		}
 
-		public int getCraftableCount(IList<Chest> additional_material_chests)
+		public static bool DoesFarmerHaveAdditionalIngredientsInInventory(List<KeyValuePair<int, int>> additional_recipe_items, IList<Item> extraToCheck = null)
+		{
+			foreach (KeyValuePair<int, int> kvp in additional_recipe_items)
+			{
+				int required_count3 = kvp.Value;
+				required_count3 -= Game1.player.getItemCount(kvp.Key, 5);
+				if (required_count3 > 0)
+				{
+					if (extraToCheck != null)
+					{
+						required_count3 -= Game1.player.getItemCountInList(extraToCheck, kvp.Key, 5);
+						if (required_count3 <= 0)
+						{
+							continue;
+						}
+					}
+					return false;
+				}
+			}
+			return true;
+		}
+
+		public static void ConsumeAdditionalIngredients(List<KeyValuePair<int, int>> additional_recipe_items, List<Chest> additional_materials)
+		{
+			for (int k = additional_recipe_items.Count - 1; k >= 0; k--)
+			{
+				int item_index = additional_recipe_items[k].Key;
+				int required_count = additional_recipe_items[k].Value;
+				bool foundInBackpack = false;
+				for (int j = Game1.player.items.Count - 1; j >= 0; j--)
+				{
+					if (Game1.player.items[j] != null && Game1.player.items[j] is Object && !(Game1.player.items[j] as Object).bigCraftable && ((int)((Object)Game1.player.items[j]).parentSheetIndex == item_index || ((Object)Game1.player.items[j]).Category == item_index || isThereSpecialIngredientRule((Object)Game1.player.items[j], item_index)))
+					{
+						int toRemove = required_count;
+						required_count -= Game1.player.items[j].Stack;
+						Game1.player.items[j].Stack -= toRemove;
+						if (Game1.player.items[j].Stack <= 0)
+						{
+							Game1.player.items[j] = null;
+						}
+						if (required_count <= 0)
+						{
+							foundInBackpack = true;
+							break;
+						}
+					}
+				}
+				if (additional_materials != null && !foundInBackpack)
+				{
+					for (int c = 0; c < additional_materials.Count; c++)
+					{
+						Chest chest = additional_materials[c];
+						if (chest == null)
+						{
+							continue;
+						}
+						bool removedItem = false;
+						for (int i = chest.items.Count - 1; i >= 0; i--)
+						{
+							if (chest.items[i] != null && chest.items[i] is Object && ((int)((Object)chest.items[i]).parentSheetIndex == item_index || ((Object)chest.items[i]).Category == item_index || isThereSpecialIngredientRule((Object)chest.items[i], item_index)))
+							{
+								int removed_count = Math.Min(required_count, chest.items[i].Stack);
+								required_count -= removed_count;
+								chest.items[i].Stack -= removed_count;
+								if (chest.items[i].Stack <= 0)
+								{
+									chest.items[i] = null;
+									removedItem = true;
+								}
+								if (required_count <= 0)
+								{
+									break;
+								}
+							}
+						}
+						if (removedItem)
+						{
+							chest.clearNulls();
+						}
+						if (required_count <= 0)
+						{
+							break;
+						}
+					}
+				}
+			}
+		}
+
+		public virtual int getCraftableCount(IList<Chest> additional_material_chests)
 		{
 			List<Item> additional_items = new List<Item>();
 			if (additional_material_chests != null)
@@ -274,7 +406,7 @@ namespace StardewValley
 			return craftable_count;
 		}
 
-		public string getCraftCountText()
+		public virtual string getCraftCountText()
 		{
 			if (isCookingRecipe)
 			{
@@ -295,7 +427,7 @@ namespace StardewValley
 			return (int)(Game1.smallFont.MeasureString(Game1.parseText(description, Game1.smallFont, width)).Y + (float)(getNumberOfIngredients() * 36) + (float)(int)Game1.smallFont.MeasureString(Game1.content.LoadString("Strings\\StringsFromCSFiles:CraftingRecipe.cs.567")).Y + 21f);
 		}
 
-		public void drawRecipeDescription(SpriteBatch b, Vector2 position, int width, IList<Item> additional_crafting_items)
+		public virtual void drawRecipeDescription(SpriteBatch b, Vector2 position, int width, IList<Item> additional_crafting_items)
 		{
 			int lineExpansion = (LocalizedContentManager.CurrentLanguageCode == LocalizedContentManager.LanguageCode.ko) ? 8 : 0;
 			b.Draw(Game1.staminaRect, new Rectangle((int)(position.X + 8f), (int)(position.Y + 32f + Game1.smallFont.MeasureString("Ing!").Y) - 4 - 2 - (int)((float)lineExpansion * 1.5f), width - 32, 2), Game1.textColor * 0.35f);
@@ -332,7 +464,7 @@ namespace StardewValley
 			Utility.drawTextWithShadow(b, Game1.parseText(description, Game1.smallFont, width - 8), Game1.smallFont, position + new Vector2(0f, 76 + recipeList.Count * 36 + lineExpansion), Game1.textColor * 0.75f);
 		}
 
-		public int getNumberOfIngredients()
+		public virtual int getNumberOfIngredients()
 		{
 			return recipeList.Count;
 		}

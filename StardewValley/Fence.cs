@@ -64,46 +64,20 @@ namespace StardewValley
 		[XmlElement("isGate")]
 		public readonly NetBool isGate = new NetBool();
 
+		[XmlIgnore]
+		public readonly NetBool repairQueued = new NetBool();
+
 		protected override void initNetFields()
 		{
 			base.initNetFields();
-			base.NetFields.AddFields(health, maxHealth, whichType, gatePosition, isGate);
+			base.NetFields.AddFields(health, maxHealth, whichType, gatePosition, isGate, repairQueued);
 		}
 
 		public Fence(Vector2 tileLocation, int whichType, bool isGate)
 			: this()
 		{
 			this.whichType.Value = whichType;
-			switch (whichType)
-			{
-			case 1:
-				health.Value = 28f + (float)Game1.random.Next(-100, 101) / 100f;
-				base.name = "Wood Fence";
-				base.ParentSheetIndex = -5;
-				break;
-			case 2:
-				health.Value = 60f + (float)Game1.random.Next(-100, 101) / 100f;
-				base.name = "Stone Fence";
-				base.ParentSheetIndex = -6;
-				break;
-			case 3:
-				health.Value = 125f + (float)Game1.random.Next(-100, 101) / 100f;
-				base.name = "Iron Fence";
-				base.ParentSheetIndex = -7;
-				break;
-			case 4:
-				health.Value = 100f;
-				base.name = "Gate";
-				base.ParentSheetIndex = -9;
-				break;
-			case 5:
-				health.Value = 280f + (float)Game1.random.Next(-100, 101) / 100f;
-				base.name = "Hardwood Fence";
-				base.ParentSheetIndex = -8;
-				break;
-			}
-			health.Value *= 2f;
-			maxHealth.Value = health.Value;
+			ResetHealth((float)Game1.random.Next(-100, 101) / 100f);
 			price.Value = whichType;
 			this.isGate.Value = isGate;
 			base.tileLocation.Value = tileLocation;
@@ -118,6 +92,60 @@ namespace StardewValley
 			boundingBox.Value = new Rectangle((int)tileLocation.X * 64, (int)tileLocation.Y * 64, 64, 64);
 		}
 
+		public virtual void ResetHealth(float amount_adjustment)
+		{
+			float base_health = GetBaseHealthForType(whichType);
+			if ((int)whichType == 4)
+			{
+				amount_adjustment = 0f;
+			}
+			health.Value = base_health + amount_adjustment;
+			switch ((int)whichType)
+			{
+			case 1:
+				base.name = "Wood Fence";
+				base.ParentSheetIndex = -5;
+				break;
+			case 2:
+				base.name = "Stone Fence";
+				base.ParentSheetIndex = -6;
+				break;
+			case 3:
+				base.name = "Iron Fence";
+				base.ParentSheetIndex = -7;
+				break;
+			case 4:
+				base.name = "Gate";
+				base.ParentSheetIndex = -9;
+				break;
+			case 5:
+				base.name = "Hardwood Fence";
+				base.ParentSheetIndex = -8;
+				break;
+			}
+			health.Value *= 2f;
+			maxHealth.Value = health.Value;
+		}
+
+		public virtual int GetBaseHealthForType(int fence_type)
+		{
+			switch ((int)whichType)
+			{
+			case 1:
+				return 28;
+			case 2:
+				return 60;
+			case 3:
+				return 125;
+			case 4:
+				return 100;
+			case 5:
+				return 280;
+			default:
+				return 100;
+			}
+		}
+
 		public Fence()
 		{
 			fenceTexture = new Lazy<Texture2D>(loadFenceTexture);
@@ -130,34 +158,7 @@ namespace StardewValley
 
 		public void repair()
 		{
-			switch ((int)whichType)
-			{
-			case 1:
-				health.Value = 28f + (float)Game1.random.Next(-100, 101) / 100f;
-				base.name = "Wood Fence";
-				base.ParentSheetIndex = -5;
-				break;
-			case 2:
-				health.Value = 60f + (float)Game1.random.Next(-100, 101) / 100f;
-				base.name = "Stone Fence";
-				base.ParentSheetIndex = -6;
-				break;
-			case 3:
-				health.Value = 125f + (float)Game1.random.Next(-100, 101) / 100f;
-				base.name = "Iron Fence";
-				base.ParentSheetIndex = -7;
-				break;
-			case 4:
-				health.Value = 100f;
-				base.name = "Gate";
-				base.ParentSheetIndex = -9;
-				break;
-			case 5:
-				health.Value = 280f + (float)Game1.random.Next(-100, 101) / 100f;
-				base.name = "Hardwood Fence";
-				base.ParentSheetIndex = -8;
-				break;
-			}
+			ResetHealth((float)Game1.random.Next(-100, 101) / 100f);
 		}
 
 		public static void populateFenceDrawGuide()
@@ -181,8 +182,18 @@ namespace StardewValley
 			fenceDrawGuide.Add(610, 4);
 		}
 
+		public virtual void PerformRepairIfNecessary()
+		{
+			if (Game1.IsMasterGame && repairQueued.Value)
+			{
+				ResetHealth(GetRepairHealthAdjustment());
+				repairQueued.Value = false;
+			}
+		}
+
 		public override void updateWhenCurrentLocation(GameTime time, GameLocation environment)
 		{
+			PerformRepairIfNecessary();
 			int gatePosition = this.gatePosition.Get();
 			gatePosition += gateMotion;
 			if (gatePosition == 88)
@@ -267,16 +278,16 @@ namespace StardewValley
 			return (float)health <= 0f;
 		}
 
-		public void toggleGate(Farmer who, bool open, bool is_toggling_counterpart = false)
+		public void toggleGate(GameLocation location, bool open, bool is_toggling_counterpart = false, Farmer who = null)
 		{
 			if ((float)health <= 1f)
 			{
 				return;
 			}
-			int drawSum = getDrawSum(who.currentLocation);
+			int drawSum = getDrawSum(location);
 			if (drawSum == 110 || drawSum == 1500 || drawSum == 1000 || drawSum == 500 || drawSum == 100 || drawSum == 10)
 			{
-				who.TemporaryPassableTiles.Add(new Rectangle((int)tileLocation.X * 64, (int)tileLocation.Y * 64, 64, 64));
+				who?.TemporaryPassableTiles.Add(new Rectangle((int)tileLocation.X * 64, (int)tileLocation.Y * 64, 64, 64));
 				if (open)
 				{
 					gatePosition.Value = 88;
@@ -287,12 +298,12 @@ namespace StardewValley
 				}
 				if (!is_toggling_counterpart)
 				{
-					who.currentLocation.playSound("doorClose");
+					location.playSound("doorClose");
 				}
 			}
 			else
 			{
-				who.TemporaryPassableTiles.Add(new Rectangle((int)tileLocation.X * 64, (int)tileLocation.Y * 64, 64, 64));
+				who?.TemporaryPassableTiles.Add(new Rectangle((int)tileLocation.X * 64, (int)tileLocation.Y * 64, 64, 64));
 				gatePosition.Value = 0;
 			}
 			if (is_toggling_counterpart)
@@ -306,7 +317,7 @@ namespace StardewValley
 				Vector2 neighbor4 = tileLocation + new Vector2(-1f, 0f);
 				if (Game1.currentLocation.objects.ContainsKey(neighbor4) && Game1.currentLocation.objects[neighbor4] is Fence && (bool)((Fence)Game1.currentLocation.objects[neighbor4]).isGate && ((Fence)Game1.currentLocation.objects[neighbor4]).getDrawSum(Game1.currentLocation) == 10)
 				{
-					((Fence)Game1.currentLocation.objects[neighbor4]).toggleGate(who, (int)gatePosition != 0, is_toggling_counterpart: true);
+					((Fence)Game1.currentLocation.objects[neighbor4]).toggleGate(location, (int)gatePosition != 0, is_toggling_counterpart: true, who);
 				}
 				break;
 			}
@@ -315,7 +326,7 @@ namespace StardewValley
 				Vector2 neighbor3 = tileLocation + new Vector2(1f, 0f);
 				if (Game1.currentLocation.objects.ContainsKey(neighbor3) && Game1.currentLocation.objects[neighbor3] is Fence && (bool)((Fence)Game1.currentLocation.objects[neighbor3]).isGate && ((Fence)Game1.currentLocation.objects[neighbor3]).getDrawSum(Game1.currentLocation) == 100)
 				{
-					((Fence)Game1.currentLocation.objects[neighbor3]).toggleGate(who, (int)gatePosition != 0, is_toggling_counterpart: true);
+					((Fence)Game1.currentLocation.objects[neighbor3]).toggleGate(location, (int)gatePosition != 0, is_toggling_counterpart: true, who);
 				}
 				break;
 			}
@@ -324,7 +335,7 @@ namespace StardewValley
 				Vector2 neighbor2 = tileLocation + new Vector2(0f, 1f);
 				if (Game1.currentLocation.objects.ContainsKey(neighbor2) && Game1.currentLocation.objects[neighbor2] is Fence && (bool)((Fence)Game1.currentLocation.objects[neighbor2]).isGate && ((Fence)Game1.currentLocation.objects[neighbor2]).getDrawSum(Game1.currentLocation) == 500)
 				{
-					((Fence)Game1.currentLocation.objects[neighbor2]).toggleGate(who, (int)gatePosition != 0, is_toggling_counterpart: true);
+					((Fence)Game1.currentLocation.objects[neighbor2]).toggleGate(location, (int)gatePosition != 0, is_toggling_counterpart: true, who);
 				}
 				break;
 			}
@@ -333,36 +344,47 @@ namespace StardewValley
 				Vector2 neighbor = tileLocation + new Vector2(0f, -1f);
 				if (Game1.currentLocation.objects.ContainsKey(neighbor) && Game1.currentLocation.objects[neighbor] is Fence && (bool)((Fence)Game1.currentLocation.objects[neighbor]).isGate && ((Fence)Game1.currentLocation.objects[neighbor]).getDrawSum(Game1.currentLocation) == 1000)
 				{
-					((Fence)Game1.currentLocation.objects[neighbor]).toggleGate(who, (int)gatePosition != 0, is_toggling_counterpart: true);
+					((Fence)Game1.currentLocation.objects[neighbor]).toggleGate(location, (int)gatePosition != 0, is_toggling_counterpart: true, who);
 				}
 				break;
 			}
 			}
 		}
 
+		public void toggleGate(Farmer who, bool open, bool is_toggling_counterpart = false)
+		{
+			toggleGate(who.currentLocation, open, is_toggling_counterpart, who);
+		}
+
+		public override void performRemoveAction(Vector2 tileLocation, GameLocation environment)
+		{
+			base.ParentSheetIndex = GetItemParentSheetIndex();
+			base.performRemoveAction(tileLocation, environment);
+		}
+
 		public override void dropItem(GameLocation location, Vector2 origin, Vector2 destination)
+		{
+			location.debris.Add(new Debris(GetItemParentSheetIndex(), origin, destination));
+		}
+
+		public virtual int GetItemParentSheetIndex()
 		{
 			if ((bool)isGate)
 			{
-				location.debris.Add(new Debris(325, origin, destination));
-				return;
+				return 325;
 			}
 			switch ((int)whichType)
 			{
-			case 4:
-				break;
 			case 1:
-				location.debris.Add(new Debris(322, origin, destination));
-				break;
+				return 322;
 			case 5:
-				location.debris.Add(new Debris(298, origin, destination));
-				break;
+				return 298;
 			case 2:
-				location.debris.Add(new Debris(323, origin, destination));
-				break;
+				return 323;
 			case 3:
-				location.debris.Add(new Debris(324, origin, destination));
-				break;
+				return 324;
+			default:
+				return 322;
 			}
 		}
 
@@ -436,6 +458,11 @@ namespace StardewValley
 
 		public override bool minutesElapsed(int minutes, GameLocation l)
 		{
+			if (!Game1.IsMasterGame)
+			{
+				return false;
+			}
+			PerformRepairIfNecessary();
 			if (!Game1.getFarm().isBuildingConstructed("Gold Clock"))
 			{
 				health.Value -= (float)minutes / 1440f;
@@ -550,49 +577,55 @@ namespace StardewValley
 				}
 				return true;
 			}
-			if ((float)health <= 1f && CanRepairWithThisItem(dropIn))
+			if ((float)health <= 1f && !repairQueued.Value && CanRepairWithThisItem(dropIn))
 			{
 				if (probe)
 				{
 					return true;
 				}
-				switch ((int)dropIn.parentSheetIndex)
+				string repair_sound = GetRepairSound();
+				if (repair_sound != null && repair_sound != "")
 				{
-				case 322:
-					if ((int)whichType == 1)
-					{
-						health.Value = 28f + (float)Game1.random.Next(-500, 500) / 100f;
-						who.currentLocation.playSound("axe");
-						return true;
-					}
-					break;
-				case 323:
-					if ((int)whichType == 2)
-					{
-						health.Value = 60f + (float)Game1.random.Next(-500, 600) / 100f;
-						who.currentLocation.playSound("stoneStep");
-						return true;
-					}
-					break;
-				case 324:
-					if ((int)whichType == 3)
-					{
-						health.Value = 125f + (float)Game1.random.Next(-500, 700) / 100f;
-						who.currentLocation.playSound("hammer");
-						return true;
-					}
-					break;
-				case 298:
-					if ((int)whichType == 5)
-					{
-						health.Value = 280f + (float)Game1.random.Next(-2000, 2000) / 100f;
-						who.currentLocation.playSound("axe");
-						return true;
-					}
-					break;
+					who.currentLocation.playSound(repair_sound);
 				}
+				repairQueued.Value = true;
+				return true;
 			}
 			return base.performObjectDropInAction(dropIn, probe, who);
+		}
+
+		public float GetRepairHealthAdjustment()
+		{
+			switch (whichType.Value)
+			{
+			case 1:
+				return (float)Game1.random.Next(-500, 500) / 100f;
+			case 2:
+				return (float)Game1.random.Next(-500, 600) / 100f;
+			case 3:
+				return (float)Game1.random.Next(-500, 700) / 100f;
+			case 5:
+				return (float)Game1.random.Next(-2000, 2000) / 100f;
+			default:
+				return 0f;
+			}
+		}
+
+		public virtual string GetRepairSound()
+		{
+			switch (whichType.Value)
+			{
+			case 1:
+				return "axe";
+			case 2:
+				return "stoneStep";
+			case 3:
+				return "hammer";
+			case 5:
+				return "axe";
+			default:
+				return "";
+			}
 		}
 
 		public bool CanRepairWithThisItem(Item item)
@@ -633,7 +666,13 @@ namespace StardewValley
 
 		public Texture2D loadFenceTexture()
 		{
-			return Game1.content.Load<Texture2D>("LooseSprites\\Fence" + Math.Max(1, isGate ? 1 : ((int)whichType)));
+			int loaded_type = whichType.Value;
+			if (whichType.Value == 4)
+			{
+				loaded_type = 1;
+				isGate.Value = true;
+			}
+			return Game1.content.Load<Texture2D>("LooseSprites\\Fence" + Math.Max(1, loaded_type));
 		}
 
 		public override void drawWhenHeld(SpriteBatch spriteBatch, Vector2 objectPosition, Farmer f)
@@ -664,7 +703,7 @@ namespace StardewValley
 
 		public bool countsForDrawing(int type)
 		{
-			if ((float)health > 1f && !isGate)
+			if (((float)health > 1f || repairQueued.Value) && !isGate)
 			{
 				if (type != (int)whichType)
 				{
@@ -687,7 +726,7 @@ namespace StardewValley
 		public override void draw(SpriteBatch b, int x, int y, float alpha = 1f)
 		{
 			int sourceRectPosition = 1;
-			if ((float)health > 1f)
+			if ((float)health > 1f || repairQueued.Value)
 			{
 				int drawSum = getDrawSum(Game1.currentLocation);
 				sourceRectPosition = fenceDrawGuide[drawSum];

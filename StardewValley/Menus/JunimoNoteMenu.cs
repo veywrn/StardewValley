@@ -39,6 +39,14 @@ namespace StardewValley.Menus
 
 		public InventoryMenu inventory;
 
+		public Item partialDonationItem;
+
+		public List<Item> partialDonationComponents = new List<Item>();
+
+		public BundleIngredientDescription? currentPartialIngredientDescription;
+
+		public int currentPartialIngredientDescriptionIndex = -1;
+
 		private Item heldItem;
 
 		private Item hoveredItem;
@@ -82,7 +90,7 @@ namespace StardewValley.Menus
 		private Bundle currentPageBundle;
 
 		public JunimoNoteMenu(bool fromGameMenu, int area = 1, bool fromThisMenu = false)
-			: base(Game1.viewport.Width / 2 - 640, Game1.viewport.Height / 2 - 360, 1280, 720, showUpperRightCloseButton: true)
+			: base(Game1.uiViewport.Width / 2 - 640, Game1.uiViewport.Height / 2 - 360, 1280, 720, showUpperRightCloseButton: true)
 		{
 			CommunityCenter cc = Game1.getLocationFromName("CommunityCenter") as CommunityCenter;
 			if (fromGameMenu && !fromThisMenu)
@@ -143,7 +151,7 @@ namespace StardewValley.Menus
 		}
 
 		public JunimoNoteMenu(int whichArea, Dictionary<int, bool[]> bundlesComplete)
-			: base(Game1.viewport.Width / 2 - 640, Game1.viewport.Height / 2 - 360, 1280, 720, showUpperRightCloseButton: true)
+			: base(Game1.uiViewport.Width / 2 - 640, Game1.uiViewport.Height / 2 - 360, 1280, 720, showUpperRightCloseButton: true)
 		{
 			setUpMenu(whichArea, bundlesComplete);
 			if (Game1.options.SnappyMenus)
@@ -177,7 +185,7 @@ namespace StardewValley.Menus
 
 		protected override void customSnapBehavior(int direction, int oldRegion, int oldID)
 		{
-			if (oldID - 5000 < 0 || oldID - 5000 >= 10 || currentlySnappedComponent == null)
+			if (!Game1.player.hasOrWillReceiveMail("canReadJunimoText") || oldID - 5000 < 0 || oldID - 5000 >= 10 || currentlySnappedComponent == null)
 			{
 				return;
 			}
@@ -279,7 +287,7 @@ namespace StardewValley.Menus
 			scrambledText = !Game1.player.hasOrWillReceiveMail("canReadJunimoText");
 			tempSprites.Clear();
 			this.whichArea = whichArea;
-			inventory = new InventoryMenu(xPositionOnScreen + 128, yPositionOnScreen + 140, playerInventory: true, null, Utility.highlightSmallObjects, 36, 6, 8, 8, drawSlots: false)
+			inventory = new InventoryMenu(xPositionOnScreen + 128, yPositionOnScreen + 140, playerInventory: true, null, HighlightObjects, 36, 6, 8, 8, drawSlots: false)
 			{
 				capacity = 36
 			};
@@ -299,7 +307,7 @@ namespace StardewValley.Menus
 				item2.rightNeighborID = -99998;
 			}
 			inventory.dropItemInvisibleButton.visible = false;
-			Dictionary<string, string> bundlesInfo = Game1.content.Load<Dictionary<string, string>>("Data\\Bundles");
+			Dictionary<string, string> bundlesInfo = Game1.netWorldState.Value.BundleData;
 			string areaName = CommunityCenter.getAreaNameFromNumber(whichArea);
 			int bundlesAdded = 0;
 			foreach (string i in bundlesInfo.Keys)
@@ -343,6 +351,15 @@ namespace StardewValley.Menus
 			}
 		}
 
+		public virtual bool HighlightObjects(Item item)
+		{
+			if (partialDonationItem != null && currentPageBundle != null && currentPartialIngredientDescriptionIndex >= 0)
+			{
+				return currentPageBundle.IsValidItemForThisIngredientDescription(item, currentPageBundle.ingredients[currentPartialIngredientDescriptionIndex]);
+			}
+			return Utility.highlightSmallObjects(item);
+		}
+
 		public override bool readyToClose()
 		{
 			if (!specificBundlePage)
@@ -371,20 +388,56 @@ namespace StardewValley.Menus
 				}
 				if (backButton.containsPoint(x, y) && heldItem == null)
 				{
-					takeDownBundleSpecificPage(currentPageBundle);
-					Game1.playSound("shwip");
+					closeBundlePage();
 				}
-				if (heldItem != null)
+				if (partialDonationItem != null)
 				{
-					if (Game1.oldKBState.IsKeyDown(Keys.LeftShift))
+					if (heldItem != null && Game1.oldKBState.IsKeyDown(Keys.LeftShift))
 					{
 						for (int i = 0; i < ingredientSlots.Count; i++)
 						{
-							if (ingredientSlots[i].item == null)
+							if (ingredientSlots[i].item == partialDonationItem)
 							{
-								heldItem = currentPageBundle.tryToDepositThisItem(heldItem, ingredientSlots[i], "LooseSprites\\JunimoNote");
-								checkIfBundleIsComplete();
+								HandlePartialDonation(heldItem, ingredientSlots[i]);
+							}
+						}
+					}
+					else
+					{
+						for (int l = 0; l < ingredientSlots.Count; l++)
+						{
+							if (ingredientSlots[l].containsPoint(x, y) && ingredientSlots[l].item == partialDonationItem)
+							{
+								if (heldItem != null)
+								{
+									HandlePartialDonation(heldItem, ingredientSlots[l]);
+									return;
+								}
+								bool return_to_inventory = Game1.oldKBState.IsKeyDown(Keys.LeftShift);
+								ReturnPartialDonations(!return_to_inventory);
 								return;
+							}
+						}
+					}
+				}
+				else if (heldItem != null)
+				{
+					if (Game1.oldKBState.IsKeyDown(Keys.LeftShift))
+					{
+						for (int k = 0; k < ingredientSlots.Count; k++)
+						{
+							if (currentPageBundle.canAcceptThisItem(heldItem, ingredientSlots[k]))
+							{
+								if (ingredientSlots[k].item == null)
+								{
+									heldItem = currentPageBundle.tryToDepositThisItem(heldItem, ingredientSlots[k], "LooseSprites\\JunimoNote");
+									checkIfBundleIsComplete();
+									return;
+								}
+							}
+							else if (ingredientSlots[k].item == null)
+							{
+								HandlePartialDonation(heldItem, ingredientSlots[k]);
 							}
 						}
 					}
@@ -392,8 +445,15 @@ namespace StardewValley.Menus
 					{
 						if (ingredientSlots[j].containsPoint(x, y))
 						{
-							heldItem = currentPageBundle.tryToDepositThisItem(heldItem, ingredientSlots[j], "LooseSprites\\JunimoNote");
-							checkIfBundleIsComplete();
+							if (currentPageBundle.canAcceptThisItem(heldItem, ingredientSlots[j]))
+							{
+								heldItem = currentPageBundle.tryToDepositThisItem(heldItem, ingredientSlots[j], "LooseSprites\\JunimoNote");
+								checkIfBundleIsComplete();
+							}
+							else if (ingredientSlots[j].item == null)
+							{
+								HandlePartialDonation(heldItem, ingredientSlots[j]);
+							}
 						}
 					}
 				}
@@ -441,6 +501,7 @@ namespace StardewValley.Menus
 				if (upperRightCloseButton != null && isReadyToCloseMenuOrBundle() && upperRightCloseButton.containsPoint(x, y))
 				{
 					closeBundlePage();
+					return;
 				}
 			}
 			else
@@ -476,6 +537,174 @@ namespace StardewValley.Menus
 				Game1.playSound("throwDownITem");
 				Game1.createItemDebris(heldItem, Game1.player.getStandingPosition(), Game1.player.FacingDirection);
 				heldItem = null;
+			}
+		}
+
+		public virtual void ReturnPartialDonation(Item item, bool play_sound = true)
+		{
+			List<Item> affected_items = new List<Item>();
+			Item remainder = Game1.player.addItemToInventory(item, affected_items);
+			foreach (Item affected_item in affected_items)
+			{
+				inventory.ShakeItem(affected_item);
+			}
+			if (remainder != null)
+			{
+				Utility.CollectOrDrop(remainder);
+				inventory.ShakeItem(remainder);
+			}
+			if (play_sound)
+			{
+				Game1.playSound("coin");
+			}
+		}
+
+		public virtual void ReturnPartialDonations(bool to_hand = true)
+		{
+			if (partialDonationComponents.Count > 0)
+			{
+				bool play_sound = true;
+				foreach (Item item in partialDonationComponents)
+				{
+					if (heldItem == null && to_hand)
+					{
+						Game1.playSound("dwop");
+						heldItem = item;
+					}
+					else
+					{
+						ReturnPartialDonation(item, play_sound);
+						play_sound = false;
+					}
+				}
+			}
+			ResetPartialDonation();
+		}
+
+		public virtual void ResetPartialDonation()
+		{
+			partialDonationComponents.Clear();
+			currentPartialIngredientDescription = null;
+			currentPartialIngredientDescriptionIndex = -1;
+			foreach (ClickableTextureComponent slot in ingredientSlots)
+			{
+				if (slot.item == partialDonationItem)
+				{
+					slot.item = null;
+				}
+			}
+			partialDonationItem = null;
+		}
+
+		public virtual bool CanBePartiallyOrFullyDonated(Item item)
+		{
+			if (currentPageBundle == null)
+			{
+				return false;
+			}
+			int index = currentPageBundle.GetBundleIngredientDescriptionIndexForItem(item);
+			if (index < 0)
+			{
+				return false;
+			}
+			BundleIngredientDescription description = currentPageBundle.ingredients[index];
+			int count = 0;
+			if (currentPageBundle.IsValidItemForThisIngredientDescription(item, description))
+			{
+				count += item.Stack;
+			}
+			foreach (Item inventory_item in Game1.player.items)
+			{
+				if (currentPageBundle.IsValidItemForThisIngredientDescription(inventory_item, description))
+				{
+					count += inventory_item.Stack;
+				}
+			}
+			if (index == currentPartialIngredientDescriptionIndex && partialDonationItem != null)
+			{
+				count += partialDonationItem.Stack;
+			}
+			return count >= description.stack;
+		}
+
+		public virtual void HandlePartialDonation(Item item, ClickableTextureComponent slot)
+		{
+			if ((currentPageBundle != null && !currentPageBundle.depositsAllowed) || (partialDonationItem != null && slot.item != partialDonationItem) || !CanBePartiallyOrFullyDonated(item))
+			{
+				return;
+			}
+			if (!currentPartialIngredientDescription.HasValue)
+			{
+				currentPartialIngredientDescriptionIndex = currentPageBundle.GetBundleIngredientDescriptionIndexForItem(item);
+				if (currentPartialIngredientDescriptionIndex != -1)
+				{
+					currentPartialIngredientDescription = currentPageBundle.ingredients[currentPartialIngredientDescriptionIndex];
+				}
+			}
+			if (!currentPartialIngredientDescription.HasValue || !currentPageBundle.IsValidItemForThisIngredientDescription(item, currentPartialIngredientDescription.Value))
+			{
+				return;
+			}
+			bool play_sound = true;
+			int amount_to_donate2 = 0;
+			if (slot.item == null)
+			{
+				Game1.playSound("sell");
+				play_sound = false;
+				partialDonationItem = item.getOne();
+				amount_to_donate2 = Math.Min(currentPartialIngredientDescription.Value.stack, item.Stack);
+				partialDonationItem.Stack = amount_to_donate2;
+				item.Stack -= amount_to_donate2;
+				if (partialDonationItem is Object)
+				{
+					(partialDonationItem as Object).Quality = currentPartialIngredientDescription.Value.quality;
+				}
+				slot.item = partialDonationItem;
+				slot.sourceRect.X = 512;
+				slot.sourceRect.Y = 244;
+			}
+			else
+			{
+				amount_to_donate2 = Math.Min(currentPartialIngredientDescription.Value.stack - partialDonationItem.Stack, item.Stack);
+				partialDonationItem.Stack += amount_to_donate2;
+				item.Stack -= amount_to_donate2;
+			}
+			if (amount_to_donate2 > 0)
+			{
+				Item donated_item = heldItem.getOne();
+				donated_item.Stack = amount_to_donate2;
+				foreach (Item contributed_item in partialDonationComponents)
+				{
+					if (contributed_item.canStackWith(heldItem))
+					{
+						donated_item.Stack = contributed_item.addToStack(donated_item);
+					}
+				}
+				if (donated_item.Stack > 0)
+				{
+					partialDonationComponents.Add(donated_item);
+				}
+				partialDonationComponents.Sort((Item a, Item b) => b.Stack.CompareTo(a.Stack));
+			}
+			if (item.Stack <= 0 && item == heldItem)
+			{
+				heldItem = null;
+			}
+			if (partialDonationItem.Stack >= currentPartialIngredientDescription.Value.stack)
+			{
+				slot.item = null;
+				partialDonationItem = currentPageBundle.tryToDepositThisItem(partialDonationItem, slot, "LooseSprites\\JunimoNote");
+				if (partialDonationItem != null && partialDonationItem.Stack > 0)
+				{
+					ReturnPartialDonation(partialDonationItem);
+				}
+				partialDonationItem = null;
+				ResetPartialDonation();
+				checkIfBundleIsComplete();
+			}
+			else if (amount_to_donate2 > 0 && play_sound)
+			{
+				Game1.playSound("sell");
 			}
 		}
 
@@ -593,7 +822,11 @@ namespace StardewValley.Menus
 
 		private void closeBundlePage()
 		{
-			if (specificBundlePage)
+			if (partialDonationItem != null)
+			{
+				ReturnPartialDonations(to_hand: false);
+			}
+			else if (specificBundlePage)
 			{
 				hoveredItem = null;
 				inventory.descriptionText = "";
@@ -629,21 +862,48 @@ namespace StardewValley.Menus
 
 		private void updateIngredientSlots()
 		{
+			new Dictionary<string, string>();
 			int slotNumber = 0;
 			for (int i = 0; i < currentPageBundle.ingredients.Count; i++)
 			{
 				if (currentPageBundle.ingredients[i].completed && slotNumber < ingredientSlots.Count)
 				{
-					ingredientSlots[slotNumber].item = new Object(currentPageBundle.ingredients[i].index, currentPageBundle.ingredients[i].stack, isRecipe: false, -1, currentPageBundle.ingredients[i].quality);
+					int index = currentPageBundle.ingredients[i].index;
+					if (index < 0)
+					{
+						index = GetObjectOrCategoryIndex(index);
+					}
+					ingredientSlots[slotNumber].item = new Object(index, currentPageBundle.ingredients[i].stack, isRecipe: false, -1, currentPageBundle.ingredients[i].quality);
 					currentPageBundle.ingredientDepositAnimation(ingredientSlots[slotNumber], "LooseSprites\\JunimoNote", skipAnimation: true);
 					slotNumber++;
 				}
 			}
 		}
 
+		public static int GetObjectOrCategoryIndex(int category)
+		{
+			if (category < 0)
+			{
+				foreach (int key in Game1.objectInformation.Keys)
+				{
+					string item_data = Game1.objectInformation[key];
+					if (item_data != null)
+					{
+						string[] data = item_data.Split('/');
+						if (data.Length > 3 && data[3].EndsWith(category.ToString()))
+						{
+							return key;
+						}
+					}
+				}
+				return category;
+			}
+			return category;
+		}
+
 		public static void GetBundleRewards(int area, List<Item> rewards)
 		{
-			Dictionary<string, string> bundlesInfo = Game1.content.Load<Dictionary<string, string>>("Data\\Bundles");
+			Dictionary<string, string> bundlesInfo = Game1.netWorldState.Value.BundleData;
 			foreach (string j in bundlesInfo.Keys)
 			{
 				if (j.Contains(CommunityCenter.getAreaNameFromNumber(area)))
@@ -675,14 +935,15 @@ namespace StardewValley.Menus
 
 		private void checkIfBundleIsComplete()
 		{
+			ReturnPartialDonations();
 			if (!specificBundlePage || currentPageBundle == null)
 			{
 				return;
 			}
 			int numberOfFilledSlots = 0;
-			foreach (ClickableTextureComponent ingredientSlot in ingredientSlots)
+			foreach (ClickableTextureComponent c in ingredientSlots)
 			{
-				if (ingredientSlot.item != null)
+				if (c.item != null && c.item != partialDonationItem)
 				{
 					numberOfFilledSlots++;
 				}
@@ -750,7 +1011,7 @@ namespace StardewValley.Menus
 
 		public void checkForRewards()
 		{
-			Dictionary<string, string> bundlesInfo = Game1.content.Load<Dictionary<string, string>>("Data\\Bundles");
+			Dictionary<string, string> bundlesInfo = Game1.netWorldState.Value.BundleData;
 			foreach (string i in bundlesInfo.Keys)
 			{
 				if (i.Contains(CommunityCenter.getAreaNameFromNumber(whichArea)) && bundlesInfo[i].Split('/')[1].Length > 1)
@@ -767,16 +1028,67 @@ namespace StardewValley.Menus
 
 		public override void receiveRightClick(int x, int y, bool playSound = true)
 		{
-			if (canClick)
+			if (!canClick)
 			{
-				if (specificBundlePage)
+				return;
+			}
+			if (specificBundlePage)
+			{
+				heldItem = inventory.rightClick(x, y, heldItem);
+				if (partialDonationItem != null)
 				{
-					heldItem = inventory.rightClick(x, y, heldItem);
+					for (int i = 0; i < ingredientSlots.Count; i++)
+					{
+						if (!ingredientSlots[i].containsPoint(x, y) || ingredientSlots[i].item != partialDonationItem)
+						{
+							continue;
+						}
+						if (partialDonationComponents.Count <= 0)
+						{
+							break;
+						}
+						Item item = partialDonationComponents[0].getOne();
+						bool valid = false;
+						if (heldItem == null)
+						{
+							heldItem = item;
+							Game1.playSound("dwop");
+							valid = true;
+						}
+						else if (heldItem.canStackWith(item))
+						{
+							heldItem.addToStack(item);
+							Game1.playSound("dwop");
+							valid = true;
+						}
+						if (valid)
+						{
+							partialDonationComponents[0].Stack--;
+							if (partialDonationComponents[0].Stack <= 0)
+							{
+								partialDonationComponents.RemoveAt(0);
+							}
+							int count = 0;
+							foreach (Item contributed_item in partialDonationComponents)
+							{
+								count += contributed_item.Stack;
+							}
+							if (partialDonationItem != null)
+							{
+								partialDonationItem.Stack = count;
+							}
+							if (partialDonationComponents.Count == 0)
+							{
+								ResetPartialDonation();
+							}
+						}
+						break;
+					}
 				}
-				if (!specificBundlePage && isReadyToCloseMenuOrBundle())
-				{
-					exitThisMenu();
-				}
+			}
+			if (!specificBundlePage && isReadyToCloseMenuOrBundle())
+			{
+				exitThisMenu();
 			}
 		}
 
@@ -847,7 +1159,7 @@ namespace StardewValley.Menus
 				{
 					foreach (ClickableTextureComponent c in ingredientSlots)
 					{
-						if (c.bounds.Contains(x, y) && currentPageBundle.canAcceptThisItem(heldItem, c))
+						if (c.bounds.Contains(x, y) && CanBePartiallyOrFullyDonated(heldItem) && (partialDonationItem == null || c.item == partialDonationItem))
 						{
 							c.sourceRect.X = 530;
 							c.sourceRect.Y = 262;
@@ -891,7 +1203,7 @@ namespace StardewValley.Menus
 			}
 			else
 			{
-				b.Draw(Game1.fadeToBlackRect, new Rectangle(0, 0, Game1.viewport.Width, Game1.viewport.Height), Color.Black * 0.5f);
+				b.Draw(Game1.fadeToBlackRect, new Rectangle(0, 0, Game1.uiViewport.Width, Game1.uiViewport.Height), Color.Black * 0.5f);
 			}
 			if (!specificBundlePage)
 			{
@@ -901,7 +1213,7 @@ namespace StardewValley.Menus
 				{
 					SpriteText.drawString(b, LocalizedContentManager.CurrentLanguageLatin ? Game1.content.LoadString("Strings\\StringsFromCSFiles:JunimoNoteMenu.cs.10786") : Game1.content.LoadBaseString("Strings\\StringsFromCSFiles:JunimoNoteMenu.cs.10786"), xPositionOnScreen + 96, yPositionOnScreen + 96, 999999, width - 192, 99999, 0.88f, 0.88f, junimoText: true);
 					base.draw(b);
-					if (canClick)
+					if (!Game1.options.SnappyMenus && canClick)
 					{
 						drawMouse(b);
 					}
@@ -936,7 +1248,19 @@ namespace StardewValley.Menus
 				b.Draw(noteTexture, new Vector2(xPositionOnScreen, yPositionOnScreen), new Rectangle(320, 0, 320, 180), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.1f);
 				if (currentPageBundle != null)
 				{
-					b.Draw(noteTexture, new Vector2(xPositionOnScreen + 872, yPositionOnScreen + 88), new Rectangle(currentPageBundle.bundleIndex * 16 * 2 % noteTexture.Width, 180 + 32 * (currentPageBundle.bundleIndex * 16 * 2 / noteTexture.Width), 32, 32), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.15f);
+					int bundle_index = currentPageBundle.bundleIndex;
+					Texture2D bundle_texture = noteTexture;
+					int y_offset = 180;
+					if (currentPageBundle.bundleTextureIndexOverride >= 0)
+					{
+						bundle_index = currentPageBundle.bundleTextureIndexOverride;
+					}
+					if (currentPageBundle.bundleTextureOverride != null)
+					{
+						bundle_texture = currentPageBundle.bundleTextureOverride;
+						y_offset = 0;
+					}
+					b.Draw(bundle_texture, new Vector2(xPositionOnScreen + 872, yPositionOnScreen + 88), new Rectangle(bundle_index * 16 * 2 % bundle_texture.Width, y_offset + 32 * (bundle_index * 16 * 2 / bundle_texture.Width), 32, 32), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.15f);
 					float textX = Game1.dialogueFont.MeasureString((!Game1.player.hasOrWillReceiveMail("canReadJunimoText")) ? "???" : Game1.content.LoadString("Strings\\UI:JunimoNote_BundleName", currentPageBundle.label)).X;
 					b.Draw(noteTexture, new Vector2(xPositionOnScreen + 936 - (int)textX / 2 - 16, yPositionOnScreen + 228), new Rectangle(517, 266, 4, 17), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.1f);
 					b.Draw(noteTexture, new Rectangle(xPositionOnScreen + 936 - (int)textX / 2, yPositionOnScreen + 228, (int)textX, 68), new Rectangle(520, 266, 1, 17), Color.White, 0f, Vector2.Zero, SpriteEffects.None, 0.1f);
@@ -952,20 +1276,35 @@ namespace StardewValley.Menus
 					purchaseButton.draw(b);
 					Game1.dayTimeMoneyBox.drawMoneyBox(b);
 				}
+				float completed_slot_alpha = 1f;
+				if (partialDonationItem != null)
+				{
+					completed_slot_alpha = 0.25f;
+				}
 				foreach (TemporaryAnimatedSprite tempSprite2 in tempSprites)
 				{
-					tempSprite2.draw(b, localPosition: true);
+					tempSprite2.draw(b, localPosition: true, 0, 0, completed_slot_alpha);
 				}
 				foreach (ClickableTextureComponent c2 in ingredientSlots)
 				{
-					if (c2.item == null)
+					float alpha_mult2 = 1f;
+					if (partialDonationItem != null && c2.item != partialDonationItem)
 					{
-						c2.draw(b, fromGameMenu ? (Color.LightGray * 0.5f) : Color.White, 0.89f);
+						alpha_mult2 = 0.25f;
 					}
-					c2.drawItem(b, 4, 4);
+					if (c2.item == null || (partialDonationItem != null && c2.item == partialDonationItem))
+					{
+						c2.draw(b, (fromGameMenu ? (Color.LightGray * 0.5f) : Color.White) * alpha_mult2, 0.89f);
+					}
+					c2.drawItem(b, 4, 4, alpha_mult2);
 				}
 				for (int i = 0; i < ingredientList.Count; i++)
 				{
+					float alpha_mult = 1f;
+					if (currentPartialIngredientDescriptionIndex >= 0 && currentPartialIngredientDescriptionIndex != i)
+					{
+						alpha_mult = 0.25f;
+					}
 					ClickableTextureComponent c = ingredientList[i];
 					bool completed = false;
 					_ = currentPageBundle.bundleColor;
@@ -975,16 +1314,16 @@ namespace StardewValley.Menus
 					}
 					if (!completed)
 					{
-						b.Draw(Game1.shadowTexture, new Vector2(c.bounds.Center.X - Game1.shadowTexture.Bounds.Width * 4 / 2 - 4, c.bounds.Center.Y + 4), Game1.shadowTexture.Bounds, Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.1f);
+						b.Draw(Game1.shadowTexture, new Vector2(c.bounds.Center.X - Game1.shadowTexture.Bounds.Width * 4 / 2 - 4, c.bounds.Center.Y + 4), Game1.shadowTexture.Bounds, Color.White * alpha_mult, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.1f);
 					}
 					if (c.item != null && c.visible)
 					{
-						c.item.drawInMenu(b, new Vector2(c.bounds.X, c.bounds.Y), c.scale / 4f, 1f, 0.9f, StackDrawType.Draw, Color.White * (completed ? 0.25f : 1f), drawShadow: false);
+						c.item.drawInMenu(b, new Vector2(c.bounds.X, c.bounds.Y), c.scale / 4f, 1f, 0.9f, StackDrawType.Draw, Color.White * (completed ? 0.25f : alpha_mult), drawShadow: false);
 					}
 				}
 				inventory.draw(b);
 			}
-			SpriteText.drawStringWithScrollCenteredAt(b, getRewardNameForArea(whichArea), xPositionOnScreen + width / 2, Math.Min(yPositionOnScreen + height + 20, Game1.viewport.Height - 64 - 8));
+			SpriteText.drawStringWithScrollCenteredAt(b, getRewardNameForArea(whichArea), xPositionOnScreen + width / 2, Math.Min(yPositionOnScreen + height + 20, Game1.uiViewport.Height - 64 - 8));
 			base.draw(b);
 			Game1.mouseCursorTransparency = 1f;
 			if (canClick)
@@ -1036,8 +1375,8 @@ namespace StardewValley.Menus
 		public override void gameWindowSizeChanged(Rectangle oldBounds, Rectangle newBounds)
 		{
 			base.gameWindowSizeChanged(oldBounds, newBounds);
-			xPositionOnScreen = Game1.viewport.Width / 2 - 640;
-			yPositionOnScreen = Game1.viewport.Height / 2 - 360;
+			xPositionOnScreen = Game1.uiViewport.Width / 2 - 640;
+			yPositionOnScreen = Game1.uiViewport.Height / 2 - 360;
 			backButton = new ClickableTextureComponent("Back", new Rectangle(xPositionOnScreen + IClickableMenu.borderWidth * 2 + 8, yPositionOnScreen + IClickableMenu.borderWidth * 2 + 4, 64, 64), null, null, Game1.mouseCursors, Game1.getSourceRectForStandardTileSheet(Game1.mouseCursors, 44), 1f);
 			if (fromGameMenu)
 			{
@@ -1050,7 +1389,7 @@ namespace StardewValley.Menus
 					visible = false
 				};
 			}
-			inventory = new InventoryMenu(xPositionOnScreen + 128, yPositionOnScreen + 140, playerInventory: true, null, Utility.highlightSmallObjects, Game1.player.maxItems, 6, 8, 8, drawSlots: false);
+			inventory = new InventoryMenu(xPositionOnScreen + 128, yPositionOnScreen + 140, playerInventory: true, null, HighlightObjects, Game1.player.maxItems, 6, 8, 8, drawSlots: false);
 			for (int l = 0; l < inventory.inventory.Count; l++)
 			{
 				if (l >= inventory.actualInventory.Count)
@@ -1138,19 +1477,48 @@ namespace StardewValley.Menus
 			addRectangleRowsToList(ingredientListRectangles, b.ingredients.Count, 932, 364);
 			for (int j = 0; j < ingredientListRectangles.Count; j++)
 			{
-				if (Game1.objectInformation.ContainsKey(b.ingredients[j].index))
+				int index = b.ingredients[j].index;
+				if (index < 0)
 				{
-					string displayName = Game1.objectInformation[b.ingredients[j].index].Split('/')[4];
-					ingredientList.Add(new ClickableTextureComponent("ingredient_list_slot", ingredientListRectangles[j], "", displayName, Game1.objectSpriteSheet, Game1.getSourceRectForStandardTileSheet(Game1.objectSpriteSheet, b.ingredients[j].index, 16, 16), 4f)
-					{
-						myID = j + 1000,
-						item = new Object(b.ingredients[j].index, b.ingredients[j].stack, isRecipe: false, -1, b.ingredients[j].quality),
-						upNeighborID = -99998,
-						rightNeighborID = -99998,
-						leftNeighborID = -99998,
-						downNeighborID = -99998
-					});
+					index = GetObjectOrCategoryIndex(index);
 				}
+				if (!Game1.objectInformation.ContainsKey(index))
+				{
+					continue;
+				}
+				string displayName = Game1.objectInformation[index].Split('/')[4];
+				if (b.ingredients[j].index < 0)
+				{
+					if (b.ingredients[j].index == -2)
+					{
+						displayName = Game1.content.LoadString("Strings\\StringsFromCSFiles:CraftingRecipe.cs.569");
+					}
+					else if (b.ingredients[j].index == -75)
+					{
+						displayName = Game1.content.LoadString("Strings\\StringsFromCSFiles:CraftingRecipe.cs.570");
+					}
+					else if (b.ingredients[j].index == -4)
+					{
+						displayName = Game1.content.LoadString("Strings\\StringsFromCSFiles:CraftingRecipe.cs.571");
+					}
+					else if (b.ingredients[j].index == -5)
+					{
+						displayName = Game1.content.LoadString("Strings\\StringsFromCSFiles:CraftingRecipe.cs.572");
+					}
+					else if (b.ingredients[j].index == -6)
+					{
+						displayName = Game1.content.LoadString("Strings\\StringsFromCSFiles:CraftingRecipe.cs.573");
+					}
+				}
+				ingredientList.Add(new ClickableTextureComponent("ingredient_list_slot", ingredientListRectangles[j], "", displayName, Game1.objectSpriteSheet, Game1.getSourceRectForStandardTileSheet(Game1.objectSpriteSheet, b.ingredients[j].index, 16, 16), 4f)
+				{
+					myID = j + 1000,
+					item = new Object(index, b.ingredients[j].stack, isRecipe: false, -1, b.ingredients[j].quality),
+					upNeighborID = -99998,
+					rightNeighborID = -99998,
+					leftNeighborID = -99998,
+					downNeighborID = -99998
+				});
 			}
 			updateIngredientSlots();
 			if (!Game1.options.SnappyMenus)
@@ -1185,6 +1553,17 @@ namespace StardewValley.Menus
 
 		public override bool IsAutomaticSnapValid(int direction, ClickableComponent a, ClickableComponent b)
 		{
+			if (currentPartialIngredientDescriptionIndex >= 0)
+			{
+				if (ingredientSlots.Contains(b) && b.item != partialDonationItem)
+				{
+					return false;
+				}
+				if (ingredientList.Contains(b) && ingredientList.IndexOf(b as ClickableTextureComponent) != currentPartialIngredientDescriptionIndex)
+				{
+					return false;
+				}
+			}
 			return (a.myID >= 5000 || a.myID == 101 || a.myID == 102) == (b.myID >= 5000 || b.myID == 101 || b.myID == 102);
 		}
 
@@ -1257,6 +1636,7 @@ namespace StardewValley.Menus
 			{
 				return;
 			}
+			ReturnPartialDonations(to_hand: false);
 			hoveredItem = null;
 			if (!specificBundlePage)
 			{

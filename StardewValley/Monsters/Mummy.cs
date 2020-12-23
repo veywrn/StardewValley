@@ -1,5 +1,6 @@
 using Microsoft.Xna.Framework;
 using Netcode;
+using StardewValley.Tools;
 using System;
 using System.Collections.Generic;
 
@@ -77,9 +78,22 @@ namespace StardewValley.Monsters
 				base.IsWalkingTowardPlayer = true;
 				if (base.Health <= 0)
 				{
-					reviveTimer.Value = 10000;
-					base.Health = base.MaxHealth;
-					deathAnimation();
+					if (!isBomb && who.CurrentTool is MeleeWeapon && (who.CurrentTool as MeleeWeapon).hasEnchantmentOfType<CrusaderEnchantment>())
+					{
+						Utility.makeTemporarySpriteJuicier(new TemporaryAnimatedSprite(44, base.Position, Color.BlueViolet, 10)
+						{
+							holdLastFrame = true,
+							alphaFade = 0.01f,
+							interval = 70f
+						}, base.currentLocation);
+						base.currentLocation.playSound("ghost");
+					}
+					else
+					{
+						reviveTimer.Value = 10000;
+						base.Health = base.MaxHealth;
+						deathAnimation();
+					}
 				}
 			}
 			return actualDamage;
@@ -91,6 +105,16 @@ namespace StardewValley.Monsters
 			{
 				base.defaultMovementBehavior(time);
 			}
+		}
+
+		public override List<Item> getExtraDropItems()
+		{
+			List<Item> items = new List<Item>();
+			if (Game1.random.NextDouble() < 0.002)
+			{
+				items.Add(new Object(485, 1));
+			}
+			return items;
 		}
 
 		protected override void sharedDeathAnimation()
@@ -214,19 +238,19 @@ namespace StardewValley.Monsters
 			{
 				if (isMoving())
 				{
-					if (base.FacingDirection == 0)
+					if (FacingDirection == 0)
 					{
 						Sprite.AnimateUp(time);
 					}
-					else if (base.FacingDirection == 3)
+					else if (FacingDirection == 3)
 					{
 						Sprite.AnimateLeft(time);
 					}
-					else if (base.FacingDirection == 1)
+					else if (FacingDirection == 1)
 					{
 						Sprite.AnimateRight(time);
 					}
-					else if (base.FacingDirection == 2)
+					else if (FacingDirection == 2)
 					{
 						Sprite.AnimateDown(time);
 					}

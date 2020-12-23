@@ -75,9 +75,9 @@ namespace StardewValley.Menus
 			}
 		}
 
-		public override void draw(SpriteBatch b, int slotX, int slotY)
+		public override void draw(SpriteBatch b, int slotX, int slotY, IClickableMenu context = null)
 		{
-			base.draw(b, slotX, slotY);
+			base.draw(b, slotX, slotY, context);
 			IClickableMenu.drawTextureBox(b, Game1.mouseCursors, sliderBGSource, slotX + bounds.X, slotY + bounds.Y, bounds.Width, bounds.Height, Color.White, 4f, drawShadow: false);
 			b.Draw(Game1.mouseCursors, new Vector2((float)(slotX + bounds.X) + (float)(bounds.Width - 40) * ((float)value / 100f), slotY + bounds.Y), sliderButtonRect, Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.9f);
 		}

@@ -2,7 +2,6 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Netcode;
 using StardewValley.Network;
-using StardewValley.Tools;
 using System;
 using System.Linq;
 using System.Xml.Serialization;
@@ -10,6 +9,7 @@ using xTile.Dimensions;
 
 namespace StardewValley
 {
+	[InstanceStatics]
 	public class Character : INetObject<NetFields>
 	{
 		public const float emoteBeginInterval = 20f;
@@ -84,6 +84,9 @@ namespace StardewValley
 		[XmlElement("name")]
 		public readonly NetString name = new NetString();
 
+		[XmlElement("forceOneTileWide")]
+		public readonly NetBool forceOneTileWide = new NetBool(value: false);
+
 		protected bool moveUp;
 
 		protected bool moveRight;
@@ -112,6 +115,9 @@ namespace StardewValley
 		public bool faceTowardFarmer;
 
 		public bool ignoreMovementAnimation;
+
+		[XmlIgnore]
+		public bool hasJustStartedFacingPlayer;
 
 		[XmlElement("faceAwayFromFarmer")]
 		public readonly NetBool faceAwayFromFarmer = new NetBool();
@@ -171,6 +177,12 @@ namespace StardewValley
 		public float yJumpVelocity;
 
 		[XmlIgnore]
+		public float yJumpGravity = -0.5f;
+
+		[XmlIgnore]
+		public bool wasJumpWithSound;
+
+		[XmlIgnore]
 		private readonly NetFarmerRef whoToFace = new NetFarmerRef();
 
 		[XmlIgnore]
@@ -190,6 +202,9 @@ namespace StardewValley
 		[XmlIgnore]
 		protected readonly NetLocationRef currentLocationRef = new NetLocationRef();
 
+		[XmlIgnore]
+		public ModDataDictionary modData = new ModDataDictionary();
+
 		private Microsoft.Xna.Framework.Rectangle originalSourceRect;
 
 		public static readonly Vector2[] AdjacentTilesOffsets = new Vector2[4]
@@ -202,6 +217,9 @@ namespace StardewValley
 
 		[XmlIgnore]
 		public readonly NetVector2 drawOffset = new NetVector2(Vector2.Zero);
+
+		[XmlIgnore]
+		public bool shouldShadowBeOffset;
 
 		[XmlIgnore]
 		public int speed
@@ -282,7 +300,7 @@ namespace StardewValley
 			}
 		}
 
-		public int FacingDirection
+		public virtual int FacingDirection
 		{
 			get
 			{
@@ -373,6 +391,19 @@ namespace StardewValley
 			}
 		}
 
+		[XmlElement("modData")]
+		public ModDataDictionary modDataForSerialization
+		{
+			get
+			{
+				return modData.GetForSerialization();
+			}
+			set
+			{
+				modData.SetFromSerialization(value);
+			}
+		}
+
 		public NetFields NetFields
 		{
 			get;
@@ -386,9 +417,10 @@ namespace StardewValley
 
 		protected virtual void initNetFields()
 		{
-			NetFields.AddFields(sprite, position.NetFields, facingDirection, netSpeed, netAddedSpeed, name, scale, currentLocationRef.NetFields, swimming, collidesWithOtherCharacters, facingDirectionBeforeSpeakingToPlayer, faceTowardFarmerRadius, faceAwayFromFarmer, whoToFace.NetFields, faceTowardFarmerEvent, _willDestroyObjectsUnderfoot);
+			NetFields.AddFields(sprite, position.NetFields, facingDirection, netSpeed, netAddedSpeed, name, scale, currentLocationRef.NetFields, swimming, collidesWithOtherCharacters, facingDirectionBeforeSpeakingToPlayer, faceTowardFarmerRadius, faceAwayFromFarmer, whoToFace.NetFields, faceTowardFarmerEvent, _willDestroyObjectsUnderfoot, forceOneTileWide);
 			facingDirection.Position = position;
 			faceTowardFarmerEvent.onEvent += performFaceTowardFarmerEvent;
+			NetFields.AddField(modData);
 		}
 
 		public Character(AnimatedSprite sprite, Vector2 position, int speed, string name)
@@ -556,11 +588,24 @@ namespace StardewValley
 			{
 				return 3;
 			}
-			if (position.Field.IsInterpolating())
+			if (IsRemoteMoving())
 			{
 				return facingDirection;
 			}
 			return -1;
+		}
+
+		public bool IsRemoteMoving()
+		{
+			if (LocalMultiplayer.IsLocalMultiplayer(is_local_only: true))
+			{
+				if (!position.moving.Value)
+				{
+					return position.Field.IsInterpolating();
+				}
+				return true;
+			}
+			return position.Field.IsInterpolating();
 		}
 
 		public void tryToMoveInDirection(int direction, bool isFarmer, int damagesFarmer, bool glider)
@@ -583,6 +628,15 @@ namespace StardewValley
 					break;
 				}
 			}
+		}
+
+		public virtual Vector2 GetShadowOffset()
+		{
+			if (shouldShadowBeOffset)
+			{
+				return drawOffset;
+			}
+			return Vector2.Zero;
 		}
 
 		public virtual bool shouldCollideWithBuildingLayer(GameLocation location)
@@ -614,6 +668,11 @@ namespace StardewValley
 			{
 				willDestroyObjectsUnderfoot = false;
 			}
+			bool should_destroy_underfoot_objects = willDestroyObjectsUnderfoot;
+			if (controller != null && controller.nonDestructivePathing)
+			{
+				should_destroy_underfoot_objects = false;
+			}
 			if (xVelocity != 0f || yVelocity != 0f)
 			{
 				applyVelocity(currentLocation);
@@ -629,11 +688,11 @@ namespace StardewValley
 						faceDirection(0);
 					}
 				}
-				else if (!currentLocation.isTilePassable(nextPosition(0), viewport) || !willDestroyObjectsUnderfoot)
+				else if (!currentLocation.isTilePassable(nextPosition(0), viewport) || !should_destroy_underfoot_objects)
 				{
 					Halt();
 				}
-				else if (willDestroyObjectsUnderfoot)
+				else if (should_destroy_underfoot_objects)
 				{
 					new Vector2(getStandingX() / 64, getStandingY() / 64 - 1);
 					if (currentLocation.characterDestroyObjectWithinRectangle(nextPosition(0), showDestroyedObject: true))
@@ -658,11 +717,11 @@ namespace StardewValley
 						faceDirection(1);
 					}
 				}
-				else if (!currentLocation.isTilePassable(nextPosition(1), viewport) || !willDestroyObjectsUnderfoot)
+				else if (!currentLocation.isTilePassable(nextPosition(1), viewport) || !should_destroy_underfoot_objects)
 				{
 					Halt();
 				}
-				else if (willDestroyObjectsUnderfoot)
+				else if (should_destroy_underfoot_objects)
 				{
 					new Vector2(getStandingX() / 64 + 1, getStandingY() / 64);
 					if (currentLocation.characterDestroyObjectWithinRectangle(nextPosition(1), showDestroyedObject: true))
@@ -687,11 +746,11 @@ namespace StardewValley
 						faceDirection(2);
 					}
 				}
-				else if (!currentLocation.isTilePassable(nextPosition(2), viewport) || !willDestroyObjectsUnderfoot)
+				else if (!currentLocation.isTilePassable(nextPosition(2), viewport) || !should_destroy_underfoot_objects)
 				{
 					Halt();
 				}
-				else if (willDestroyObjectsUnderfoot)
+				else if (should_destroy_underfoot_objects)
 				{
 					new Vector2(getStandingX() / 64, getStandingY() / 64 + 1);
 					if (currentLocation.characterDestroyObjectWithinRectangle(nextPosition(2), showDestroyedObject: true))
@@ -716,11 +775,11 @@ namespace StardewValley
 						faceDirection(3);
 					}
 				}
-				else if (!currentLocation.isTilePassable(nextPosition(3), viewport) || !willDestroyObjectsUnderfoot)
+				else if (!currentLocation.isTilePassable(nextPosition(3), viewport) || !should_destroy_underfoot_objects)
 				{
 					Halt();
 				}
-				else if (willDestroyObjectsUnderfoot)
+				else if (should_destroy_underfoot_objects)
 				{
 					new Vector2(getStandingX() / 64 - 1, getStandingY() / 64);
 					if (currentLocation.characterDestroyObjectWithinRectangle(nextPosition(3), showDestroyedObject: true))
@@ -738,9 +797,10 @@ namespace StardewValley
 			{
 				Sprite.animateOnce(time);
 			}
-			if (willDestroyObjectsUnderfoot && currentLocation != null && isMoving())
+			if (should_destroy_underfoot_objects && currentLocation != null && isMoving())
 			{
-				Vector2 point = new Vector2(getStandingX() / 64, getStandingY() / 64);
+				Point standing = getStandingXY();
+				Vector2 point = new Vector2(standing.X / 64, standing.Y / 64);
 				currentLocation.characterTrampleTile(point);
 			}
 			if (blockedInterval >= 3000 && (float)blockedInterval <= 3750f && !Game1.eventUp)
@@ -874,7 +934,7 @@ namespace StardewValley
 				{
 					emoteFading = false;
 					isEmoting = false;
-					if (nextEventcommandAfterEmote && Game1.currentLocation.currentEvent != null && (Game1.currentLocation.currentEvent.actors.Contains(this) || Name.Equals(Game1.player.Name)))
+					if (nextEventcommandAfterEmote && Game1.currentLocation.currentEvent != null && (Game1.currentLocation.currentEvent.actors.Contains(this) || Game1.currentLocation.currentEvent.farmerActors.Contains(this) || Name.Equals(Game1.player.Name)))
 					{
 						Game1.currentLocation.currentEvent.CurrentCommand++;
 					}
@@ -915,7 +975,7 @@ namespace StardewValley
 			case 3:
 				return new Vector2((boundingBox.X - 5) / 64, (boundingBox.Y + boundingBox.Height / 2) / 64);
 			default:
-				return new Vector2(getStandingX(), getStandingY());
+				return getStandingPosition();
 			}
 		}
 
@@ -933,17 +993,14 @@ namespace StardewValley
 			case 3:
 				return new Vector2(boundingBox.X - 64, boundingBox.Y + 16);
 			default:
-				return new Vector2(getStandingX(), getStandingY());
+				return getStandingPosition();
 			}
 		}
 
-		public virtual Vector2 GetToolLocation(bool ignoreClick = false)
+		public virtual Vector2 GetToolLocation(Vector2 target_position, bool ignoreClick = false)
 		{
-			if (!Game1.wasMouseVisibleThisFrame || Game1.isAnyGamePadButtonBeingHeld())
-			{
-				ignoreClick = true;
-			}
-			if ((Game1.player.CurrentTool == null || !(Game1.player.CurrentTool is WateringCan)) && (int)(lastClick.X / 64f) == Game1.player.getTileX() && (int)(lastClick.Y / 64f) == Game1.player.getTileY())
+			int direction = FacingDirection;
+			if ((Game1.player.CurrentTool == null || !Game1.player.CurrentTool.CanUseOnStandingTile()) && (int)(target_position.X / 64f) == Game1.player.getTileX() && (int)(target_position.Y / 64f) == Game1.player.getTileY())
 			{
 				Microsoft.Xna.Framework.Rectangle bb = GetBoundingBox();
 				switch (FacingDirection)
@@ -958,14 +1015,26 @@ namespace StardewValley
 					return new Vector2(bb.X - 64, bb.Y + bb.Height / 2);
 				}
 			}
-			if (!ignoreClick && !lastClick.Equals(Vector2.Zero) && Name.Equals(Game1.player.Name) && ((int)(lastClick.X / 64f) != Game1.player.getTileX() || (int)(lastClick.Y / 64f) != Game1.player.getTileY() || (Game1.player.CurrentTool != null && Game1.player.CurrentTool is WateringCan)) && Utility.distance(lastClick.X, Game1.player.getStandingX(), lastClick.Y, Game1.player.getStandingY()) <= 128f)
+			if (!ignoreClick && !target_position.Equals(Vector2.Zero) && Name.Equals(Game1.player.Name))
 			{
-				return lastClick;
+				bool allow_clicking_on_same_tile = false;
+				if (Game1.player.CurrentTool != null && Game1.player.CurrentTool.CanUseOnStandingTile())
+				{
+					allow_clicking_on_same_tile = true;
+				}
+				if (Utility.withinRadiusOfPlayer((int)target_position.X, (int)target_position.Y, 1, Game1.player))
+				{
+					direction = Game1.player.getGeneralDirectionTowards(new Vector2((int)target_position.X, (int)target_position.Y));
+					if (allow_clicking_on_same_tile || Math.Abs(target_position.X - (float)Game1.player.getStandingX()) >= 32f || Math.Abs(target_position.Y - (float)Game1.player.getStandingY()) >= 32f)
+					{
+						return target_position;
+					}
+				}
 			}
 			Microsoft.Xna.Framework.Rectangle boundingBox = GetBoundingBox();
 			if (Game1.player.CurrentTool != null && Game1.player.CurrentTool.Name.Equals("Fishing Rod"))
 			{
-				switch (FacingDirection)
+				switch (direction)
 				{
 				case 0:
 					return new Vector2(boundingBox.X - 16, boundingBox.Y - 102);
@@ -979,7 +1048,7 @@ namespace StardewValley
 			}
 			else
 			{
-				switch (FacingDirection)
+				switch (direction)
 				{
 				case 0:
 					return new Vector2(boundingBox.X + boundingBox.Width / 2, boundingBox.Y - 48);
@@ -992,6 +1061,15 @@ namespace StardewValley
 				}
 			}
 			return new Vector2(getStandingX(), getStandingY());
+		}
+
+		public virtual Vector2 GetToolLocation(bool ignoreClick = false)
+		{
+			if (!Game1.wasMouseVisibleThisFrame || Game1.isAnyGamePadButtonBeingHeld())
+			{
+				ignoreClick = true;
+			}
+			return GetToolLocation(lastClick, ignoreClick);
 		}
 
 		public int getGeneralDirectionTowards(Vector2 target, int yBias = 0, bool opposite = false, bool useTileCalculations = true)
@@ -1035,14 +1113,14 @@ namespace StardewValley
 			return 0;
 		}
 
-		public void faceGeneralDirection(Vector2 target, int yBias = 0, bool opposite = false)
+		public void faceGeneralDirection(Vector2 target, int yBias, bool opposite, bool useTileCalculations)
 		{
-			faceDirection(getGeneralDirectionTowards(target, yBias, opposite));
+			faceDirection(getGeneralDirectionTowards(target, yBias, opposite, useTileCalculations));
 		}
 
-		public Vector2 getStandingPosition()
+		public void faceGeneralDirection(Vector2 target, int yBias = 0, bool opposite = false)
 		{
-			return new Vector2(getStandingX(), getStandingY());
+			faceGeneralDirection(target, yBias, opposite, useTileCalculations: true);
 		}
 
 		public virtual void draw(SpriteBatch b)
@@ -1056,7 +1134,8 @@ namespace StardewValley
 
 		public virtual void draw(SpriteBatch b, float alpha = 1f)
 		{
-			Sprite.draw(b, Game1.GlobalToLocal(Game1.viewport, Position), (float)GetBoundingBox().Center.Y / 10000f);
+			Vector2 draw_position = Position;
+			Sprite.draw(b, Game1.GlobalToLocal(Game1.viewport, draw_position), (float)GetBoundingBox().Center.Y / 10000f);
 			if (IsEmoting)
 			{
 				Vector2 emotePosition = getLocalPosition(Game1.viewport);
@@ -1067,7 +1146,8 @@ namespace StardewValley
 
 		public virtual void draw(SpriteBatch b, int ySourceRectOffset, float alpha = 1f)
 		{
-			Sprite.draw(b, Game1.GlobalToLocal(Game1.viewport, position) + new Vector2(Sprite.SpriteWidth * 4 / 2, GetBoundingBox().Height / 2), (float)GetBoundingBox().Center.Y / 10000f, 0, ySourceRectOffset, Color.White, flip: false, 4f, 0f, characterSourceRectOffset: true);
+			Microsoft.Xna.Framework.Rectangle box = GetBoundingBox();
+			Sprite.draw(b, Game1.GlobalToLocal(Game1.viewport, position) + new Vector2(GetSpriteWidthForPositioning() * 4 / 2, box.Height / 2), (float)box.Center.Y / 10000f, 0, ySourceRectOffset, Color.White, flip: false, 4f, 0f, characterSourceRectOffset: true);
 			if (IsEmoting)
 			{
 				Vector2 emotePosition = getLocalPosition(Game1.viewport);
@@ -1076,13 +1156,24 @@ namespace StardewValley
 			}
 		}
 
+		public virtual int GetSpriteWidthForPositioning()
+		{
+			if (forceOneTileWide.Value)
+			{
+				return 16;
+			}
+			return Sprite.SpriteWidth;
+		}
+
 		public virtual Microsoft.Xna.Framework.Rectangle GetBoundingBox()
 		{
 			if (Sprite == null)
 			{
 				return Microsoft.Xna.Framework.Rectangle.Empty;
 			}
-			return new Microsoft.Xna.Framework.Rectangle((int)Position.X + 8, (int)Position.Y + 16, Sprite.SpriteWidth * 4 * 3 / 4, 32);
+			Vector2 position = Position;
+			int width = GetSpriteWidthForPositioning() * 4 * 3 / 4;
+			return new Microsoft.Xna.Framework.Rectangle((int)position.X + 8, (int)position.Y + 16, width, 32);
 		}
 
 		public void stopWithoutChangingFrame()
@@ -1099,17 +1190,31 @@ namespace StardewValley
 
 		public int getStandingX()
 		{
-			return GetBoundingBox().Center.X;
+			Microsoft.Xna.Framework.Rectangle box = GetBoundingBox();
+			return box.X + box.Width / 2;
 		}
 
 		public int getStandingY()
 		{
-			return GetBoundingBox().Center.Y;
+			Microsoft.Xna.Framework.Rectangle box = GetBoundingBox();
+			return box.Y + box.Height / 2;
+		}
+
+		public Vector2 getStandingPosition()
+		{
+			Point center = GetBoundingBox().Center;
+			return new Vector2(center.X, center.Y);
+		}
+
+		public Point getStandingXY()
+		{
+			return GetBoundingBox().Center;
 		}
 
 		public Vector2 getLocalPosition(xTile.Dimensions.Rectangle viewport)
 		{
-			return new Vector2(Position.X - (float)viewport.X, Position.Y - (float)viewport.Y + (float)yJumpOffset) + drawOffset;
+			Vector2 position = Position;
+			return new Vector2(position.X - (float)viewport.X, position.Y - (float)viewport.Y + (float)yJumpOffset) + drawOffset;
 		}
 
 		public virtual bool isMoving()
@@ -1123,17 +1228,8 @@ namespace StardewValley
 
 		public Point getTileLocationPoint()
 		{
-			return new Point(getStandingX() / 64, getStandingY() / 64);
-		}
-
-		public Point getLeftMostTileX()
-		{
-			return new Point(GetBoundingBox().X / 64, GetBoundingBox().Center.Y / 64);
-		}
-
-		public Point getRightMostTileX()
-		{
-			return new Point((GetBoundingBox().Right - 1) / 64, GetBoundingBox().Center.Y / 64);
+			Point standing = getStandingXY();
+			return new Point(standing.X / 64, standing.Y / 64);
 		}
 
 		public int getTileX()
@@ -1148,7 +1244,8 @@ namespace StardewValley
 
 		public Vector2 getTileLocation()
 		{
-			return new Vector2(getStandingX() / 64, getStandingY() / 64);
+			Point position = getStandingXY();
+			return new Vector2(position.X / 64, position.Y / 64);
 		}
 
 		public void setTileLocation(Vector2 tileLocation)
@@ -1156,8 +1253,9 @@ namespace StardewValley
 			float standingX = (tileLocation.X + 0.5f) * 64f;
 			float standingY = (tileLocation.Y + 0.5f) * 64f;
 			Vector2 pos = Position;
-			pos.X += standingX - (float)GetBoundingBox().Center.X;
-			pos.Y += standingY - (float)GetBoundingBox().Center.Y;
+			Microsoft.Xna.Framework.Rectangle box = GetBoundingBox();
+			pos.X += standingX - (float)box.Center.X;
+			pos.Y += standingY - (float)box.Center.Y;
 			Position = pos;
 		}
 
@@ -1184,12 +1282,15 @@ namespace StardewValley
 		{
 			yJumpVelocity = velocity;
 			yJumpOffset = -1;
+			yJumpGravity = -0.5f;
 		}
 
 		public virtual void jump()
 		{
 			yJumpVelocity = 8f;
 			yJumpOffset = -1;
+			yJumpGravity = -0.5f;
+			wasJumpWithSound = true;
 			currentLocation.localSound("dwop");
 		}
 
@@ -1197,6 +1298,8 @@ namespace StardewValley
 		{
 			yJumpVelocity = jumpVelocity;
 			yJumpOffset = -1;
+			yJumpGravity = -0.5f;
+			wasJumpWithSound = true;
 			currentLocation.localSound("dwop");
 		}
 
@@ -1217,6 +1320,7 @@ namespace StardewValley
 				faceTowardFarmerRadius.Value = radius;
 				faceAwayFromFarmer.Value = faceAway;
 				whoToFace.Value = who;
+				hasJustStartedFacingPlayer = true;
 			}
 		}
 
@@ -1252,18 +1356,57 @@ namespace StardewValley
 			faceTowardFarmerEvent.Poll();
 			if (yJumpOffset != 0)
 			{
-				yJumpVelocity -= 0.5f;
+				yJumpVelocity += yJumpGravity;
 				yJumpOffset -= (int)yJumpVelocity;
 				if (yJumpOffset >= 0)
 				{
 					yJumpOffset = 0;
 					yJumpVelocity = 0f;
-					if (!IsMonster && (location == null || location.Equals(Game1.currentLocation)))
+					if (!IsMonster && (location == null || location.Equals(Game1.currentLocation)) && wasJumpWithSound)
 					{
 						checkForFootstep();
 					}
 				}
 			}
+			if (forceUpdateTimer > 0)
+			{
+				forceUpdateTimer -= time.ElapsedGameTime.Milliseconds;
+			}
+			updateGlow();
+			updateEmote(time);
+			updateFaceTowardsFarmer(time, location);
+			bool is_event_controlled_character = false;
+			if (location.currentEvent != null)
+			{
+				if (location.isTemp())
+				{
+					is_event_controlled_character = true;
+				}
+				else if (location.currentEvent.actors.Contains(this))
+				{
+					is_event_controlled_character = true;
+				}
+			}
+			if (Game1.IsMasterGame | is_event_controlled_character)
+			{
+				if (controller == null && move && !freezeMotion)
+				{
+					updateMovement(location, time);
+				}
+				if (controller != null && !freezeMotion && controller.update(time))
+				{
+					controller = null;
+				}
+			}
+			else
+			{
+				updateSlaveAnimation(time);
+			}
+			hasJustStartedFacingPlayer = false;
+		}
+
+		public virtual void updateFaceTowardsFarmer(GameTime time, GameLocation location)
+		{
 			if (faceTowardFarmerTimer > 0)
 			{
 				faceTowardFarmerTimer -= time.ElapsedGameTime.Milliseconds;
@@ -1286,35 +1429,15 @@ namespace StardewValley
 					}
 				}
 			}
-			if (forceUpdateTimer > 0)
+			if ((Game1.IsMasterGame || location.currentEvent != null) && faceTowardFarmer && whoToFace.Value != null)
 			{
-				forceUpdateTimer -= time.ElapsedGameTime.Milliseconds;
-			}
-			updateGlow();
-			updateEmote(time);
-			if (Game1.IsMasterGame || location.currentEvent != null)
-			{
-				if (faceTowardFarmer && whoToFace.Value != null)
+				faceGeneralDirection(whoToFace.Value.getStandingPosition(), 0, opposite: false, useTileCalculations: true);
+				if ((bool)faceAwayFromFarmer)
 				{
-					faceGeneralDirection(whoToFace.Value.getStandingPosition());
-					if ((bool)faceAwayFromFarmer)
-					{
-						faceDirection((FacingDirection + 2) % 4);
-					}
-				}
-				if (controller == null && move && !freezeMotion)
-				{
-					updateMovement(location, time);
-				}
-				if (controller != null && !freezeMotion && controller.update(time))
-				{
-					controller = null;
+					faceDirection((FacingDirection + 2) % 4);
 				}
 			}
-			else
-			{
-				updateSlaveAnimation(time);
-			}
+			hasJustStartedFacingPlayer = false;
 		}
 
 		public virtual bool hasSpecialCollisionRules()

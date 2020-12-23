@@ -119,9 +119,9 @@ namespace StardewValley.Locations
 		public void refreshBundlesIngredientsInfo()
 		{
 			bundlesIngredientsInfo = new Dictionary<int, List<List<int>>>();
-			Dictionary<string, string> dictionary = Game1.content.Load<Dictionary<string, string>>("Data\\Bundles");
+			Dictionary<string, string> bundleData = Game1.netWorldState.Value.BundleData;
 			Dictionary<int, bool[]> bundlesD = bundlesDict();
-			foreach (KeyValuePair<string, string> v in dictionary)
+			foreach (KeyValuePair<string, string> v in bundleData)
 			{
 				int bundleIndex = Convert.ToInt32(v.Key.Split('/')[1]);
 				string areaName = v.Key.Split('/')[0];
@@ -129,7 +129,7 @@ namespace StardewValley.Locations
 				string[] ingredientSplit = v.Value.Split('/')[2].Split(' ');
 				if (shouldNoteAppearInArea(getAreaNumberFromName(areaName)))
 				{
-					for (int i = 0; i < ingredientSplit.Count(); i += 3)
+					for (int i = 0; i < ingredientSplit.Length; i += 3)
 					{
 						if (bundlesD.ContainsKey(bundleIndex) && !bundlesD[bundleIndex][i / 3])
 						{
@@ -173,7 +173,7 @@ namespace StardewValley.Locations
 				bundleMutexes.Add(i);
 				base.NetFields.AddField(i.NetFields);
 			}
-			foreach (KeyValuePair<string, string> v in Game1.content.Load<Dictionary<string, string>>("Data\\Bundles"))
+			foreach (KeyValuePair<string, string> v in Game1.netWorldState.Value.BundleData)
 			{
 				int bundleIndex = Convert.ToInt32(v.Key.Split('/')[1]);
 				areaToBundleDictionary[getAreaNumberFromName(v.Key.Split('/')[0])].Add(bundleIndex);
@@ -375,7 +375,7 @@ namespace StardewValley.Locations
 			case 1832:
 			case 1833:
 				checkBundle(getAreaNumberFromLocation(who.getTileLocation()));
-				break;
+				return true;
 			}
 			return base.checkAction(tileLocation, viewport, who);
 		}
@@ -394,7 +394,10 @@ namespace StardewValley.Locations
 			{
 				junimoNotesViewportTargets = new List<int>();
 			}
-			junimoNotesViewportTargets.Add(area);
+			if (!junimoNotesViewportTargets.Contains(area))
+			{
+				junimoNotesViewportTargets.Add(area);
+			}
 		}
 
 		public void checkForNewJunimoNotes()
@@ -449,7 +452,7 @@ namespace StardewValley.Locations
 				{
 					if (bundles.ContainsKey(bundleIndex))
 					{
-						int bundleLength = bundles[bundleIndex].Count() / 3;
+						int bundleLength = bundles[bundleIndex].Length / 3;
 						for (int i = 0; i < bundleLength; i++)
 						{
 							if (!bundles[bundleIndex][i])
@@ -515,6 +518,16 @@ namespace StardewValley.Locations
 				mapPath.Value = "Maps\\CommunityCenter_Joja";
 			}
 			base.updateMap();
+		}
+
+		public override void TransferDataFromSavedLocation(GameLocation l)
+		{
+			if (areAllAreasComplete())
+			{
+				mapPath.Value = "Maps\\CommunityCenter_Refurbished";
+				updateMap();
+			}
+			base.TransferDataFromSavedLocation(l);
 		}
 
 		protected override void resetSharedState()
@@ -683,7 +696,7 @@ namespace StardewValley.Locations
 		public override void cleanupBeforePlayerExit()
 		{
 			base.cleanupBeforePlayerExit();
-			if (farmers.Count() <= 1)
+			if (farmers.Count <= 1)
 			{
 				removeJunimo();
 			}
@@ -704,13 +717,26 @@ namespace StardewValley.Locations
 
 		public bool couldThisIngredienteBeUsedInABundle(Object o)
 		{
-			if (!o.bigCraftable && bundlesIngredientsInfo.ContainsKey(o.parentSheetIndex))
+			if (!o.bigCraftable)
 			{
-				foreach (List<int> i in bundlesIngredientsInfo[o.parentSheetIndex])
+				if (bundlesIngredientsInfo.ContainsKey(o.parentSheetIndex))
 				{
-					if (o.Quality >= i[2])
+					foreach (List<int> j in bundlesIngredientsInfo[o.parentSheetIndex])
 					{
-						return true;
+						if (o.Quality >= j[2])
+						{
+							return true;
+						}
+					}
+				}
+				if (o.Category < 0 && bundlesIngredientsInfo.ContainsKey(o.Category))
+				{
+					foreach (List<int> i in bundlesIngredientsInfo[o.Category])
+					{
+						if (o.Quality >= i[2])
+						{
+							return true;
+						}
 					}
 				}
 			}
@@ -959,21 +985,31 @@ namespace StardewValley.Locations
 							}
 						}
 					}
-					if (Game1.player.currentLocation == this)
+					if (Game1.player.currentLocation != this)
 					{
-						Game1.screenGlowHold = false;
-						loadArea(restoreAreaIndex);
-						if (buildUpSound != null)
+						if (Game1.IsMasterGame)
 						{
-							buildUpSound.Stop(AudioStopOptions.Immediate);
+							loadArea(restoreAreaIndex);
+							UpdateMapSeats();
 						}
-						localSound("wand");
-						Game1.changeMusicTrack("junimoStarSong");
-						localSound("woodyHit");
-						Game1.flashAlpha = 1f;
-						Game1.player.stopJittering();
-						Game1.drawLighting = true;
+						break;
 					}
+					Game1.screenGlowHold = false;
+					loadArea(restoreAreaIndex);
+					if (Game1.IsMasterGame)
+					{
+						UpdateMapSeats();
+					}
+					if (buildUpSound != null)
+					{
+						buildUpSound.Stop(AudioStopOptions.Immediate);
+					}
+					localSound("wand");
+					Game1.changeMusicTrack("junimoStarSong");
+					localSound("woodyHit");
+					Game1.flashAlpha = 1f;
+					Game1.player.stopJittering();
+					Game1.drawLighting = true;
 					break;
 				case 3:
 					if (old > 1000 && restoreAreaTimer <= 1000)

@@ -131,7 +131,7 @@ namespace StardewValley.Events
 			}
 			int soFar4 = 0;
 			int sittingTogetherCount2 = 0;
-			for (int i7 = 0; i7 < backRow.Count(); i7++)
+			for (int i7 = 0; i7 < backRow.Length; i7++)
 			{
 				if (backRow[i7] == null || !(backRow[i7] != "") || !(backRow[i7] != playerCharacterEventName) || !(backRow[i7] != playerCharacterGuestName))
 				{
@@ -163,7 +163,7 @@ namespace StardewValley.Events
 			}
 			soFar4 = 0;
 			sittingTogetherCount2 = 0;
-			for (int i6 = 0; i6 < midRow.Count(); i6++)
+			for (int i6 = 0; i6 < midRow.Length; i6++)
 			{
 				if (midRow[i6] == null || !(midRow[i6] != ""))
 				{
@@ -195,7 +195,7 @@ namespace StardewValley.Events
 			}
 			Point warpPoint = new Point(1, 15);
 			soFar4 = 0;
-			for (int i5 = 0; i5 < backRow.Count(); i5++)
+			for (int i5 = 0; i5 < backRow.Length; i5++)
 			{
 				if (backRow[i5] != null && backRow[i5] != "" && backRow[i5] != playerCharacterEventName && backRow[i5] != playerCharacterGuestName)
 				{
@@ -233,7 +233,7 @@ namespace StardewValley.Events
 				}
 			}
 			soFar4 = 0;
-			for (int i4 = 0; i4 < midRow.Count(); i4++)
+			for (int i4 = 0; i4 < midRow.Length; i4++)
 			{
 				if (midRow[i4] != null && midRow[i4] != "")
 				{
@@ -265,7 +265,7 @@ namespace StardewValley.Events
 				}
 			}
 			sb.Append("viewport 6 8 true/pause 500/");
-			for (int i3 = 0; i3 < backRow.Count(); i3++)
+			for (int i3 = 0; i3 < backRow.Length; i3++)
 			{
 				if (backRow[i3] != null && backRow[i3] != "")
 				{

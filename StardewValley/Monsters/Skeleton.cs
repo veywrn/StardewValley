@@ -1,7 +1,9 @@
 using Microsoft.Xna.Framework;
 using Netcode;
 using StardewValley.Projectiles;
+using StardewValley.Tools;
 using System;
+using System.Collections.Generic;
 
 namespace StardewValley.Monsters
 {
@@ -11,15 +13,19 @@ namespace StardewValley.Monsters
 
 		private readonly NetBool throwing = new NetBool();
 
+		public readonly NetBool isMage = new NetBool();
+
 		private int controllerAttemptTimer;
 
 		public Skeleton()
 		{
 		}
 
-		public Skeleton(Vector2 position)
+		public Skeleton(Vector2 position, bool isMage = false)
 			: base("Skeleton", position, Game1.random.Next(4))
 		{
+			this.isMage.Value = isMage;
+			reloadSprite();
 			Sprite.SpriteHeight = 32;
 			Sprite.UpdateSourceRect();
 			base.IsWalkingTowardPlayer = false;
@@ -29,15 +35,25 @@ namespace StardewValley.Monsters
 		protected override void initNetFields()
 		{
 			base.initNetFields();
-			base.NetFields.AddField(throwing);
+			base.NetFields.AddFields(throwing, isMage);
 			position.Field.AxisAlignedMovement = true;
 		}
 
 		public override void reloadSprite()
 		{
-			Sprite = new AnimatedSprite("Characters\\Monsters\\Skeleton");
+			Sprite = new AnimatedSprite("Characters\\Monsters\\Skeleton" + (isMage ? " Mage" : ""));
 			Sprite.SpriteHeight = 32;
 			Sprite.UpdateSourceRect();
+		}
+
+		public override List<Item> getExtraDropItems()
+		{
+			List<Item> extra = new List<Item>();
+			if (Game1.random.NextDouble() < 0.04)
+			{
+				extra.Add(new MeleeWeapon(5));
+			}
+			return extra;
 		}
 
 		public override int takeDamage(int damage, int xTrajectory, int yTrajectory, bool isBomb, double addedPrecision, Farmer who)
@@ -67,6 +83,16 @@ namespace StardewValley.Monsters
 		public override void shedChunks(int number)
 		{
 			Game1.createRadialDebris(base.currentLocation, Sprite.textureName, new Rectangle(0, 128, 16, 16), 8, GetBoundingBox().Center.X, GetBoundingBox().Center.Y, number, (int)getTileLocation().Y, Color.White, 4f);
+		}
+
+		public override void BuffForAdditionalDifficulty(int additional_difficulty)
+		{
+			base.BuffForAdditionalDifficulty(additional_difficulty);
+			if (!isMage)
+			{
+				base.MaxHealth += 300;
+				base.Health += 300;
+			}
 		}
 
 		protected override void sharedDeathAnimation()
@@ -111,19 +137,19 @@ namespace StardewValley.Monsters
 			}
 			else if (isMoving())
 			{
-				if (base.FacingDirection == 0)
+				if (FacingDirection == 0)
 				{
 					Sprite.AnimateUp(time);
 				}
-				else if (base.FacingDirection == 3)
+				else if (FacingDirection == 3)
 				{
 					Sprite.AnimateLeft(time);
 				}
-				else if (base.FacingDirection == 1)
+				else if (FacingDirection == 1)
 				{
 					Sprite.AnimateRight(time);
 				}
-				else if (base.FacingDirection == 2)
+				else if (FacingDirection == 2)
 				{
 					Sprite.AnimateDown(time);
 				}
@@ -142,10 +168,13 @@ namespace StardewValley.Monsters
 			}
 			if (!spottedPlayer && !base.wildernessFarmMonster && Utility.doesPointHaveLineOfSightInMine(base.currentLocation, getTileLocation(), base.Player.getTileLocation(), 8))
 			{
-				controller = new PathFindController(this, base.currentLocation, new Point(base.Player.getStandingX() / 64, base.Player.getStandingY() / 64), Game1.random.Next(4), null, 200);
+				controller = new PathFindController(this, base.currentLocation, new Point(base.Player.getStandingX() / 64, base.Player.getStandingY() / 64), -1, null, 200);
 				spottedPlayer = true;
-				Halt();
-				facePlayer(base.Player);
+				if (controller == null || controller.pathToEndPoint == null || controller.pathToEndPoint.Count == 0)
+				{
+					Halt();
+					facePlayer(base.Player);
+				}
 				base.currentLocation.playSound("skeletonStep");
 				base.IsWalkingTowardPlayer = true;
 			}
@@ -166,10 +195,24 @@ namespace StardewValley.Monsters
 					Sprite.currentFrame = 0;
 					faceDirection(2);
 					Vector2 v = Utility.getVelocityTowardPlayer(new Point((int)base.Position.X, (int)base.Position.Y), 8f, base.Player);
-					base.currentLocation.projectiles.Add(new BasicProjectile(base.DamageToFarmer, 4, 0, 0, (float)Math.PI / 16f, v.X, v.Y, new Vector2(base.Position.X, base.Position.Y), "skeletonHit", "skeletonStep", explode: false, damagesMonsters: false, base.currentLocation, this));
+					if (isMage.Value)
+					{
+						if (Game1.random.NextDouble() < 0.5)
+						{
+							base.currentLocation.projectiles.Add(new DebuffingProjectile(19, 14, 4, 4, (float)Math.PI / 16f, v.X, v.Y, new Vector2(base.Position.X, base.Position.Y), base.currentLocation, this));
+						}
+						else
+						{
+							base.currentLocation.projectiles.Add(new BasicProjectile(base.DamageToFarmer * 2, 9, 0, 4, 0f, v.X, v.Y, new Vector2(base.Position.X, base.Position.Y), "flameSpellHit", "flameSpell", explode: false, damagesMonsters: false, base.currentLocation, this));
+						}
+					}
+					else
+					{
+						base.currentLocation.projectiles.Add(new BasicProjectile(base.DamageToFarmer, 4, 0, 0, (float)Math.PI / 16f, v.X, v.Y, new Vector2(base.Position.X, base.Position.Y), "skeletonHit", "skeletonStep", explode: false, damagesMonsters: false, base.currentLocation, this));
+					}
 				}
 			}
-			else if (spottedPlayer && controller == null && Game1.random.NextDouble() < 0.002 && !base.wildernessFarmMonster && Utility.doesPointHaveLineOfSightInMine(base.currentLocation, getTileLocation(), base.Player.getTileLocation(), 8))
+			else if (spottedPlayer && controller == null && Game1.random.NextDouble() < (isMage ? 0.008 : 0.002) && !base.wildernessFarmMonster && Utility.doesPointHaveLineOfSightInMine(base.currentLocation, getTileLocation(), base.Player.getTileLocation(), 8))
 			{
 				throwing.Value = true;
 				Halt();
@@ -182,10 +225,12 @@ namespace StardewValley.Monsters
 			}
 			else if (spottedPlayer && controller == null && controllerAttemptTimer <= 0)
 			{
-				controller = new PathFindController(this, base.currentLocation, new Point(base.Player.getStandingX() / 64, base.Player.getStandingY() / 64), Game1.random.Next(4), null, 200);
-				Halt();
-				facePlayer(base.Player);
+				controller = new PathFindController(this, base.currentLocation, new Point(base.Player.getStandingX() / 64, base.Player.getStandingY() / 64), -1, null, 200);
 				controllerAttemptTimer = (base.wildernessFarmMonster ? 2000 : 1000);
+				if (controller == null || controller.pathToEndPoint == null || controller.pathToEndPoint.Count == 0)
+				{
+					Halt();
+				}
 			}
 			else if (base.wildernessFarmMonster)
 			{

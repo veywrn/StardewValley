@@ -28,6 +28,8 @@ namespace StardewValley.Menus
 
 		public const int region_special_skullkey = 10210;
 
+		public const int region_special_townkey = 10211;
+
 		public const int region_skillArea1 = 0;
 
 		public const int region_skillArea2 = 1;
@@ -79,6 +81,10 @@ namespace StardewValley.Menus
 					leftNeighborID = -99998
 				});
 			}
+			else
+			{
+				specialItems.Add(null);
+			}
 			if (Game1.player.hasRustyKey)
 			{
 				specialItems.Add(new ClickableTextureComponent("", new Rectangle(baseX + 68, baseY, 64, 64), null, Game1.content.LoadString("Strings\\StringsFromCSFiles:SkillsPage.cs.11588"), Game1.mouseCursors, new Rectangle(145, 320, 16, 16), 4f, drawShadow: true)
@@ -88,6 +94,10 @@ namespace StardewValley.Menus
 					leftNeighborID = -99998,
 					upNeighborID = 4
 				});
+			}
+			else
+			{
+				specialItems.Add(null);
 			}
 			if (Game1.player.hasClubCard)
 			{
@@ -99,6 +109,10 @@ namespace StardewValley.Menus
 					upNeighborID = 4
 				});
 			}
+			else
+			{
+				specialItems.Add(null);
+			}
 			if (Game1.player.hasSpecialCharm)
 			{
 				specialItems.Add(new ClickableTextureComponent("", new Rectangle(baseX + 204, baseY, 64, 64), null, Game1.content.LoadString("Strings\\StringsFromCSFiles:SkillsPage.cs.11590"), Game1.mouseCursors, new Rectangle(176, 320, 16, 16), 4f, drawShadow: true)
@@ -108,6 +122,10 @@ namespace StardewValley.Menus
 					leftNeighborID = -99998,
 					upNeighborID = 4
 				});
+			}
+			else
+			{
+				specialItems.Add(null);
 			}
 			if (Game1.player.hasSkullKey)
 			{
@@ -119,6 +137,10 @@ namespace StardewValley.Menus
 					upNeighborID = 4
 				});
 			}
+			else
+			{
+				specialItems.Add(null);
+			}
 			if (Game1.player.hasMagnifyingGlass)
 			{
 				specialItems.Add(new ClickableTextureComponent("", new Rectangle(baseX + 340, baseY, 64, 64), null, Game1.content.LoadString("Strings\\StringsFromCSFiles:SkillsPage.cs.magnifyingglass"), Game1.mouseCursors, new Rectangle(208, 320, 16, 16), 4f, drawShadow: true)
@@ -128,6 +150,10 @@ namespace StardewValley.Menus
 					leftNeighborID = -99998,
 					upNeighborID = 4
 				});
+			}
+			else
+			{
+				specialItems.Add(null);
 			}
 			if (Game1.player.hasDarkTalisman)
 			{
@@ -139,6 +165,10 @@ namespace StardewValley.Menus
 					upNeighborID = 4
 				});
 			}
+			else
+			{
+				specialItems.Add(null);
+			}
 			if (Game1.player.hasMagicInk)
 			{
 				specialItems.Add(new ClickableTextureComponent("", new Rectangle(baseX + 476, baseY, 64, 64), null, Game1.content.LoadString("Strings\\Objects:MagicInk"), Game1.mouseCursors, new Rectangle(241, 320, 16, 16), 4f, drawShadow: true)
@@ -148,6 +178,10 @@ namespace StardewValley.Menus
 					leftNeighborID = -99998,
 					upNeighborID = 4
 				});
+			}
+			else
+			{
+				specialItems.Add(null);
 			}
 			if (Game1.player.eventsSeen.Contains(2120303))
 			{
@@ -159,6 +193,10 @@ namespace StardewValley.Menus
 					upNeighborID = 4
 				});
 			}
+			else
+			{
+				specialItems.Add(null);
+			}
 			if (Game1.player.eventsSeen.Contains(3910979))
 			{
 				specialItems.Add(new ClickableTextureComponent("", new Rectangle(baseX + 612, baseY, 64, 64), null, Game1.content.LoadString("Strings\\Objects:SpringOnionBugs"), Game1.mouseCursors, new Rectangle(208, 336, 16, 16), 4f, drawShadow: true)
@@ -169,6 +207,34 @@ namespace StardewValley.Menus
 					upNeighborID = 4
 				});
 			}
+			else
+			{
+				specialItems.Add(null);
+			}
+			if (Game1.player.HasTownKey)
+			{
+				specialItems.Add(new ClickableTextureComponent("", new Rectangle(baseX, baseY, 64, 64), null, Game1.content.LoadString("Strings\\StringsFromCSFiles:KeyToTheTown"), Game1.objectSpriteSheet, Game1.getSourceRectForStandardTileSheet(Game1.objectSpriteSheet, 912, 16, 16), 4f, drawShadow: true)
+				{
+					myID = 10211,
+					rightNeighborID = -99998,
+					leftNeighborID = -99998,
+					upNeighborID = 4
+				});
+			}
+			else
+			{
+				specialItems.Add(null);
+			}
+			int spacing = 680 / specialItems.Count;
+			for (int m = 0; m < specialItems.Count; m++)
+			{
+				if (specialItems[m] != null)
+				{
+					specialItems[m].bounds.X = baseX + m * spacing;
+				}
+			}
+			ClickableComponent.SetUpNeighbors(specialItems, 4);
+			ClickableComponent.ChainNeighborsLeftRight(specialItems);
 			int addedX = 0;
 			int drawX = (LocalizedContentManager.CurrentLanguageCode == LocalizedContentManager.LanguageCode.ru || LocalizedContentManager.CurrentLanguageCode == LocalizedContentManager.LanguageCode.it) ? (xPositionOnScreen + width - 448 - 48 + 4) : (xPositionOnScreen + IClickableMenu.borderWidth + IClickableMenu.spaceToClearTopBorder + 256 - 4);
 			int drawY = yPositionOnScreen + IClickableMenu.spaceToClearTopBorder + IClickableMenu.borderWidth - 12;
@@ -332,7 +398,7 @@ namespace StardewValley.Menus
 			professionImage = -1;
 			foreach (ClickableTextureComponent c3 in specialItems)
 			{
-				if (c3.containsPoint(x, y))
+				if (c3 != null && c3.containsPoint(x, y))
 				{
 					hoverText = c3.hoverText;
 					break;
@@ -375,20 +441,20 @@ namespace StardewValley.Menus
 
 		public override void draw(SpriteBatch b)
 		{
-			int x2 = xPositionOnScreen + 64 - 12;
-			int y2 = yPositionOnScreen + IClickableMenu.borderWidth + IClickableMenu.spaceToClearTopBorder;
-			b.Draw((Game1.timeOfDay >= 1900) ? Game1.nightbg : Game1.daybg, new Vector2(x2, y2), Color.White);
+			int x = xPositionOnScreen + 64 - 12;
+			int y3 = yPositionOnScreen + IClickableMenu.borderWidth + IClickableMenu.spaceToClearTopBorder;
+			b.Draw((Game1.timeOfDay >= 1900) ? Game1.nightbg : Game1.daybg, new Vector2(x, y3), Color.White);
 			FarmerRenderer.isDrawingForUI = true;
-			Game1.player.FarmerRenderer.draw(b, new FarmerSprite.AnimationFrame(Game1.player.bathingClothes ? 108 : playerPanelFrames[playerPanelIndex], 0, secondaryArm: false, flip: false), Game1.player.bathingClothes ? 108 : playerPanelFrames[playerPanelIndex], new Rectangle(playerPanelFrames[playerPanelIndex] * 16, Game1.player.bathingClothes ? 576 : 0, 16, 32), new Vector2(x2 + 32, y2 + 32), Vector2.Zero, 0.8f, 2, Color.White, 0f, 1f, Game1.player);
+			Game1.player.FarmerRenderer.draw(b, new FarmerSprite.AnimationFrame(Game1.player.bathingClothes ? 108 : playerPanelFrames[playerPanelIndex], 0, secondaryArm: false, flip: false), Game1.player.bathingClothes ? 108 : playerPanelFrames[playerPanelIndex], new Rectangle(playerPanelFrames[playerPanelIndex] * 16, Game1.player.bathingClothes ? 576 : 0, 16, 32), new Vector2(x + 32, y3 + 32), Vector2.Zero, 0.8f, 2, Color.White, 0f, 1f, Game1.player);
 			if (Game1.timeOfDay >= 1900)
 			{
-				Game1.player.FarmerRenderer.draw(b, new FarmerSprite.AnimationFrame(playerPanelFrames[playerPanelIndex], 0, secondaryArm: false, flip: false), playerPanelFrames[playerPanelIndex], new Rectangle(playerPanelFrames[playerPanelIndex] * 16, 0, 16, 32), new Vector2(x2 + 32, y2 + 32), Vector2.Zero, 0.8f, 2, Color.DarkBlue * 0.3f, 0f, 1f, Game1.player);
+				Game1.player.FarmerRenderer.draw(b, new FarmerSprite.AnimationFrame(playerPanelFrames[playerPanelIndex], 0, secondaryArm: false, flip: false), playerPanelFrames[playerPanelIndex], new Rectangle(playerPanelFrames[playerPanelIndex] * 16, 0, 16, 32), new Vector2(x + 32, y3 + 32), Vector2.Zero, 0.8f, 2, Color.DarkBlue * 0.3f, 0f, 1f, Game1.player);
 			}
 			FarmerRenderer.isDrawingForUI = false;
-			b.DrawString(Game1.smallFont, Game1.player.Name, new Vector2((float)(x2 + 64) - Game1.smallFont.MeasureString(Game1.player.Name).X / 2f, y2 + 192 + 4), Game1.textColor);
-			b.DrawString(Game1.smallFont, Game1.player.getTitle(), new Vector2((float)(x2 + 64) - Game1.smallFont.MeasureString(Game1.player.getTitle()).X / 2f, y2 + 256 - 32), Game1.textColor);
-			x2 = ((LocalizedContentManager.CurrentLanguageCode == LocalizedContentManager.LanguageCode.ru || LocalizedContentManager.CurrentLanguageCode == LocalizedContentManager.LanguageCode.it) ? (xPositionOnScreen + width - 448 - 48) : (xPositionOnScreen + IClickableMenu.borderWidth + IClickableMenu.spaceToClearTopBorder + 256 - 8));
-			y2 = yPositionOnScreen + IClickableMenu.spaceToClearTopBorder + IClickableMenu.borderWidth - 8;
+			b.DrawString(Game1.smallFont, Game1.player.Name, new Vector2((float)(x + 64) - Game1.smallFont.MeasureString(Game1.player.Name).X / 2f, y3 + 192 + 4), Game1.textColor);
+			b.DrawString(Game1.smallFont, Game1.player.getTitle(), new Vector2((float)(x + 64) - Game1.smallFont.MeasureString(Game1.player.getTitle()).X / 2f, y3 + 256 - 32), Game1.textColor);
+			x = ((LocalizedContentManager.CurrentLanguageCode == LocalizedContentManager.LanguageCode.ru || LocalizedContentManager.CurrentLanguageCode == LocalizedContentManager.LanguageCode.it) ? (xPositionOnScreen + width - 448 - 48) : (xPositionOnScreen + IClickableMenu.borderWidth + IClickableMenu.spaceToClearTopBorder + 256 - 8));
+			y3 = yPositionOnScreen + IClickableMenu.spaceToClearTopBorder + IClickableMenu.borderWidth - 8;
 			int addedX = 0;
 			for (int j = 0; j < 10; j++)
 			{
@@ -438,7 +504,7 @@ namespace StardewValley.Menus
 							skill = Game1.content.LoadString("Strings\\StringsFromCSFiles:SkillsPage.cs.11607");
 						}
 						skillLevel = Game1.player.FishingLevel;
-						addedSkill = ((int)Game1.player.addedFishingLevel > 0);
+						addedSkill = ((int)Game1.player.addedFishingLevel > 0 || (Game1.player.CurrentTool != null && Game1.player.CurrentTool.hasEnchantmentOfType<MasterEnchantment>()));
 						iconSource = new Rectangle(20, 428, 10, 10);
 						break;
 					case 4:
@@ -464,24 +530,24 @@ namespace StardewValley.Menus
 					}
 					if (!skill.Equals(""))
 					{
-						b.DrawString(Game1.smallFont, skill, new Vector2((float)x2 - Game1.smallFont.MeasureString(skill).X + 4f - 64f, y2 + 4 + i * 56), Game1.textColor);
-						b.Draw(Game1.mouseCursors, new Vector2(x2 - 56, y2 + i * 56), iconSource, Color.Black * 0.3f, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.85f);
-						b.Draw(Game1.mouseCursors, new Vector2(x2 - 52, y2 - 4 + i * 56), iconSource, Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.87f);
+						b.DrawString(Game1.smallFont, skill, new Vector2((float)x - Game1.smallFont.MeasureString(skill).X + 4f - 64f, y3 + 4 + i * 56), Game1.textColor);
+						b.Draw(Game1.mouseCursors, new Vector2(x - 56, y3 + i * 56), iconSource, Color.Black * 0.3f, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.85f);
+						b.Draw(Game1.mouseCursors, new Vector2(x - 52, y3 - 4 + i * 56), iconSource, Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.87f);
 					}
 					if (!drawRed && (j + 1) % 5 == 0)
 					{
-						b.Draw(Game1.mouseCursors, new Vector2(addedX + x2 - 4 + j * 36, y2 + i * 56), new Rectangle(145, 338, 14, 9), Color.Black * 0.35f, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.87f);
-						b.Draw(Game1.mouseCursors, new Vector2(addedX + x2 + j * 36, y2 - 4 + i * 56), new Rectangle(145 + (drawRed ? 14 : 0), 338, 14, 9), Color.White * (drawRed ? 1f : 0.65f), 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.87f);
+						b.Draw(Game1.mouseCursors, new Vector2(addedX + x - 4 + j * 36, y3 + i * 56), new Rectangle(145, 338, 14, 9), Color.Black * 0.35f, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.87f);
+						b.Draw(Game1.mouseCursors, new Vector2(addedX + x + j * 36, y3 - 4 + i * 56), new Rectangle(145 + (drawRed ? 14 : 0), 338, 14, 9), Color.White * (drawRed ? 1f : 0.65f), 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.87f);
 					}
 					else if ((j + 1) % 5 != 0)
 					{
-						b.Draw(Game1.mouseCursors, new Vector2(addedX + x2 - 4 + j * 36, y2 + i * 56), new Rectangle(129, 338, 8, 9), Color.Black * 0.35f, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.85f);
-						b.Draw(Game1.mouseCursors, new Vector2(addedX + x2 + j * 36, y2 - 4 + i * 56), new Rectangle(129 + (drawRed ? 8 : 0), 338, 8, 9), Color.White * (drawRed ? 1f : 0.65f), 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.87f);
+						b.Draw(Game1.mouseCursors, new Vector2(addedX + x - 4 + j * 36, y3 + i * 56), new Rectangle(129, 338, 8, 9), Color.Black * 0.35f, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.85f);
+						b.Draw(Game1.mouseCursors, new Vector2(addedX + x + j * 36, y3 - 4 + i * 56), new Rectangle(129 + (drawRed ? 8 : 0), 338, 8, 9), Color.White * (drawRed ? 1f : 0.65f), 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.87f);
 					}
 					if (j == 9)
 					{
-						NumberSprite.draw(skillLevel, b, new Vector2(addedX + x2 + (j + 2) * 36 + 12 + ((skillLevel >= 10) ? 12 : 0), y2 + 16 + i * 56), Color.Black * 0.35f, 1f, 0.85f, 1f, 0);
-						NumberSprite.draw(skillLevel, b, new Vector2(addedX + x2 + (j + 2) * 36 + 16 + ((skillLevel >= 10) ? 12 : 0), y2 + 12 + i * 56), (addedSkill ? Color.LightGreen : Color.SandyBrown) * ((skillLevel == 0) ? 0.75f : 1f), 1f, 0.87f, 1f, 0);
+						NumberSprite.draw(skillLevel, b, new Vector2(addedX + x + (j + 2) * 36 + 12 + ((skillLevel >= 10) ? 12 : 0), y3 + 16 + i * 56), Color.Black * 0.35f, 1f, 0.85f, 1f, 0);
+						NumberSprite.draw(skillLevel, b, new Vector2(addedX + x + (j + 2) * 36 + 16 + ((skillLevel >= 10) ? 12 : 0), y3 + 12 + i * 56), (addedSkill ? Color.LightGreen : Color.SandyBrown) * ((skillLevel == 0) ? 0.75f : 1f), 1f, 0.87f, 1f, 0);
 					}
 				}
 				if ((j + 1) % 5 == 0)
@@ -501,11 +567,27 @@ namespace StardewValley.Menus
 					b.Draw(Game1.mouseCursors, new Vector2(c.bounds.X - 8, c.bounds.Y - 32 + 16), new Rectangle(professionImage % 6 * 16, 624 + professionImage / 6 * 16, 16, 16), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
 				}
 			}
+			x = xPositionOnScreen + IClickableMenu.spaceToClearSideBorder + 32 + 16;
+			y3 = yPositionOnScreen + IClickableMenu.spaceToClearTopBorder + 320 - 8;
+			if ((int)Game1.netWorldState.Value.GoldenWalnuts > 0)
+			{
+				b.Draw(Game1.objectSpriteSheet, new Vector2(x, y3), Game1.getSourceRectForStandardTileSheet(Game1.objectSpriteSheet, 73, 16, 16), Color.White, 0f, Vector2.Zero, 2f, SpriteEffects.None, 0f);
+				x += 48;
+				b.DrawString(Game1.smallFont, string.Concat((object)Game1.netWorldState.Value.GoldenWalnuts), new Vector2(x, y3), Game1.textColor);
+				x += 64;
+			}
+			if (Game1.player.QiGems > 0)
+			{
+				b.Draw(Game1.objectSpriteSheet, new Vector2(x, y3), Game1.getSourceRectForStandardTileSheet(Game1.objectSpriteSheet, 858, 16, 16), Color.White, 0f, Vector2.Zero, 2f, SpriteEffects.None, 0f);
+				x += 48;
+				b.DrawString(Game1.smallFont, string.Concat(Game1.player.QiGems), new Vector2(x, y3), Game1.textColor);
+				x += 64;
+			}
 			Game1.drawDialogueBox(xPositionOnScreen + IClickableMenu.spaceToClearSideBorder + 32, yPositionOnScreen + IClickableMenu.spaceToClearTopBorder + (int)((float)height / 2f) - 32, width - 64 - IClickableMenu.spaceToClearSideBorder * 2, height / 4 + 64, speaker: false, drawOnlyBox: true);
 			drawBorderLabel(b, Game1.content.LoadString("Strings\\StringsFromCSFiles:SkillsPage.cs.11610"), Game1.smallFont, xPositionOnScreen + IClickableMenu.spaceToClearSideBorder + 96, yPositionOnScreen + IClickableMenu.spaceToClearTopBorder + (int)((float)height / 2f) - 32);
 			foreach (ClickableTextureComponent specialItem in specialItems)
 			{
-				specialItem.draw(b);
+				specialItem?.draw(b);
 			}
 			if (hoverText.Length > 0)
 			{

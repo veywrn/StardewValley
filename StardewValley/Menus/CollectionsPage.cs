@@ -59,19 +59,23 @@ namespace StardewValley.Menus
 
 		public Dictionary<int, ClickableTextureComponent> sideTabs = new Dictionary<int, ClickableTextureComponent>();
 
-		private int currentTab;
+		public int currentTab;
 
-		private int currentPage;
+		public int currentPage;
 
-		private int secretNoteImage = -1;
+		public int secretNoteImage = -1;
 
 		public Dictionary<int, List<List<ClickableTextureComponent>>> collections = new Dictionary<int, List<List<ClickableTextureComponent>>>();
 
-		private Dictionary<int, string> secretNotesData;
+		public Dictionary<int, string> secretNotesData;
 
-		private Texture2D secretNoteImageTexture;
+		public Texture2D secretNoteImageTexture;
 
 		public LetterViewerMenu letterviewerSubMenu;
+
+		private Item hoverItem;
+
+		private CraftingRecipe hoverCraftingRecipe;
 
 		private int value;
 
@@ -179,6 +183,7 @@ namespace StardewValley.Menus
 				string typeString = kvp2.Value.Split('/')[3];
 				int whichCollection2 = 0;
 				bool farmerHas2 = false;
+				bool farmerHasButNotMade = false;
 				if (typeString.Contains("Arch"))
 				{
 					whichCollection2 = 2;
@@ -189,7 +194,7 @@ namespace StardewValley.Menus
 				}
 				else if (typeString.Contains("Fish"))
 				{
-					if (kvp2.Key >= 167 && kvp2.Key < 173)
+					if ((kvp2.Key >= 167 && kvp2.Key <= 172) || (kvp2.Key >= 898 && kvp2.Key <= 902))
 					{
 						continue;
 					}
@@ -210,11 +215,37 @@ namespace StardewValley.Menus
 				else if (typeString.Contains("Cooking") || typeString.Substring(typeString.Length - 3).Equals("-7"))
 				{
 					whichCollection2 = 4;
+					string last_minute_1_5_hack_name = kvp2.Value.Split('/')[0];
+					switch (last_minute_1_5_hack_name)
+					{
+					case "Cheese Cauli.":
+						last_minute_1_5_hack_name = "Cheese Cauliflower";
+						break;
+					case "Vegetable Medley":
+						last_minute_1_5_hack_name = "Vegetable Stew";
+						break;
+					case "Cookie":
+						last_minute_1_5_hack_name = "Cookies";
+						break;
+					case "Eggplant Parmesan":
+						last_minute_1_5_hack_name = "Eggplant Parm.";
+						break;
+					case "Cranberry Sauce":
+						last_minute_1_5_hack_name = "Cran. Sauce";
+						break;
+					case "Dish O' The Sea":
+						last_minute_1_5_hack_name = "Dish o' The Sea";
+						break;
+					}
 					if (Game1.player.recipesCooked.ContainsKey(kvp2.Key))
 					{
 						farmerHas2 = true;
 					}
-					if (kvp2.Key == 217 || kvp2.Key == 772 || kvp2.Key == 773 || kvp2.Key == 279)
+					else if (Game1.player.cookingRecipes.ContainsKey(last_minute_1_5_hack_name))
+					{
+						farmerHasButNotMade = true;
+					}
+					if (kvp2.Key == 217 || kvp2.Key == 772 || kvp2.Key == 773 || kvp2.Key == 279 || kvp2.Key == 873)
 					{
 						continue;
 					}
@@ -244,7 +275,7 @@ namespace StardewValley.Menus
 				{
 					collections[whichCollection2].Add(new List<ClickableTextureComponent>());
 				}
-				collections[whichCollection2].Last().Add(new ClickableTextureComponent(kvp2.Key + " " + farmerHas2.ToString(), new Rectangle(xPos4, yPos4, 64, 64), null, "", Game1.objectSpriteSheet, Game1.getSourceRectForStandardTileSheet(Game1.objectSpriteSheet, kvp2.Key, 16, 16), 4f, farmerHas2)
+				collections[whichCollection2].Last().Add(new ClickableTextureComponent(kvp2.Key + " " + farmerHas2.ToString() + " " + farmerHasButNotMade.ToString(), new Rectangle(xPos4, yPos4, 64, 64), null, "", Game1.objectSpriteSheet, Game1.getSourceRectForStandardTileSheet(Game1.objectSpriteSheet, kvp2.Key, 16, 16), 4f, farmerHas2)
 				{
 					myID = collections[whichCollection2].Last().Count,
 					rightNeighborID = (((collections[whichCollection2].Last().Count + 1) % collectionWidth == 0) ? (-1) : (collections[whichCollection2].Last().Count + 1)),
@@ -279,11 +310,30 @@ namespace StardewValley.Menus
 				}
 				secretNotesData = Game1.content.Load<Dictionary<int, string>>("Data\\SecretNotes");
 				secretNoteImageTexture = Game1.temporaryContent.Load<Texture2D>("TileSheets\\SecretNotesImages");
+				bool show_journals = Game1.player.secretNotesSeen.Contains(GameLocation.JOURNAL_INDEX + 1);
 				foreach (int i in secretNotesData.Keys)
 				{
+					if (i >= GameLocation.JOURNAL_INDEX)
+					{
+						if (!show_journals)
+						{
+							continue;
+						}
+					}
+					else if (!Game1.player.hasMagnifyingGlass)
+					{
+						continue;
+					}
 					int xPos2 = baseX + widthUsed[6] % collectionWidth * 68;
 					int yPos2 = baseY + widthUsed[6] / collectionWidth * 68;
-					collections[6][0].Add(new ClickableTextureComponent(i + " " + Game1.player.secretNotesSeen.Contains(i).ToString(), new Rectangle(xPos2, yPos2, 64, 64), null, "", Game1.objectSpriteSheet, Game1.getSourceRectForStandardTileSheet(Game1.objectSpriteSheet, 79, 16, 16), 4f, Game1.player.secretNotesSeen.Contains(i)));
+					if (i >= GameLocation.JOURNAL_INDEX)
+					{
+						collections[6][0].Add(new ClickableTextureComponent(i + " " + Game1.player.secretNotesSeen.Contains(i).ToString(), new Rectangle(xPos2, yPos2, 64, 64), null, "", Game1.objectSpriteSheet, Game1.getSourceRectForStandardTileSheet(Game1.objectSpriteSheet, 842, 16, 16), 4f, Game1.player.secretNotesSeen.Contains(i)));
+					}
+					else
+					{
+						collections[6][0].Add(new ClickableTextureComponent(i + " " + Game1.player.secretNotesSeen.Contains(i).ToString(), new Rectangle(xPos2, yPos2, 64, 64), null, "", Game1.objectSpriteSheet, Game1.getSourceRectForStandardTileSheet(Game1.objectSpriteSheet, 79, 16, 16), 4f, Game1.player.secretNotesSeen.Contains(i)));
+					}
 					widthUsed[6]++;
 				}
 			}
@@ -375,6 +425,15 @@ namespace StardewValley.Menus
 			return true;
 		}
 
+		public override bool readyToClose()
+		{
+			if (letterviewerSubMenu != null)
+			{
+				return false;
+			}
+			return base.readyToClose();
+		}
+
 		public override void update(GameTime time)
 		{
 			base.update(time);
@@ -390,6 +449,15 @@ namespace StardewValley.Menus
 				{
 					snapCursorToCurrentSnappedComponent();
 				}
+			}
+		}
+
+		public override void receiveKeyPress(Keys key)
+		{
+			base.receiveKeyPress(key);
+			if (letterviewerSubMenu != null)
+			{
+				letterviewerSubMenu.receiveKeyPress(key);
 			}
 		}
 
@@ -436,11 +504,28 @@ namespace StardewValley.Menus
 			if (currentTab == 7)
 			{
 				Dictionary<string, string> mail = Game1.content.Load<Dictionary<string, string>>("Data\\mail");
+				foreach (ClickableTextureComponent c2 in collections[currentTab][currentPage])
+				{
+					if (c2.containsPoint(x, y))
+					{
+						letterviewerSubMenu = new LetterViewerMenu(mail[c2.name.Split(' ')[0]], c2.name.Split(' ')[0], fromCollection: true);
+					}
+				}
+			}
+			else if (currentTab == 6)
+			{
 				foreach (ClickableTextureComponent c in collections[currentTab][currentPage])
 				{
 					if (c.containsPoint(x, y))
 					{
-						letterviewerSubMenu = new LetterViewerMenu(mail[c.name.Split(' ')[0]], c.name.Split(' ')[0], fromCollection: true);
+						int index = -1;
+						string[] split = c.name.Split(' ');
+						if (split[1] == "True" && int.TryParse(split[0], out index))
+						{
+							letterviewerSubMenu = new LetterViewerMenu(index);
+							letterviewerSubMenu.isFromCollection = true;
+							break;
+						}
 					}
 				}
 			}
@@ -514,12 +599,14 @@ namespace StardewValley.Menus
 					return;
 				}
 			}
+			bool hoveredAny = false;
 			foreach (ClickableTextureComponent c in collections[currentTab][currentPage])
 			{
 				if (c.containsPoint(x, y))
 				{
 					c.scale = Math.Min(c.scale + 0.02f, c.baseScale + 0.1f);
-					if (currentTab == 5 || Convert.ToBoolean(c.name.Split(' ')[1]))
+					string[] data_split = c.name.Split(' ');
+					if (currentTab == 5 || (data_split.Length > 1 && Convert.ToBoolean(data_split[1])) || (data_split.Length > 2 && Convert.ToBoolean(data_split[2])))
 					{
 						if (currentTab == 7)
 						{
@@ -527,18 +614,27 @@ namespace StardewValley.Menus
 						}
 						else
 						{
-							hoverText = createDescription(Convert.ToInt32(c.name.Split(' ')[0]));
+							hoverText = createDescription(Convert.ToInt32(data_split[0]));
 						}
 					}
 					else
 					{
+						if (hoverText != "???")
+						{
+							hoverItem = null;
+						}
 						hoverText = "???";
 					}
+					hoveredAny = true;
 				}
 				else
 				{
 					c.scale = Math.Max(c.scale - 0.02f, c.baseScale);
 				}
+			}
+			if (!hoveredAny)
+			{
+				hoverItem = null;
 			}
 			forwardButton.tryHover(x, y, 0.5f);
 			backButton.tryHover(x, y, 0.5f);
@@ -549,23 +645,38 @@ namespace StardewValley.Menus
 			string description3 = "";
 			if (currentTab == 5)
 			{
-				string[] split2 = Game1.achievements[index].Split('^');
-				description3 = description3 + split2[0] + Environment.NewLine + Environment.NewLine;
-				description3 += split2[1];
+				string[] split3 = Game1.achievements[index].Split('^');
+				description3 = description3 + split3[0] + Environment.NewLine + Environment.NewLine;
+				description3 += split3[1];
 			}
 			else if (currentTab == 6)
 			{
 				if (secretNotesData != null)
 				{
-					description3 = description3 + Game1.content.LoadString("Strings\\Locations:Secret_Note_Name") + " #" + index;
+					description3 = ((index >= GameLocation.JOURNAL_INDEX) ? (description3 + Game1.content.LoadString("Strings\\Locations:Journal_Name") + " #" + (index - GameLocation.JOURNAL_INDEX)) : (description3 + Game1.content.LoadString("Strings\\Locations:Secret_Note_Name") + " #" + index));
 					if (secretNotesData[index][0] == '!')
 					{
 						secretNoteImage = Convert.ToInt32(secretNotesData[index].Split(' ')[1]);
 					}
 					else
 					{
-						description3 = description3 + Environment.NewLine + Environment.NewLine + Game1.parseText(Utility.ParseGiftReveals(secretNotesData[index]).TrimStart(' ', '^').Replace("^", Environment.NewLine)
+						string letter_text = Game1.parseText(Utility.ParseGiftReveals(secretNotesData[index]).TrimStart(' ', '^').Replace("^", Environment.NewLine)
 							.Replace("@", Game1.player.name), Game1.smallFont, 512);
+						string[] split2 = letter_text.Split(new string[1]
+						{
+							Environment.NewLine
+						}, StringSplitOptions.None);
+						int max_lines = 15;
+						if (split2.Length > max_lines)
+						{
+							string[] new_split = new string[max_lines];
+							for (int i = 0; i < max_lines; i++)
+							{
+								new_split[i] = split2[i];
+							}
+							letter_text = string.Join(Environment.NewLine, new_split).Trim() + Environment.NewLine + "(...)";
+						}
+						description3 = description3 + Environment.NewLine + Environment.NewLine + letter_text;
 					}
 				}
 			}
@@ -581,6 +692,33 @@ namespace StardewValley.Menus
 				else if (split[3].Contains("Cooking"))
 				{
 					description3 += (Game1.player.recipesCooked.ContainsKey(index) ? Game1.content.LoadString("Strings\\UI:Collections_Description_RecipesCooked", Game1.player.recipesCooked[index]) : "");
+					if (hoverItem == null || hoverItem.ParentSheetIndex != index)
+					{
+						hoverItem = new Object(index, 1);
+						string last_minute_1_5_hack_name = hoverItem.Name;
+						switch (last_minute_1_5_hack_name)
+						{
+						case "Cheese Cauli.":
+							last_minute_1_5_hack_name = "Cheese Cauliflower";
+							break;
+						case "Vegetable Medley":
+							last_minute_1_5_hack_name = "Vegetable Stew";
+							break;
+						case "Cookie":
+							last_minute_1_5_hack_name = "Cookies";
+							break;
+						case "Eggplant Parmesan":
+							last_minute_1_5_hack_name = "Eggplant Parm.";
+							break;
+						case "Cranberry Sauce":
+							last_minute_1_5_hack_name = "Cran. Sauce";
+							break;
+						case "Dish O' The Sea":
+							last_minute_1_5_hack_name = "Dish o' The Sea";
+							break;
+						}
+						hoverCraftingRecipe = new CraftingRecipe(last_minute_1_5_hack_name, isCookingRecipe: true);
+					}
 				}
 				else if (!split[3].Contains("Fish"))
 				{
@@ -591,7 +729,7 @@ namespace StardewValley.Menus
 					description3 += Game1.content.LoadString("Strings\\UI:Collections_Description_FishCaught", Game1.player.fishCaught.ContainsKey(index) ? Game1.player.fishCaught[index][0] : 0);
 					if (Game1.player.fishCaught.ContainsKey(index) && Game1.player.fishCaught[index][1] > 0)
 					{
-						description3 = description3 + Environment.NewLine + Game1.content.LoadString("Strings\\UI:Collections_Description_BiggestCatch", (LocalizedContentManager.CurrentLanguageCode != 0) ? Math.Round((double)Game1.player.fishCaught[index][1] * 2.54) : ((double)Game1.player.fishCaught[index][1]));
+						description3 = description3 + Environment.NewLine + Game1.content.LoadString("Strings\\UI:Collections_Description_BiggestCatch", Game1.content.LoadString("Strings\\StringsFromCSFiles:FishingRod.cs.14083", (LocalizedContentManager.CurrentLanguageCode != 0) ? Math.Round((double)Game1.player.fishCaught[index][1] * 2.54) : ((double)Game1.player.fishCaught[index][1])));
 					}
 				}
 				value = Convert.ToInt32(split[1]);
@@ -614,11 +752,12 @@ namespace StardewValley.Menus
 				forwardButton.draw(b);
 			}
 			b.End();
-			b.Begin(SpriteSortMode.FrontToBack, BlendState.NonPremultiplied, SamplerState.PointClamp, null, null);
+			b.Begin(SpriteSortMode.FrontToBack, BlendState.AlphaBlend, SamplerState.PointClamp, null, null);
 			foreach (ClickableTextureComponent c in collections[currentTab][currentPage])
 			{
 				bool drawColor = Convert.ToBoolean(c.name.Split(' ')[1]);
-				c.draw(b, drawColor ? Color.White : (Color.Black * 0.2f), 0.86f);
+				bool drawColorFaded = currentTab == 4 && Convert.ToBoolean(c.name.Split(' ')[2]);
+				c.draw(b, drawColorFaded ? (Color.DimGray * 0.4f) : (drawColor ? Color.White : (Color.Black * 0.2f)), 0.86f);
 				if (currentTab == 5 && drawColor)
 				{
 					int StarPos = new Random(Convert.ToInt32(c.name.Split(' ')[0])).Next(12);
@@ -627,7 +766,11 @@ namespace StardewValley.Menus
 			}
 			b.End();
 			b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, null);
-			if (!hoverText.Equals(""))
+			if (hoverItem != null)
+			{
+				IClickableMenu.drawToolTip(b, hoverItem.getDescription(), hoverItem.DisplayName, hoverItem, heldItem: false, -1, 0, -1, -1, hoverCraftingRecipe);
+			}
+			else if (!hoverText.Equals(""))
 			{
 				IClickableMenu.drawHoverText(b, hoverText, Game1.smallFont, 0, 0, value);
 				if (secretNoteImage != -1)

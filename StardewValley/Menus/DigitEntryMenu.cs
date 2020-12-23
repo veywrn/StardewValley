@@ -20,7 +20,7 @@ namespace StardewValley.Menus
 
 		private static string clear = "c";
 
-		protected override Vector2 centerPosition => new Vector2(Game1.viewport.Width / 2, Game1.viewport.Height / 2 + 128);
+		protected override Vector2 centerPosition => new Vector2(Game1.uiViewport.Width / 2, Game1.uiViewport.Height / 2 + 128);
 
 		public DigitEntryMenu(string message, behaviorOnNumberSelect behaviorOnSelection, int price = -1, int minValue = 0, int maxValue = 99, int defaultNumber = 0)
 			: base(message, behaviorOnSelection, price, minValue, maxValue, defaultNumber)
@@ -35,10 +35,10 @@ namespace StardewValley.Menus
 			int rowWidth = buttonsPerRow * buttonWidth + (buttonsPerRow - 1) * bufferX;
 			calculatorWidth = buttonWidth * buttonsPerRow + bufferX * (buttonsPerRow - 1) + IClickableMenu.spaceToClearSideBorder * 2 + 128;
 			calculatorHeight = buttonHeight * 4 + bufferY * 3 + IClickableMenu.spaceToClearTopBorder * 2;
-			calculatorX = Game1.viewport.Width / 2 - calculatorWidth / 2;
-			calculatorY = Game1.viewport.Height / 2 - calculatorHeight;
-			int buttonX = Game1.viewport.Width / 2;
-			int buttonY = Game1.viewport.Height / 2 - 384 + 24 + IClickableMenu.spaceToClearTopBorder;
+			calculatorX = Game1.uiViewport.Width / 2 - calculatorWidth / 2;
+			calculatorY = Game1.uiViewport.Height / 2 - calculatorHeight;
+			int buttonX = Game1.uiViewport.Width / 2;
+			int buttonY = Game1.uiViewport.Height / 2 - 384 + 24 + IClickableMenu.spaceToClearTopBorder;
 			for (int i = 0; i < 11; i++)
 			{
 				string digit = (i + 1).ToString();

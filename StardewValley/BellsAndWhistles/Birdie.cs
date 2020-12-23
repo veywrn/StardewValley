@@ -10,6 +10,10 @@ namespace StardewValley.BellsAndWhistles
 
 		public const int blueBird = 45;
 
+		public const int greenBird = 115;
+
+		public const int redBird = 120;
+
 		public const int flyingSpeed = 6;
 
 		public const int walkingSpeed = 1;

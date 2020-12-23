@@ -1,6 +1,7 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Input;
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Windows;
 
@@ -8,6 +9,16 @@ namespace StardewValley
 {
 	public class KeyboardDispatcher
 	{
+		protected string _enteredText;
+
+		protected List<char> _commandInputs = new List<char>();
+
+		protected List<Keys> _keysDown = new List<Keys>();
+
+		protected List<char> _charsEntered = new List<char>();
+
+		protected GameWindow _window;
+
 		private IKeyboardSubscriber _subscriber;
 
 		private string _pasteResult = "";
@@ -35,9 +46,23 @@ namespace StardewValley
 			}
 		}
 
+		public void Cleanup()
+		{
+			KeyboardInput.CharEntered -= EventInput_CharEntered;
+			KeyboardInput.KeyDown -= EventInput_KeyDown;
+			_window = null;
+		}
+
 		public KeyboardDispatcher(GameWindow window)
 		{
-			KeyboardInput.Initialize(window);
+			_commandInputs = new List<char>();
+			_keysDown = new List<Keys>();
+			_charsEntered = new List<char>();
+			_window = window;
+			if (Game1.game1.IsMainInstance)
+			{
+				KeyboardInput.Initialize(window);
+			}
 			KeyboardInput.CharEntered += EventInput_CharEntered;
 			KeyboardInput.KeyDown += EventInput_KeyDown;
 		}
@@ -48,26 +73,23 @@ namespace StardewValley
 			{
 				if (key == Keys.Back)
 				{
-					_subscriber.RecieveCommandInput('\b');
+					_commandInputs.Add('\b');
 				}
 				if (key == Keys.Enter)
 				{
-					_subscriber.RecieveCommandInput('\r');
+					_commandInputs.Add('\r');
 				}
 				if (key == Keys.Tab)
 				{
-					_subscriber.RecieveCommandInput('\t');
+					_commandInputs.Add('\t');
 				}
-				_subscriber.RecieveSpecialInput(key);
+				_keysDown.Add(key);
 			}
 		}
 
 		private void EventInput_KeyDown(object sender, KeyEventArgs e)
 		{
-			if (_subscriber != null)
-			{
-				_subscriber.RecieveSpecialInput(e.KeyCode);
-			}
+			_keysDown.Add(e.KeyCode);
 		}
 
 		private void EventInput_CharEntered(object sender, CharacterEventArgs e)
@@ -84,16 +106,74 @@ namespace StardewValley
 					thread.SetApartmentState(ApartmentState.STA);
 					thread.Start();
 					thread.Join();
-					_subscriber.RecieveTextInput(_pasteResult);
+					_enteredText = _pasteResult;
 				}
 				else
 				{
-					_subscriber.RecieveCommandInput(e.Character);
+					_commandInputs.Add(e.Character);
 				}
 			}
 			else
 			{
-				_subscriber.RecieveTextInput(e.Character);
+				_charsEntered.Add(e.Character);
+			}
+		}
+
+		public bool ShouldSuppress()
+		{
+			return false;
+		}
+
+		public void Discard()
+		{
+			_enteredText = null;
+			_charsEntered.Clear();
+			_commandInputs.Clear();
+			_keysDown.Clear();
+		}
+
+		public void Poll()
+		{
+			if (_enteredText != null)
+			{
+				if (_subscriber != null && !ShouldSuppress())
+				{
+					_subscriber.RecieveTextInput(_enteredText);
+				}
+				_enteredText = null;
+			}
+			if (_charsEntered.Count > 0)
+			{
+				if (_subscriber != null && !ShouldSuppress())
+				{
+					foreach (char key3 in _charsEntered)
+					{
+						_subscriber.RecieveTextInput(key3);
+					}
+				}
+				_charsEntered.Clear();
+			}
+			if (_commandInputs.Count > 0)
+			{
+				if (_subscriber != null && !ShouldSuppress())
+				{
+					foreach (char key2 in _commandInputs)
+					{
+						_subscriber.RecieveCommandInput(key2);
+					}
+				}
+				_commandInputs.Clear();
+			}
+			if (_keysDown.Count > 0)
+			{
+				if (_subscriber != null && !ShouldSuppress())
+				{
+					foreach (Keys key in _keysDown)
+					{
+						_subscriber.RecieveSpecialInput(key);
+					}
+				}
+				_keysDown.Clear();
 			}
 		}
 

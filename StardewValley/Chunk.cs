@@ -90,7 +90,14 @@ namespace StardewValley
 		public Chunk()
 		{
 			NetFields.AddFields(position.NetFields, xVelocity, yVelocity, netDebrisType, xSpriteSheet, ySpriteSheet, netScale, netAlpha, hasPassedRestingLineOnce);
-			NetFields.DeltaAggregateTicks = 30;
+			if (LocalMultiplayer.IsLocalMultiplayer(is_local_only: true))
+			{
+				NetFields.DeltaAggregateTicks = 10;
+			}
+			else
+			{
+				NetFields.DeltaAggregateTicks = 30;
+			}
 		}
 
 		public Chunk(Vector2 position, float xVelocity, float yVelocity, int debrisType)

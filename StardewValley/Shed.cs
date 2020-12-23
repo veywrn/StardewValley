@@ -78,26 +78,30 @@ namespace StardewValley
 
 		public override List<Rectangle> getWalls()
 		{
-			if ((int)upgradeLevel > 0)
+			List<Rectangle> walls = new List<Rectangle>();
+			if ((int)upgradeLevel == 0)
 			{
-				return new List<Rectangle>
-				{
-					new Rectangle(1, 1, 17, 3)
-				};
+				walls.Add(new Rectangle(1, 1, 11, 3));
 			}
-			return base.getWalls();
+			else if ((int)upgradeLevel == 1)
+			{
+				walls.Add(new Rectangle(1, 1, 17, 3));
+			}
+			return walls;
 		}
 
 		public override List<Rectangle> getFloors()
 		{
-			if ((int)upgradeLevel > 0)
+			List<Rectangle> floors = new List<Rectangle>();
+			if ((int)upgradeLevel == 0)
 			{
-				return new List<Rectangle>
-				{
-					new Rectangle(1, 3, 17, 14)
-				};
+				floors.Add(new Rectangle(1, 3, 11, 11));
 			}
-			return base.getFloors();
+			else if ((int)upgradeLevel == 1)
+			{
+				floors.Add(new Rectangle(1, 3, 17, 14));
+			}
+			return floors;
 		}
 
 		public override void draw(SpriteBatch b)

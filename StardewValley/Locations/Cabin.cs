@@ -20,7 +20,8 @@ namespace StardewValley.Locations
 		[XmlElement("farmhand")]
 		public readonly NetRef<Farmer> farmhand = new NetRef<Farmer>();
 
-		private readonly NetMutex inventoryMutex = new NetMutex();
+		[XmlIgnore]
+		public readonly NetMutex inventoryMutex = new NetMutex();
 
 		[XmlIgnore]
 		public override Farmer owner
@@ -86,8 +87,11 @@ namespace StardewValley.Locations
 			{
 				farmhand.Value.farmName.Value = Game1.MasterPlayer.farmName.Value;
 				farmhand.Value.homeLocation.Value = uniqueName;
-				farmhand.Value.currentLocation = this;
-				farmhand.Value.Position = Utility.PointToVector2(getBedSpot()) * 64f;
+				if (farmhand.Value.lastSleepLocation.Value == null || farmhand.Value.lastSleepLocation.Value == (string)uniqueName)
+				{
+					farmhand.Value.currentLocation = this;
+					farmhand.Value.Position = Utility.PointToVector2(GetPlayerBedSpot()) * 64f;
+				}
 				farmhand.Value.resetState();
 			}
 		}
@@ -123,7 +127,7 @@ namespace StardewValley.Locations
 		public override void updateEvenIfFarmerIsntHere(GameTime time, bool skipWasUpdatedFlush = false)
 		{
 			base.updateEvenIfFarmerIsntHere(time, skipWasUpdatedFlush);
-			inventoryMutex.Update(this);
+			inventoryMutex.Update(Game1.getOnlineFarmers());
 			if (inventoryMutex.IsLockHeld() && !(Game1.activeClickableMenu is ItemGrabMenu))
 			{
 				inventoryMutex.ReleaseLock();
@@ -135,7 +139,7 @@ namespace StardewValley.Locations
 			return getFarmhand().Value.items;
 		}
 
-		private void openFarmhandInventory()
+		public void openFarmhandInventory()
 		{
 			Game1.activeClickableMenu = new ItemGrabMenu(getInventory(), reverseGrab: false, showReceivingMenu: true, InventoryMenu.highlightAllItems, grabItemFromPlayerInventory, null, grabItemFromFarmhandInventory, snapToBottom: false, canBeExitedWithKey: true, playRightClickSound: true, allowRightClick: true, showOrganizeButton: true, 1, null, -1, this);
 		}

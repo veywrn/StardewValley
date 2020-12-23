@@ -1,4 +1,5 @@
 using Microsoft.Xna.Framework;
+using System.Collections.Generic;
 
 namespace StardewValley.Menus
 {
@@ -93,6 +94,58 @@ namespace StardewValley.Menus
 		public void snapMouseCursorToCenter()
 		{
 			Game1.setMousePosition(bounds.Center.X, bounds.Center.Y);
+		}
+
+		public static void SetUpNeighbors<T>(List<T> components, int id) where T : ClickableComponent
+		{
+			for (int i = 0; i < components.Count; i++)
+			{
+				T item = components[i];
+				if (item != null)
+				{
+					item.upNeighborID = id;
+				}
+			}
+		}
+
+		public static void ChainNeighborsLeftRight<T>(List<T> components) where T : ClickableComponent
+		{
+			ClickableComponent old_neighbor = null;
+			for (int i = 0; i < components.Count; i++)
+			{
+				T item = components[i];
+				if (item != null)
+				{
+					item.rightNeighborID = -1;
+					item.leftNeighborID = -1;
+					if (old_neighbor != null)
+					{
+						item.leftNeighborID = old_neighbor.myID;
+						old_neighbor.rightNeighborID = item.myID;
+					}
+					old_neighbor = item;
+				}
+			}
+		}
+
+		public static void ChainNeighborsUpDown<T>(List<T> components) where T : ClickableComponent
+		{
+			ClickableComponent old_neighbor = null;
+			for (int i = 0; i < components.Count; i++)
+			{
+				T item = components[i];
+				if (item != null)
+				{
+					item.downNeighborID = -1;
+					item.upNeighborID = -1;
+					if (old_neighbor != null)
+					{
+						item.upNeighborID = old_neighbor.myID;
+						old_neighbor.downNeighborID = item.myID;
+					}
+					old_neighbor = item;
+				}
+			}
 		}
 	}
 }

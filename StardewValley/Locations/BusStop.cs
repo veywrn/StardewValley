@@ -204,6 +204,19 @@ namespace StardewValley.Locations
 				Game1.displayFarmer = false;
 				busDriveBack();
 			}
+			if (Game1.player.getTileY() > 16 && Game1.MasterPlayer.mailReceived.Contains("Capsule_Broken") && Game1.isDarkOut() && Game1.random.NextDouble() < 0.01)
+			{
+				temporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\temporary_sprites_1", new Microsoft.Xna.Framework.Rectangle(448, 546, 16, 25), new Vector2(12f, 6.5f) * 64f, flipped: true, 0f, Color.White)
+				{
+					scale = 4f,
+					motion = new Vector2(-3f, 0f),
+					animationLength = 4,
+					interval = 80f,
+					totalNumberOfLoops = 200,
+					layerDepth = 0.0448f,
+					delayBeforeAnimationStart = Game1.random.Next(1500)
+				});
+			}
 		}
 
 		public override void cleanupBeforePlayerExit()

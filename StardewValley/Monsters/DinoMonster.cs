@@ -77,7 +77,8 @@ namespace StardewValley.Monsters
 
 		public override Rectangle GetBoundingBox()
 		{
-			return new Rectangle((int)base.Position.X + 8, (int)base.Position.Y, Sprite.SpriteWidth * 4 * 3 / 4, 64);
+			Vector2 position = base.Position;
+			return new Rectangle((int)position.X + 8, (int)position.Y, Sprite.SpriteWidth * 4 * 3 / 4, 64);
 		}
 
 		public override List<Item> getExtraDropItems()
@@ -137,7 +138,7 @@ namespace StardewValley.Monsters
 				if (nextChangeDirectionTime < 0)
 				{
 					nextChangeDirectionTime = Game1.random.Next(500, 1000);
-					_ = base.FacingDirection;
+					_ = FacingDirection;
 					facingDirection.Value = (facingDirection.Value + (Game1.random.Next(0, 3) - 1) + 4) % 4;
 				}
 				if (nextWanderTime < 0)
@@ -243,19 +244,19 @@ namespace StardewValley.Monsters
 		protected override void updateAnimation(GameTime time)
 		{
 			int direction_offset = 0;
-			if (base.FacingDirection == 2)
+			if (FacingDirection == 2)
 			{
 				direction_offset = 0;
 			}
-			else if (base.FacingDirection == 1)
+			else if (FacingDirection == 1)
 			{
 				direction_offset = 4;
 			}
-			else if (base.FacingDirection == 0)
+			else if (FacingDirection == 0)
 			{
 				direction_offset = 8;
 			}
-			else if (base.FacingDirection == 3)
+			else if (FacingDirection == 3)
 			{
 				direction_offset = 12;
 			}
@@ -273,37 +274,37 @@ namespace StardewValley.Monsters
 			}
 			if (isMoving() || wanderState)
 			{
-				if (base.FacingDirection == 0)
+				if (FacingDirection == 0)
 				{
 					Sprite.AnimateUp(time);
 				}
-				else if (base.FacingDirection == 3)
+				else if (FacingDirection == 3)
 				{
 					Sprite.AnimateLeft(time);
 				}
-				else if (base.FacingDirection == 1)
+				else if (FacingDirection == 1)
 				{
 					Sprite.AnimateRight(time);
 				}
-				else if (base.FacingDirection == 2)
+				else if (FacingDirection == 2)
 				{
 					Sprite.AnimateDown(time);
 				}
 				return;
 			}
-			if (base.FacingDirection == 0)
+			if (FacingDirection == 0)
 			{
 				Sprite.AnimateUp(time);
 			}
-			else if (base.FacingDirection == 3)
+			else if (FacingDirection == 3)
 			{
 				Sprite.AnimateLeft(time);
 			}
-			else if (base.FacingDirection == 1)
+			else if (FacingDirection == 1)
 			{
 				Sprite.AnimateRight(time);
 			}
-			else if (base.FacingDirection == 2)
+			else if (FacingDirection == 2)
 			{
 				Sprite.AnimateDown(time);
 			}
@@ -313,19 +314,19 @@ namespace StardewValley.Monsters
 		protected override void updateMonsterSlaveAnimation(GameTime time)
 		{
 			int direction_offset = 0;
-			if (base.FacingDirection == 2)
+			if (FacingDirection == 2)
 			{
 				direction_offset = 0;
 			}
-			else if (base.FacingDirection == 1)
+			else if (FacingDirection == 1)
 			{
 				direction_offset = 4;
 			}
-			else if (base.FacingDirection == 0)
+			else if (FacingDirection == 0)
 			{
 				direction_offset = 8;
 			}
-			else if (base.FacingDirection == 3)
+			else if (FacingDirection == 3)
 			{
 				direction_offset = 12;
 			}
@@ -342,19 +343,19 @@ namespace StardewValley.Monsters
 			}
 			else if (isMoving())
 			{
-				if (base.FacingDirection == 0)
+				if (FacingDirection == 0)
 				{
 					Sprite.AnimateUp(time);
 				}
-				else if (base.FacingDirection == 3)
+				else if (FacingDirection == 3)
 				{
 					Sprite.AnimateLeft(time);
 				}
-				else if (base.FacingDirection == 1)
+				else if (FacingDirection == 1)
 				{
 					Sprite.AnimateRight(time);
 				}
-				else if (base.FacingDirection == 2)
+				else if (FacingDirection == 2)
 				{
 					Sprite.AnimateDown(time);
 				}

@@ -9,14 +9,6 @@ namespace StardewValley.Menus
 {
 	public class DyeMenu : MenuWithInventory
 	{
-		public enum CraftState
-		{
-			MissingIngredients,
-			Valid,
-			InvalidRecipe,
-			NotDyeable
-		}
-
 		protected int _timeUntilCraft;
 
 		public List<ClickableTextureComponent> dyePots;
@@ -311,7 +303,7 @@ namespace StardewValley.Menus
 				{
 					heldItem = old_item;
 				}
-				else if (heldItem != null && old_item == null && Keyboard.GetState().IsKeyDown(Keys.LeftShift))
+				else if (heldItem != null && old_item == null && Game1.GetKeyboardState().IsKeyDown(Keys.LeftShift))
 				{
 					Game1.player.addItemToInventory(heldItem);
 					heldItem = null;
@@ -395,8 +387,8 @@ namespace StardewValley.Menus
 		{
 			Item oldHeldItem = heldItem;
 			Game1.player.IsEquippedItem(oldHeldItem);
-			base.receiveLeftClick(x, y, heldItem != null || !Keyboard.GetState().IsKeyDown(Keys.LeftShift));
-			if (Keyboard.GetState().IsKeyDown(Keys.LeftShift) && oldHeldItem != heldItem && heldItem != null)
+			base.receiveLeftClick(x, y, heldItem != null || !Game1.GetKeyboardState().IsKeyDown(Keys.LeftShift));
+			if (Game1.GetKeyboardState().IsKeyDown(Keys.LeftShift) && oldHeldItem != heldItem && heldItem != null)
 			{
 				foreach (ClickableTextureComponent pot2 in dyePots)
 				{
@@ -420,7 +412,7 @@ namespace StardewValley.Menus
 				if (pot.containsPoint(x, y))
 				{
 					_DyePotClicked(pot);
-					if (!wasHeldItem && heldItem != null && Keyboard.GetState().IsKeyDown(Keys.LeftShift))
+					if (!wasHeldItem && heldItem != null && Game1.GetKeyboardState().IsKeyDown(Keys.LeftShift))
 					{
 						heldItem = Game1.player.addItemToInventory(heldItem);
 					}

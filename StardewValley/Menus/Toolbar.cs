@@ -18,14 +18,30 @@ namespace StardewValley.Menus
 
 		private float transparency = 1f;
 
+		public string[] slotText = new string[12]
+		{
+			"1",
+			"2",
+			"3",
+			"4",
+			"5",
+			"6",
+			"7",
+			"8",
+			"9",
+			"0",
+			"-",
+			"="
+		};
+
 		public Rectangle toolbarTextSource = new Rectangle(0, 256, 60, 60);
 
 		public Toolbar()
-			: base(Game1.viewport.Width / 2 - 384 - 64, Game1.viewport.Height, 896, 208)
+			: base(Game1.uiViewport.Width / 2 - 384 - 64, Game1.uiViewport.Height, 896, 208)
 		{
 			for (int i = 0; i < 12; i++)
 			{
-				buttons.Add(new ClickableComponent(new Rectangle(Game1.viewport.Width / 2 - 384 + i * 64, yPositionOnScreen - 96 + 8, 64, 64), string.Concat(i)));
+				buttons.Add(new ClickableComponent(new Rectangle(Game1.uiViewport.Width / 2 - 384 + i * 64, yPositionOnScreen - 96 + 8, 64, 64), string.Concat(i)));
 			}
 		}
 
@@ -104,7 +120,7 @@ namespace StardewValley.Menus
 		{
 			for (int i = 0; i < 12; i++)
 			{
-				buttons[i].bounds = new Rectangle(Game1.viewport.Width / 2 - 384 + i * 64, yPositionOnScreen - 96 + 8, 64, 64);
+				buttons[i].bounds = new Rectangle(Game1.uiViewport.Width / 2 - 384 + i * 64, yPositionOnScreen - 96 + 8, 64, 64);
 			}
 		}
 
@@ -140,7 +156,7 @@ namespace StardewValley.Menus
 			int num = yPositionOnScreen;
 			if (!alignTop2)
 			{
-				yPositionOnScreen = Game1.viewport.Height;
+				yPositionOnScreen = Game1.uiViewport.Height;
 				yPositionOnScreen += 8;
 				yPositionOnScreen -= margin;
 			}
@@ -157,34 +173,17 @@ namespace StardewValley.Menus
 					buttons[k].bounds.Y = yPositionOnScreen - 96 + 8;
 				}
 			}
-			IClickableMenu.drawTextureBox(b, Game1.menuTexture, toolbarTextSource, Game1.viewport.Width / 2 - 384 - 16, yPositionOnScreen - 96 - 8, 800, 96, Color.White * transparency, 1f, drawShadow: false);
+			IClickableMenu.drawTextureBox(b, Game1.menuTexture, toolbarTextSource, Game1.uiViewport.Width / 2 - 384 - 16, yPositionOnScreen - 96 - 8, 800, 96, Color.White * transparency, 1f, drawShadow: false);
 			for (int j = 0; j < 12; j++)
 			{
-				Vector2 toDraw = new Vector2(Game1.viewport.Width / 2 - 384 + j * 64, yPositionOnScreen - 96 + 8);
+				Vector2 toDraw = new Vector2(Game1.uiViewport.Width / 2 - 384 + j * 64, yPositionOnScreen - 96 + 8);
 				b.Draw(Game1.menuTexture, toDraw, Game1.getSourceRectForStandardTileSheet(Game1.menuTexture, (Game1.player.CurrentToolIndex == j) ? 56 : 10), Color.White * transparency);
-				object obj;
-				switch (j)
-				{
-				default:
-					obj = string.Concat(j + 1);
-					break;
-				case 11:
-					obj = "=";
-					break;
-				case 10:
-					obj = "-";
-					break;
-				case 9:
-					obj = "0";
-					break;
-				}
-				string strToDraw = (string)obj;
-				b.DrawString(Game1.tinyFont, strToDraw, toDraw + new Vector2(4f, -8f), Color.DimGray * transparency);
+				b.DrawString(Game1.tinyFont, slotText[j], toDraw + new Vector2(4f, -8f), Color.DimGray * transparency);
 			}
 			for (int i = 0; i < 12; i++)
 			{
 				buttons[i].scale = Math.Max(1f, buttons[i].scale - 0.025f);
-				Vector2 toDraw2 = new Vector2(Game1.viewport.Width / 2 - 384 + i * 64, yPositionOnScreen - 96 + 8);
+				Vector2 toDraw2 = new Vector2(Game1.uiViewport.Width / 2 - 384 + i * 64, yPositionOnScreen - 96 + 8);
 				if (Game1.player.items.Count > i && Game1.player.items.ElementAt(i) != null)
 				{
 					Game1.player.items[i].drawInMenu(b, toDraw2, (Game1.player.CurrentToolIndex == i) ? 0.9f : (buttons.ElementAt(i).scale * 0.8f), transparency, 0.88f);

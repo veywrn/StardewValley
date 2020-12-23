@@ -4,15 +4,18 @@ using Microsoft.Xna.Framework.Input;
 
 namespace StardewValley.Menus
 {
-	internal class TitleTextInputMenu : NamingMenu
+	public class TitleTextInputMenu : NamingMenu
 	{
 		public ClickableTextureComponent pasteButton;
 
 		public const int region_pasteButton = 105;
 
-		public TitleTextInputMenu(string title, doneNamingBehavior b)
+		public string context = "";
+
+		public TitleTextInputMenu(string title, doneNamingBehavior b, string default_text = "", string context = "")
 			: base(b, title, "")
 		{
+			this.context = context;
 			textBox.limitWidth = false;
 			textBox.Width = 512;
 			textBox.X -= 128;
@@ -31,6 +34,7 @@ namespace StardewValley.Menus
 				populateClickableComponentList();
 				snapToDefaultClickableComponent();
 			}
+			textBox.Text = default_text;
 		}
 
 		public override void performHoverAction(int x, int y)

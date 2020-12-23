@@ -240,9 +240,21 @@ namespace StardewValley.Locations
 
 		public override Object getFish(float millisecondsAfterNibble, int bait, int waterDepth, Farmer who, double baitPotency, Vector2 bobberTile, string locationName = null)
 		{
-			if (!who.fishCaught.ContainsKey(682) && Game1.random.NextDouble() < 0.1 + ((who.getTileX() > 14 && who.getTileY() > 42) ? 0.08 : 0.0))
+			float bobberAddition = 0f;
+			if (who != null && who.CurrentTool is FishingRod && (who.CurrentTool as FishingRod).getBobberAttachmentIndex() == 856)
 			{
-				return new Object(682, 1);
+				bobberAddition += 0.1f;
+			}
+			if (Game1.random.NextDouble() < 0.1 + (double)bobberAddition + ((who.getTileX() > 14 && who.getTileY() > 42) ? 0.08 : 0.0))
+			{
+				if (Game1.player.team.SpecialOrderRuleActive("LEGENDARY_FAMILY"))
+				{
+					return new Object(901, 1);
+				}
+				if (!who.fishCaught.ContainsKey(682))
+				{
+					return new Object(682, 1);
+				}
 			}
 			return base.getFish(millisecondsAfterNibble, bait, waterDepth, who, baitPotency, bobberTile, locationName);
 		}

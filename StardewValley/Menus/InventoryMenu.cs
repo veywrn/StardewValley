@@ -130,6 +130,8 @@ namespace StardewValley.Menus
 
 		public ClickableComponent dropItemInvisibleButton;
 
+		public string moveItemSound = "dwop";
+
 		public InventoryMenu(int xPosition, int yPosition, bool playerInventory, IList<Item> actualInventory = null, highlightThisItem highlightMethod = null, int capacity = -1, int rows = 3, int horizontalGap = 0, int verticalGap = 0, bool drawSlots = true)
 			: base(xPosition, yPosition, 64 * (((capacity == -1) ? 36 : capacity) / rows), 64 * rows + 16)
 		{
@@ -320,12 +322,15 @@ namespace StardewValley.Menus
 				int slotNumber = Convert.ToInt32(item2.name);
 				if (slotNumber < actualInventory.Count && (actualInventory[slotNumber] == null || highlightMethod(actualInventory[slotNumber])) && actualInventory[slotNumber] == null)
 				{
-					try
+					if (!string.IsNullOrEmpty(sound))
 					{
-						Game1.playSound(sound);
-					}
-					catch (Exception)
-					{
+						try
+						{
+							Game1.playSound(sound);
+						}
+						catch (Exception)
+						{
+						}
 					}
 					return Utility.addItemToInventory(toPlace, slotNumber, actualInventory, onAddItem);
 				}
@@ -370,7 +375,7 @@ namespace StardewValley.Menus
 							}
 							if (playSound)
 							{
-								Game1.playSound("dwop");
+								Game1.playSound(moveItemSound);
 							}
 							return Utility.removeItemFromInventory(slotNumber, actualInventory);
 						}
@@ -471,7 +476,7 @@ namespace StardewValley.Menus
 							}
 							if (playSound)
 							{
-								Game1.playSound("dwop");
+								Game1.playSound(moveItemSound);
 							}
 							return tmp;
 						}
@@ -495,7 +500,7 @@ namespace StardewValley.Menus
 						}
 						if (playSound)
 						{
-							Game1.playSound("dwop");
+							Game1.playSound(moveItemSound);
 						}
 						if (actualInventory[slotNumber].Stack <= 0)
 						{
@@ -532,6 +537,7 @@ namespace StardewValley.Menus
 					if (s != null)
 					{
 						hoverText = s;
+						hoverTitle = actualInventory[slotNumber].DisplayName;
 					}
 					else
 					{
@@ -544,7 +550,10 @@ namespace StardewValley.Menus
 					}
 				}
 			}
-			GameMenu.bundleItemHovered = (toReturn != null && toReturn is Object && (Game1.getLocationFromName("CommunityCenter") as CommunityCenter).couldThisIngredienteBeUsedInABundle(toReturn as Object));
+			if (toReturn != null && toReturn is Object && (Game1.getLocationFromName("CommunityCenter") as CommunityCenter).couldThisIngredienteBeUsedInABundle(toReturn as Object))
+			{
+				GameMenu.bundleItemHovered = true;
+			}
 			return toReturn;
 		}
 

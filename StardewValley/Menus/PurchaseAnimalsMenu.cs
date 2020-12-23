@@ -51,13 +51,15 @@ namespace StardewValley.Menus
 
 		private int priceOfAnimal;
 
+		public bool readOnly;
+
 		public PurchaseAnimalsMenu(List<Object> stock)
-			: base(Game1.viewport.Width / 2 - menuWidth / 2 - IClickableMenu.borderWidth * 2, (Game1.viewport.Height - menuHeight - IClickableMenu.borderWidth * 2) / 4, menuWidth + IClickableMenu.borderWidth * 2, menuHeight + IClickableMenu.borderWidth)
+			: base(Game1.uiViewport.Width / 2 - menuWidth / 2 - IClickableMenu.borderWidth * 2, (Game1.uiViewport.Height - menuHeight - IClickableMenu.borderWidth * 2) / 4, menuWidth + IClickableMenu.borderWidth * 2, menuHeight + IClickableMenu.borderWidth)
 		{
 			height += 64;
 			for (int i = 0; i < stock.Count; i++)
 			{
-				animalsToPurchase.Add(new ClickableTextureComponent(string.Concat(stock[i].salePrice()), new Microsoft.Xna.Framework.Rectangle(xPositionOnScreen + IClickableMenu.borderWidth + i % 3 * 64 * 2, yPositionOnScreen + IClickableMenu.spaceToClearTopBorder + IClickableMenu.borderWidth / 2 + i / 3 * 85, 128, 64), null, stock[i].Name, Game1.mouseCursors, new Microsoft.Xna.Framework.Rectangle(i % 3 * 16 * 2, 448 + i / 3 * 16, 32, 16), 4f, stock[i].Type == null)
+				animalsToPurchase.Add(new ClickableTextureComponent(string.Concat(stock[i].salePrice()), new Microsoft.Xna.Framework.Rectangle(xPositionOnScreen + IClickableMenu.borderWidth + i % 3 * 64 * 2, yPositionOnScreen + IClickableMenu.spaceToClearTopBorder + IClickableMenu.borderWidth / 2 + i / 3 * 85, 128, 64), null, stock[i].Name, (i >= 9) ? Game1.mouseCursors2 : Game1.mouseCursors, (i >= 9) ? new Microsoft.Xna.Framework.Rectangle(128 + i % 3 * 16 * 2, i / 3 * 16, 32, 16) : new Microsoft.Xna.Framework.Rectangle(i % 3 * 16 * 2, 448 + i / 3 * 16, 32, 16), 4f, stock[i].Type == null)
 				{
 					item = stock[i],
 					myID = i,
@@ -73,7 +75,7 @@ namespace StardewValley.Menus
 				upNeighborID = 103,
 				leftNeighborID = 103
 			};
-			randomButton = new ClickableTextureComponent(new Microsoft.Xna.Framework.Rectangle(xPositionOnScreen + width + 51 + 64, Game1.viewport.Height / 2, 64, 64), Game1.mouseCursors, new Microsoft.Xna.Framework.Rectangle(381, 361, 10, 10), 4f)
+			randomButton = new ClickableTextureComponent(new Microsoft.Xna.Framework.Rectangle(xPositionOnScreen + width + 51 + 64, Game1.uiViewport.Height / 2, 64, 64), Game1.mouseCursors, new Microsoft.Xna.Framework.Rectangle(381, 361, 10, 10), 4f)
 			{
 				myID = 103,
 				downNeighborID = 101,
@@ -82,8 +84,8 @@ namespace StardewValley.Menus
 			menuHeight = 320;
 			menuWidth = 448;
 			textBox = new TextBox(null, null, Game1.dialogueFont, Game1.textColor);
-			textBox.X = Game1.viewport.Width / 2 - 192;
-			textBox.Y = Game1.viewport.Height / 2;
+			textBox.X = Game1.uiViewport.Width / 2 - 192;
+			textBox.Y = Game1.uiViewport.Height / 2;
 			textBox.Width = 256;
 			textBox.Height = 192;
 			e = textBoxEnter;
@@ -93,14 +95,14 @@ namespace StardewValley.Menus
 				rightNeighborID = 102,
 				downNeighborID = 101
 			};
-			randomButton = new ClickableTextureComponent(new Microsoft.Xna.Framework.Rectangle(textBox.X + textBox.Width + 64 + 48 - 8, Game1.viewport.Height / 2 + 4, 64, 64), Game1.mouseCursors, new Microsoft.Xna.Framework.Rectangle(381, 361, 10, 10), 4f)
+			randomButton = new ClickableTextureComponent(new Microsoft.Xna.Framework.Rectangle(textBox.X + textBox.Width + 64 + 48 - 8, Game1.uiViewport.Height / 2 + 4, 64, 64), Game1.mouseCursors, new Microsoft.Xna.Framework.Rectangle(381, 361, 10, 10), 4f)
 			{
 				myID = 103,
 				leftNeighborID = 102,
 				downNeighborID = 101,
 				rightNeighborID = 101
 			};
-			doneNamingButton = new ClickableTextureComponent(new Microsoft.Xna.Framework.Rectangle(textBox.X + textBox.Width + 32 + 4, Game1.viewport.Height / 2 - 8, 64, 64), Game1.mouseCursors, Game1.getSourceRectForStandardTileSheet(Game1.mouseCursors, 46), 1f)
+			doneNamingButton = new ClickableTextureComponent(new Microsoft.Xna.Framework.Rectangle(textBox.X + textBox.Width + 32 + 4, Game1.uiViewport.Height / 2 - 8, 64, 64), Game1.mouseCursors, Game1.getSourceRectForStandardTileSheet(Game1.mouseCursors, 46), 1f)
 			{
 				myID = 102,
 				rightNeighborID = 103,
@@ -112,6 +114,11 @@ namespace StardewValley.Menus
 				populateClickableComponentList();
 				snapToDefaultClickableComponent();
 			}
+		}
+
+		public override bool shouldClampGamePadCursor()
+		{
+			return onFarm;
 		}
 
 		public override void snapToDefaultClickableComponent()
@@ -190,8 +197,8 @@ namespace StardewValley.Menus
 			Game1.globalFadeToClear();
 			onFarm = true;
 			freeze = false;
-			okButton.bounds.X = Game1.viewport.Width - 128;
-			okButton.bounds.Y = Game1.viewport.Height - 128;
+			okButton.bounds.X = Game1.uiViewport.Width - 128;
+			okButton.bounds.Y = Game1.uiViewport.Height - 128;
 			Game1.displayHUD = false;
 			Game1.viewportFreeze = true;
 			Game1.viewport.Location = new Location(3136, 320);
@@ -224,7 +231,7 @@ namespace StardewValley.Menus
 
 		public override void receiveLeftClick(int x, int y, bool playSound = true)
 		{
-			if (Game1.globalFade || freeze)
+			if (Game1.IsFading() || freeze)
 			{
 				return;
 			}
@@ -243,7 +250,7 @@ namespace StardewValley.Menus
 			}
 			if (onFarm)
 			{
-				Vector2 clickTile = new Vector2((x + Game1.viewport.X) / 64, (y + Game1.viewport.Y) / 64);
+				Vector2 clickTile = new Vector2((int)((Utility.ModifyCoordinateFromUIScale(x) + (float)Game1.viewport.X) / 64f), (int)((Utility.ModifyCoordinateFromUIScale(y) + (float)Game1.viewport.Y) / 64f));
 				Building selection = (Game1.getLocationFromName("Farm") as Farm).getBuildingAt(clickTile);
 				if (selection != null && !namingAnimal)
 				{
@@ -324,7 +331,7 @@ namespace StardewValley.Menus
 			{
 				foreach (ClickableTextureComponent c in animalsToPurchase)
 				{
-					if (c.containsPoint(x, y) && (c.item as Object).Type == null)
+					if (!readOnly && c.containsPoint(x, y) && (c.item as Object).Type == null)
 					{
 						int price = c.item.salePrice();
 						if (Game1.player.Money >= price)
@@ -373,7 +380,7 @@ namespace StardewValley.Menus
 			{
 				if (!namingAnimal)
 				{
-					if (Game1.options.doesInputListContain(Game1.options.menuButton, key) && readyToClose())
+					if (Game1.options.doesInputListContain(Game1.options.menuButton, key) && readyToClose() && !Game1.IsFading())
 					{
 						setUpForReturnToShopMenu();
 					}
@@ -410,7 +417,7 @@ namespace StardewValley.Menus
 					}
 				}
 			}
-			else if (Game1.options.doesInputListContain(Game1.options.menuButton, key) && !Game1.globalFade)
+			else if (Game1.options.doesInputListContain(Game1.options.menuButton, key) && !Game1.IsFading())
 			{
 				if (readyToClose())
 				{
@@ -430,8 +437,8 @@ namespace StardewValley.Menus
 			base.update(time);
 			if (onFarm && !namingAnimal)
 			{
-				int mouseX = Game1.getOldMouseX() + Game1.viewport.X;
-				int mouseY = Game1.getOldMouseY() + Game1.viewport.Y;
+				int mouseX = Game1.getOldMouseX(ui_scale: false) + Game1.viewport.X;
+				int mouseY = Game1.getOldMouseY(ui_scale: false) + Game1.viewport.Y;
 				if (mouseX - Game1.viewport.X < 64)
 				{
 					Game1.panScreen(-8, 0);
@@ -463,7 +470,7 @@ namespace StardewValley.Menus
 		public override void performHoverAction(int x, int y)
 		{
 			hovered = null;
-			if (Game1.globalFade || freeze)
+			if (Game1.IsFading() || freeze)
 			{
 				return;
 			}
@@ -482,7 +489,7 @@ namespace StardewValley.Menus
 			{
 				if (!namingAnimal)
 				{
-					Vector2 clickTile = new Vector2((x + Game1.viewport.X) / 64, (y + Game1.viewport.Y) / 64);
+					Vector2 clickTile = new Vector2((int)((Utility.ModifyCoordinateFromUIScale(x) + (float)Game1.viewport.X) / 64f), (int)((Utility.ModifyCoordinateFromUIScale(y) + (float)Game1.viewport.Y) / 64f));
 					Farm f = Game1.getLocationFromName("Farm") as Farm;
 					foreach (Building building in f.buildings)
 					{
@@ -549,6 +556,8 @@ namespace StardewValley.Menus
 				return Game1.content.LoadString("Strings\\StringsFromCSFiles:Utility.cs.5933");
 			case "Sheep":
 				return Game1.content.LoadString("Strings\\StringsFromCSFiles:Utility.cs.5942");
+			case "Ostrich":
+				return Game1.content.LoadString("Strings\\StringsFromCSFiles:Ostrich_Name");
 			default:
 				return "";
 			}
@@ -572,6 +581,8 @@ namespace StardewValley.Menus
 				return Game1.content.LoadString("Strings\\StringsFromCSFiles:PurchaseAnimalsMenu.cs.11349") + Environment.NewLine + Game1.content.LoadString("Strings\\StringsFromCSFiles:PurchaseAnimalsMenu.cs.11344");
 			case "Sheep":
 				return Game1.content.LoadString("Strings\\StringsFromCSFiles:PurchaseAnimalsMenu.cs.11352") + Environment.NewLine + Game1.content.LoadString("Strings\\StringsFromCSFiles:PurchaseAnimalsMenu.cs.11344");
+			case "Ostrich":
+				return Game1.content.LoadString("Strings\\StringsFromCSFiles:Ostrich_Description") + Environment.NewLine + Game1.content.LoadString("Strings\\StringsFromCSFiles:PurchaseAnimalsMenu.cs.11344");
 			default:
 				return "";
 			}
@@ -579,7 +590,7 @@ namespace StardewValley.Menus
 
 		public override void draw(SpriteBatch b)
 		{
-			if (!onFarm && !Game1.dialogueUp && !Game1.globalFade)
+			if (!onFarm && !Game1.dialogueUp && !Game1.IsFading())
 			{
 				b.Draw(Game1.fadeToBlackRect, Game1.graphics.GraphicsDevice.Viewport.Bounds, Color.Black * 0.75f);
 				SpriteText.drawStringWithScrollBackground(b, Game1.content.LoadString("Strings\\StringsFromCSFiles:PurchaseAnimalsMenu.cs.11354"), xPositionOnScreen + 96, yPositionOnScreen);
@@ -590,21 +601,21 @@ namespace StardewValley.Menus
 					c.draw(b, ((c.item as Object).Type != null) ? (Color.Black * 0.4f) : Color.White, 0.87f);
 				}
 			}
-			else if (!Game1.globalFade && onFarm)
+			else if (!Game1.IsFading() && onFarm)
 			{
 				string s = Game1.content.LoadString("Strings\\StringsFromCSFiles:PurchaseAnimalsMenu.cs.11355", animalBeingPurchased.displayHouse, animalBeingPurchased.displayType);
-				SpriteText.drawStringWithScrollBackground(b, s, Game1.viewport.Width / 2 - SpriteText.getWidthOfString(s) / 2, 16);
+				SpriteText.drawStringWithScrollBackground(b, s, Game1.uiViewport.Width / 2 - SpriteText.getWidthOfString(s) / 2, 16);
 				if (namingAnimal)
 				{
 					b.Draw(Game1.fadeToBlackRect, Game1.graphics.GraphicsDevice.Viewport.Bounds, Color.Black * 0.75f);
-					Game1.drawDialogueBox(Game1.viewport.Width / 2 - 256, Game1.viewport.Height / 2 - 192 - 32, 512, 192, speaker: false, drawOnlyBox: true);
-					Utility.drawTextWithShadow(b, Game1.content.LoadString("Strings\\StringsFromCSFiles:PurchaseAnimalsMenu.cs.11357"), Game1.dialogueFont, new Vector2(Game1.viewport.Width / 2 - 256 + 32 + 8, Game1.viewport.Height / 2 - 128 + 8), Game1.textColor);
+					Game1.drawDialogueBox(Game1.uiViewport.Width / 2 - 256, Game1.uiViewport.Height / 2 - 192 - 32, 512, 192, speaker: false, drawOnlyBox: true);
+					Utility.drawTextWithShadow(b, Game1.content.LoadString("Strings\\StringsFromCSFiles:PurchaseAnimalsMenu.cs.11357"), Game1.dialogueFont, new Vector2(Game1.uiViewport.Width / 2 - 256 + 32 + 8, Game1.uiViewport.Height / 2 - 128 + 8), Game1.textColor);
 					textBox.Draw(b);
 					doneNamingButton.draw(b);
 					randomButton.draw(b);
 				}
 			}
-			if (!Game1.globalFade && okButton != null)
+			if (!Game1.IsFading() && okButton != null)
 			{
 				okButton.draw(b);
 			}

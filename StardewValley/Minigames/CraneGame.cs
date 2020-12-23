@@ -8,6 +8,7 @@ using StardewValley.Menus;
 using StardewValley.Objects;
 using System;
 using System.Collections.Generic;
+using System.Xml.Serialization;
 
 namespace StardewValley.Minigames
 {
@@ -29,6 +30,7 @@ namespace StardewValley.Minigames
 
 		public class GameLogic : CraneGameObject
 		{
+			[XmlType("CraneGame.GameStates")]
 			public enum GameStates
 			{
 				Setup,
@@ -1822,7 +1824,7 @@ namespace StardewValley.Minigames
 		{
 			Utility.farmerHeardSong("crane_game");
 			Utility.farmerHeardSong("crane_game_fast");
-			_effect = Game1.temporaryContent.Load<Effect>("Effects\\ShadowRemove");
+			_effect = Game1.content.Load<Effect>("Effects\\ShadowRemove");
 			_content = Game1.content.CreateTemporary();
 			spriteSheet = _content.Load<Texture2D>("LooseSprites\\CraneGame");
 			_buttonStates = new Dictionary<GameButtons, int>();
@@ -2171,14 +2173,6 @@ namespace StardewValley.Minigames
 			for (int j = 0; j < _gameObjectTypes.Count; j++)
 			{
 				Type type = _gameObjectTypes[j];
-				if (type == typeof(Prize))
-				{
-					_effect.Parameters["removeShadowFlag"].SetValue(1);
-				}
-				else
-				{
-					_effect.Parameters["removeShadowFlag"].SetValue(0);
-				}
 				for (int i = 0; i < _gameObjectsByType[type].Count; i++)
 				{
 					float drawn_depth = Utility.Lerp(0.1f, 0.9f, (depth_lookup[_gameObjectsByType[type][i]] - lowest_depth) / (highest_depth - lowest_depth));
@@ -2191,9 +2185,18 @@ namespace StardewValley.Minigames
 		public void changeScreenSize()
 		{
 			float pixel_zoom_adjustment = 1f / Game1.options.zoomLevel;
-			upperLeft = new Vector2(Game1.graphics.GraphicsDevice.Viewport.Width / 2, Game1.graphics.GraphicsDevice.Viewport.Height / 2) * pixel_zoom_adjustment;
-			upperLeft.X -= gameWidth / 2 * 4;
-			upperLeft.Y -= gameHeight / 2 * 4;
+			Viewport vp = Game1.graphics.GraphicsDevice.Viewport;
+			Rectangle cb = Game1.game1.Window.ClientBounds;
+			Vector2 bb = new Vector2(Game1.graphics.PreferredBackBufferWidth, Game1.graphics.PreferredBackBufferHeight);
+			float x = bb.X;
+			Vector2 tmp = new Vector2(y: bb.Y / 2f, x: x / 2f) * pixel_zoom_adjustment;
+			tmp.X -= gameWidth / 2 * 4;
+			tmp.Y -= gameHeight / 2 * 4;
+			if (upperLeft != tmp)
+			{
+				upperLeft = tmp;
+				Console.WriteLine("CraneGame.changeScreenSize(); vp={0}, cb={1}, bb={2}, zl={3}, upperLeft={4}", vp, cb, bb, Game1.options.zoomLevel, upperLeft);
+			}
 		}
 
 		public void unload()

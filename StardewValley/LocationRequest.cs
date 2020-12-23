@@ -35,6 +35,8 @@ namespace StardewValley
 			{
 				this.OnWarp();
 			}
+			Game1.player.ridingMineElevator = false;
+			Game1.forceSnapOnNextViewportUpdate = true;
 		}
 
 		public bool IsRequestFor(GameLocation location)

@@ -97,6 +97,12 @@ namespace StardewValley.SDKs
 
 		public SDKNetHelper Networking => networking;
 
+		public bool HasOverlay => false;
+
+		public bool IsJapaneseRegionRelease => false;
+
+		public bool IsEnterButtonAssignmentFlipped => false;
+
 		public void EarlyInitialize()
 		{
 		}
@@ -105,10 +111,10 @@ namespace StardewValley.SDKs
 		{
 			try
 			{
-				GalaxyInstance.Init("48767653913349277", "58be5c2e55d7f535cf8c4b6bbc09d185de90b152c8c42703cc13502465f0d04a");
+				GalaxyInstance.Init(new InitParams("48767653913349277", "58be5c2e55d7f535cf8c4b6bbc09d185de90b152c8c42703cc13502465f0d04a"));
 				authListener = new AuthListener(onGalaxyAuthSuccess, onGalaxyAuthFailure, onGalaxyAuthLost);
 				stateChangeListener = new OperationalStateChangeListener(onGalaxyStateChange);
-				GalaxyInstance.User().SignIn(requireOnline: true);
+				GalaxyInstance.User().SignInGalaxy(requireOnline: true);
 				active = true;
 				ConnectionProgress++;
 			}

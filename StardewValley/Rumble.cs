@@ -1,7 +1,9 @@
+using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Input;
 
 namespace StardewValley
 {
+	[InstanceStatics]
 	public static class Rumble
 	{
 		private static float rumbleStrength;
@@ -51,7 +53,10 @@ namespace StardewValley
 			{
 				rumble_amount = 0f;
 			}
-			GamePad.SetVibration(Game1.playerOneIndex, rumble_amount, rumble_amount);
+			if (Game1.playerOneIndex != (PlayerIndex)(-1))
+			{
+				GamePad.SetVibration(Game1.playerOneIndex, rumble_amount, rumble_amount);
+			}
 		}
 
 		public static void stopRumbling()

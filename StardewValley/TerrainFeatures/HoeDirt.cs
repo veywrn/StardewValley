@@ -86,11 +86,17 @@ namespace StardewValley.TerrainFeatures
 
 		public const int waterRetentionSoil = 370;
 
-		public const int waterRetentionSoilQUality = 371;
+		public const int waterRetentionSoilQuality = 371;
 
 		public const int speedGro = 465;
 
 		public const int superSpeedGro = 466;
+
+		public const int hyperSpeedGro = 918;
+
+		public const int fertilizerDeluxeQuality = 919;
+
+		public const int waterRetentionSoilDeluxe = 920;
 
 		public static Texture2D lightTexture;
 
@@ -130,6 +136,8 @@ namespace StardewValley.TerrainFeatures
 
 		[XmlIgnore]
 		public NetInt nearWaterForPaddy = new NetInt(-1);
+
+		private Texture2D texture;
 
 		private static readonly NeighborLoc[] _offsets = new NeighborLoc[4]
 		{
@@ -215,18 +223,33 @@ namespace StardewValley.TerrainFeatures
 			{
 				location = Game1.currentLocation;
 			}
-			if (location != null)
+			if (location == null)
 			{
-				if (location is MineShaft && (location as MineShaft).getMineArea() == 80)
+				return;
+			}
+			if (location is MineShaft)
+			{
+				if ((location as MineShaft).GetAdditionalDifficulty() > 0)
+				{
+					if ((location as MineShaft).getMineArea() == 0 || (location as MineShaft).getMineArea() == 10)
+					{
+						c.Value = new Color(80, 100, 140) * 0.5f;
+					}
+				}
+				else if ((location as MineShaft).getMineArea() == 80)
 				{
 					c.Value = Color.MediumPurple * 0.4f;
 				}
-				else if (Game1.currentSeason == "fall" && location.IsOutdoors && !(location is Beach) && !(location is Desert))
-				{
-					c.Value = new Color(250, 210, 240);
-				}
-				isGreenhouseDirt.Value = location.IsGreenhouse;
 			}
+			else if (location.GetSeasonForLocation() == "fall" && location.IsOutdoors && !(location is Beach) && !(location is Desert))
+			{
+				c.Value = new Color(250, 210, 240);
+			}
+			else if (location is VolcanoDungeon)
+			{
+				c.Value = Color.MediumPurple * 0.7f;
+			}
+			isGreenhouseDirt.Value = location.IsGreenhouse;
 		}
 
 		public float getShakeRotation()
@@ -357,9 +380,13 @@ namespace StardewValley.TerrainFeatures
 
 		public bool readyForHarvest()
 		{
-			if (crop != null && (!crop.fullyGrown || (int)crop.dayOfCurrentPhase <= 0) && (int)crop.currentPhase >= crop.phaseDays.Count - 1)
+			if (crop != null && (!crop.fullyGrown || (int)crop.dayOfCurrentPhase <= 0) && (int)crop.currentPhase >= crop.phaseDays.Count - 1 && !crop.dead)
 			{
-				return !crop.dead;
+				if ((bool)crop.forageCrop)
+				{
+					return (int)crop.whichForageCrop != 2;
+				}
+				return true;
 			}
 			return false;
 		}
@@ -371,6 +398,10 @@ namespace StardewValley.TerrainFeatures
 				bool harvestable = (int)crop.currentPhase >= crop.phaseDays.Count - 1 && (!crop.fullyGrown || (int)crop.dayOfCurrentPhase <= 0);
 				if ((int)crop.harvestMethod == 0 && crop.harvest((int)tileLocation.X, (int)tileLocation.Y, this))
 				{
+					if (location != null && location is IslandLocation && Game1.random.NextDouble() < 0.05)
+					{
+						Game1.player.team.RequestLimitedNutDrops("IslandFarming", location, (int)tileLocation.X * 64, (int)tileLocation.Y * 64, 5);
+					}
 					destroyCrop(tileLocation, showAnimation: false, location);
 					return true;
 				}
@@ -423,12 +454,12 @@ namespace StardewValley.TerrainFeatures
 			{
 				return false;
 			}
-			if (!who.currentLocation.isFarm && !who.currentLocation.IsGreenhouse && who.currentLocation.IsOutdoors)
+			if (!who.currentLocation.isFarm && !who.currentLocation.IsGreenhouse && !who.currentLocation.CanPlantSeedsHere(index, tileX, tileY) && who.currentLocation.IsOutdoors)
 			{
 				Game1.showRedMessage(Game1.content.LoadString("Strings\\StringsFromCSFiles:HoeDirt.cs.13919"));
 				return false;
 			}
-			if (!who.currentLocation.isOutdoors || who.currentLocation.IsGreenhouse || c.seasonsToGrowIn.Contains(Game1.currentSeason))
+			if (!who.currentLocation.isOutdoors || who.currentLocation.IsGreenhouse || c.seasonsToGrowIn.Contains(location.GetSeasonForLocation()) || who.currentLocation.SeedsIgnoreSeasonsHere())
 			{
 				crop = c;
 				if ((bool)c.raisedSeeds)
@@ -446,7 +477,7 @@ namespace StardewValley.TerrainFeatures
 				}
 				return true;
 			}
-			if (c.seasonsToGrowIn.Count > 0 && !c.seasonsToGrowIn.Contains(Game1.currentSeason))
+			if (c.seasonsToGrowIn.Count > 0 && !c.seasonsToGrowIn.Contains(location.GetSeasonForLocation()))
 			{
 				Game1.showRedMessage(Game1.content.LoadString("Strings\\StringsFromCSFiles:HoeDirt.cs.13924"));
 			}
@@ -468,7 +499,7 @@ namespace StardewValley.TerrainFeatures
 			{
 				paddy_bonus = true;
 			}
-			if (!(((int)fertilizer == 465 || (int)fertilizer == 466 || who.professions.Contains(5)) | paddy_bonus))
+			if (!(((int)fertilizer == 465 || (int)fertilizer == 466 || (int)fertilizer == 918 || who.professions.Contains(5)) | paddy_bonus))
 			{
 				return;
 			}
@@ -487,6 +518,10 @@ namespace StardewValley.TerrainFeatures
 			{
 				speedIncrease += 0.25f;
 			}
+			else if ((int)fertilizer == 918)
+			{
+				speedIncrease += 0.33f;
+			}
 			if (paddy_bonus)
 			{
 				speedIncrease += 0.25f;
@@ -501,7 +536,7 @@ namespace StardewValley.TerrainFeatures
 			{
 				for (int i = 0; i < crop.phaseDays.Count; i++)
 				{
-					if (i > 0 || crop.phaseDays[i] > 1)
+					if ((i > 0 || crop.phaseDays[i] > 1) && crop.phaseDays[i] != 99999)
 					{
 						crop.phaseDays[i]--;
 						daysToRemove--;
@@ -517,7 +552,7 @@ namespace StardewValley.TerrainFeatures
 
 		public void destroyCrop(Vector2 tileLocation, bool showAnimation, GameLocation location)
 		{
-			if (crop != null && showAnimation)
+			if (crop != null && showAnimation && location != null)
 			{
 				if ((int)crop.currentPhase < 1 && !crop.dead)
 				{
@@ -531,35 +566,56 @@ namespace StardewValley.TerrainFeatures
 			}
 			crop = null;
 			nearWaterForPaddy.Value = -1;
-			updateNeighbors(location, tileLocation);
+			if (location != null)
+			{
+				updateNeighbors(location, tileLocation);
+			}
 		}
 
 		public override bool performToolAction(Tool t, int damage, Vector2 tileLocation, GameLocation location)
 		{
 			if (t != null)
 			{
-				if (t is Pickaxe && crop == null)
+				if (t is Hoe)
 				{
-					return true;
-				}
-				if (t is WateringCan)
-				{
-					state.Value = 1;
-				}
-				else if (t is MeleeWeapon && (t as MeleeWeapon).isScythe())
-				{
-					if (crop != null && (int)crop.harvestMethod == 1 && crop.harvest((int)tileLocation.X, (int)tileLocation.Y, this))
-					{
-						destroyCrop(tileLocation, showAnimation: true, location);
-					}
-					if (crop != null && (bool)crop.dead)
+					if (crop != null && crop.hitWithHoe((int)tileLocation.X, (int)tileLocation.Y, location, this))
 					{
 						destroyCrop(tileLocation, showAnimation: true, location);
 					}
 				}
-				else if (t.isHeavyHitter() && !(t is Hoe) && !(t is MeleeWeapon) && crop != null)
+				else
 				{
-					destroyCrop(tileLocation, showAnimation: true, location);
+					if (t is Pickaxe && crop == null)
+					{
+						return true;
+					}
+					if (t is WateringCan)
+					{
+						state.Value = 1;
+					}
+					else if (t is MeleeWeapon && (t as MeleeWeapon).isScythe())
+					{
+						if (crop != null && (int)crop.harvestMethod == 1)
+						{
+							if ((int)crop.indexOfHarvest == 771 && (t as MeleeWeapon).hasEnchantmentOfType<HaymakerEnchantment>())
+							{
+								Game1.createItemDebris(new Object(771, 1), new Vector2(tileLocation.X * 64f + 32f, tileLocation.Y * 64f + 32f), -1);
+								Game1.createItemDebris(new Object(771, 1), new Vector2(tileLocation.X * 64f + 32f, tileLocation.Y * 64f + 32f), -1);
+							}
+							if (crop.harvest((int)tileLocation.X, (int)tileLocation.Y, this))
+							{
+								destroyCrop(tileLocation, showAnimation: true, location);
+							}
+						}
+						if (crop != null && (bool)crop.dead)
+						{
+							destroyCrop(tileLocation, showAnimation: true, location);
+						}
+					}
+					else if (t.isHeavyHitter() && !(t is Hoe) && !(t is MeleeWeapon) && crop != null)
+					{
+						destroyCrop(tileLocation, showAnimation: true, location);
+					}
 				}
 				shake((float)Math.PI / 32f, (float)Math.PI / 40f, tileLocation.X * 64f < Game1.player.Position.X);
 			}
@@ -593,7 +649,7 @@ namespace StardewValley.TerrainFeatures
 				{
 					return false;
 				}
-				if (!Game1.currentLocation.IsOutdoors || Game1.currentLocation.IsGreenhouse || c.seasonsToGrowIn.Contains(Game1.currentSeason))
+				if (!Game1.currentLocation.IsOutdoors || Game1.currentLocation.IsGreenhouse || Game1.currentLocation.SeedsIgnoreSeasonsHere() || c.seasonsToGrowIn.Contains(Game1.currentLocation.GetSeasonForLocation()))
 				{
 					if ((bool)c.raisedSeeds && Utility.doesRectangleIntersectTile(Game1.player.GetBoundingBox(), tileX, tileY))
 					{
@@ -697,7 +753,7 @@ namespace StardewValley.TerrainFeatures
 			{
 				for (int y_offset = -range; y_offset <= range; y_offset++)
 				{
-					if (location.isOpenWater((int)(tile_location.X + (float)x_offset), (int)(tile_location.Y + (float)y_offset)))
+					if (location.isWaterTile((int)(tile_location.X + (float)x_offset), (int)(tile_location.Y + (float)y_offset)))
 					{
 						nearWaterForPaddy.Value = 1;
 						return true;
@@ -713,12 +769,12 @@ namespace StardewValley.TerrainFeatures
 			if (crop != null)
 			{
 				crop.newDay(state, fertilizer, (int)tileLocation.X, (int)tileLocation.Y, environment);
-				if ((bool)environment.isOutdoors && Game1.currentSeason.Equals("winter") && crop != null && !crop.isWildSeedCrop() && !environment.IsGreenhouse)
+				if ((bool)environment.isOutdoors && Game1.GetSeasonForLocation(environment).Equals("winter") && crop != null && !crop.isWildSeedCrop() && (int)crop.indexOfHarvest != 771 && !environment.IsGreenhouse && !environment.SeedsIgnoreSeasonsHere())
 				{
 					destroyCrop(tileLocation, showAnimation: false, environment);
 				}
 			}
-			if ((!hasPaddyCrop() || !paddyWaterCheck(environment, tileLocation)) && ((int)fertilizer != 370 || !(Game1.random.NextDouble() < 0.33)) && ((int)fertilizer != 371 || !(Game1.random.NextDouble() < 0.66)))
+			if ((!hasPaddyCrop() || !paddyWaterCheck(environment, tileLocation)) && ((int)fertilizer != 370 || !(Game1.random.NextDouble() < 0.33)) && ((int)fertilizer != 371 || !(Game1.random.NextDouble() < 0.66)) && (int)fertilizer != 920)
 			{
 				state.Value = 0;
 			}
@@ -731,11 +787,11 @@ namespace StardewValley.TerrainFeatures
 
 		public override bool seasonUpdate(bool onLoad)
 		{
-			if (!onLoad && (crop == null || (bool)crop.dead || !crop.seasonsToGrowIn.Contains(Game1.currentSeason)))
+			if (!onLoad && !isGreenhouseDirt.Value && !(currentLocation is IslandLocation) && (crop == null || (bool)crop.dead || !crop.seasonsToGrowIn.Contains(Game1.currentLocation.GetSeasonForLocation())))
 			{
 				fertilizer.Value = 0;
 			}
-			if (Game1.currentSeason == "fall" && !isGreenhouseDirt.Value)
+			if (Game1.currentLocation.GetSeasonForLocation() == "fall" && !isGreenhouseDirt.Value)
 			{
 				c.Value = new Color(250, 210, 240);
 			}
@@ -743,6 +799,7 @@ namespace StardewValley.TerrainFeatures
 			{
 				c.Value = Color.White;
 			}
+			texture = null;
 			return false;
 		}
 
@@ -783,49 +840,70 @@ namespace StardewValley.TerrainFeatures
 
 		public override void draw(SpriteBatch spriteBatch, Vector2 tileLocation)
 		{
-			if ((int)state != 2)
+			int state = this.state.Value;
+			if (state != 2)
 			{
+				if (texture == null)
+				{
+					texture = ((Game1.currentLocation.Name.Equals("Mountain") || Game1.currentLocation.Name.Equals("Mine") || (Game1.currentLocation is MineShaft && (Game1.currentLocation as MineShaft).shouldShowDarkHoeDirt()) || Game1.currentLocation is VolcanoDungeon) ? darkTexture : lightTexture);
+					if ((Game1.GetSeasonForLocation(Game1.currentLocation).Equals("winter") && !(Game1.currentLocation is Desert) && !Game1.currentLocation.IsGreenhouse && !Game1.currentLocation.SeedsIgnoreSeasonsHere() && !(Game1.currentLocation is MineShaft)) || (Game1.currentLocation is MineShaft && (Game1.currentLocation as MineShaft).shouldUseSnowTextureHoeDirt()))
+					{
+						texture = snowTexture;
+					}
+				}
 				byte drawSum = (byte)(neighborMask & 0xF);
 				int sourceRectPosition = drawGuide[drawSum];
 				int wateredRectPosition = drawGuide[wateredNeighborMask];
-				Texture2D texture = (Game1.currentLocation.Name.Equals("Mountain") || Game1.currentLocation.Name.Equals("Mine") || (Game1.currentLocation is MineShaft && (Game1.currentLocation as MineShaft).shouldShowDarkHoeDirt())) ? darkTexture : lightTexture;
-				if ((Game1.currentSeason.Equals("winter") && !(Game1.currentLocation is Desert) && !Game1.currentLocation.IsGreenhouse && !(Game1.currentLocation is MineShaft)) || (Game1.currentLocation is MineShaft && (Game1.currentLocation as MineShaft).getMineArea() == 40 && !(Game1.currentLocation as MineShaft).isLevelSlimeArea()))
+				Vector2 drawPos = Game1.GlobalToLocal(Game1.viewport, new Vector2(tileLocation.X * 64f, tileLocation.Y * 64f));
+				spriteBatch.Draw(texture, drawPos, new Rectangle(sourceRectPosition % 4 * 16, sourceRectPosition / 4 * 16, 16, 16), c, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1E-08f);
+				if (state == 1)
 				{
-					texture = snowTexture;
+					spriteBatch.Draw(texture, drawPos, new Rectangle(wateredRectPosition % 4 * 16 + (paddyWaterCheck(Game1.currentLocation, tileLocation) ? 128 : 64), wateredRectPosition / 4 * 16, 16, 16), c, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1.2E-08f);
 				}
-				spriteBatch.Draw(texture, Game1.GlobalToLocal(Game1.viewport, new Vector2(tileLocation.X * 64f, tileLocation.Y * 64f)), new Rectangle(sourceRectPosition % 4 * 16, sourceRectPosition / 4 * 16, 16, 16), c, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1E-08f);
-				if ((int)state == 1)
+				int fertilizer = this.fertilizer.Value;
+				if (fertilizer != 0)
 				{
-					spriteBatch.Draw(texture, Game1.GlobalToLocal(Game1.viewport, new Vector2(tileLocation.X * 64f, tileLocation.Y * 64f)), new Rectangle(wateredRectPosition % 4 * 16 + (paddyWaterCheck(Game1.currentLocation, tileLocation) ? 128 : 64), wateredRectPosition / 4 * 16, 16, 16), c, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1.2E-08f);
-				}
-				if ((int)fertilizer != 0)
-				{
-					int fertilizerIndex = 0;
-					switch ((int)fertilizer)
-					{
-					case 369:
-						fertilizerIndex = 1;
-						break;
-					case 370:
-						fertilizerIndex = 2;
-						break;
-					case 371:
-						fertilizerIndex = 3;
-						break;
-					case 465:
-						fertilizerIndex = 4;
-						break;
-					case 466:
-						fertilizerIndex = 5;
-						break;
-					}
-					spriteBatch.Draw(Game1.mouseCursors, Game1.GlobalToLocal(Game1.viewport, new Vector2(tileLocation.X * 64f, tileLocation.Y * 64f)), new Rectangle(173 + fertilizerIndex / 2 * 16, 466 + fertilizerIndex % 2 * 16, 16, 16), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1.9E-08f);
+					Rectangle fertilizer_rect = GetFertilizerSourceRect(fertilizer);
+					spriteBatch.Draw(Game1.mouseCursors, drawPos, fertilizer_rect, Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1.9E-08f);
 				}
 			}
 			if (crop != null)
 			{
-				crop.draw(spriteBatch, tileLocation, ((int)state == 1 && (int)crop.currentPhase == 0 && crop.shouldDrawDarkWhenWatered()) ? (new Color(180, 100, 200) * 1f) : Color.White, shakeRotation);
+				crop.draw(spriteBatch, tileLocation, (state == 1 && (int)crop.currentPhase == 0 && crop.shouldDrawDarkWhenWatered()) ? (new Color(180, 100, 200) * 1f) : Color.White, shakeRotation);
 			}
+		}
+
+		public Rectangle GetFertilizerSourceRect(int fertilizer)
+		{
+			int fertilizerIndex = 0;
+			switch (fertilizer)
+			{
+			case 369:
+				fertilizerIndex = 1;
+				break;
+			case 370:
+				fertilizerIndex = 3;
+				break;
+			case 371:
+				fertilizerIndex = 4;
+				break;
+			case 920:
+				fertilizerIndex = 5;
+				break;
+			case 465:
+				fertilizerIndex = 6;
+				break;
+			case 466:
+				fertilizerIndex = 7;
+				break;
+			case 918:
+				fertilizerIndex = 8;
+				break;
+			case 919:
+				fertilizerIndex = 2;
+				break;
+			}
+			return new Rectangle(173 + fertilizerIndex / 3 * 16, 462 + fertilizerIndex % 3 * 16, 16, 16);
 		}
 
 		private List<Neighbor> gatherNeighbors(GameLocation loc, Vector2 tilePos)
@@ -843,7 +921,7 @@ namespace StardewValley.TerrainFeatures
 				if (terrainFeatures.TryGetValue(tile, out feature) && feature != null)
 				{
 					dirt2 = (feature as HoeDirt);
-					if (dirt2 != null)
+					if (dirt2 != null && dirt2.state.Value != 2)
 					{
 						Neighbor i = new Neighbor(dirt2, item.Direction, item.InvDirection);
 						results.Add(i);
@@ -863,7 +941,10 @@ namespace StardewValley.TerrainFeatures
 				foreach (Neighbor i in list)
 				{
 					neighborMask |= i.direction;
-					i.feature.OnNeighborAdded(i.invDirection);
+					if ((int)state != 2)
+					{
+						i.feature.OnNeighborAdded(i.invDirection);
+					}
 					if ((int)state == 1 && (int)i.feature.state == 1)
 					{
 						if (i.feature.paddyWaterCheck(i.feature.currentLocation, i.feature.currentTileLocation) == paddyWaterCheck(loc, tilePos))

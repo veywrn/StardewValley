@@ -2,13 +2,17 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Audio;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
+using Netcode;
 using StardewValley.BellsAndWhistles;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Xml.Serialization;
 
 namespace StardewValley.Minigames
 {
+	[XmlInclude(typeof(JOTPKProgress))]
+	[InstanceStatics]
 	public class AbigailGame : IMinigame
 	{
 		public delegate void behaviorAfterMotionPause();
@@ -52,6 +56,50 @@ namespace StardewValley.Minigames
 				{
 					b.Draw(Game1.mouseCursors, topLeftScreenCoordinate + new Vector2(position.X, (float)position.Y + yOffset), new Rectangle(272 + which * 16, 1808, 16, 16), Color.White, 0f, Vector2.Zero, 3f, SpriteEffects.None, (float)position.Y / 10000f + 0.001f);
 				}
+			}
+		}
+
+		public class JOTPKProgress : INetObject<NetFields>
+		{
+			public NetInt bulletDamage = new NetInt();
+
+			public NetInt fireSpeedLevel = new NetInt();
+
+			public NetInt ammoLevel = new NetInt();
+
+			public NetBool spreadPistol = new NetBool();
+
+			public NetInt runSpeedLevel = new NetInt();
+
+			public NetInt lives = new NetInt();
+
+			public NetInt coins = new NetInt();
+
+			public NetInt score = new NetInt();
+
+			public NetBool died = new NetBool();
+
+			public NetInt whichRound = new NetInt();
+
+			public NetInt whichWave = new NetInt();
+
+			public NetInt heldItem = new NetInt(-100);
+
+			public NetInt world = new NetInt();
+
+			public NetInt waveTimer = new NetInt();
+
+			public NetList<Vector2, NetVector2> monsterChances = new NetList<Vector2, NetVector2>();
+
+			public NetFields NetFields
+			{
+				get;
+			} = new NetFields();
+
+
+			public JOTPKProgress()
+			{
+				NetFields.AddFields(bulletDamage, runSpeedLevel, ammoLevel, lives, coins, score, died, spreadPistol, whichRound, whichWave, heldItem, world, waveTimer, monsterChances);
 			}
 		}
 
@@ -1615,9 +1663,85 @@ namespace StardewValley.Minigames
 
 		public static int TileSize => 48;
 
+		public bool LoadGame()
+		{
+			if (playingWithAbigail)
+			{
+				return false;
+			}
+			if (Game1.player.jotpkProgress.Value == null)
+			{
+				return false;
+			}
+			JOTPKProgress save_data = Game1.player.jotpkProgress.Value;
+			ammoLevel = save_data.ammoLevel.Value;
+			bulletDamage = save_data.bulletDamage.Value;
+			coins = save_data.coins.Value;
+			died = save_data.died.Value;
+			fireSpeedLevel = save_data.fireSpeedLevel.Value;
+			lives = save_data.lives.Value;
+			score = save_data.score.Value;
+			runSpeedLevel = save_data.runSpeedLevel.Value;
+			spreadPistol = save_data.spreadPistol.Value;
+			whichRound = save_data.whichRound.Value;
+			whichWave = save_data.whichWave.Value;
+			waveTimer = save_data.waveTimer.Value;
+			world = save_data.world.Value;
+			if (save_data.heldItem.Value != -100)
+			{
+				heldItem = new CowboyPowerup(save_data.heldItem.Value, Point.Zero, 9999);
+			}
+			monsterChances = new List<Vector2>(save_data.monsterChances);
+			ApplyLevelSpecificStates();
+			if (shootoutLevel)
+			{
+				playerPosition = new Vector2(8 * TileSize, 3 * TileSize);
+			}
+			return true;
+		}
+
+		public void SaveGame()
+		{
+			if (!playingWithAbigail)
+			{
+				if (Game1.player.jotpkProgress.Value == null)
+				{
+					Game1.player.jotpkProgress.Value = new JOTPKProgress();
+				}
+				JOTPKProgress save_data = Game1.player.jotpkProgress.Value;
+				save_data.ammoLevel.Value = ammoLevel;
+				save_data.bulletDamage.Value = bulletDamage;
+				save_data.coins.Value = coins;
+				save_data.died.Value = died;
+				save_data.fireSpeedLevel.Value = fireSpeedLevel;
+				save_data.lives.Value = lives;
+				save_data.score.Value = score;
+				save_data.runSpeedLevel.Value = runSpeedLevel;
+				save_data.spreadPistol.Value = spreadPistol;
+				save_data.whichRound.Value = whichRound;
+				save_data.whichWave.Value = whichWave;
+				save_data.waveTimer.Value = waveTimer;
+				save_data.world.Value = world;
+				save_data.monsterChances.Clear();
+				save_data.monsterChances.AddRange(monsterChances);
+				if (heldItem == null)
+				{
+					save_data.heldItem.Value = -100;
+				}
+				else
+				{
+					save_data.heldItem.Value = heldItem.which;
+				}
+			}
+		}
+
 		public AbigailGame(bool playingWithAbby = false)
 		{
 			reset(playingWithAbby);
+			if (!playingWithAbigail && LoadGame())
+			{
+				map = getMap(whichWave);
+			}
 		}
 
 		public AbigailGame(int coins, int ammoLevel, int bulletDamage, int fireSpeedLevel, int runSpeedLevel, int lives, bool spreadPistol, int whichRound)
@@ -1631,9 +1755,15 @@ namespace StardewValley.Minigames
 			this.lives = lives;
 			this.spreadPistol = spreadPistol;
 			this.whichRound = whichRound;
+			ApplyNewGamePlus();
+			SaveGame();
+			onStartMenu = false;
+		}
+
+		public void ApplyNewGamePlus()
+		{
 			monsterChances[0] = new Vector2(0.014f + (float)whichRound * 0.005f, 0.41f + (float)whichRound * 0.05f);
 			monsterChances[4] = new Vector2(0.002f, 0.1f);
-			onStartMenu = false;
 		}
 
 		public void reset(bool playingWithAbby)
@@ -2218,6 +2348,11 @@ namespace StardewValley.Minigames
 					endFunction = afterPlayerDeathFunction
 				});
 				deathTimer *= 3f;
+				Game1.player.jotpkProgress.Value = null;
+			}
+			else if (!shootoutLevel)
+			{
+				SaveGame();
 			}
 		}
 
@@ -2314,6 +2449,10 @@ namespace StardewValley.Minigames
 						{
 							_buttonHeldState.Add(GameKeys.SelectOption);
 						}
+						else if (Program.sdk.IsEnterButtonAssignmentFlipped)
+						{
+							_buttonHeldState.Add(GameKeys.ShootRight);
+						}
 						else
 						{
 							_buttonHeldState.Add(GameKeys.ShootDown);
@@ -2329,6 +2468,10 @@ namespace StardewValley.Minigames
 						if (gameOver)
 						{
 							_buttonHeldState.Add(GameKeys.Exit);
+						}
+						else if (Program.sdk.IsEnterButtonAssignmentFlipped)
+						{
+							_buttonHeldState.Add(GameKeys.ShootDown);
 						}
 						else
 						{
@@ -2556,10 +2699,10 @@ namespace StardewValley.Minigames
 						endCutsceneTimer = 1000;
 						break;
 					case 5:
-						if (Game1.oldKBState.GetPressedKeys().Length == 0)
+						if (Game1.input.GetKeyboardState().GetPressedKeys().Length == 0)
 						{
-							_ = Game1.oldPadState;
-							if (Game1.oldPadState.Buttons.X != ButtonState.Pressed && Game1.oldPadState.Buttons.Start != ButtonState.Pressed && Game1.oldPadState.Buttons.A != ButtonState.Pressed)
+							Game1.input.GetGamePadState();
+							if (Game1.input.GetGamePadState().Buttons.X != ButtonState.Pressed && Game1.input.GetGamePadState().Buttons.Start != ButtonState.Pressed && Game1.input.GetGamePadState().Buttons.A != ButtonState.Pressed)
 							{
 								break;
 							}
@@ -2633,6 +2776,7 @@ namespace StardewValley.Minigames
 					betweenWaveTimer = 5000;
 					waitingForPlayerToMoveDownAMap = false;
 					shootoutLevel = false;
+					SaveGame();
 				}
 			}
 			if ((shopping || merchantArriving || merchantLeaving || waitingForPlayerToMoveDownAMap) && holdItemTimer <= 0)
@@ -2673,25 +2817,7 @@ namespace StardewValley.Minigames
 					betweenWaveTimer = 5000;
 					waitingForPlayerToMoveDownAMap = false;
 					playerMovementDirections.Clear();
-					if (whichWave == 12)
-					{
-						shootoutLevel = true;
-						monsters.Add(new Dracula());
-						if (whichRound > 0)
-						{
-							monsters.Last().health *= 2;
-						}
-					}
-					else if (whichWave % 4 == 0)
-					{
-						shootoutLevel = true;
-						monsters.Add(new Outlaw(new Point(8 * TileSize, 13 * TileSize), (world == 0) ? 50 : 100));
-						if (Game1.soundBank != null)
-						{
-							outlawSong = Game1.soundBank.GetCue("cowboy_outlawsong");
-							outlawSong.Play();
-						}
-					}
+					ApplyLevelSpecificStates();
 				}
 			}
 			if (gopherRunning)
@@ -2836,6 +2962,7 @@ namespace StardewValley.Minigames
 					}
 					if (waitingForPlayerToMoveDownAMap && playerBoundingBox.Bottom >= 16 * TileSize - TileSize / 2)
 					{
+						SaveGame();
 						shopping = false;
 						merchantArriving = false;
 						merchantLeaving = false;
@@ -3304,7 +3431,7 @@ namespace StardewValley.Minigames
 						}
 						if (whichRound > 0)
 						{
-							for (int j = 0; j < monsterChances.Count(); j++)
+							for (int j = 0; j < monsterChances.Count; j++)
 							{
 								_ = monsterChances[j];
 								monsterChances[j] *= 1.1f;
@@ -3468,6 +3595,29 @@ namespace StardewValley.Minigames
 			if (_buttonHeldFrames[GameKeys.Exit] == 1 && !playingWithAbigail)
 			{
 				quit = true;
+			}
+		}
+
+		public virtual void ApplyLevelSpecificStates()
+		{
+			if (whichWave == 12)
+			{
+				shootoutLevel = true;
+				monsters.Add(new Dracula());
+				if (whichRound > 0)
+				{
+					monsters.Last().health *= 2;
+				}
+			}
+			else if (whichWave > 0 && whichWave % 4 == 0)
+			{
+				shootoutLevel = true;
+				monsters.Add(new Outlaw(new Point(8 * TileSize, 13 * TileSize), (world == 0) ? 50 : 100));
+				if (Game1.soundBank != null)
+				{
+					outlawSong = Game1.soundBank.GetCue("cowboy_outlawsong");
+					outlawSong.Play();
+				}
 			}
 		}
 

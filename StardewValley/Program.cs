@@ -34,7 +34,7 @@ namespace StardewValley
 
 		public static bool successfullyPrintedLog;
 
-		public static SDKHelper sdk
+		internal static SDKHelper sdk
 		{
 			get
 			{
@@ -50,9 +50,9 @@ namespace StardewValley
 		{
 			GameTesterMode = true;
 			AppDomain.CurrentDomain.UnhandledException += handleException;
-			using (Game1 game = new Game1())
+			using (GameRunner game = new GameRunner())
 			{
-				gamePtr = game;
+				GameRunner.instance = game;
 				game.Run();
 			}
 		}

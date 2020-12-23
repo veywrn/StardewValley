@@ -11,7 +11,7 @@ namespace StardewValley
 	public class SlimeHutch : GameLocation
 	{
 		[XmlElement("slimeMatingsLeft")]
-		private readonly NetInt slimeMatingsLeft = new NetInt();
+		public readonly NetInt slimeMatingsLeft = new NetInt();
 
 		public readonly NetArray<bool, NetBool> waterSpots = new NetArray<bool, NetBool>(4);
 
@@ -70,12 +70,26 @@ namespace StardewValley
 		public override void DayUpdate(int dayOfMonth)
 		{
 			int waters = 0;
+			int startIndex = Game1.random.Next(waterSpots.Length);
 			for (int i = 0; i < waterSpots.Length; i++)
 			{
-				if (waterSpots[i] && waters * 5 < characters.Count)
+				if (waterSpots[(i + startIndex) % waterSpots.Length] && waters * 5 < characters.Count)
 				{
 					waters++;
-					waterSpots[i] = false;
+					waterSpots[(i + startIndex) % waterSpots.Length] = false;
+				}
+			}
+			for (int j = objects.Count() - 1; j >= 0; j--)
+			{
+				if (objects.Pairs.ElementAt(j).Value.IsSprinkler())
+				{
+					foreach (Vector2 v in objects.Pairs.ElementAt(j).Value.GetSprinklerTiles())
+					{
+						if (v.X == 16f && v.Y >= 6f && v.Y <= 9f)
+						{
+							waterSpots[(int)v.Y - 6] = true;
+						}
+					}
 				}
 			}
 			for (int numSlimeBalls = Math.Min(characters.Count / 5, waters); numSlimeBalls > 0; numSlimeBalls--)
@@ -118,6 +132,21 @@ namespace StardewValley
 			}
 			slimeMatingsLeft.Value = characters.Count / 5 + 1;
 			base.DayUpdate(dayOfMonth);
+		}
+
+		public override void TransferDataFromSavedLocation(GameLocation l)
+		{
+			if (l is SlimeHutch)
+			{
+				for (int i = 0; i < waterSpots.Length; i++)
+				{
+					if (i < (l as SlimeHutch).waterSpots.Count)
+					{
+						waterSpots[i] = (l as SlimeHutch).waterSpots[i];
+					}
+				}
+			}
+			base.TransferDataFromSavedLocation(l);
 		}
 
 		public override bool performToolAction(Tool t, int tileX, int tileY)

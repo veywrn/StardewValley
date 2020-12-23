@@ -11,7 +11,7 @@ namespace StardewValley.Network
 
 		public bool ExtrapolationEnabled;
 
-		private readonly NetBool moving = new NetBool().Interpolated(interpolate: false, wait: false);
+		public readonly NetBool moving = new NetBool().Interpolated(interpolate: false, wait: false);
 
 		public float X
 		{

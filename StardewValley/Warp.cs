@@ -23,6 +23,9 @@ namespace StardewValley
 		[XmlElement("targetName")]
 		private readonly NetString targetName = new NetString();
 
+		[XmlElement("npcOnly")]
+		public readonly NetBool npcOnly = new NetBool();
+
 		[XmlIgnore]
 		public NetFields NetFields
 		{
@@ -72,10 +75,10 @@ namespace StardewValley
 
 		public Warp()
 		{
-			NetFields.AddFields(x, y, targetX, targetY, targetName, flipFarmer);
+			NetFields.AddFields(x, y, targetX, targetY, targetName, flipFarmer, npcOnly);
 		}
 
-		public Warp(int x, int y, string targetName, int targetX, int targetY, bool flipFarmer)
+		public Warp(int x, int y, string targetName, int targetX, int targetY, bool flipFarmer, bool npcOnly = false)
 			: this()
 		{
 			this.x.Value = x;
@@ -84,6 +87,7 @@ namespace StardewValley
 			this.targetY.Value = targetY;
 			this.targetName.Value = targetName;
 			this.flipFarmer.Value = flipFarmer;
+			this.npcOnly.Value = npcOnly;
 		}
 	}
 }

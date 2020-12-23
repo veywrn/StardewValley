@@ -1,6 +1,7 @@
 using Netcode;
 using StardewValley.Locations;
 using StardewValley.Menus;
+using StardewValley.Objects;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -79,14 +80,14 @@ namespace StardewValley.Network
 
 		public virtual void connect()
 		{
-			Console.WriteLine("Starting client. Protocol version: " + Game1.multiplayer.protocolVersion);
+			Console.WriteLine("Starting client. Protocol version: 1.5");
+			connectionMessage = null;
 			if (!connectionStarted)
 			{
 				connectionStarted = true;
 				connectImpl();
 				timeoutTime = DateTime.Now.Ticks / 10000 + 45000;
 			}
-			connectionMessage = null;
 		}
 
 		public virtual void receiveMessages()
@@ -133,7 +134,7 @@ namespace StardewValley.Network
 				Game1.multiplayer.processIncomingMessage(message);
 				break;
 			case 11:
-				connectionMessage = message.Reader.ReadString();
+				connectionMessage = Game1.content.LoadString(message.Reader.ReadString());
 				break;
 			default:
 				Game1.multiplayer.processIncomingMessage(message);
@@ -188,7 +189,9 @@ namespace StardewValley.Network
 		{
 			if (getUserID() != "")
 			{
-				Game1.player.userID.Value = getUserID();
+				string uid = getUserID();
+				Console.WriteLine("sendPlayerIntroduction " + uid);
+				Game1.player.userID.Value = uid;
 			}
 			(Game1.player.NetFields.Root as NetRoot<Farmer>).MarkClean();
 			sendMessage(2, Game1.multiplayer.writeObjectFullBytes(Game1.player.NetFields.Root as NetFarmerRoot, null));
@@ -197,8 +200,6 @@ namespace StardewValley.Network
 		protected virtual void setUpGame()
 		{
 			Game1.flushLocationLookup();
-			GameLocation home = Game1.currentLocation = Game1.getLocationFromName(Game1.player.homeLocation.Value);
-			Game1.player.currentLocation = home;
 			Game1.player.updateFriendshipGifts(Game1.Date);
 			Game1.gameMode = 3;
 			Game1.stats.checkForAchievements();
@@ -206,10 +207,18 @@ namespace StardewValley.Network
 			Game1.client = this;
 			Game1.RefreshQuestOfTheDay();
 			readyToPlay = true;
+			BedFurniture.ApplyWakeUpPosition(Game1.player);
 			Game1.fadeClear();
 			Game1.currentLocation.resetForPlayerEntry();
 			Game1.initializeVolumeLevels();
 			Game1.addKentIfNecessary();
+			Game1.addBirdieIfNecessary();
+			Game1.addParrotBoyIfNecessary();
+			if (Game1.MasterPlayer.eventsSeen.Contains(558291) && !Game1.player.songsHeard.Contains("grandpas_theme"))
+			{
+				Game1.player.songsHeard.Add("grandpas_theme");
+			}
+			Game1.AddModNPCs();
 			Game1.exitActiveMenu();
 			if (!Game1.player.isCustomized)
 			{
@@ -228,6 +237,9 @@ namespace StardewValley.Network
 				}
 			}
 			Game1.player.showToolUpgradeAvailability();
+			Game1.dayTimeMoneyBox.questsDirty = true;
+			Game1.player.ReequipEnchantments();
+			Game1.player.isSitting.Value = false;
 		}
 
 		protected virtual void receiveServerIntroduction(BinaryReader msg)

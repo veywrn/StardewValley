@@ -128,7 +128,7 @@ namespace StardewValley
 			}
 		}
 
-		public bool update(GameTime time)
+		public virtual bool update(GameTime time)
 		{
 			timeLeft -= time.ElapsedGameTime.Milliseconds;
 			if (timeLeft < 0f)
@@ -146,22 +146,22 @@ namespace StardewValley
 			return false;
 		}
 
-		public void draw(SpriteBatch b, int i)
+		public virtual void draw(SpriteBatch b, int i)
 		{
 			Rectangle tsarea = Game1.graphics.GraphicsDevice.Viewport.GetTitleSafeArea();
 			if (noIcon)
 			{
 				int overrideX = tsarea.Left + 16;
-				int overrideY = ((Game1.viewport.Width < 1400) ? (-64) : 0) + tsarea.Bottom - (i + 1) * 64 * 7 / 4 - 21 - (int)Game1.dialogueFont.MeasureString(message).Y;
+				int overrideY = ((Game1.uiViewport.Width < 1400) ? (-64) : 0) + tsarea.Bottom - (i + 1) * 64 * 7 / 4 - 21 - (int)Game1.dialogueFont.MeasureString(message).Y;
 				IClickableMenu.drawHoverText(b, message, Game1.dialogueFont, 0, 0, -1, null, -1, null, null, 0, -1, -1, overrideX, overrideY, transparency);
 				return;
 			}
 			Vector2 itemBoxPosition = new Vector2(tsarea.Left + 16, tsarea.Bottom - (i + 1) * 64 * 7 / 4 - 64);
 			if (Game1.isOutdoorMapSmallerThanViewport())
 			{
-				itemBoxPosition.X = Math.Max(tsarea.Left + 16, -Game1.viewport.X + 16);
+				itemBoxPosition.X = Math.Max(tsarea.Left + 16, -Game1.uiViewport.X + 16);
 			}
-			if (Game1.viewport.Width < 1400)
+			if (Game1.uiViewport.Width < 1400)
 			{
 				itemBoxPosition.Y -= 48f;
 			}

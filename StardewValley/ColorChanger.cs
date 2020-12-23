@@ -6,6 +6,7 @@ namespace StardewValley
 {
 	internal class ColorChanger
 	{
+		[InstancedStatic]
 		private static Color[] _buffer;
 
 		public static Texture2D swapColor(Texture2D texture, int targetColorIndex, int red, int green, int blue)
@@ -28,8 +29,9 @@ namespace StardewValley
 			g1 = Math.Min(Math.Max(1, g1), 255);
 			b1 = Math.Min(Math.Max(1, b1), 255);
 			uint dstColor1_packed = new Color(r1, g1, b1).PackedValue;
-			Color[] data = getBuffer(texture.Width * texture.Height);
-			texture.GetData(data);
+			int len = texture.Width * texture.Height;
+			Color[] data = getBuffer(len);
+			texture.GetData(data, 0, len);
 			Color srcColor = data[targetColorIndex1];
 			uint srcColor1_packed = srcColor.PackedValue;
 			fixed (Color* pData = data)
@@ -44,7 +46,7 @@ namespace StardewValley
 					}
 				}
 			}
-			texture.SetData(data);
+			texture.SetData(data, 0, len);
 			return texture;
 		}
 
@@ -60,15 +62,15 @@ namespace StardewValley
 			Color dstColor2 = new Color(r2, g2, b2);
 			uint dstColor1_packed = dstColor3.PackedValue;
 			uint dstColor2_packed = dstColor2.PackedValue;
-			int num = texture.Width * texture.Height;
-			Color[] data = getBuffer(num);
-			texture.GetData(data);
+			int len = texture.Width * texture.Height;
+			Color[] data = getBuffer(len);
+			texture.GetData(data, 0, len);
 			Color srcColor3 = data[targetColorIndex1];
 			Color srcColor2 = data[targetColorIndex2];
 			uint srcColor1_packed = srcColor3.PackedValue;
 			uint srcColor2_packed = srcColor2.PackedValue;
 			int startPixelIndex = 0;
-			int endPixelIndex = num;
+			int endPixelIndex = len;
 			fixed (Color* pData = data)
 			{
 				Color* intPtr = pData + startPixelIndex;
@@ -85,7 +87,7 @@ namespace StardewValley
 					}
 				}
 			}
-			texture.SetData(data);
+			texture.SetData(data, 0, len);
 		}
 	}
 }

@@ -470,201 +470,206 @@ namespace StardewValley.Locations
 				{
 					stopWatch.Stop();
 				}
-				if (Game1.currentSong.Name.Equals("mermaidSong") && !Game1.currentSong.IsPaused)
+				if (Game1.getMusicTrackName().Equals("mermaidSong") && !Game1.currentSong.IsPaused)
 				{
 					Game1.currentSong.Pause();
 				}
-				return;
 			}
-			if (stopWatch != null && !stopWatch.IsRunning && Game1.currentSong.Name.Equals("mermaidSong") && Game1.currentSong.IsPaused)
+			else
 			{
-				stopWatch.Start();
-			}
-			if (Game1.currentSong.Name.Equals("mermaidSong") && Game1.currentSong.IsPaused)
-			{
-				Game1.currentSong.Resume();
-			}
-			float num = showTimer;
-			showTimer += time.ElapsedGameTime.Milliseconds;
-			if (((Game1.currentSong != null && Game1.currentSong.Name.Equals("mermaidSong") && Game1.currentSong.IsPlaying) || (Game1.options.musicVolumeLevel <= 0f && Game1.options.ambientVolumeLevel <= 0f)) && !stopWatch.IsRunning)
-			{
-				stopWatch.Start();
-			}
-			if (curtainMovement != 0f)
-			{
-				curtainOpenPercent = Math.Max(0f, Math.Min(1f, curtainOpenPercent + curtainMovement * (float)time.ElapsedGameTime.Milliseconds));
-			}
-			if (num < 3000f && showTimer >= 3000f)
-			{
-				Game1.changeMusicTrack("mermaidSong");
-			}
-			if (stopWatch != null && stopWatch.ElapsedMilliseconds > 0 && stopWatch.ElapsedMilliseconds < 1000)
-			{
-				curtainMovement = 0.0004f;
-			}
-			for (int j = sparkles.Count - 1; j >= 0; j--)
-			{
-				if (sparkles[j].update(time))
+				if (stopWatch != null && !stopWatch.IsRunning && Game1.getMusicTrackName().Equals("mermaidSong") && Game1.currentSong.IsPaused)
 				{
-					sparkles.RemoveAt(j);
+					stopWatch.Start();
+				}
+				if (Game1.getMusicTrackName().Equals("mermaidSong") && Game1.currentSong.IsPaused)
+				{
+					Game1.currentSong.Resume();
 				}
 			}
-			for (int k = alwaysFrontTempSprites.Count - 1; k >= 0; k--)
+			if (Game1.shouldTimePass())
 			{
-				if (alwaysFrontTempSprites[k].update(time))
+				float num = showTimer;
+				showTimer += time.ElapsedGameTime.Milliseconds;
+				if (((Game1.currentSong != null && Game1.getMusicTrackName().Equals("mermaidSong") && Game1.currentSong.IsPlaying) || (Game1.options.musicVolumeLevel <= 0f && Game1.options.ambientVolumeLevel <= 0f)) && !stopWatch.IsRunning)
 				{
-					alwaysFrontTempSprites.RemoveAt(k);
+					stopWatch.Start();
 				}
-			}
-			if (stopWatch.ElapsedMilliseconds >= 30000 && stopWatch.ElapsedMilliseconds < 50000 && (blackBGAlpha < 1f || bigMermaidAlpha < 1f))
-			{
-				blackBGAlpha += 0.01f;
-				bigMermaidAlpha += 0.01f;
-			}
-			if (stopWatch.ElapsedMilliseconds > 27692 && stopWatch.ElapsedMilliseconds < 55385)
-			{
-				if (oldStopWatchTime % 769f > (float)(stopWatch.ElapsedMilliseconds % 769))
+				if (curtainMovement != 0f)
 				{
-					bubbles.Add(new Vector2(Game1.random.Next((int)((float)Game1.graphics.GraphicsDevice.Viewport.Width / Game1.options.zoomLevel) - 64), (float)Game1.graphics.GraphicsDevice.Viewport.Height / Game1.options.zoomLevel));
+					curtainOpenPercent = Math.Max(0f, Math.Min(1f, curtainOpenPercent + curtainMovement * (float)time.ElapsedGameTime.Milliseconds));
 				}
-				for (int l = 0; l < bubbles.Count; l++)
+				if (num < 3000f && showTimer >= 3000f)
 				{
-					bubbles[l] = new Vector2(bubbles[l].X, bubbles[l].Y - 0.1f * (float)time.ElapsedGameTime.Milliseconds);
+					Game1.changeMusicTrack("mermaidSong");
 				}
-			}
-			if (oldStopWatchTime < 36923f && stopWatch.ElapsedMilliseconds >= 36923)
-			{
-				alwaysFrontTempSprites.Add(new TemporaryAnimatedSprite
+				if (stopWatch != null && stopWatch.ElapsedMilliseconds > 0 && stopWatch.ElapsedMilliseconds < 1000)
 				{
-					texture = mermaidSprites,
-					xPeriodic = true,
-					xPeriodicLoopTime = 2000f,
-					xPeriodicRange = 32f,
-					motion = new Vector2(0f, -4f),
-					sourceRectStartingPos = new Vector2(67f, 189f),
-					sourceRect = new Microsoft.Xna.Framework.Rectangle(67, 189, 24, 53),
-					totalNumberOfLoops = 100,
-					animationLength = 3,
-					pingPong = true,
-					interval = 192f,
-					delayBeforeAnimationStart = 0,
-					initialPosition = new Vector2((float)Game1.graphics.GraphicsDevice.Viewport.Width / 4f, Game1.graphics.GraphicsDevice.Viewport.Height - 1),
-					position = new Vector2((float)Game1.graphics.GraphicsDevice.Viewport.Width / Game1.options.zoomLevel / 4f, (float)Game1.graphics.GraphicsDevice.Viewport.Height / Game1.options.zoomLevel - 1f),
-					scale = 4f,
-					layerDepth = 1f
-				});
-			}
-			if (oldStopWatchTime < 40000f && stopWatch.ElapsedMilliseconds >= 40000)
-			{
-				alwaysFrontTempSprites.Add(new TemporaryAnimatedSprite
+					curtainMovement = 0.0004f;
+				}
+				for (int j = sparkles.Count - 1; j >= 0; j--)
 				{
-					texture = mermaidSprites,
-					xPeriodic = true,
-					xPeriodicLoopTime = 2000f,
-					xPeriodicRange = 32f,
-					motion = new Vector2(0f, -4f),
-					sourceRectStartingPos = new Vector2(67f, 189f),
-					sourceRect = new Microsoft.Xna.Framework.Rectangle(67, 189, 24, 53),
-					totalNumberOfLoops = 100,
-					animationLength = 3,
-					pingPong = true,
-					interval = 192f,
-					delayBeforeAnimationStart = 0,
-					initialPosition = new Vector2((float)Game1.graphics.GraphicsDevice.Viewport.Width * 3f / 4f, Game1.graphics.GraphicsDevice.Viewport.Height - 1),
-					position = new Vector2((float)Game1.graphics.GraphicsDevice.Viewport.Width / Game1.options.zoomLevel * 3f / 4f, (float)Game1.graphics.GraphicsDevice.Viewport.Height / Game1.options.zoomLevel - 1f),
-					scale = 4f,
-					layerDepth = 1f
-				});
-			}
-			if (oldStopWatchTime < 43077f && stopWatch.ElapsedMilliseconds >= 43077)
-			{
-				alwaysFrontTempSprites.Add(new TemporaryAnimatedSprite
+					if (sparkles[j].update(time))
+					{
+						sparkles.RemoveAt(j);
+					}
+				}
+				for (int k = alwaysFrontTempSprites.Count - 1; k >= 0; k--)
 				{
-					texture = mermaidSprites,
-					xPeriodic = true,
-					xPeriodicLoopTime = 2000f,
-					xPeriodicRange = 32f,
-					motion = new Vector2(0f, -4f),
-					sourceRectStartingPos = new Vector2(67f, 189f),
-					sourceRect = new Microsoft.Xna.Framework.Rectangle(67, 189, 24, 53),
-					totalNumberOfLoops = 100,
-					animationLength = 3,
-					pingPong = true,
-					interval = 192f,
-					delayBeforeAnimationStart = 0,
-					initialPosition = new Vector2((float)Game1.graphics.GraphicsDevice.Viewport.Width / 4f, Game1.graphics.GraphicsDevice.Viewport.Height - 1),
-					position = new Vector2((float)Game1.graphics.GraphicsDevice.Viewport.Width / Game1.options.zoomLevel / 4f, (float)Game1.graphics.GraphicsDevice.Viewport.Height / Game1.options.zoomLevel - 1f),
-					scale = 4f,
-					layerDepth = 1f
-				});
-			}
-			if (oldStopWatchTime < 46154f && stopWatch.ElapsedMilliseconds >= 46154)
-			{
-				alwaysFrontTempSprites.Add(new TemporaryAnimatedSprite
+					if (alwaysFrontTempSprites[k].update(time))
+					{
+						alwaysFrontTempSprites.RemoveAt(k);
+					}
+				}
+				if (stopWatch.ElapsedMilliseconds >= 30000 && stopWatch.ElapsedMilliseconds < 50000 && (blackBGAlpha < 1f || bigMermaidAlpha < 1f))
 				{
-					texture = mermaidSprites,
-					xPeriodic = true,
-					xPeriodicLoopTime = 2000f,
-					xPeriodicRange = 32f,
-					motion = new Vector2(0f, -4f),
-					sourceRectStartingPos = new Vector2(67f, 189f),
-					sourceRect = new Microsoft.Xna.Framework.Rectangle(67, 189, 24, 53),
-					totalNumberOfLoops = 100,
-					animationLength = 3,
-					pingPong = true,
-					interval = 192f,
-					delayBeforeAnimationStart = 0,
-					initialPosition = new Vector2((float)Game1.graphics.GraphicsDevice.Viewport.Width * 3f / 4f, Game1.graphics.GraphicsDevice.Viewport.Height - 1),
-					position = new Vector2((float)Game1.graphics.GraphicsDevice.Viewport.Width / Game1.options.zoomLevel * 3f / 4f, (float)Game1.graphics.GraphicsDevice.Viewport.Height / Game1.options.zoomLevel - 1f),
-					scale = 4f,
-					layerDepth = 1f
-				});
-			}
-			if (stopWatch.ElapsedMilliseconds >= 52308 && (blackBGAlpha > 0f || bigMermaidAlpha > 0f))
-			{
-				blackBGAlpha -= 0.01f;
-				bigMermaidAlpha -= 0.01f;
-			}
-			if (stopWatch.ElapsedMilliseconds >= 58462 && stopWatch.ElapsedMilliseconds < 60000 && finalLeftMermaidAlpha < 1f)
-			{
-				finalLeftMermaidAlpha += 0.01f;
-			}
-			if (stopWatch.ElapsedMilliseconds >= 60000 && stopWatch.ElapsedMilliseconds < 62000 && finalRightMermaidAlpha < 1f)
-			{
-				finalRightMermaidAlpha += 0.01f;
-			}
-			if (stopWatch.ElapsedMilliseconds >= 61538 && stopWatch.ElapsedMilliseconds < 63538 && finalBigMermaidAlpha < 1f)
-			{
-				finalBigMermaidAlpha += 0.01f;
-			}
-			if (stopWatch.ElapsedMilliseconds >= 64615 && (finalBigMermaidAlpha < 1f || finalRightMermaidAlpha < 1f || finalLeftMermaidAlpha < 1f))
-			{
-				finalBigMermaidAlpha -= 0.01f;
-				finalRightMermaidAlpha -= 0.01f;
-				finalLeftMermaidAlpha -= 0.01f;
-			}
-			if (oldStopWatchTime < 64808f && stopWatch.ElapsedMilliseconds >= 64808)
-			{
-				for (int i = 0; i < 200; i++)
+					blackBGAlpha += 0.01f;
+					bigMermaidAlpha += 0.01f;
+				}
+				if (stopWatch.ElapsedMilliseconds > 27692 && stopWatch.ElapsedMilliseconds < 55385)
 				{
-					sparkles.Add(new TemporaryAnimatedSprite
+					if (oldStopWatchTime % 769f > (float)(stopWatch.ElapsedMilliseconds % 769))
+					{
+						bubbles.Add(new Vector2(Game1.random.Next((int)((float)Game1.graphics.GraphicsDevice.Viewport.Width / Game1.options.zoomLevel) - 64), (float)Game1.graphics.GraphicsDevice.Viewport.Height / Game1.options.zoomLevel));
+					}
+					for (int l = 0; l < bubbles.Count; l++)
+					{
+						bubbles[l] = new Vector2(bubbles[l].X, bubbles[l].Y - 0.1f * (float)time.ElapsedGameTime.Milliseconds);
+					}
+				}
+				if (oldStopWatchTime < 36923f && stopWatch.ElapsedMilliseconds >= 36923)
+				{
+					alwaysFrontTempSprites.Add(new TemporaryAnimatedSprite
 					{
 						texture = mermaidSprites,
-						sourceRect = new Microsoft.Xna.Framework.Rectangle(0, 146, 16, 13),
-						animationLength = 9,
-						interval = 100f,
-						delayBeforeAnimationStart = i * 10,
-						position = Utility.getRandomPositionOnScreenNotOnMap(),
-						scale = 4f
+						xPeriodic = true,
+						xPeriodicLoopTime = 2000f,
+						xPeriodicRange = 32f,
+						motion = new Vector2(0f, -4f),
+						sourceRectStartingPos = new Vector2(67f, 189f),
+						sourceRect = new Microsoft.Xna.Framework.Rectangle(67, 189, 24, 53),
+						totalNumberOfLoops = 100,
+						animationLength = 3,
+						pingPong = true,
+						interval = 192f,
+						delayBeforeAnimationStart = 0,
+						initialPosition = new Vector2((float)Game1.graphics.GraphicsDevice.Viewport.Width / 4f, Game1.graphics.GraphicsDevice.Viewport.Height - 1),
+						position = new Vector2((float)Game1.graphics.GraphicsDevice.Viewport.Width / Game1.options.zoomLevel / 4f, (float)Game1.graphics.GraphicsDevice.Viewport.Height / Game1.options.zoomLevel - 1f),
+						scale = 4f,
+						layerDepth = 1f
 					});
 				}
-				Utility.addSprinklesToLocation(this, 5, 5, 9, 5, 2000, 100, Color.White);
+				if (oldStopWatchTime < 40000f && stopWatch.ElapsedMilliseconds >= 40000)
+				{
+					alwaysFrontTempSprites.Add(new TemporaryAnimatedSprite
+					{
+						texture = mermaidSprites,
+						xPeriodic = true,
+						xPeriodicLoopTime = 2000f,
+						xPeriodicRange = 32f,
+						motion = new Vector2(0f, -4f),
+						sourceRectStartingPos = new Vector2(67f, 189f),
+						sourceRect = new Microsoft.Xna.Framework.Rectangle(67, 189, 24, 53),
+						totalNumberOfLoops = 100,
+						animationLength = 3,
+						pingPong = true,
+						interval = 192f,
+						delayBeforeAnimationStart = 0,
+						initialPosition = new Vector2((float)Game1.graphics.GraphicsDevice.Viewport.Width * 3f / 4f, Game1.graphics.GraphicsDevice.Viewport.Height - 1),
+						position = new Vector2((float)Game1.graphics.GraphicsDevice.Viewport.Width / Game1.options.zoomLevel * 3f / 4f, (float)Game1.graphics.GraphicsDevice.Viewport.Height / Game1.options.zoomLevel - 1f),
+						scale = 4f,
+						layerDepth = 1f
+					});
+				}
+				if (oldStopWatchTime < 43077f && stopWatch.ElapsedMilliseconds >= 43077)
+				{
+					alwaysFrontTempSprites.Add(new TemporaryAnimatedSprite
+					{
+						texture = mermaidSprites,
+						xPeriodic = true,
+						xPeriodicLoopTime = 2000f,
+						xPeriodicRange = 32f,
+						motion = new Vector2(0f, -4f),
+						sourceRectStartingPos = new Vector2(67f, 189f),
+						sourceRect = new Microsoft.Xna.Framework.Rectangle(67, 189, 24, 53),
+						totalNumberOfLoops = 100,
+						animationLength = 3,
+						pingPong = true,
+						interval = 192f,
+						delayBeforeAnimationStart = 0,
+						initialPosition = new Vector2((float)Game1.graphics.GraphicsDevice.Viewport.Width / 4f, Game1.graphics.GraphicsDevice.Viewport.Height - 1),
+						position = new Vector2((float)Game1.graphics.GraphicsDevice.Viewport.Width / Game1.options.zoomLevel / 4f, (float)Game1.graphics.GraphicsDevice.Viewport.Height / Game1.options.zoomLevel - 1f),
+						scale = 4f,
+						layerDepth = 1f
+					});
+				}
+				if (oldStopWatchTime < 46154f && stopWatch.ElapsedMilliseconds >= 46154)
+				{
+					alwaysFrontTempSprites.Add(new TemporaryAnimatedSprite
+					{
+						texture = mermaidSprites,
+						xPeriodic = true,
+						xPeriodicLoopTime = 2000f,
+						xPeriodicRange = 32f,
+						motion = new Vector2(0f, -4f),
+						sourceRectStartingPos = new Vector2(67f, 189f),
+						sourceRect = new Microsoft.Xna.Framework.Rectangle(67, 189, 24, 53),
+						totalNumberOfLoops = 100,
+						animationLength = 3,
+						pingPong = true,
+						interval = 192f,
+						delayBeforeAnimationStart = 0,
+						initialPosition = new Vector2((float)Game1.graphics.GraphicsDevice.Viewport.Width * 3f / 4f, Game1.graphics.GraphicsDevice.Viewport.Height - 1),
+						position = new Vector2((float)Game1.graphics.GraphicsDevice.Viewport.Width / Game1.options.zoomLevel * 3f / 4f, (float)Game1.graphics.GraphicsDevice.Viewport.Height / Game1.options.zoomLevel - 1f),
+						scale = 4f,
+						layerDepth = 1f
+					});
+				}
+				if (stopWatch.ElapsedMilliseconds >= 52308 && (blackBGAlpha > 0f || bigMermaidAlpha > 0f))
+				{
+					blackBGAlpha -= 0.01f;
+					bigMermaidAlpha -= 0.01f;
+				}
+				if (stopWatch.ElapsedMilliseconds >= 58462 && stopWatch.ElapsedMilliseconds < 60000 && finalLeftMermaidAlpha < 1f)
+				{
+					finalLeftMermaidAlpha += 0.01f;
+				}
+				if (stopWatch.ElapsedMilliseconds >= 60000 && stopWatch.ElapsedMilliseconds < 62000 && finalRightMermaidAlpha < 1f)
+				{
+					finalRightMermaidAlpha += 0.01f;
+				}
+				if (stopWatch.ElapsedMilliseconds >= 61538 && stopWatch.ElapsedMilliseconds < 63538 && finalBigMermaidAlpha < 1f)
+				{
+					finalBigMermaidAlpha += 0.01f;
+				}
+				if (stopWatch.ElapsedMilliseconds >= 64615 && (finalBigMermaidAlpha < 1f || finalRightMermaidAlpha < 1f || finalLeftMermaidAlpha < 1f))
+				{
+					finalBigMermaidAlpha -= 0.01f;
+					finalRightMermaidAlpha -= 0.01f;
+					finalLeftMermaidAlpha -= 0.01f;
+				}
+				if (oldStopWatchTime < 64808f && stopWatch.ElapsedMilliseconds >= 64808)
+				{
+					for (int i = 0; i < 200; i++)
+					{
+						sparkles.Add(new TemporaryAnimatedSprite
+						{
+							texture = mermaidSprites,
+							sourceRect = new Microsoft.Xna.Framework.Rectangle(0, 146, 16, 13),
+							animationLength = 9,
+							interval = 100f,
+							delayBeforeAnimationStart = i * 10,
+							position = Utility.getRandomPositionOnScreenNotOnMap(),
+							scale = 4f
+						});
+					}
+					Utility.addSprinklesToLocation(this, 5, 5, 9, 5, 2000, 100, Color.White);
+				}
+				if (oldStopWatchTime < 67500f && stopWatch.ElapsedMilliseconds >= 67500)
+				{
+					curtainMovement = -0.0003f;
+				}
+				oldStopWatchTime = stopWatch.ElapsedMilliseconds;
 			}
-			if (oldStopWatchTime < 67500f && stopWatch.ElapsedMilliseconds >= 67500)
-			{
-				curtainMovement = -0.0003f;
-			}
-			oldStopWatchTime = stopWatch.ElapsedMilliseconds;
 			if (fairyTimer > 0f)
 			{
 				fairyTimer -= time.ElapsedGameTime.Milliseconds;

@@ -5,6 +5,7 @@ using StardewValley.Network;
 using StardewValley.TerrainFeatures;
 using System.Collections.Generic;
 using System.Linq;
+using System.Xml.Serialization;
 
 namespace StardewValley.Projectiles
 {
@@ -34,6 +35,12 @@ namespace StardewValley.Projectiles
 
 		public const int fireball = 10;
 
+		public const int slash = 11;
+
+		public const int arrowBolt = 12;
+
+		public const int launchedSlime = 13;
+
 		public const string projectileSheetName = "TileSheets\\Projectiles";
 
 		public const int timePerTailUpdate = 50;
@@ -56,7 +63,12 @@ namespace StardewValley.Projectiles
 
 		protected int travelTime;
 
-		protected float rotation;
+		protected float? _rotation;
+
+		[XmlIgnore]
+		public float hostTimeUntilAttackable = -1f;
+
+		public readonly NetFloat startingRotation = new NetFloat();
 
 		protected readonly NetFloat rotationVelocity = new NetFloat();
 
@@ -64,11 +76,15 @@ namespace StardewValley.Projectiles
 
 		protected readonly NetFloat yVelocity = new NetFloat();
 
+		public readonly NetColor color = new NetColor(Color.White);
+
 		private Queue<Vector2> tail = new Queue<Vector2>();
 
 		public readonly NetInt maxTravelDistance = new NetInt(-1);
 
 		public float travelDistance;
+
+		public NetFloat height = new NetFloat(0f);
 
 		protected readonly NetBool damagesMonsters = new NetBool();
 
@@ -80,7 +96,40 @@ namespace StardewValley.Projectiles
 
 		public readonly NetBool ignoreLocationCollision = new NetBool();
 
+		public readonly NetBool ignoreMeleeAttacks = new NetBool(value: false);
+
 		public bool destroyMe;
+
+		public readonly NetFloat startingScale = new NetFloat(1f);
+
+		[XmlIgnore]
+		protected float? _localScale;
+
+		public readonly NetFloat scaleGrow = new NetFloat(0f);
+
+		public NetBool light = new NetBool();
+
+		public bool hasLit;
+
+		private int lightID;
+
+		private float startingAlpha = 1f;
+
+		protected float rotation
+		{
+			get
+			{
+				if (!_rotation.HasValue)
+				{
+					_rotation = startingRotation.Value;
+				}
+				return _rotation.Value;
+			}
+			set
+			{
+				_rotation = value;
+			}
+		}
 
 		public bool IgnoreLocationCollision
 		{
@@ -100,13 +149,34 @@ namespace StardewValley.Projectiles
 		} = new NetFields();
 
 
+		[XmlIgnore]
+		public virtual float localScale
+		{
+			get
+			{
+				if (!_localScale.HasValue)
+				{
+					_localScale = startingScale.Value;
+				}
+				return _localScale.Value;
+			}
+			set
+			{
+				_localScale = value;
+			}
+		}
+
 		public Projectile()
 		{
-			NetFields.AddFields(currentTileSheetIndex, position.NetFields, tailLength, bouncesLeft, rotationVelocity, xVelocity, yVelocity, damagesMonsters, spriteFromObjectSheet, theOneWhoFiredMe.NetFields, ignoreLocationCollision, maxTravelDistance, ignoreTravelGracePeriod);
+			NetFields.AddFields(currentTileSheetIndex, position.NetFields, tailLength, bouncesLeft, rotationVelocity, startingRotation, xVelocity, yVelocity, damagesMonsters, spriteFromObjectSheet, theOneWhoFiredMe.NetFields, ignoreLocationCollision, maxTravelDistance, ignoreTravelGracePeriod, ignoreMeleeAttacks, height, startingScale, scaleGrow, color, light);
 		}
 
 		private bool behaviorOnCollision(GameLocation location)
 		{
+			if (hasLit)
+			{
+				Utility.removeLightSource(lightID);
+			}
 			foreach (Vector2 tile in Utility.getListOfTileLocationsForBordersOfNonTileRectangle(getBoundingBox()))
 			{
 				foreach (Farmer player in location.farmers)
@@ -148,15 +218,53 @@ namespace StardewValley.Projectiles
 
 		public virtual bool update(GameTime time, GameLocation location)
 		{
+			if (Game1.IsMasterGame && hostTimeUntilAttackable > 0f)
+			{
+				hostTimeUntilAttackable -= (float)time.ElapsedGameTime.TotalSeconds;
+				if (hostTimeUntilAttackable <= 0f)
+				{
+					ignoreMeleeAttacks.Value = false;
+					hostTimeUntilAttackable = -1f;
+				}
+			}
+			if ((bool)light)
+			{
+				if (!hasLit)
+				{
+					hasLit = true;
+					lightID = Game1.random.Next(int.MinValue, int.MaxValue);
+					Game1.currentLightSources.Add(new LightSource(4, position + new Vector2(32f, 32f), 1f, new Color(0, 65, 128), lightID, LightSource.LightContext.None, 0L));
+				}
+				else
+				{
+					_ = (Vector2)position;
+					Utility.repositionLightSource(lightID, position + new Vector2(32f, 32f));
+				}
+			}
 			rotation += rotationVelocity;
 			travelTime += time.ElapsedGameTime.Milliseconds;
+			if (scaleGrow.Value != 0f)
+			{
+				localScale += scaleGrow.Value;
+			}
 			Vector2 old_position = position.Value;
 			updatePosition(time);
 			updateTail(time);
 			travelDistance += (old_position - position.Value).Length();
-			if (maxTravelDistance.Value >= 0 && travelDistance >= (float)(int)maxTravelDistance)
+			if (maxTravelDistance.Value >= 0)
 			{
-				return true;
+				if (travelDistance > (float)((int)maxTravelDistance - 128))
+				{
+					startingAlpha = ((float)(int)maxTravelDistance - travelDistance) / 128f;
+				}
+				if (travelDistance >= (float)(int)maxTravelDistance)
+				{
+					if (hasLit)
+					{
+						Utility.removeLightSource(lightID);
+					}
+					return true;
+				}
 			}
 			if (isColliding(location) && (travelTime > 100 || ignoreTravelGracePeriod.Value))
 			{
@@ -209,19 +317,27 @@ namespace StardewValley.Projectiles
 
 		public virtual Rectangle getBoundingBox()
 		{
-			return new Rectangle((int)position.X + 32 - (boundingBoxWidth + (damagesMonsters ? 8 : 0)) / 2, (int)position.Y + 32 - (boundingBoxWidth + (damagesMonsters ? 8 : 0)) / 2, boundingBoxWidth + (damagesMonsters ? 8 : 0), boundingBoxWidth + (damagesMonsters ? 8 : 0));
+			Vector2 pos = position.Value;
+			int damageSize2 = boundingBoxWidth + (damagesMonsters ? 8 : 0);
+			float current_scale = localScale;
+			damageSize2 = (int)((float)damageSize2 * current_scale);
+			return new Rectangle((int)pos.X + 32 - damageSize2 / 2, (int)pos.Y + 32 - damageSize2 / 2, damageSize2, damageSize2);
 		}
 
 		public virtual void draw(SpriteBatch b)
 		{
-			b.Draw(spriteFromObjectSheet ? Game1.objectSpriteSheet : projectileSheet, Game1.GlobalToLocal(Game1.viewport, position + new Vector2(32f, 32f)), Game1.getSourceRectForStandardTileSheet(spriteFromObjectSheet ? Game1.objectSpriteSheet : projectileSheet, currentTileSheetIndex, 16, 16), Color.White, rotation, new Vector2(8f, 8f), 4f, SpriteEffects.None, (position.Y + 96f) / 10000f);
-			float scale = 4f;
-			float alpha = 1f;
+			float current_scale = 4f * localScale;
+			float alpha = startingAlpha;
+			b.Draw(spriteFromObjectSheet ? Game1.objectSpriteSheet : projectileSheet, Game1.GlobalToLocal(Game1.viewport, position + new Vector2(0f, 0f - (float)height) + new Vector2(32f, 32f)), Game1.getSourceRectForStandardTileSheet(spriteFromObjectSheet ? Game1.objectSpriteSheet : projectileSheet, currentTileSheetIndex, 16, 16), color.Value * startingAlpha, rotation, new Vector2(8f, 8f), current_scale, SpriteEffects.None, (position.Y + 96f) / 10000f);
+			if (height.Value > 0f)
+			{
+				b.Draw(Game1.shadowTexture, Game1.GlobalToLocal(Game1.viewport, position + new Vector2(32f, 32f)), Game1.shadowTexture.Bounds, Color.White * alpha * 0.75f, 0f, new Vector2(Game1.shadowTexture.Bounds.Center.X, Game1.shadowTexture.Bounds.Center.Y), 2f, SpriteEffects.None, (position.Y - 1f) / 10000f);
+			}
 			for (int i = tail.Count - 1; i >= 0; i--)
 			{
-				b.Draw(spriteFromObjectSheet ? Game1.objectSpriteSheet : projectileSheet, Game1.GlobalToLocal(Game1.viewport, tail.ElementAt(i) + new Vector2(32f, 32f)), Game1.getSourceRectForStandardTileSheet(spriteFromObjectSheet ? Game1.objectSpriteSheet : projectileSheet, currentTileSheetIndex, 16, 16), Color.White * alpha, rotation, new Vector2(8f, 8f), scale, SpriteEffects.None, (tail.ElementAt(i).Y + 96f) / 10000f);
-				scale = 0.8f * (float)(4 - 4 / (i + 4));
-				alpha -= 0.1f;
+				b.Draw(spriteFromObjectSheet ? Game1.objectSpriteSheet : projectileSheet, Game1.GlobalToLocal(Game1.viewport, Vector2.Lerp((i == tail.Count - 1) ? ((Vector2)position) : tail.ElementAt(i + 1), tail.ElementAt(i), (float)tailCounter / 50f) + new Vector2(0f, 0f - (float)height) + new Vector2(32f, 32f)), Game1.getSourceRectForStandardTileSheet(spriteFromObjectSheet ? Game1.objectSpriteSheet : projectileSheet, currentTileSheetIndex, 16, 16), color.Value * alpha, rotation, new Vector2(8f, 8f), current_scale, SpriteEffects.None, (position.Y - (float)(tail.Count - i) + 96f) / 10000f);
+				alpha -= 1f / (float)tail.Count;
+				current_scale = 0.8f * (float)(4 - 4 / (i + 4));
 			}
 		}
 	}

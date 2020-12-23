@@ -43,7 +43,7 @@ namespace StardewValley.Menus
 
 		public ClickableTextureComponent cancelButton;
 
-		protected virtual Vector2 centerPosition => new Vector2(Game1.viewport.Width / 2, Game1.viewport.Height / 2);
+		protected virtual Vector2 centerPosition => new Vector2(Game1.uiViewport.Width / 2, Game1.uiViewport.Height / 2);
 
 		public NumberSelectionMenu(string message, behaviorOnNumberSelect behaviorOnSelection, int price = -1, int minValue = 0, int maxValue = 99, int defaultNumber = 0)
 		{
@@ -119,23 +119,31 @@ namespace StardewValley.Menus
 			{
 				return;
 			}
+			int step_size = (int)Math.Pow(10.0, (heldTimer - 300) / 3000);
 			if (currentlySnappedComponent.myID == 102)
 			{
-				int tempNumber2 = currentValue + 1;
-				if (tempNumber2 <= maxValue && (price == -1 || tempNumber2 * price <= Game1.player.Money))
+				int tempNumber4 = currentValue + step_size;
+				int max_affordable = int.MaxValue;
+				if (price != -1 && price != 0)
+				{
+					max_affordable = Game1.player.Money / price;
+				}
+				tempNumber4 = Math.Min(tempNumber4, Math.Min(maxValue, max_affordable));
+				if (tempNumber4 != currentValue)
 				{
 					rightButton.scale = rightButton.baseScale;
-					currentValue = tempNumber2;
+					currentValue = tempNumber4;
 					numberSelectedBox.Text = string.Concat(currentValue);
 				}
 			}
 			else if (currentlySnappedComponent.myID == 101)
 			{
-				int tempNumber = currentValue - 1;
-				if (tempNumber >= minValue)
+				int tempNumber2 = currentValue - step_size;
+				tempNumber2 = Math.Max(tempNumber2, minValue);
+				if (tempNumber2 != currentValue)
 				{
 					leftButton.scale = leftButton.baseScale;
-					currentValue = tempNumber;
+					currentValue = tempNumber2;
 					numberSelectedBox.Text = string.Concat(currentValue);
 				}
 			}
@@ -256,7 +264,7 @@ namespace StardewValley.Menus
 
 		public override void draw(SpriteBatch b)
 		{
-			b.Draw(Game1.fadeToBlackRect, new Rectangle(0, 0, Game1.viewport.Width, Game1.viewport.Height), Color.Black * 0.5f);
+			b.Draw(Game1.fadeToBlackRect, new Rectangle(0, 0, Game1.uiViewport.Width, Game1.uiViewport.Height), Color.Black * 0.5f);
 			Game1.drawDialogueBox(xPositionOnScreen, yPositionOnScreen, width, height, speaker: false, drawOnlyBox: true);
 			b.DrawString(Game1.dialogueFont, message, new Vector2(xPositionOnScreen + IClickableMenu.borderWidth, yPositionOnScreen + IClickableMenu.spaceToClearTopBorder + IClickableMenu.borderWidth / 2), Game1.textColor);
 			okButton.draw(b);
