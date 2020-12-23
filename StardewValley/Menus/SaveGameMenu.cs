@@ -4,7 +4,6 @@ using StardewValley.BellsAndWhistles;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 using System.Text;
 
 namespace StardewValley.Menus
@@ -128,6 +127,10 @@ namespace StardewValley.Menus
 				}
 				else
 				{
+					if (LocalMultiplayer.IsLocalMultiplayer())
+					{
+						LocalMultiplayer.SaveOptions();
+					}
 					if (!_hasSentFarmhandData)
 					{
 						_hasSentFarmhandData = true;
@@ -160,7 +163,7 @@ namespace StardewValley.Menus
 		private static void saveClientOptions()
 		{
 			StartupPreferences startupPreferences = new StartupPreferences();
-			startupPreferences.loadPreferences(async: false);
+			startupPreferences.loadPreferences(async: false, applyLanguage: false);
 			startupPreferences.clientOptions = Game1.options;
 			startupPreferences.savePreferences(async: false);
 		}
@@ -168,7 +171,7 @@ namespace StardewValley.Menus
 		public override void draw(SpriteBatch b)
 		{
 			base.draw(b);
-			Vector2 txtpos2 = new Vector2(64f, Game1.viewport.Height - 64);
+			Vector2 txtpos2 = new Vector2(64f, Game1.uiViewport.Height - 64);
 			Vector2 txtsize = new Vector2(64f, 64f);
 			txtpos2 = Utility.makeSafe(txtpos2, txtsize);
 			bool draw_ready_status = false;
@@ -184,7 +187,7 @@ namespace StardewValley.Menus
 				if (Game1.IsMultiplayer)
 				{
 					_stringBuilder.Clear();
-					_stringBuilder.Append(Game1.content.LoadString("Strings\\UI:ReadyCheck", Game1.newDaySync.numReadyForSave(), Game1.getOnlineFarmers().Count()));
+					_stringBuilder.Append(Game1.content.LoadString("Strings\\UI:ReadyCheck", Game1.newDaySync.numReadyForSave(), Game1.getOnlineFarmers().Count));
 					for (int i = 0; i < _ellipsisCount; i++)
 					{
 						_stringBuilder.Append(".");
@@ -206,7 +209,7 @@ namespace StardewValley.Menus
 			else
 			{
 				_stringBuilder.Clear();
-				_stringBuilder.Append(Game1.content.LoadString("Strings\\UI:ReadyCheck", Game1.newDaySync.numReadyForSave(), Game1.getOnlineFarmers().Count()));
+				_stringBuilder.Append(Game1.content.LoadString("Strings\\UI:ReadyCheck", Game1.newDaySync.numReadyForSave(), Game1.getOnlineFarmers().Count));
 				for (int j = 0; j < _ellipsisCount; j++)
 				{
 					_stringBuilder.Append(".");

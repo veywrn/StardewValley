@@ -1,5 +1,6 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using StardewValley.TerrainFeatures;
 using System;
 
 namespace StardewValley.Monsters
@@ -48,7 +49,7 @@ namespace StardewValley.Monsters
 		{
 			if (!base.IsInvisible && Utility.isOnScreen(base.Position, 128))
 			{
-				b.Draw(Sprite.Texture, getLocalPosition(Game1.viewport) + new Vector2(32f, 64 + yJumpOffset), Sprite.SourceRect, Color.White, rotation, new Vector2(8f, 16f), new Vector2((float)scale + (float)Math.Max(-0.1, (double)(yJumpOffset + 32) / 128.0), (float)scale - Math.Max(-0.1f, (float)yJumpOffset / 256f)) * 4f, flip ? SpriteEffects.FlipHorizontally : SpriteEffects.None, Math.Max(0f, drawOnTop ? 0.991f : ((float)getStandingY() / 10000f)));
+				b.Draw(Sprite.Texture, getLocalPosition(Game1.viewport) + new Vector2(32 + ((shakeTimer > 0) ? Game1.random.Next(-1, 2) : 0), 64 + yJumpOffset), Sprite.SourceRect, Color.White, rotation, new Vector2(8f, 16f), new Vector2((float)scale + (float)Math.Max(-0.1, (double)(yJumpOffset + 32) / 128.0), (float)scale - Math.Max(-0.1f, (float)yJumpOffset / 256f)) * 4f, flip ? SpriteEffects.FlipHorizontally : SpriteEffects.None, Math.Max(0f, drawOnTop ? 0.991f : ((float)getStandingY() / 10000f)));
 				if (isGlowing)
 				{
 					b.Draw(Sprite.Texture, getLocalPosition(Game1.viewport) + new Vector2(32f, 64 + yJumpOffset), Sprite.SourceRect, glowingColor * glowingTransparency, rotation, new Vector2(8f, 16f), Math.Max(0.2f, scale) * 4f, flip ? SpriteEffects.FlipHorizontally : SpriteEffects.None, Math.Max(0f, drawOnTop ? 0.99f : ((float)getStandingY() / 10000f + 0.001f)));
@@ -91,11 +92,24 @@ namespace StardewValley.Monsters
 		{
 		}
 
+		public virtual bool CaughtInWeb()
+		{
+			if (base.currentLocation != null && base.currentLocation.terrainFeatures.ContainsKey(getTileLocation()) && base.currentLocation.terrainFeatures[getTileLocation()] is Grass)
+			{
+				return (byte)(base.currentLocation.terrainFeatures[getTileLocation()] as Grass).grassType == 6;
+			}
+			return false;
+		}
+
 		protected override void updateAnimation(GameTime time)
 		{
-			Sprite.AnimateDown(time);
 			if (yJumpOffset == 0)
 			{
+				if ((bool)isHardModeMonster && CaughtInWeb())
+				{
+					Sprite.Animate(time, 5, 3, 200f);
+					return;
+				}
 				jumpWithoutSound();
 				yJumpVelocity = (float)Game1.random.Next(50, 70) / 10f;
 				if (Game1.random.NextDouble() < 0.1 && (meep == null || !meep.IsPlaying) && Utility.isOnScreen(base.Position, 64) && Game1.soundBank != null && Game1.currentLocation == base.currentLocation)
@@ -105,6 +119,7 @@ namespace StardewValley.Monsters
 					meep.Play();
 				}
 			}
+			Sprite.AnimateDown(time);
 			resetAnimationSpeed();
 		}
 
@@ -115,10 +130,13 @@ namespace StardewValley.Monsters
 			{
 				if (Game1.random.NextDouble() < 0.01)
 				{
-					Game1.multiplayer.broadcastSprites(base.currentLocation, new TemporaryAnimatedSprite("TileSheets\\animations", new Rectangle(0, 128, 64, 64), 40f, 4, 0, getStandingPosition(), flicker: false, flipped: false));
+					Game1.multiplayer.broadcastSprites(base.currentLocation, new TemporaryAnimatedSprite("TileSheets\\animations", new Rectangle(0, 128, 64, 64), 40f, 4, 0, getStandingPosition() + new Vector2(-21f, 0f), flicker: false, flipped: false)
+					{
+						layerDepth = (getStandingPosition().Y - 10f) / 10000f
+					});
 					foreach (Vector2 v2 in Utility.getAdjacentTileLocations(getTileLocation()))
 					{
-						if (base.currentLocation.objects.ContainsKey(v2) && base.currentLocation.objects[v2].Name.Contains("Stone"))
+						if (base.currentLocation.objects.ContainsKey(v2) && (base.currentLocation.objects[v2].Name.Contains("Stone") || base.currentLocation.objects[v2].Name.Contains("Twig")))
 						{
 							base.currentLocation.destroyObject(v2, null);
 						}
@@ -148,6 +166,15 @@ namespace StardewValley.Monsters
 				{
 					controller = new PathFindController(this, base.currentLocation, new Point((int)base.Player.getTileLocation().X, (int)base.Player.getTileLocation().Y), Game1.random.Next(4), null, 300);
 					chargingFarmer = false;
+				}
+				if ((bool)isHardModeMonster && CaughtInWeb())
+				{
+					xVelocity = 0f;
+					yVelocity = 0f;
+					if (shakeTimer <= 0 && Game1.random.NextDouble() < 0.05)
+					{
+						shakeTimer = 200;
+					}
 				}
 			}
 			else if (!seenFarmer && Utility.doesPointHaveLineOfSightInMine(base.currentLocation, getStandingPosition() / 64f, base.Player.getStandingPosition() / 64f, 8))

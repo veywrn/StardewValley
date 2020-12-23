@@ -2,6 +2,16 @@ namespace StardewValley.SDKs
 {
 	public interface SDKHelper
 	{
+		bool IsEnterButtonAssignmentFlipped
+		{
+			get;
+		}
+
+		bool IsJapaneseRegionRelease
+		{
+			get;
+		}
+
 		string Name
 		{
 			get;
@@ -18,6 +28,11 @@ namespace StardewValley.SDKs
 		}
 
 		int ConnectionProgress
+		{
+			get;
+		}
+
+		bool HasOverlay
 		{
 			get;
 		}

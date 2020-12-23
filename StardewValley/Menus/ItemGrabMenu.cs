@@ -6,6 +6,7 @@ using StardewValley.Locations;
 using StardewValley.Objects;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace StardewValley.Menus
 {
@@ -129,6 +130,12 @@ namespace StardewValley.Menus
 
 		protected List<TransferredItemSprite> _transferredItemSprites = new List<TransferredItemSprite>();
 
+		protected bool _sourceItemInCurrentLocation;
+
+		public ClickableTextureComponent junimoNoteIcon;
+
+		private int junimoNotePulser;
+
 		public ItemGrabMenu(IList<Item> inventory, object context = null)
 			: base(null, okButton: true, trashCan: true)
 		{
@@ -156,16 +163,16 @@ namespace StardewValley.Menus
 					}
 				}
 			}
-			for (int j = 0; j < 12; j++)
+			for (int j = 0; j < GetColumnCount(); j++)
 			{
-				if (base.inventory != null && base.inventory.inventory != null && base.inventory.inventory.Count >= 12)
+				if (base.inventory != null && base.inventory.inventory != null && base.inventory.inventory.Count >= GetColumnCount())
 				{
 					base.inventory.inventory[j].upNeighborID = (shippingBin ? 12598 : (-7777));
 				}
 			}
 			if (!shippingBin)
 			{
-				for (int i = 0; i < 36; i++)
+				for (int i = 0; i < GetColumnCount() * 3; i++)
 				{
 					if (base.inventory != null && base.inventory.inventory != null && base.inventory.inventory.Count > i)
 					{
@@ -222,9 +229,17 @@ namespace StardewValley.Menus
 			this.allowRightClick = allowRightClick;
 			base.inventory.showGrayedOutSlots = true;
 			this.sourceItem = sourceItem;
-			if (source == 1 && sourceItem != null && sourceItem is Chest)
+			if (sourceItem != null && Game1.currentLocation.objects.Values.Contains(sourceItem))
 			{
-				chestColorPicker = new DiscreteColorPicker(xPositionOnScreen, yPositionOnScreen - 64 - IClickableMenu.borderWidth * 2, 0, new Chest(playerChest: true));
+				_sourceItemInCurrentLocation = true;
+			}
+			else
+			{
+				_sourceItemInCurrentLocation = false;
+			}
+			if (source == 1 && sourceItem != null && sourceItem is Chest && (sourceItem as Chest).SpecialChestType == Chest.SpecialChestTypes.None)
+			{
+				chestColorPicker = new DiscreteColorPicker(xPositionOnScreen, yPositionOnScreen - 64 - IClickableMenu.borderWidth * 2, 0, new Chest(playerChest: true, sourceItem.ParentSheetIndex));
 				chestColorPicker.colorSelection = chestColorPicker.getSelectionFromColor((sourceItem as Chest).playerChoiceColor);
 				(chestColorPicker.itemToDrawColored as Chest).playerChoiceColor.Value = chestColorPicker.getColorFromSelection(chestColorPicker.colorSelection);
 				colorPickerToggleButton = new ClickableTextureComponent(new Rectangle(xPositionOnScreen + width, yPositionOnScreen + height / 3 - 64 + -160, 64, 64), Game1.mouseCursors, new Rectangle(119, 469, 16, 16), 4f)
@@ -235,6 +250,15 @@ namespace StardewValley.Menus
 					leftNeighborID = 53921,
 					region = 15923
 				};
+				if (InventoryPage.ShouldShowJunimoNoteIcon())
+				{
+					junimoNoteIcon = new ClickableTextureComponent("", new Rectangle(xPositionOnScreen + width, yPositionOnScreen + height / 3 - 64 + -216, 64, 64), "", Game1.content.LoadString("Strings\\UI:GameMenu_JunimoNote_Hover"), Game1.mouseCursors, new Rectangle(331, 374, 15, 14), 4f)
+					{
+						myID = 898,
+						leftNeighborID = 11,
+						downNeighborID = 106
+					};
+				}
 			}
 			this.whichSpecialButton = whichSpecialButton;
 			this.context = context;
@@ -254,10 +278,28 @@ namespace StardewValley.Menus
 			}
 			if (snapToBottom)
 			{
-				movePosition(0, Game1.viewport.Height - (yPositionOnScreen + height - IClickableMenu.spaceToClearTopBorder));
+				movePosition(0, Game1.uiViewport.Height - (yPositionOnScreen + height - IClickableMenu.spaceToClearTopBorder));
 				snappedtoBottom = true;
 			}
-			ItemsToGrabMenu = new InventoryMenu(xPositionOnScreen + 32, yPositionOnScreen, playerInventory: false, inventory, highlightFunction);
+			if (source == 1 && sourceItem != null && sourceItem is Chest && (sourceItem as Chest).GetActualCapacity() != 36)
+			{
+				int capacity = (sourceItem as Chest).GetActualCapacity();
+				int rows = 3;
+				if (capacity < 9)
+				{
+					rows = 1;
+				}
+				int containerWidth = 64 * (capacity / rows);
+				ItemsToGrabMenu = new InventoryMenu(Game1.uiViewport.Width / 2 - containerWidth / 2, yPositionOnScreen + 64, playerInventory: false, inventory, highlightFunction, capacity, rows);
+				if ((sourceItem as Chest).SpecialChestType == Chest.SpecialChestTypes.MiniShippingBin)
+				{
+					base.inventory.moveItemSound = "Ship";
+				}
+			}
+			else
+			{
+				ItemsToGrabMenu = new InventoryMenu(xPositionOnScreen + 32, yPositionOnScreen, playerInventory: false, inventory, highlightFunction);
+			}
 			ItemsToGrabMenu.populateClickableComponentList();
 			for (int j = 0; j < ItemsToGrabMenu.inventory.Count; j++)
 			{
@@ -293,6 +335,7 @@ namespace StardewValley.Menus
 					region = 15923
 				};
 			}
+			RepositionSideButtons();
 			if (chestColorPicker != null)
 			{
 				discreteColorPickerCC = new List<ClickableComponent>();
@@ -326,12 +369,76 @@ namespace StardewValley.Menus
 			{
 				okButton.leftNeighborID = 11;
 			}
+			ClickableComponent top_right = ItemsToGrabMenu.GetBorder(InventoryMenu.BorderSide.Right).FirstOrDefault();
+			if (top_right != null)
+			{
+				if (organizeButton != null)
+				{
+					organizeButton.leftNeighborID = top_right.myID;
+				}
+				if (specialButton != null)
+				{
+					specialButton.leftNeighborID = top_right.myID;
+				}
+				if (fillStacksButton != null)
+				{
+					fillStacksButton.leftNeighborID = top_right.myID;
+				}
+				if (junimoNoteIcon != null)
+				{
+					junimoNoteIcon.leftNeighborID = top_right.myID;
+				}
+			}
 			populateClickableComponentList();
 			if (Game1.options.SnappyMenus)
 			{
 				snapToDefaultClickableComponent();
 			}
 			SetupBorderNeighbors();
+		}
+
+		public virtual void RepositionSideButtons()
+		{
+			List<ClickableComponent> side_buttons = new List<ClickableComponent>();
+			if (organizeButton != null)
+			{
+				side_buttons.Add(organizeButton);
+			}
+			if (fillStacksButton != null)
+			{
+				side_buttons.Add(fillStacksButton);
+			}
+			if (colorPickerToggleButton != null)
+			{
+				side_buttons.Add(colorPickerToggleButton);
+			}
+			if (specialButton != null)
+			{
+				side_buttons.Add(specialButton);
+			}
+			if (junimoNoteIcon != null)
+			{
+				side_buttons.Add(junimoNoteIcon);
+			}
+			int step_size = 80;
+			if (side_buttons.Count >= 4)
+			{
+				step_size = 72;
+			}
+			for (int i = 0; i < side_buttons.Count; i++)
+			{
+				ClickableComponent button = side_buttons[i];
+				if (i > 0 && side_buttons.Count > 1)
+				{
+					button.downNeighborID = side_buttons[i - 1].myID;
+				}
+				if (i < side_buttons.Count - 1 && side_buttons.Count > 1)
+				{
+					button.upNeighborID = side_buttons[i + 1].myID;
+				}
+				button.bounds.X = xPositionOnScreen + width;
+				button.bounds.Y = yPositionOnScreen + height / 3 - 64 - step_size * i;
+			}
 		}
 
 		public void SetupBorderNeighbors()
@@ -364,7 +471,7 @@ namespace StardewValley.Menus
 					slot.rightNeighborID = -1;
 				}
 			}
-			for (int j = 0; j < 12; j++)
+			for (int j = 0; j < GetColumnCount(); j++)
 			{
 				if (inventory != null && inventory.inventory != null && inventory.inventory.Count >= 12)
 				{
@@ -393,6 +500,11 @@ namespace StardewValley.Menus
 			}
 		}
 
+		public virtual int GetColumnCount()
+		{
+			return ItemsToGrabMenu.capacity / ItemsToGrabMenu.rows;
+		}
+
 		public ItemGrabMenu setEssential(bool essential)
 		{
 			this.essential = essential;
@@ -407,9 +519,9 @@ namespace StardewValley.Menus
 				myID = 12598,
 				region = 12598
 			};
-			for (int i = 0; i < 12; i++)
+			for (int i = 0; i < GetColumnCount(); i++)
 			{
-				if (inventory != null && inventory.inventory != null && inventory.inventory.Count >= 12)
+				if (inventory != null && inventory.inventory != null && inventory.inventory.Count >= GetColumnCount())
 				{
 					inventory.inventory[i].upNeighborID = -7777;
 					if (i == 11)
@@ -433,7 +545,7 @@ namespace StardewValley.Menus
 			{
 				for (int j = 0; j < 12; j++)
 				{
-					if (inventory != null && inventory.inventory != null && inventory.inventory.Count >= 12 && shippingBin)
+					if (inventory != null && inventory.inventory != null && inventory.inventory.Count >= GetColumnCount() && shippingBin)
 					{
 						inventory.inventory[j].upNeighborID = (shippingBin ? 12598 : (Math.Min(j, ItemsToGrabMenu.inventory.Count - 1) + 53910));
 					}
@@ -441,14 +553,14 @@ namespace StardewValley.Menus
 				if (!shippingBin && oldID >= 53910)
 				{
 					int index = oldID - 53910;
-					if (index + 12 <= ItemsToGrabMenu.inventory.Count - 1)
+					if (index + GetColumnCount() <= ItemsToGrabMenu.inventory.Count - 1)
 					{
-						currentlySnappedComponent = getComponentWithID(index + 12 + 53910);
+						currentlySnappedComponent = getComponentWithID(index + GetColumnCount() + 53910);
 						snapCursorToCurrentSnappedComponent();
 						break;
 					}
 				}
-				currentlySnappedComponent = getComponentWithID((oldRegion != 12598) ? ((oldID - 53910) % 12) : 0);
+				currentlySnappedComponent = getComponentWithID((oldRegion != 12598) ? ((oldID - 53910) % GetColumnCount()) : 0);
 				snapCursorToCurrentSnappedComponent();
 				break;
 			}
@@ -466,14 +578,14 @@ namespace StardewValley.Menus
 					currentlySnappedComponent = getComponentWithID(oldID - 12);
 					break;
 				}
-				int id = oldID + 24;
+				int id = oldID + GetColumnCount() * 2;
 				for (int i = 0; i < 3; i++)
 				{
 					if (ItemsToGrabMenu.inventory.Count > id)
 					{
 						break;
 					}
-					id -= 12;
+					id -= GetColumnCount();
 				}
 				if (showReceivingMenu)
 				{
@@ -491,6 +603,10 @@ namespace StardewValley.Menus
 					else
 					{
 						currentlySnappedComponent = getComponentWithID(id + 53910);
+						if (currentlySnappedComponent == null)
+						{
+							currentlySnappedComponent = getComponentWithID(53910);
+						}
 					}
 				}
 				snapCursorToCurrentSnappedComponent();
@@ -502,6 +618,10 @@ namespace StardewValley.Menus
 		public override void snapToDefaultClickableComponent()
 		{
 			if (shippingBin)
+			{
+				currentlySnappedComponent = getComponentWithID(0);
+			}
+			else if (source == 1 && sourceItem != null && sourceItem is Chest && (sourceItem as Chest).SpecialChestType == Chest.SpecialChestTypes.MiniShippingBin)
 			{
 				currentlySnappedComponent = getComponentWithID(0);
 			}
@@ -517,9 +637,9 @@ namespace StardewValley.Menus
 			sourceItem = item;
 			chestColorPicker = null;
 			colorPickerToggleButton = null;
-			if (source == 1 && sourceItem != null && sourceItem is Chest)
+			if (source == 1 && sourceItem != null && sourceItem is Chest && (sourceItem as Chest).SpecialChestType == Chest.SpecialChestTypes.None)
 			{
-				chestColorPicker = new DiscreteColorPicker(xPositionOnScreen, yPositionOnScreen - 64 - IClickableMenu.borderWidth * 2, 0, new Chest(playerChest: true));
+				chestColorPicker = new DiscreteColorPicker(xPositionOnScreen, yPositionOnScreen - 64 - IClickableMenu.borderWidth * 2, 0, new Chest(playerChest: true, sourceItem.ParentSheetIndex));
 				chestColorPicker.colorSelection = chestColorPicker.getSelectionFromColor((sourceItem as Chest).playerChoiceColor);
 				(chestColorPicker.itemToDrawColored as Chest).playerChoiceColor.Value = chestColorPicker.getColorFromSelection(chestColorPicker.colorSelection);
 				colorPickerToggleButton = new ClickableTextureComponent(new Rectangle(xPositionOnScreen + width, yPositionOnScreen + height / 3 - 64 + -160, 64, 64), Game1.mouseCursors, new Rectangle(119, 469, 16, 16), 4f)
@@ -527,6 +647,16 @@ namespace StardewValley.Menus
 					hoverText = Game1.content.LoadString("Strings\\UI:Toggle_ColorPicker")
 				};
 			}
+			RepositionSideButtons();
+		}
+
+		public override bool IsAutomaticSnapValid(int direction, ClickableComponent a, ClickableComponent b)
+		{
+			if (direction == 1 && ItemsToGrabMenu.inventory.Contains(a) && inventory.inventory.Contains(b))
+			{
+				return false;
+			}
+			return base.IsAutomaticSnapValid(direction, a, b);
 		}
 
 		public void setBackgroundTransparency(bool b)
@@ -622,23 +752,20 @@ namespace StardewValley.Menus
 		{
 			if (snappedtoBottom)
 			{
-				movePosition((newBounds.Width - oldBounds.Width) / 2, Game1.viewport.Height - (yPositionOnScreen + height - IClickableMenu.spaceToClearTopBorder));
+				movePosition((newBounds.Width - oldBounds.Width) / 2, Game1.uiViewport.Height - (yPositionOnScreen + height - IClickableMenu.spaceToClearTopBorder));
+			}
+			else
+			{
+				movePosition((newBounds.Width - oldBounds.Width) / 2, (newBounds.Height - oldBounds.Height) / 2);
 			}
 			if (ItemsToGrabMenu != null)
 			{
 				ItemsToGrabMenu.gameWindowSizeChanged(oldBounds, newBounds);
 			}
-			if (organizeButton != null)
+			RepositionSideButtons();
+			if (source == 1 && sourceItem != null && sourceItem is Chest && (sourceItem as Chest).SpecialChestType == Chest.SpecialChestTypes.None)
 			{
-				organizeButton = new ClickableTextureComponent("", new Rectangle(xPositionOnScreen + width, yPositionOnScreen + height / 3 - 64, 64, 64), "", Game1.content.LoadString("Strings\\UI:ItemGrab_Organize"), Game1.mouseCursors, new Rectangle(162, 440, 16, 16), 4f);
-			}
-			if (fillStacksButton != null)
-			{
-				fillStacksButton = new ClickableTextureComponent("", new Rectangle(xPositionOnScreen + width, yPositionOnScreen + height / 3 - 64 - 64 - 16, 64, 64), "", Game1.content.LoadString("Strings\\UI:ItemGrab_FillStacks"), Game1.mouseCursors, new Rectangle(103, 469, 16, 16), 4f);
-			}
-			if (source == 1 && sourceItem != null && sourceItem is Chest)
-			{
-				chestColorPicker = new DiscreteColorPicker(xPositionOnScreen, yPositionOnScreen - 64 - IClickableMenu.borderWidth * 2);
+				chestColorPicker = new DiscreteColorPicker(xPositionOnScreen, yPositionOnScreen - 64 - IClickableMenu.borderWidth * 2, 0, new Chest(playerChest: true, sourceItem.ParentSheetIndex));
 				chestColorPicker.colorSelection = chestColorPicker.getSelectionFromColor((sourceItem as Chest).playerChoiceColor);
 			}
 		}
@@ -689,6 +816,7 @@ namespace StardewValley.Menus
 				{
 				}
 				SetupBorderNeighbors();
+				return;
 			}
 			if (whichSpecialButton != -1 && specialButton != null && specialButton.containsPoint(x, y))
 			{
@@ -699,6 +827,7 @@ namespace StardewValley.Menus
 					(context as JunimoHut).noHarvest.Value = !(context as JunimoHut).noHarvest;
 					specialButton.sourceRect.X = ((context as JunimoHut).noHarvest ? 124 : 108);
 				}
+				return;
 			}
 			if (heldItem == null && showReceivingMenu)
 			{
@@ -732,10 +861,10 @@ namespace StardewValley.Menus
 				}
 				if (heldItem is Object && Utility.IsNormalObjectAtParentSheetIndex(heldItem, 434))
 				{
-					Object held_item = heldItem as Object;
+					Object held_item2 = heldItem as Object;
 					heldItem = null;
 					exitThisMenu(playSound: false);
-					Game1.player.eatObject(held_item, overrideFullness: true);
+					Game1.player.eatObject(held_item2, overrideFullness: true);
 				}
 				else if (heldItem is Object && (bool)(heldItem as Object).isRecipe)
 				{
@@ -786,6 +915,8 @@ namespace StardewValley.Menus
 			{
 				ClickableComponent last_snapped_component = currentlySnappedComponent;
 				organizeItemsInList(ItemsToGrabMenu.actualInventory);
+				Item held_item = heldItem;
+				heldItem = null;
 				Game1.activeClickableMenu = new ItemGrabMenu(ItemsToGrabMenu.actualInventory, reverseGrab: false, showReceivingMenu: true, InventoryMenu.highlightAllItems, behaviorFunction, null, behaviorOnItemGrab, snapToBottom: false, canBeExitedWithKey: true, playRightClickSound: true, allowRightClick: true, showOrganizeButton: true, source, sourceItem, whichSpecialButton, context).setEssential(essential);
 				if (last_snapped_component != null)
 				{
@@ -795,13 +926,20 @@ namespace StardewValley.Menus
 						snapCursorToCurrentSnappedComponent();
 					}
 				}
-				(Game1.activeClickableMenu as ItemGrabMenu).heldItem = heldItem;
+				(Game1.activeClickableMenu as ItemGrabMenu).heldItem = held_item;
 				Game1.playSound("Ship");
 			}
-			if (fillStacksButton != null && fillStacksButton.containsPoint(x, y))
+			else if (fillStacksButton != null && fillStacksButton.containsPoint(x, y))
 			{
 				FillOutStacks();
 				Game1.playSound("Ship");
+			}
+			else if (junimoNoteIcon != null && junimoNoteIcon.containsPoint(x, y))
+			{
+				if (readyToClose())
+				{
+					Game1.activeClickableMenu = new JunimoNoteMenu(fromGameMenu: true);
+				}
 			}
 			else if (heldItem != null && !isWithinBounds(x, y) && heldItem.canBeTrashed())
 			{
@@ -910,21 +1048,51 @@ namespace StardewValley.Menus
 		public static void organizeItemsInList(IList<Item> items)
 		{
 			List<Item> copy = new List<Item>(items);
-			for (int k = items.Count - 1; k >= 0; k--)
+			List<Item> tools = new List<Item>();
+			for (int m = 0; m < copy.Count; m++)
 			{
-				if (copy[k] == null)
+				if (copy[m] == null)
 				{
-					copy.RemoveAt(k);
+					copy.RemoveAt(m);
+					m--;
+				}
+				else if (copy[m] is Tool)
+				{
+					tools.Add(copy[m]);
+					copy.RemoveAt(m);
+					m--;
+				}
+			}
+			for (int l = 0; l < copy.Count; l++)
+			{
+				Item current_item = copy[l];
+				if (current_item.getRemainingStackSpace() <= 0)
+				{
+					continue;
+				}
+				for (int i = l + 1; i < copy.Count; i++)
+				{
+					Item other_item = copy[i];
+					if (current_item.canStackWith(other_item))
+					{
+						other_item.Stack = current_item.addToStack(other_item);
+						if (other_item.Stack == 0)
+						{
+							copy.RemoveAt(i);
+							i--;
+						}
+					}
 				}
 			}
 			copy.Sort();
-			for (int j = 0; j < items.Count; j++)
+			copy.InsertRange(0, tools);
+			for (int k = 0; k < items.Count; k++)
 			{
-				items[j] = null;
+				items[k] = null;
 			}
-			for (int i = 0; i < copy.Count; i++)
+			for (int j = 0; j < copy.Count; j++)
 			{
-				items[i] = copy[copy.Count - 1 - i];
+				items[j] = copy[j];
 			}
 		}
 
@@ -1030,7 +1198,7 @@ namespace StardewValley.Menus
 			{
 				chestColorPicker.update(time);
 			}
-			if (sourceItem != null && sourceItem is Chest)
+			if (sourceItem != null && sourceItem is Chest && _sourceItemInCurrentLocation)
 			{
 				Vector2 tileLocation = (sourceItem as Object).tileLocation;
 				if (tileLocation != Vector2.Zero && !Game1.currentLocation.objects.ContainsKey(tileLocation))
@@ -1093,6 +1261,24 @@ namespace StardewValley.Menus
 					hoveredItem = item_grab_hovered_item;
 				}
 			}
+			if (junimoNoteIcon != null)
+			{
+				junimoNoteIcon.tryHover(x, y);
+				if (junimoNoteIcon.containsPoint(x, y))
+				{
+					hoverText = junimoNoteIcon.hoverText;
+				}
+				if (GameMenu.bundleItemHovered)
+				{
+					junimoNoteIcon.scale = junimoNoteIcon.baseScale + (float)Math.Sin((float)junimoNotePulser / 100f) / 4f;
+					junimoNotePulser += (int)Game1.currentGameTime.ElapsedGameTime.TotalMilliseconds;
+				}
+				else
+				{
+					junimoNotePulser = 0;
+					junimoNoteIcon.scale = junimoNoteIcon.baseScale;
+				}
+			}
 			if (hoverText != null)
 			{
 				return;
@@ -1124,7 +1310,7 @@ namespace StardewValley.Menus
 		{
 			if (drawBG)
 			{
-				b.Draw(Game1.fadeToBlackRect, new Rectangle(0, 0, Game1.viewport.Width, Game1.viewport.Height), Color.Black * 0.5f);
+				b.Draw(Game1.fadeToBlackRect, new Rectangle(0, 0, Game1.uiViewport.Width, Game1.uiViewport.Height), Color.Black * 0.5f);
 			}
 			base.draw(b, drawUpperPortion: false, drawDescriptionArea: false);
 			if (showReceivingMenu)
@@ -1132,7 +1318,7 @@ namespace StardewValley.Menus
 				b.Draw(Game1.mouseCursors, new Vector2(xPositionOnScreen - 64, yPositionOnScreen + height / 2 + 64 + 16), new Rectangle(16, 368, 12, 16), Color.White, 4.712389f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
 				b.Draw(Game1.mouseCursors, new Vector2(xPositionOnScreen - 64, yPositionOnScreen + height / 2 + 64 - 16), new Rectangle(21, 368, 11, 16), Color.White, 4.712389f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
 				b.Draw(Game1.mouseCursors, new Vector2(xPositionOnScreen - 40, yPositionOnScreen + height / 2 + 64 - 44), new Rectangle(4, 372, 8, 11), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
-				if (source != 0)
+				if ((source != 1 || sourceItem == null || !(sourceItem is Chest) || ((sourceItem as Chest).SpecialChestType != Chest.SpecialChestTypes.MiniShippingBin && (sourceItem as Chest).SpecialChestType != Chest.SpecialChestTypes.JunimoChest && (sourceItem as Chest).SpecialChestType != Chest.SpecialChestTypes.Enricher)) && source != 0)
 				{
 					b.Draw(Game1.mouseCursors, new Vector2(xPositionOnScreen - 72, yPositionOnScreen + 64 + 16), new Rectangle(16, 368, 12, 16), Color.White, 4.712389f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
 					b.Draw(Game1.mouseCursors, new Vector2(xPositionOnScreen - 72, yPositionOnScreen + 64 - 16), new Rectangle(21, 368, 11, 16), Color.White, 4.712389f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
@@ -1153,7 +1339,7 @@ namespace StardewValley.Menus
 			}
 			else if (message != null)
 			{
-				Game1.drawDialogueBox(Game1.viewport.Width / 2, ItemsToGrabMenu.yPositionOnScreen + ItemsToGrabMenu.height / 2, speaker: false, drawOnlyBox: false, message);
+				Game1.drawDialogueBox(Game1.uiViewport.Width / 2, ItemsToGrabMenu.yPositionOnScreen + ItemsToGrabMenu.height / 2, speaker: false, drawOnlyBox: false, message);
 			}
 			if (poof != null)
 			{
@@ -1191,6 +1377,10 @@ namespace StardewValley.Menus
 			if (fillStacksButton != null)
 			{
 				fillStacksButton.draw(b);
+			}
+			if (junimoNoteIcon != null)
+			{
+				junimoNoteIcon.draw(b);
 			}
 			if (hoverText != null && (hoveredItem == null || hoveredItem == null || ItemsToGrabMenu == null))
 			{

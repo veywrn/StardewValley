@@ -60,9 +60,21 @@ namespace StardewValley
 
 		public const int quenched = 7;
 
+		public const int spawnMonsters = 24;
+
+		public const int nauseous = 25;
+
+		public const int darkness = 26;
+
+		public const int weakness = 27;
+
+		public const int squidInkRavioli = 28;
+
 		public int millisecondsDuration;
 
-		private int[] buffAttributes = new int[12];
+		public int totalMillisecondsDuration;
+
+		public int[] buffAttributes = new int[12];
 
 		public string description;
 
@@ -78,12 +90,17 @@ namespace StardewValley
 
 		public Color glow;
 
+		public float displayAlphaTimer;
+
+		public bool alreadyUpdatedIconAlpha;
+
 		public Buff(string description, int millisecondsDuration, string source, int index)
 		{
 			this.description = description;
 			this.millisecondsDuration = millisecondsDuration;
 			sheetIndex = index;
 			this.source = source;
+			totalMillisecondsDuration = millisecondsDuration;
 		}
 
 		public Buff(int which)
@@ -95,7 +112,7 @@ namespace StardewValley
 			{
 			case 12:
 				description = Game1.content.LoadString("Strings\\StringsFromCSFiles:Buff.cs.453") + Environment.NewLine + Game1.content.LoadString("Strings\\StringsFromCSFiles:Buff.cs.454") + Environment.NewLine + Game1.content.LoadString("Strings\\StringsFromCSFiles:Buff.cs.455");
-				buffAttributes[9] = -3;
+				buffAttributes[9] = -2;
 				buffAttributes[10] = -3;
 				buffAttributes[11] = -3;
 				glow = Color.Yellow;
@@ -168,11 +185,39 @@ namespace StardewValley
 				millisecondsDuration = 600000;
 				negative = false;
 				break;
+			case 24:
+				description = Game1.content.LoadString("Strings\\StringsFromCSFiles:MonsterMusk_BuffName") + Environment.NewLine + Game1.content.LoadString("Strings\\StringsFromCSFiles:MonsterMusk_BuffDescription");
+				glow = Color.Purple * 0.25f;
+				millisecondsDuration = 600000;
+				negative = false;
+				break;
+			case 25:
+				description = Game1.content.LoadString("Strings\\StringsFromCSFiles:Nauseous_BuffName") + Environment.NewLine + Game1.content.LoadString("Strings\\StringsFromCSFiles:Nauseous_BuffDescription");
+				glow = Color.Green;
+				millisecondsDuration = 120000;
+				break;
+			case 26:
+				description = Game1.content.LoadString("Strings\\StringsFromCSFiles:Darkness_BuffName") + Environment.NewLine + Game1.content.LoadString("Strings\\StringsFromCSFiles:Darkness_BuffDescription");
+				glow = Color.Purple;
+				millisecondsDuration = 5000;
+				break;
+			case 27:
+				description = Game1.content.LoadString("Strings\\StringsFromCSFiles:Debuff_Weakness") + Environment.NewLine + Game1.content.LoadString("Strings\\StringsFromCSFiles:Debuff_Weakness_Description");
+				glow = new Color(0, 150, 255);
+				millisecondsDuration = 10000;
+				buffAttributes[11] = -20;
+				break;
+			case 28:
+				description = Game1.content.LoadString("Strings\\StringsFromCSFiles:Buff_Ravioli_Title") + Environment.NewLine + Environment.NewLine + Game1.content.LoadString("Strings\\StringsFromCSFiles:Buff_Ravioli_Description");
+				negative = false;
+				millisecondsDuration = 180000;
+				break;
 			}
 			if (negative && Game1.player.isWearingRing(525))
 			{
 				millisecondsDuration /= 2;
 			}
+			totalMillisecondsDuration = millisecondsDuration;
 		}
 
 		public Buff(int farming, int fishing, int mining, int digging, int luck, int foraging, int crafting, int maxStamina, int magneticRadius, int speed, int defense, int attack, int minutesDuration, string source, string displaySource)
@@ -192,6 +237,7 @@ namespace StardewValley
 			millisecondsDuration = minutesDuration / 10 * 7000;
 			this.source = source;
 			this.displaySource = displaySource;
+			totalMillisecondsDuration = millisecondsDuration;
 		}
 
 		public string getTimeLeft()
@@ -220,10 +266,27 @@ namespace StardewValley
 		public void addBuff()
 		{
 			Game1.player.addBuffAttributes(buffAttributes);
+			if (which != -1)
+			{
+				int buff_count2 = 0;
+				buff_count2 = ((!Game1.player.appliedSpecialBuffs.TryGetValue(which, out buff_count2)) ? 1 : (buff_count2 + 1));
+				Game1.player.appliedSpecialBuffs[which] = buff_count2;
+			}
 			_ = glow;
 			if (!glow.Equals(Color.White))
 			{
 				Game1.player.startGlowing(glow, border: false, 0.05f);
+			}
+			int num = which;
+			if (num == 19)
+			{
+				Game1.player.currentLocation.temporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors2", new Rectangle(118, 227, 16, 13), Game1.player.getStandingPosition() + new Vector2(-32f, -21f), flipped: false, 0f, Color.White)
+				{
+					layerDepth = (float)(Game1.player.getStandingY() + 1) / 10000f,
+					animationLength = 1,
+					interval = 2000f,
+					scale = 4f
+				});
 			}
 		}
 
@@ -374,6 +437,23 @@ namespace StardewValley
 		public void removeBuff()
 		{
 			Game1.player.removeBuffAttributes(buffAttributes);
+			if (which != -1)
+			{
+				int buff_stacks3 = 0;
+				if (Game1.player.appliedSpecialBuffs.TryGetValue(which, out buff_stacks3))
+				{
+					buff_stacks3--;
+					if (buff_stacks3 > 1)
+					{
+						buff_stacks3--;
+						Game1.player.appliedSpecialBuffs[which] = buff_stacks3;
+					}
+					else
+					{
+						Game1.player.appliedSpecialBuffs.Remove(which);
+					}
+				}
+			}
 			_ = glow;
 			if (!glow.Equals(Color.White))
 			{

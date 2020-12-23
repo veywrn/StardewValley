@@ -64,8 +64,6 @@ namespace StardewValley.Locations
 
 		public const int DISLIKE_MOVIE_FRIENDSHIP = 0;
 
-		public const int BIRD_STARTLE_DISTANCE = 200;
-
 		public const int LOVE_CONCESSION_FRIENDSHIP = 50;
 
 		public const int LIKE_CONCESSION_FRIENDSHIP = 25;
@@ -84,39 +82,7 @@ namespace StardewValley.Locations
 		protected Dictionary<string, KeyValuePair<Point, int>> _destinationPositions = new Dictionary<string, KeyValuePair<Point, int>>();
 
 		[XmlIgnore]
-		public List<Bird> _birds = new List<Bird>();
-
-		[XmlIgnore]
-		public Point[] birdLocations = new Point[14]
-		{
-			new Point(19, 5),
-			new Point(21, 4),
-			new Point(16, 3),
-			new Point(10, 13),
-			new Point(2, 13),
-			new Point(2, 6),
-			new Point(9, 2),
-			new Point(18, 12),
-			new Point(21, 11),
-			new Point(3, 11),
-			new Point(4, 2),
-			new Point(12, 12),
-			new Point(11, 5),
-			new Point(13, 13)
-		};
-
-		public Point[] birdRoostLocations = new Point[6]
-		{
-			new Point(19, 5),
-			new Point(21, 4),
-			new Point(16, 3),
-			new Point(9, 2),
-			new Point(21, 11),
-			new Point(4, 2)
-		};
-
-		[XmlIgnore]
-		public Dictionary<Point, Bird> _birdPointOccupancy;
+		public PerchingBirds birds;
 
 		protected int _exitX;
 
@@ -800,8 +766,8 @@ namespace StardewValley.Locations
 			{
 				return GetMoviePatron(name);
 			}
-			string spriteName = name.Equals("Krobus") ? "Krobus_Trenchcoat" : name;
-			string portraitPath = "Portraits\\" + name;
+			string spriteName = name.Equals("Krobus") ? "Krobus_Trenchcoat" : NPC.getTextureNameForCharacter(name);
+			string portraitPath = "Portraits\\" + NPC.getTextureNameForCharacter(name);
 			int height = (name.Contains("Dwarf") || name.Equals("Krobus")) ? 96 : 128;
 			NPC i = new NPC(new AnimatedSprite("Characters\\" + spriteName, 0, 16, height / 4), new Vector2(x * 64, y * 64), base.Name, facingDirection, name, null, null, eventActor: true, portraitPath);
 			i.eventActor = true;
@@ -842,28 +808,42 @@ namespace StardewValley.Locations
 		protected override void resetLocalState()
 		{
 			base.resetLocalState();
+			birds = new PerchingBirds(Game1.birdsSpriteSheet, 2, 16, 16, new Vector2(8f, 14f), new Point[14]
+			{
+				new Point(19, 5),
+				new Point(21, 4),
+				new Point(16, 3),
+				new Point(10, 13),
+				new Point(2, 13),
+				new Point(2, 6),
+				new Point(9, 2),
+				new Point(18, 12),
+				new Point(21, 11),
+				new Point(3, 11),
+				new Point(4, 2),
+				new Point(12, 12),
+				new Point(11, 5),
+				new Point(13, 13)
+			}, new Point[6]
+			{
+				new Point(19, 5),
+				new Point(21, 4),
+				new Point(16, 3),
+				new Point(9, 2),
+				new Point(21, 11),
+				new Point(4, 2)
+			});
 			if (!_isJojaTheater && Game1.MasterPlayer.mailReceived.Contains("ccMovieTheaterJoja"))
 			{
 				_isJojaTheater = true;
 			}
-			_birds.Clear();
 			if (dayFirstEntered.Value == -1)
 			{
 				dayFirstEntered.Value = Game1.Date.TotalDays;
 			}
 			if (!_isJojaTheater)
 			{
-				_birdPointOccupancy = new Dictionary<Point, Bird>();
-				Point[] array = birdLocations;
-				foreach (Point point in array)
-				{
-					_birdPointOccupancy[point] = null;
-				}
-				array = birdRoostLocations;
-				foreach (Point point2 in array)
-				{
-					_birdPointOccupancy[point2] = null;
-				}
+				birds.roosting = (_currentState.Value == 2);
 				for (int i = 0; i < Game1.random.Next(2, 5); i++)
 				{
 					int bird_type = Game1.random.Next(0, 4);
@@ -871,15 +851,11 @@ namespace StardewValley.Locations
 					{
 						bird_type = 10;
 					}
-					Bird bird = new Bird(GetFreeBirdPoint(), this, bird_type);
-					_birds.Add(bird);
-					ReserveBirdPoint(bird, bird.endPosition);
+					birds.AddBird(bird_type);
 				}
 				if (Game1.timeOfDay > 2100 && Game1.random.NextDouble() < 0.5)
 				{
-					Bird bird2 = new Bird(GetFreeBirdPoint(), this, 11);
-					_birds.Add(bird2);
-					ReserveBirdPoint(bird2, bird2.endPosition);
+					birds.AddBird(11);
 				}
 			}
 			AddMoviePoster(this, 1104f, 292f);
@@ -900,61 +876,6 @@ namespace StardewValley.Locations
 				Game1.ambientLight = new Color(150, 170, 80);
 				addSpecificRandomNPC(0);
 			}
-		}
-
-		public void ReserveBirdPoint(Bird bird, Point point)
-		{
-			if (_birdPointOccupancy.ContainsKey(bird.endPosition))
-			{
-				_birdPointOccupancy[bird.endPosition] = null;
-			}
-			if (_birdPointOccupancy.ContainsKey(point))
-			{
-				_birdPointOccupancy[point] = bird;
-			}
-		}
-
-		public Point[] GetCurrentBirdLocationList()
-		{
-			if (ShouldBirdsRoost())
-			{
-				return birdRoostLocations;
-			}
-			return birdLocations;
-		}
-
-		public bool ShouldBirdsRoost()
-		{
-			return _currentState.Value == 2;
-		}
-
-		public Point GetFreeBirdPoint(Bird bird = null, int clearance = 200)
-		{
-			List<Point> points = new List<Point>();
-			Point[] currentBirdLocationList = GetCurrentBirdLocationList();
-			for (int i = 0; i < currentBirdLocationList.Length; i++)
-			{
-				Point point = currentBirdLocationList[i];
-				if (_birdPointOccupancy[point] == null)
-				{
-					bool fail = false;
-					if (bird != null)
-					{
-						foreach (Farmer farmer in farmers)
-						{
-							if (Utility.distance(farmer.position.X, (float)(point.X * 64) + 32f, farmer.position.Y, (float)(point.Y * 64) + 32f) < 200f)
-							{
-								fail = true;
-							}
-						}
-					}
-					if (!fail)
-					{
-						points.Add(point);
-					}
-				}
-			}
-			return Utility.GetRandom(points);
 		}
 
 		private void addRandomNPCs()
@@ -1203,18 +1124,18 @@ namespace StardewValley.Locations
 					}
 				}
 			}
-			for (int i = 0; i < _birds.Count; i++)
+			if (birds != null)
 			{
-				_birds[i].Update(time);
+				birds.Update(time);
 			}
 			base.UpdateWhenCurrentLocation(time);
 		}
 
 		public override void drawAboveAlwaysFrontLayer(SpriteBatch b)
 		{
-			for (int i = 0; i < _birds.Count; i++)
+			if (birds != null)
 			{
-				_birds[i].Draw(b);
+				birds.Draw(b);
 			}
 			base.drawAboveAlwaysFrontLayer(b);
 		}
@@ -1267,7 +1188,7 @@ namespace StardewValley.Locations
 					_viewingFarmers.RemoveAt(j);
 					j--;
 				}
-				else if (_currentState.Value == 2 && !farmers.Contains(viewing_farmer) && viewing_farmer.currentLocation != null && viewing_farmer.currentLocation.Name != "Temp")
+				else if (_currentState.Value == 2 && !farmers.Contains(viewing_farmer) && !HasFarmerWatchingBroadcastEventReturningHere() && viewing_farmer.currentLocation != null && viewing_farmer.currentLocation.Name != "Temp")
 				{
 					_viewingFarmers.RemoveAt(j);
 					j--;
@@ -1579,6 +1500,7 @@ namespace StardewValley.Locations
 			{
 				Game1.changeMusicTrack("none");
 			}
+			birds = null;
 			base.cleanupBeforePlayerExit();
 		}
 

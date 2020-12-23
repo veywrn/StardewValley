@@ -35,7 +35,7 @@ namespace StardewValley.Characters
 		[XmlElement("hat")]
 		public readonly NetRef<Hat> hat = new NetRef<Hat>();
 
-		private readonly NetMutex mutex = new NetMutex();
+		public readonly NetMutex mutex = new NetMutex();
 
 		private bool squeezingThroughGate;
 
@@ -119,7 +119,7 @@ namespace StardewValley.Characters
 		public override Rectangle GetBoundingBox()
 		{
 			Rectangle r = base.GetBoundingBox();
-			if (squeezingThroughGate && (base.FacingDirection == 0 || base.FacingDirection == 2))
+			if (squeezingThroughGate && (FacingDirection == 0 || FacingDirection == 2))
 			{
 				r.Inflate(-36, 0);
 			}
@@ -197,7 +197,7 @@ namespace StardewValley.Characters
 					mounting.Value = false;
 					rider.isAnimatingMount = false;
 					rider.canMove = true;
-					if (base.FacingDirection == 1)
+					if (FacingDirection == 1)
 					{
 						rider.xOffset += 8f;
 					}
@@ -212,7 +212,7 @@ namespace StardewValley.Characters
 				}
 				if (rider.isAnimatingMount)
 				{
-					rider.faceDirection(base.FacingDirection);
+					rider.faceDirection(FacingDirection);
 				}
 				Vector2 targetPosition = new Vector2(dismountTile.X * 64f + 32f - (float)(rider.GetBoundingBox().Width / 2), dismountTile.Y * 64f + 4f);
 				if (Math.Abs(rider.Position.X - targetPosition.X) > 4f)
@@ -259,10 +259,10 @@ namespace StardewValley.Characters
 					dismount();
 				}
 			}
-			else if (rider == null && base.FacingDirection != 2 && Sprite.CurrentAnimation == null && Game1.random.NextDouble() < 0.002)
+			else if (rider == null && FacingDirection != 2 && Sprite.CurrentAnimation == null && Game1.random.NextDouble() < 0.002)
 			{
 				Sprite.loop = false;
-				switch (base.FacingDirection)
+				switch (FacingDirection)
 				{
 				case 0:
 					Sprite.setCurrentAnimation(new List<FarmerSprite.AnimationFrame>
@@ -307,7 +307,7 @@ namespace StardewValley.Characters
 			}
 			else if (rider != null)
 			{
-				if (base.FacingDirection != rider.FacingDirection || ridingAnimationDirection != base.FacingDirection)
+				if (FacingDirection != rider.FacingDirection || ridingAnimationDirection != FacingDirection)
 				{
 					Sprite.StopAnimation();
 					faceDirection(rider.FacingDirection);
@@ -325,7 +325,10 @@ namespace StardewValley.Characters
 							{
 								if (a == "Wood")
 								{
-									rider.currentLocation.localSoundAt("woodyStep", getTileLocation());
+									if (rider.ShouldHandleAnimationSound())
+									{
+										rider.currentLocation.localSoundAt("woodyStep", getTileLocation());
+									}
 									if (rider == Game1.player)
 									{
 										Rumble.rumble(0.1f, 50f);
@@ -333,7 +336,10 @@ namespace StardewValley.Characters
 								}
 								else
 								{
-									rider.currentLocation.localSoundAt("thudStep", getTileLocation());
+									if (rider.ShouldHandleAnimationSound())
+									{
+										rider.currentLocation.localSoundAt("thudStep", getTileLocation());
+									}
 									if (rider == Game1.player)
 									{
 										Rumble.rumble(0.3f, 50f);
@@ -342,7 +348,10 @@ namespace StardewValley.Characters
 							}
 							else
 							{
-								rider.currentLocation.localSoundAt("stoneStep", getTileLocation());
+								if (rider.ShouldHandleAnimationSound())
+								{
+									rider.currentLocation.localSoundAt("stoneStep", getTileLocation());
+								}
 								if (rider == Game1.player)
 								{
 									Rumble.rumble(0.1f, 50f);
@@ -350,7 +359,7 @@ namespace StardewValley.Characters
 							}
 						}
 					};
-					if (base.FacingDirection == 1)
+					if (FacingDirection == 1)
 					{
 						Sprite.setCurrentAnimation(new List<FarmerSprite.AnimationFrame>
 						{
@@ -362,7 +371,7 @@ namespace StardewValley.Characters
 							new FarmerSprite.AnimationFrame(13, 70)
 						});
 					}
-					else if (base.FacingDirection == 3)
+					else if (FacingDirection == 3)
 					{
 						Sprite.setCurrentAnimation(new List<FarmerSprite.AnimationFrame>
 						{
@@ -374,7 +383,7 @@ namespace StardewValley.Characters
 							new FarmerSprite.AnimationFrame(13, 70, secondaryArm: false, flip: true)
 						});
 					}
-					else if (base.FacingDirection == 0)
+					else if (FacingDirection == 0)
 					{
 						Sprite.setCurrentAnimation(new List<FarmerSprite.AnimationFrame>
 						{
@@ -386,7 +395,7 @@ namespace StardewValley.Characters
 							new FarmerSprite.AnimationFrame(20, 70)
 						});
 					}
-					else if (base.FacingDirection == 2)
+					else if (FacingDirection == 2)
 					{
 						Sprite.setCurrentAnimation(new List<FarmerSprite.AnimationFrame>
 						{
@@ -398,7 +407,7 @@ namespace StardewValley.Characters
 							new FarmerSprite.AnimationFrame(6, 70)
 						});
 					}
-					ridingAnimationDirection = base.FacingDirection;
+					ridingAnimationDirection = FacingDirection;
 				}
 				if (!num)
 				{
@@ -406,7 +415,7 @@ namespace StardewValley.Characters
 					faceDirection(rider.FacingDirection);
 				}
 			}
-			if (base.FacingDirection == 3)
+			if (FacingDirection == 3)
 			{
 				drawOffset.Set(Vector2.Zero);
 			}
@@ -414,7 +423,7 @@ namespace StardewValley.Characters
 			{
 				drawOffset.Set(new Vector2(-16f, 0f));
 			}
-			flip = (base.FacingDirection == 3);
+			flip = (FacingDirection == 3);
 			base.update(time, location);
 		}
 
@@ -485,6 +494,10 @@ namespace StardewValley.Characters
 
 		public override bool checkAction(Farmer who, GameLocation l)
 		{
+			if (who != null && !who.canMove)
+			{
+				return false;
+			}
 			if (rider == null)
 			{
 				mutex.RequestLock(delegate
@@ -547,7 +560,7 @@ namespace StardewValley.Characters
 						mounting.Value = true;
 						rider.isAnimatingMount = true;
 						rider.completelyStopAnimatingOrDoingAction();
-						rider.faceGeneralDirection(Utility.PointToVector2(GetBoundingBox().Center));
+						rider.faceGeneralDirection(Utility.PointToVector2(GetBoundingBox().Center), 0, opposite: false, useTileCalculations: false);
 					}
 				});
 				return true;
@@ -592,10 +605,10 @@ namespace StardewValley.Characters
 
 		public override void draw(SpriteBatch b)
 		{
-			flip = (base.FacingDirection == 3);
+			flip = (FacingDirection == 3);
 			Sprite.UpdateSourceRect();
 			base.draw(b);
-			if (base.FacingDirection == 2 && rider != null)
+			if (FacingDirection == 2 && rider != null)
 			{
 				b.Draw(Sprite.Texture, getLocalPosition(Game1.viewport) + new Vector2(48f, -24f - rider.yOffset), new Rectangle(160, 96, 9, 15), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, (base.Position.Y + 64f) / 10000f);
 			}
@@ -615,7 +628,7 @@ namespace StardewValley.Characters
 				break;
 			case 6:
 				hatOffset.Y += 2f;
-				if (base.FacingDirection == 2)
+				if (FacingDirection == 2)
 				{
 					hatOffset.Y -= 1f;
 				}
@@ -629,7 +642,7 @@ namespace StardewValley.Characters
 				break;
 			case 9:
 			case 32:
-				if (base.FacingDirection == 0 || base.FacingDirection == 2)
+				if (FacingDirection == 0 || FacingDirection == 2)
 				{
 					hatOffset.Y += 1f;
 				}
@@ -639,7 +652,7 @@ namespace StardewValley.Characters
 				break;
 			case 11:
 			case 39:
-				if (base.FacingDirection == 3 || base.FacingDirection == 1)
+				if (FacingDirection == 3 || FacingDirection == 1)
 				{
 					if (flip)
 					{
@@ -652,7 +665,7 @@ namespace StardewValley.Characters
 				}
 				break;
 			case 26:
-				if (base.FacingDirection == 3 || base.FacingDirection == 1)
+				if (FacingDirection == 3 || FacingDirection == 1)
 				{
 					if (flip)
 					{
@@ -666,7 +679,7 @@ namespace StardewValley.Characters
 				break;
 			case 56:
 			case 67:
-				if (base.FacingDirection == 0)
+				if (FacingDirection == 0)
 				{
 					draw_hat = false;
 				}
@@ -684,7 +697,7 @@ namespace StardewValley.Characters
 			float horse_draw_layer2 = (float)GetBoundingBox().Center.Y / 10000f;
 			if (rider != null)
 			{
-				horse_draw_layer2 = ((base.FacingDirection == 0) ? ((position.Y + 64f - 32f) / 10000f) : ((base.FacingDirection != 2) ? ((position.Y + 64f - 1f) / 10000f) : ((position.Y + 64f + (float)((rider != null) ? 1 : 1)) / 10000f)));
+				horse_draw_layer2 = ((FacingDirection == 0) ? ((position.Y + 64f - 32f) / 10000f) : ((FacingDirection != 2) ? ((position.Y + 64f - 1f) / 10000f) : ((position.Y + 64f + (float)((rider != null) ? 1 : 1)) / 10000f)));
 			}
 			if (!draw_hat)
 			{

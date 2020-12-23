@@ -5,8 +5,12 @@ using StardewValley.BellsAndWhistles;
 using StardewValley.Minigames;
 using System;
 using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.IO;
 using System.Linq;
+using System.Threading;
+using System.Windows.Forms;
+using System.Xml.Linq;
 
 namespace StardewValley.Menus
 {
@@ -64,11 +68,15 @@ namespace StardewValley.Menus
 
 		public Texture2D titleButtonsTexture;
 
+		private Texture2D amuzioTexture;
+
 		private List<float> bigClouds = new List<float>();
 
 		private List<float> smallClouds = new List<float>();
 
 		private List<TemporaryAnimatedSprite> tempSprites = new List<TemporaryAnimatedSprite>();
+
+		private List<TemporaryAnimatedSprite> behindSignTempSprites = new List<TemporaryAnimatedSprite>();
 
 		public List<ClickableTextureComponent> buttons = new List<ClickableTextureComponent>();
 
@@ -92,11 +100,18 @@ namespace StardewValley.Menus
 
 		private Rectangle screwRect;
 
+		private Rectangle cornerRect;
+
+		private Rectangle r_hole_rect;
+
+		private Rectangle r_hole_rect2;
+
 		private List<Rectangle> leafRects;
 
+		[InstancedStatic]
 		private static IClickableMenu _subMenu;
 
-		private readonly StartupPreferences startupPreferences;
+		public readonly StartupPreferences startupPreferences;
 
 		private int globalXOffset;
 
@@ -108,7 +123,13 @@ namespace StardewValley.Menus
 
 		private float globalCloudAlpha = 1f;
 
-		private int numFarmsSaved = -1;
+		private float cornerClickEndTimer;
+
+		private float cornerClickParrotTimer;
+
+		private float cornerClickSoundEffectTimer;
+
+		private bool? hasRoomAnotherFarm = false;
 
 		private int fadeFromWhiteTimer;
 
@@ -128,6 +149,10 @@ namespace StardewValley.Menus
 
 		private int clicksOnScrew;
 
+		private int cornerClicks;
+
+		private int cornerPhase;
+
 		private int buttonsDX;
 
 		private int chuckleFishTimer;
@@ -140,11 +165,19 @@ namespace StardewValley.Menus
 
 		private bool transitioningCharacterCreationMenu;
 
+		private bool cornerPhaseHolding;
+
+		private bool showCornerClickEasterEgg;
+
+		private int amuzioTimer;
+
 		private static int windowNumber = 3;
 
 		public string startupMessage = "";
 
 		public Color startupMessageColor = Color.DeepSkyBlue;
+
+		public string debugSaveFileToTry;
 
 		private int bCount;
 
@@ -170,7 +203,7 @@ namespace StardewValley.Menus
 					{
 						_subMenu.exitFunction = null;
 					}
-					if (_subMenu is IDisposable)
+					if (_subMenu is IDisposable && !TitleMenu.subMenu.HasDependencies())
 					{
 						(_subMenu as IDisposable).Dispose();
 					}
@@ -191,18 +224,38 @@ namespace StardewValley.Menus
 			}
 		}
 
-		private bool HasActiveUser => true;
+		public bool HasActiveUser => true;
+
+		public void ForceSubmenu(IClickableMenu menu)
+		{
+			skipToTitleButtons();
+			subMenu = menu;
+			moveFeatures(1920, 0);
+			globalXOffset = 1920;
+			buttonsToShow = 4;
+			showButtonsTimer = 0;
+			viewportDY = 0f;
+			logoSwipeTimer = 0f;
+			titleInPosition = true;
+		}
 
 		public TitleMenu()
-			: base(0, 0, Game1.viewport.Width, Game1.viewport.Height)
+			: base(0, 0, Game1.uiViewport.Width, Game1.uiViewport.Height)
 		{
 			LocalizedContentManager.OnLanguageChange += OnLanguageChange;
 			cloudsTexture = menuContent.Load<Texture2D>(Path.Combine("Minigames", "Clouds"));
 			titleButtonsTexture = menuContent.Load<Texture2D>("Minigames\\TitleButtons");
+			if (Program.sdk.IsJapaneseRegionRelease)
+			{
+				amuzioTexture = menuContent.Load<Texture2D>(Path.Combine("Minigames", "Amuzio"));
+			}
 			viewportY = 0f;
 			fadeFromWhiteTimer = 4000;
 			logoFadeTimer = 5000;
-			bigClouds.Add(-750f);
+			if (Program.sdk.IsJapaneseRegionRelease)
+			{
+				amuzioTimer = 4000;
+			}
 			bigClouds.Add(width * 3 / 4);
 			shades = (Game1.random.NextDouble() < 0.5);
 			smallClouds.Add(width - 1);
@@ -255,14 +308,14 @@ namespace StardewValley.Menus
 				downNeighborID = 81115,
 				rightNeighborID = 81112
 			};
-			windowedButton = new ClickableTextureComponent(new Rectangle(Game1.viewport.Width - 36 - 16, 16, 36, 36), Game1.mouseCursors, new Rectangle((Game1.options != null && !Game1.options.isCurrentlyWindowed()) ? 155 : 146, 384, 9, 9), 4f)
+			windowedButton = new ClickableTextureComponent(new Rectangle(Game1.uiViewport.Width - 36 - 16, 16, 36, 36), Game1.mouseCursors, new Rectangle((Game1.options != null && !Game1.options.isCurrentlyWindowed()) ? 155 : 146, 384, 9, 9), 4f)
 			{
 				myID = 81112,
 				leftNeighborID = 81111,
 				downNeighborID = 81113
 			};
 			startupPreferences = new StartupPreferences();
-			startupPreferences.loadPreferences(async: false);
+			startupPreferences.loadPreferences(async: false, applyLanguage: true);
 			applyPreferences();
 			switch (startupPreferences.timesPlayed)
 			{
@@ -391,6 +444,7 @@ namespace StardewValley.Menus
 			birds.Clear();
 			logoSwipeTimer = 1f;
 			chuckleFishTimer = 0;
+			amuzioTimer = 0;
 			Game1.changeMusicTrack("MainTheme");
 			if (Game1.options.SnappyMenus && Game1.options.gamepadControls)
 			{
@@ -437,6 +491,9 @@ namespace StardewValley.Menus
 			int zoom = (height < 800) ? 2 : 3;
 			eRect = new Rectangle(width / 2 - 200 * zoom + 251 * zoom, -300 * zoom - (int)(viewportY / 3f) * zoom + 26 * zoom, 42 * zoom, 68 * zoom);
 			screwRect = new Rectangle(width / 2 + 150 * zoom, -300 * zoom - (int)(viewportY / 3f) * zoom + 80 * zoom, 5 * zoom, 5 * zoom);
+			cornerRect = new Rectangle(width / 2 - 200 * zoom, -300 * zoom - (int)(viewportY / 3f) * zoom + 165 * zoom, 20 * zoom, 20 * zoom);
+			r_hole_rect = new Rectangle(width / 2 - 21 * zoom, -300 * zoom - (int)(viewportY / 3f) * zoom + 39 * zoom, 10 * zoom, 11 * zoom);
+			r_hole_rect2 = new Rectangle(width / 2 - 35 * zoom, -300 * zoom - (int)(viewportY / 3f) * zoom + 24 * zoom, 7 * zoom, 7 * zoom);
 			populateLeafRects();
 			backButton = new ClickableTextureComponent(menuContent.LoadString("Strings\\StringsFromCSFiles:TitleMenu.cs.11739"), new Rectangle(width + -198 - 48, height - 81 - 24, 198, 81), null, "", titleButtonsTexture, new Rectangle(296, 252, 66, 27), 3f)
 			{
@@ -456,6 +513,14 @@ namespace StardewValley.Menus
 				upNeighborID = 81112
 			};
 			skipButton = new ClickableComponent(new Rectangle(width / 2 - 261, height / 2 - 102, 249, 201), menuContent.LoadString("Strings\\StringsFromCSFiles:TitleMenu.cs.11741"));
+			if (globalXOffset > width)
+			{
+				globalXOffset = width;
+			}
+			foreach (ClickableTextureComponent button in buttons)
+			{
+				button.bounds.X += globalXOffset;
+			}
 			if (Game1.options.gamepadControls && Game1.options.snappyMenus)
 			{
 				populateClickableComponentList();
@@ -562,16 +627,64 @@ namespace StardewValley.Menus
 			}
 		}
 
-		public override void receiveKeyPress(Keys key)
+		[STAThread]
+		private void GetSaveFileInClipboard()
+		{
+			debugSaveFileToTry = null;
+			if (Clipboard.ContainsFileDropList())
+			{
+				StringCollection files = Clipboard.GetFileDropList();
+				if (files.Count > 0)
+				{
+					debugSaveFileToTry = files[0];
+				}
+			}
+		}
+
+		public override void receiveKeyPress(Microsoft.Xna.Framework.Input.Keys key)
 		{
 			if (transitioningCharacterCreationMenu)
 			{
 				return;
 			}
-			if (!Program.releaseBuild && key == Keys.N && Game1.oldKBState.IsKeyDown(Keys.RightShift) && Game1.oldKBState.IsKeyDown(Keys.LeftControl))
+			if (!Program.releaseBuild && key == Microsoft.Xna.Framework.Input.Keys.L && Game1.oldKBState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.RightShift) && Game1.oldKBState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.LeftControl))
+			{
+				debugSaveFileToTry = null;
+				Thread thread = new Thread(GetSaveFileInClipboard);
+				thread.SetApartmentState(ApartmentState.STA);
+				thread.Start();
+				thread.Join();
+				if (debugSaveFileToTry != null)
+				{
+					if (Path.GetFileNameWithoutExtension(debugSaveFileToTry).Contains('_') && Path.GetExtension(debugSaveFileToTry) == "")
+					{
+						bool is_valid_save = false;
+						try
+						{
+							if (XDocument.Load(debugSaveFileToTry).Elements("SaveGame").Any())
+							{
+								is_valid_save = true;
+							}
+						}
+						catch (Exception)
+						{
+						}
+						if (is_valid_save)
+						{
+							SaveGame.Load(debugSaveFileToTry);
+							if (Game1.activeClickableMenu != null)
+							{
+								Game1.activeClickableMenu.exitThisMenuNoSound();
+							}
+						}
+					}
+					debugSaveFileToTry = null;
+				}
+			}
+			if (!Program.releaseBuild && key == Microsoft.Xna.Framework.Input.Keys.N && Game1.oldKBState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.RightShift) && Game1.oldKBState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.LeftControl))
 			{
 				string season = "spring";
-				if (Game1.oldKBState.IsKeyDown(Keys.C))
+				if (Game1.oldKBState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.C))
 				{
 					Game1.whichFarm = Game1.random.Next(6);
 					season = (Game1.currentSeason = Utility.getSeasonNameFromNumber(Game1.random.Next(4)).ToLower());
@@ -583,20 +696,23 @@ namespace StardewValley.Menus
 				Game1.player.Position = new Vector2(9f, 9f) * 64f;
 				Game1.player.FarmerSprite.setOwner(Game1.player);
 				Game1.player.isInBed.Value = true;
-				if (Game1.oldKBState.IsKeyDown(Keys.C))
+				Game1.player.farmName.Value = "Test";
+				if (Game1.oldKBState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.C))
 				{
 					Game1.currentSeason = season;
 					Game1.setGraphicsForSeason();
 				}
+				Game1.player.mailReceived.Add("button_tut_1");
+				Game1.player.mailReceived.Add("button_tut_2");
 				Game1.NewDay(0f);
 				Game1.exitActiveMenu();
 				Game1.setGameMode(3);
 				return;
 			}
-			if (logoFadeTimer > 0 && (key == Keys.B || key == Keys.Escape))
+			if (logoFadeTimer > 0 && (key == Microsoft.Xna.Framework.Input.Keys.B || key == Microsoft.Xna.Framework.Input.Keys.Escape))
 			{
 				bCount++;
-				if (key == Keys.Escape)
+				if (key == Microsoft.Xna.Framework.Input.Keys.Escape)
 				{
 					bCount += 3;
 				}
@@ -614,6 +730,7 @@ namespace StardewValley.Menus
 					birds.Clear();
 					logoSwipeTimer = 1f;
 					chuckleFishTimer = 0;
+					amuzioTimer = 0;
 					Game1.changeMusicTrack("MainTheme");
 				}
 			}
@@ -682,6 +799,25 @@ namespace StardewValley.Menus
 					snapCursorToCurrentSnappedComponent();
 				}
 			}
+			else if ((subMenu is TitleTextInputMenu && (subMenu as TitleTextInputMenu).context == "join_menu") || subMenu is FarmhandMenu)
+			{
+				buttonsDX = 0;
+				((CoopMenu)(subMenu = new CoopMenu(tooManyFarms: false))).SetTab(CoopMenu.Tab.JOIN_TAB, play_sound: false);
+				if (Game1.options.SnappyMenus)
+				{
+					subMenu.snapToDefaultClickableComponent();
+				}
+			}
+			else if (subMenu is CharacterCustomization && (subMenu as CharacterCustomization).source == CharacterCustomization.Source.HostNewFarm)
+			{
+				buttonsDX = 0;
+				((CoopMenu)(subMenu = new CoopMenu(tooManyFarms: false))).SetTab(CoopMenu.Tab.HOST_TAB, play_sound: false);
+				Game1.changeMusicTrack("title_night");
+				if (Game1.options.SnappyMenus)
+				{
+					subMenu.snapToDefaultClickableComponent();
+				}
+			}
 			else
 			{
 				isTransitioningButtons = true;
@@ -692,6 +828,21 @@ namespace StardewValley.Menus
 				subMenu = null;
 				Game1.changeMusicTrack("spring_day_ambient");
 			}
+		}
+
+		private void UpdateHasRoomAnotherFarm()
+		{
+			lock (this)
+			{
+				hasRoomAnotherFarm = null;
+			}
+			Game1.GetHasRoomAnotherFarmAsync(delegate(bool yes)
+			{
+				lock (this)
+				{
+					hasRoomAnotherFarm = yes;
+				}
+			});
 		}
 
 		protected void CloseSubMenu()
@@ -774,7 +925,11 @@ namespace StardewValley.Menus
 					logoSurprisedTimer = Math.Max(1, logoSurprisedTimer - 500);
 				}
 			}
-			if (chuckleFishTimer > 500)
+			if (amuzioTimer > 500)
+			{
+				amuzioTimer = 500;
+			}
+			else if (chuckleFishTimer > 500)
 			{
 				chuckleFishTimer = 500;
 			}
@@ -784,14 +939,35 @@ namespace StardewValley.Menus
 			}
 			if (subMenu != null)
 			{
+				bool handled_submenu_close = false;
 				if (subMenu.readyToClose() && backButton.containsPoint(x, y))
 				{
-					subMenu.exitThisMenu();
+					backButtonPressed();
+					handled_submenu_close = true;
 				}
 				else if (!isTransitioningButtons)
 				{
 					subMenu.receiveLeftClick(x, y);
 				}
+				if (handled_submenu_close || subMenu == null || !subMenu.readyToClose() || (!(subMenu is TooManyFarmsMenu) && !(subMenu is LanguageSelectionMenu) && (backButton == null || !backButton.containsPoint(x, y))))
+				{
+					return;
+				}
+				Game1.playSound("bigDeSelect");
+				buttonsDX = -1;
+				if (subMenu is AboutMenu || subMenu is LanguageSelectionMenu)
+				{
+					subMenu = null;
+					buttonsDX = 0;
+					return;
+				}
+				isTransitioningButtons = true;
+				if (subMenu is LoadGameMenu)
+				{
+					transitioningFromLoadScreen = true;
+				}
+				subMenu = null;
+				Game1.changeMusicTrack("spring_day_ambient");
 				return;
 			}
 			if (logoFadeTimer <= 0 && !titleInPosition && logoSwipeTimer == 0f)
@@ -816,11 +992,11 @@ namespace StardewValley.Menus
 					Game1.playSound("woodyStep");
 					if (clicksOnE == 10)
 					{
-						int zoom3 = (height < 800) ? 2 : 3;
+						int zoom4 = (height < 800) ? 2 : 3;
 						Game1.playSound("openChest");
-						tempSprites.Add(new TemporaryAnimatedSprite("Minigames\\TitleButtons", new Rectangle(0, 491, 42, 68), new Vector2(width / 2 - 200 * zoom3 + 251 * zoom3, -300 * zoom3 - (int)(viewportY / 3f) * zoom3 + 26 * zoom3), flipped: false, 0f, Color.White)
+						tempSprites.Add(new TemporaryAnimatedSprite("Minigames\\TitleButtons", new Rectangle(0, 491, 42, 68), new Vector2(width / 2 - 200 * zoom4 + 251 * zoom4, -300 * zoom4 - (int)(viewportY / 3f) * zoom4 + 26 * zoom4), flipped: false, 0f, Color.White)
 						{
-							scale = zoom3,
+							scale = zoom4,
 							animationLength = 9,
 							interval = 200f,
 							local = true,
@@ -846,6 +1022,45 @@ namespace StardewValley.Menus
 						if (clicksOnScrew == 10)
 						{
 							showButterflies();
+						}
+					}
+					if (Game1.content.GetCurrentLanguage() != LocalizedContentManager.LanguageCode.zh)
+					{
+						if (cornerPhaseHolding && (r_hole_rect.Contains(x, y) || r_hole_rect2.Contains(x, y)) && cornerClicks < 999)
+						{
+							Game1.playSound("coin");
+							cornerClickEndTimer = 1000f;
+							cornerClickSoundEffectTimer = 400f;
+							cornerClicks = 9999;
+							showCornerClickEasterEgg = true;
+						}
+						else if (cornerRect.Contains(x, y) && !cornerPhaseHolding)
+						{
+							int zoom3 = (height < 800) ? 2 : 3;
+							cornerClicks++;
+							if (cornerClicks > 5)
+							{
+								if (!cornerPhaseHolding)
+								{
+									Game1.playSound("coin");
+									cornerClicks = 0;
+									cornerPhaseHolding = true;
+								}
+							}
+							else
+							{
+								Game1.playSound("hammer");
+								for (int j = 0; j < 3; j++)
+								{
+									tempSprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Rectangle(280 + ((Game1.random.NextDouble() < 0.5) ? 8 : 0), 1954, 8, 8), 1000f, 1, 99, new Vector2(width / 2 - 190 * zoom3, -300 * zoom3 - (int)(viewportY / 3f) * zoom3 + 175 * zoom3), flicker: false, flipped: false, 1f, 0f, Color.White, 3f, 0f, 0f, (float)Game1.random.Next(-10, 11) / 100f)
+									{
+										motion = new Vector2(Game1.random.Next(-4, 5), -8f + (float)Game1.random.Next(-10, 1) / 100f),
+										acceleration = new Vector2(0f, 0.3f),
+										local = true,
+										delayBeforeAnimationStart = j * 15
+									});
+								}
+							}
 						}
 					}
 					if (clicked)
@@ -981,20 +1196,15 @@ namespace StardewValley.Menus
 				{
 					tempSprite.pingPong = false;
 				}
-				lock (this)
-				{
-					numFarmsSaved = -1;
-				}
-				Game1.GetNumFarmsSavedAsync(delegate(int num)
-				{
-					lock (this)
-					{
-						numFarmsSaved = num;
-					}
-				});
+				UpdateHasRoomAnotherFarm();
+				break;
+			case "Co-op":
+				buttonsDX = 1;
+				isTransitioningButtons = true;
+				Game1.playSound("select");
+				UpdateHasRoomAnotherFarm();
 				break;
 			case "Load":
-			case "Co-op":
 			case "Invite":
 				buttonsDX = 1;
 				isTransitioningButtons = true;
@@ -1005,7 +1215,7 @@ namespace StardewValley.Menus
 
 		private void addRightLeafGust()
 		{
-			if (!isTransitioningButtons && tempSprites.Count() <= 0 && !alternativeTitleGraphic())
+			if (!isTransitioningButtons && tempSprites.Count <= 0 && !alternativeTitleGraphic())
 			{
 				int zoom = (height < 800) ? 2 : 3;
 				tempSprites.Add(new TemporaryAnimatedSprite("Minigames\\TitleButtons", new Rectangle(296, 187, 27, 21), new Vector2(width / 2 - 200 * zoom + 327 * zoom, (float)(-300 * zoom) - viewportY / 3f * (float)zoom + (float)(107 * zoom)), flipped: false, 0f, Color.White)
@@ -1022,7 +1232,7 @@ namespace StardewValley.Menus
 
 		private void addLeftLeafGust()
 		{
-			if (!isTransitioningButtons && tempSprites.Count() <= 0 && !alternativeTitleGraphic())
+			if (!isTransitioningButtons && tempSprites.Count <= 0 && !alternativeTitleGraphic())
 			{
 				int zoom = (height < 800) ? 2 : 3;
 				tempSprites.Add(new TemporaryAnimatedSprite("Minigames\\TitleButtons", new Rectangle(296, 208, 22, 18), new Vector2(width / 2 - 200 * zoom + 16 * zoom, (float)(-300 * zoom) - viewportY / 3f * (float)zoom + (float)(16 * zoom)), flipped: false, 0f, Color.White)
@@ -1101,7 +1311,11 @@ namespace StardewValley.Menus
 					Game1.exitActiveMenu();
 				}
 			}
-			if (chuckleFishTimer > 0)
+			if (amuzioTimer > 0)
+			{
+				amuzioTimer -= time.ElapsedGameTime.Milliseconds;
+			}
+			else if (chuckleFishTimer > 0)
 			{
 				chuckleFishTimer -= time.ElapsedGameTime.Milliseconds;
 			}
@@ -1175,9 +1389,12 @@ namespace StardewValley.Menus
 					addLeftLeafGust();
 					addRightLeafGust();
 					titleInPosition = true;
-					int zoom = (height < 800) ? 2 : 3;
-					eRect = new Rectangle(width / 2 - 200 * zoom + 251 * zoom, -300 * zoom - (int)(viewportY / 3f) * zoom + 26 * zoom, 42 * zoom, 68 * zoom);
-					screwRect = new Rectangle(width / 2 + 150 * zoom, -300 * zoom - (int)(viewportY / 3f) * zoom + 80 * zoom, 5 * zoom, 5 * zoom);
+					int zoom2 = (height < 800) ? 2 : 3;
+					eRect = new Rectangle(width / 2 - 200 * zoom2 + 251 * zoom2, -300 * zoom2 - (int)(viewportY / 3f) * zoom2 + 26 * zoom2, 42 * zoom2, 68 * zoom2);
+					screwRect = new Rectangle(width / 2 + 150 * zoom2, -300 * zoom2 - (int)(viewportY / 3f) * zoom2 + 80 * zoom2, 5 * zoom2, 5 * zoom2);
+					cornerRect = new Rectangle(width / 2 - 200 * zoom2, -300 * zoom2 - (int)(viewportY / 3f) * zoom2 + 165 * zoom2, 20 * zoom2, 20 * zoom2);
+					r_hole_rect = new Rectangle(width / 2 - 21 * zoom2, -300 * zoom2 - (int)(viewportY / 3f) * zoom2 + 39 * zoom2, 10 * zoom2, 11 * zoom2);
+					r_hole_rect2 = new Rectangle(width / 2 - 35 * zoom2, -300 * zoom2 - (int)(viewportY / 3f) * zoom2 + 24 * zoom2, 7 * zoom2, 7 * zoom2);
 					populateLeafRects();
 				}
 			}
@@ -1210,100 +1427,231 @@ namespace StardewValley.Menus
 					addRightLeafGust();
 				}
 			}
-			if (titleInPosition && isTransitioningButtons)
+			if (titleInPosition)
 			{
-				int dx = buttonsDX * (int)time.ElapsedGameTime.TotalMilliseconds;
-				int offsetx = globalXOffset + dx;
-				int over = offsetx - width;
-				if (over > 0)
+				if (isTransitioningButtons)
 				{
-					offsetx -= over;
-					dx -= over;
-				}
-				globalXOffset = offsetx;
-				moveFeatures(dx, 0);
-				if (buttonsDX > 0 && globalXOffset >= width)
-				{
-					if (subMenu != null)
+					int dx = buttonsDX * (int)time.ElapsedGameTime.TotalMilliseconds;
+					int offsetx = globalXOffset + dx;
+					int over = offsetx - width;
+					if (over > 0)
 					{
-						if (subMenu.readyToClose())
+						offsetx -= over;
+						dx -= over;
+					}
+					globalXOffset = offsetx;
+					moveFeatures(dx, 0);
+					if (buttonsDX > 0 && globalXOffset >= width)
+					{
+						if (subMenu != null)
 						{
-							isTransitioningButtons = false;
-							buttonsDX = 0;
+							if (subMenu.readyToClose())
+							{
+								isTransitioningButtons = false;
+								buttonsDX = 0;
+							}
 						}
-					}
-					else if (whichSubMenu.Equals("Load"))
-					{
-						subMenu = new LoadGameMenu();
-						Game1.changeMusicTrack("title_night");
-						buttonsDX = 0;
-						isTransitioningButtons = false;
-					}
-					else if (whichSubMenu.Equals("Co-op"))
-					{
-						subMenu = new CoopMenu();
-						Game1.changeMusicTrack("title_night");
-						buttonsDX = 0;
-						isTransitioningButtons = false;
-					}
-					else if (whichSubMenu.Equals("Invite"))
-					{
-						subMenu = new FarmhandMenu();
-						Game1.changeMusicTrack("title_night");
-						buttonsDX = 0;
-						isTransitioningButtons = false;
-					}
-					else if (whichSubMenu.Equals("New") && numFarmsSaved != -1)
-					{
-						if (numFarmsSaved >= Game1.GetMaxNumFarmsSaved())
+						else if (whichSubMenu.Equals("Load"))
 						{
-							subMenu = new TooManyFarmsMenu();
-							Game1.playSound("newArtifact");
+							subMenu = new LoadGameMenu();
+							Game1.changeMusicTrack("title_night");
 							buttonsDX = 0;
 							isTransitioningButtons = false;
 						}
-						else
+						else if (whichSubMenu.Equals("Co-op"))
 						{
-							Game1.resetPlayer();
-							subMenu = new CharacterCustomization(CharacterCustomization.Source.NewGame);
-							Game1.playSound("select");
-							Game1.changeMusicTrack("CloudCountry");
-							Game1.player.favoriteThing.Value = "";
+							if (hasRoomAnotherFarm.HasValue)
+							{
+								subMenu = new CoopMenu(!hasRoomAnotherFarm.Value);
+								Game1.changeMusicTrack("title_night");
+								buttonsDX = 0;
+								isTransitioningButtons = false;
+							}
+						}
+						else if (whichSubMenu.Equals("Invite"))
+						{
+							subMenu = new FarmhandMenu();
+							Game1.changeMusicTrack("title_night");
 							buttonsDX = 0;
 							isTransitioningButtons = false;
 						}
+						else if (whichSubMenu.Equals("New") && hasRoomAnotherFarm.HasValue)
+						{
+							if (!hasRoomAnotherFarm.Value)
+							{
+								subMenu = new TooManyFarmsMenu();
+								Game1.playSound("newArtifact");
+								buttonsDX = 0;
+								isTransitioningButtons = false;
+							}
+							else
+							{
+								Game1.resetPlayer();
+								subMenu = new CharacterCustomization(CharacterCustomization.Source.NewGame);
+								if (startupPreferences.timesPlayed > 1 && !startupPreferences.sawAdvancedCharacterCreationIndicator)
+								{
+									(subMenu as CharacterCustomization).showAdvancedCharacterCreationHighlight();
+									startupPreferences.sawAdvancedCharacterCreationIndicator = true;
+									startupPreferences.savePreferences(async: false);
+								}
+								Game1.playSound("select");
+								Game1.changeMusicTrack("CloudCountry");
+								Game1.player.favoriteThing.Value = "";
+								buttonsDX = 0;
+								isTransitioningButtons = false;
+							}
+						}
+						if (!isTransitioningButtons)
+						{
+							whichSubMenu = "";
+						}
 					}
-					if (!isTransitioningButtons)
+					else if (buttonsDX < 0 && globalXOffset <= 0)
 					{
+						globalXOffset = 0;
+						isTransitioningButtons = false;
+						buttonsDX = 0;
+						setUpIcons();
 						whichSubMenu = "";
+						transitioningFromLoadScreen = false;
 					}
 				}
-				else if (buttonsDX < 0 && globalXOffset <= 0)
+				if (cornerClickEndTimer > 0f)
 				{
-					globalXOffset = 0;
-					isTransitioningButtons = false;
-					buttonsDX = 0;
-					setUpIcons();
-					whichSubMenu = "";
-					transitioningFromLoadScreen = false;
+					cornerClickEndTimer -= (float)Game1.currentGameTime.ElapsedGameTime.TotalMilliseconds;
+					if (cornerClickEndTimer <= 0f)
+					{
+						cornerClickParrotTimer = 400f;
+					}
+				}
+				if (cornerClickSoundEffectTimer > 0f)
+				{
+					cornerClickSoundEffectTimer -= (float)Game1.currentGameTime.ElapsedGameTime.TotalMilliseconds;
+					if (cornerClickSoundEffectTimer <= 0f)
+					{
+						Game1.playSound("goldenWalnut");
+					}
+				}
+				if (cornerClickParrotTimer > 0f)
+				{
+					cornerClickParrotTimer -= (float)Game1.currentGameTime.ElapsedGameTime.TotalMilliseconds;
+					if (cornerClickParrotTimer <= 0f)
+					{
+						int zoom = (height < 800) ? 2 : 3;
+						behindSignTempSprites.Add(new TemporaryAnimatedSprite("LooseSprites\\parrots", new Rectangle(120, 0, 24, 24), 100f, 3, 999, new Vector2(globalXOffset + width / 2 - 200 * zoom, (float)(-300 * zoom) - viewportY / 3f * (float)zoom + (float)(100 * zoom)), flicker: false, flipped: false, 0.2f, 0f, Color.White, zoom, 0.01f, 0f, 0f, local: true)
+						{
+							pingPong = true,
+							motion = new Vector2(-6f, -1f),
+							acceleration = new Vector2(0.02f, 0.02f)
+						});
+						behindSignTempSprites.Add(new TemporaryAnimatedSprite("LooseSprites\\parrots", new Rectangle(120, 48, 24, 24), 95f, 3, 999, new Vector2(globalXOffset + width / 2 - 200 * zoom, (float)(-300 * zoom) - viewportY / 3f * (float)zoom + (float)(120 * zoom)), flicker: false, flipped: false, 0.2f, 0f, Color.White, zoom, 0.01f, 0f, 0f, local: true)
+						{
+							pingPong = true,
+							motion = new Vector2(-6f, -1f),
+							acceleration = new Vector2(0.02f, 0.02f),
+							delayBeforeAnimationStart = 300,
+							startSound = "leafrustle"
+						});
+						behindSignTempSprites.Add(new TemporaryAnimatedSprite("LooseSprites\\parrots", new Rectangle(120, 24, 24, 24), 100f, 3, 999, new Vector2(globalXOffset + width / 2 - 200 * zoom, (float)(-300 * zoom) - viewportY / 3f * (float)zoom + (float)(100 * zoom)), flicker: false, flipped: false, 0.2f, 0f, Color.White, zoom, 0.01f, 0f, 0f, local: true)
+						{
+							pingPong = true,
+							motion = new Vector2(-6f, -1f),
+							acceleration = new Vector2(0.02f, 0.02f),
+							delayBeforeAnimationStart = 600,
+							startSound = "parrot_squawk"
+						});
+						behindSignTempSprites.Add(new TemporaryAnimatedSprite("LooseSprites\\parrots", new Rectangle(120, 72, 24, 24), 95f, 3, 999, new Vector2(globalXOffset + width / 2 - 200 * zoom, (float)(-300 * zoom) - viewportY / 3f * (float)zoom + (float)(120 * zoom)), flicker: false, flipped: false, 0.2f, 0f, Color.White, zoom, 0.01f, 0f, 0f, local: true)
+						{
+							pingPong = true,
+							motion = new Vector2(-6f, -1f),
+							acceleration = new Vector2(0.02f, 0.02f),
+							delayBeforeAnimationStart = 1300,
+							startSound = "leafrustle"
+						});
+						behindSignTempSprites.Add(new TemporaryAnimatedSprite("LooseSprites\\parrots", new Rectangle(120, 0, 24, 24), 100f, 3, 999, new Vector2(globalXOffset + width / 2 + 200 * zoom - 24 * zoom, (float)(-300 * zoom) - viewportY / 3f * (float)zoom + (float)(100 * zoom)), flicker: false, flipped: true, 0.2f, 0f, Color.White, zoom, 0.01f, 0f, 0f, local: true)
+						{
+							pingPong = true,
+							motion = new Vector2(6f, -1f),
+							acceleration = new Vector2(-0.02f, -0.02f),
+							delayBeforeAnimationStart = 600
+						});
+						behindSignTempSprites.Add(new TemporaryAnimatedSprite("LooseSprites\\parrots", new Rectangle(120, 48, 24, 24), 95f, 3, 999, new Vector2(globalXOffset + width / 2 + 200 * zoom - 24 * zoom, (float)(-300 * zoom) - viewportY / 3f * (float)zoom + (float)(120 * zoom)), flicker: false, flipped: true, 0.2f, 0f, Color.White, zoom, 0.01f, 0f, 0f, local: true)
+						{
+							pingPong = true,
+							motion = new Vector2(6f, -1f),
+							acceleration = new Vector2(-0.02f, -0.02f),
+							delayBeforeAnimationStart = 900,
+							startSound = "leafrustle"
+						});
+						behindSignTempSprites.Add(new TemporaryAnimatedSprite("LooseSprites\\parrots", new Rectangle(120, 24, 24, 24), 100f, 3, 999, new Vector2(globalXOffset + width / 2 + 200 * zoom - 24 * zoom, (float)(-300 * zoom) - viewportY / 3f * (float)zoom + (float)(100 * zoom)), flicker: false, flipped: true, 0.2f, 0f, Color.White, zoom, 0.01f, 0f, 0f, local: true)
+						{
+							pingPong = true,
+							motion = new Vector2(6f, -1f),
+							acceleration = new Vector2(-0.02f, -0.02f),
+							delayBeforeAnimationStart = 1200
+						});
+						behindSignTempSprites.Add(new TemporaryAnimatedSprite("LooseSprites\\parrots", new Rectangle(120, 72, 24, 24), 95f, 3, 999, new Vector2(globalXOffset + width / 2 + 200 * zoom - 24 * zoom, (float)(-300 * zoom) - viewportY / 3f * (float)zoom + (float)(120 * zoom)), flicker: false, flipped: true, 0.2f, 0f, Color.White, zoom, 0.01f, 0f, 0f, local: true)
+						{
+							pingPong = true,
+							motion = new Vector2(6f, -1f),
+							acceleration = new Vector2(-0.02f, -0.02f),
+							delayBeforeAnimationStart = 1500
+						});
+						for (int i2 = 0; i2 < 14; i2++)
+						{
+							tempSprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Rectangle(355, 1199, 16, 16), new Vector2(globalXOffset + width / 2 - 220 * zoom, (float)(-300 * zoom) - viewportY / 3f * (float)zoom + (float)(60 * zoom) + (float)(Game1.random.Next(100) * zoom)), Game1.random.NextDouble() < 0.5, 0f, new Color(180, 180, 240))
+							{
+								scale = zoom,
+								animationLength = 11,
+								interval = 50 + Game1.random.Next(50),
+								totalNumberOfLoops = 999,
+								motion = new Vector2((float)Game1.random.Next(-100, 101) / 100f, 1f + (float)Game1.random.Next(-100, 100) / 500f),
+								xPeriodic = (Game1.random.NextDouble() < 0.5),
+								xPeriodicLoopTime = Game1.random.Next(6000, 16000),
+								xPeriodicRange = Game1.random.Next(64, 192),
+								alphaFade = 0.001f,
+								local = true,
+								holdLastFrame = false,
+								delayBeforeAnimationStart = 100 + i2 * 20
+							});
+						}
+						for (int n = 0; n < 14; n++)
+						{
+							tempSprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Rectangle(355, 1199, 16, 16), new Vector2(globalXOffset + width / 2 + 220 * zoom, (float)(-300 * zoom) - viewportY / 3f * (float)zoom + (float)(60 * zoom) + (float)(Game1.random.Next(100) * zoom)), Game1.random.NextDouble() < 0.5, 0f, new Color(180, 180, 240))
+							{
+								scale = zoom,
+								animationLength = 11,
+								interval = 50 + Game1.random.Next(50),
+								totalNumberOfLoops = 999,
+								motion = new Vector2((float)Game1.random.Next(-100, 101) / 100f, 1f + (float)Game1.random.Next(-100, 100) / 500f),
+								xPeriodic = (Game1.random.NextDouble() < 0.5),
+								xPeriodicLoopTime = Game1.random.Next(6000, 16000),
+								xPeriodicRange = Game1.random.Next(64, 192),
+								alphaFade = 0.001f,
+								local = true,
+								holdLastFrame = false,
+								delayBeforeAnimationStart = 900 + n * 20
+							});
+						}
+					}
 				}
 			}
-			for (int i = bigClouds.Count - 1; i >= 0; i--)
+			for (int m = bigClouds.Count - 1; m >= 0; m--)
 			{
-				bigClouds[i] -= 0.1f;
-				bigClouds[i] += buttonsDX * time.ElapsedGameTime.Milliseconds / 2;
-				if (bigClouds[i] < -1536f)
+				bigClouds[m] -= 0.1f;
+				bigClouds[m] += buttonsDX * time.ElapsedGameTime.Milliseconds / 2;
+				if (bigClouds[m] < -1536f)
 				{
-					bigClouds[i] = width;
+					bigClouds[m] = width;
 				}
 			}
-			for (int j = smallClouds.Count - 1; j >= 0; j--)
+			for (int l = smallClouds.Count - 1; l >= 0; l--)
 			{
-				smallClouds[j] -= 0.3f;
-				smallClouds[j] += buttonsDX * time.ElapsedGameTime.Milliseconds / 2;
-				if (smallClouds[j] < -447f)
+				smallClouds[l] -= 0.3f;
+				smallClouds[l] += buttonsDX * time.ElapsedGameTime.Milliseconds / 2;
+				if (smallClouds[l] < -447f)
 				{
-					smallClouds[j] = width;
+					smallClouds[l] = width;
 				}
 			}
 			for (int k = tempSprites.Count - 1; k >= 0; k--)
@@ -1313,12 +1661,19 @@ namespace StardewValley.Menus
 					tempSprites.RemoveAt(k);
 				}
 			}
-			for (int l = birds.Count - 1; l >= 0; l--)
+			for (int j = behindSignTempSprites.Count - 1; j >= 0; j--)
 			{
-				birds[l].position.Y -= viewportDY * 2f;
-				if (birds[l].update(time))
+				if (behindSignTempSprites[j].update(time))
 				{
-					birds.RemoveAt(l);
+					behindSignTempSprites.RemoveAt(j);
+				}
+			}
+			for (int i = birds.Count - 1; i >= 0; i--)
+			{
+				birds[i].position.Y -= viewportDY * 2f;
+				if (birds[i].update(time))
+				{
+					birds.RemoveAt(i);
 				}
 			}
 		}
@@ -1329,6 +1684,11 @@ namespace StardewValley.Menus
 			{
 				tempSprite.position.X += dx;
 				tempSprite.position.Y += dy;
+			}
+			foreach (TemporaryAnimatedSprite behindSignTempSprite in behindSignTempSprites)
+			{
+				behindSignTempSprite.position.X += dx;
+				behindSignTempSprite.position.Y += dy;
 			}
 			foreach (ClickableTextureComponent button in buttons)
 			{
@@ -1361,7 +1721,7 @@ namespace StardewValley.Menus
 			if (subMenu != null)
 			{
 				subMenu.performHoverAction(x, y);
-				if (backButton == null)
+				if (backButton == null || !subMenu.readyToClose())
 				{
 					return;
 				}
@@ -1436,6 +1796,11 @@ namespace StardewValley.Menus
 
 		public override void draw(SpriteBatch b)
 		{
+			bool should_draw_menu = true;
+			if (subMenu != null && !(subMenu is AboutMenu) && !(subMenu is LanguageSelectionMenu))
+			{
+				should_draw_menu = false;
+			}
 			b.Draw(Game1.staminaRect, new Rectangle(0, 0, width, height), new Color(64, 136, 248));
 			b.Draw(Game1.mouseCursors, new Rectangle(0, (int)(-900f - viewportY * 0.66f), width, 900 + height - 360), new Rectangle(703, 1912, 1, 264), Color.White);
 			if (!whichSubMenu.Equals("Load"))
@@ -1467,23 +1832,59 @@ namespace StardewValley.Menus
 				b.Draw(Game1.mouseCursors, Vector2.Zero, new Rectangle(0, 1453, 638, 195), Color.White * ((float)globalXOffset / 1200f), 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.8f);
 				b.Draw(Game1.mouseCursors, new Vector2(0f, 780f), new Rectangle(0, 1453, 638, 195), Color.White * ((float)globalXOffset / 1200f), 0f, Vector2.Zero, 4f, SpriteEffects.FlipHorizontally, 0.8f);
 			}
-			b.Draw(titleButtonsTexture, new Vector2(globalXOffset + width / 2 - 200 * zoom, (float)(-300 * zoom) - viewportY / 3f * (float)zoom), new Rectangle(0, 0, 400, 187), Color.White, 0f, Vector2.Zero, zoom, SpriteEffects.None, 0.2f);
-			if (logoSwipeTimer > 0f)
+			if (should_draw_menu)
 			{
-				b.Draw(titleButtonsTexture, new Vector2(globalXOffset + width / 2, (float)(-300 * zoom) - viewportY / 3f * (float)zoom + (float)(93 * zoom)), new Rectangle(0, 0, 400, 187), Color.White, 0f, new Vector2(200f, 93f), (float)zoom + (0.5f - Math.Abs(logoSwipeTimer / 1000f - 0.5f)) * 0.1f, SpriteEffects.None, 0.2f);
-			}
-			for (int i = 0; i < buttonsToShow; i++)
-			{
-				if (buttons.Count > i)
+				foreach (TemporaryAnimatedSprite behindSignTempSprite in behindSignTempSprites)
 				{
-					buttons[i].draw(b, (subMenu == null || (!(subMenu is AboutMenu) && !(subMenu is LanguageSelectionMenu))) ? Color.White : (Color.LightGray * 0.8f), 1f);
+					behindSignTempSprite.draw(b);
+				}
+				if (showCornerClickEasterEgg && Game1.content.GetCurrentLanguage() != LocalizedContentManager.LanguageCode.zh)
+				{
+					float movementPercent = 1f - Math.Min(1f, 1f - cornerClickEndTimer / 700f);
+					float yOffset = (float)(40 * zoom) * movementPercent;
+					Vector2 baseVect = new Vector2(globalXOffset + width / 2 - 200 * zoom, (float)(-300 * zoom) - viewportY / 3f * (float)zoom);
+					b.Draw(Game1.mouseCursors2, baseVect + new Vector2(80 * zoom, (float)(-10 * zoom) + yOffset), new Rectangle(224, 148, 32, 21), Color.White, 0f, Vector2.Zero, zoom, SpriteEffects.None, 0.01f);
+					b.Draw(Game1.mouseCursors2, baseVect + new Vector2(120 * zoom, (float)(-15 * zoom) + yOffset), new Rectangle(224, 148, 32, 21), Color.White, 0f, Vector2.Zero, zoom, SpriteEffects.None, 0.01f);
+					b.Draw(Game1.mouseCursors, baseVect + new Vector2(160 * zoom, (float)(-25 * zoom) + yOffset), new Rectangle(646, 895, 55, 48), Color.White, 0f, Vector2.Zero, zoom, SpriteEffects.None, 0.01f);
+					b.Draw(Game1.mouseCursors2, baseVect + new Vector2(220 * zoom, (float)(-15 * zoom) + yOffset), new Rectangle(224, 148, 32, 21), Color.White, 0f, Vector2.Zero, zoom, SpriteEffects.None, 0.01f);
+					b.Draw(Game1.mouseCursors2, baseVect + new Vector2(260 * zoom, (float)(-5 * zoom) + yOffset), new Rectangle(224, 148, 32, 21), Color.White, 0f, Vector2.Zero, zoom, SpriteEffects.None, 0.01f);
+					float xOffset2 = (float)(40 * zoom) * movementPercent;
+					b.Draw(Game1.mouseCursors2, baseVect + new Vector2((float)(-10 * zoom) + xOffset2, 70 * zoom), new Rectangle(224, 148, 32, 21), Color.White, -(float)Math.PI / 2f, Vector2.Zero, zoom, SpriteEffects.None, 0.01f);
+					b.Draw(Game1.mouseCursors2, baseVect + new Vector2((float)(-5 * zoom) + xOffset2, 100 * zoom), new Rectangle(224, 148, 32, 21), Color.White, -(float)Math.PI / 2f, Vector2.Zero, zoom, SpriteEffects.None, 0.01f);
+					b.Draw(Game1.mouseCursors2, baseVect + new Vector2((float)(-12 * zoom) + xOffset2, 130 * zoom), new Rectangle(224, 148, 32, 21), Color.White, -(float)Math.PI / 2f, Vector2.Zero, zoom, SpriteEffects.None, 0.01f);
+					b.Draw(Game1.mouseCursors2, baseVect + new Vector2((float)(-10 * zoom) + xOffset2, 160 * zoom), new Rectangle(224, 148, 32, 21), Color.White, -(float)Math.PI / 2f, Vector2.Zero, zoom, SpriteEffects.None, 0.01f);
+					xOffset2 = (float)(-40 * zoom) * movementPercent;
+					b.Draw(Game1.mouseCursors2, baseVect + new Vector2((float)(410 * zoom) + xOffset2, 40 * zoom), new Rectangle(224, 148, 32, 21), Color.White, (float)Math.PI / 2f, Vector2.Zero, zoom, SpriteEffects.None, 0.01f);
+					b.Draw(Game1.mouseCursors2, baseVect + new Vector2((float)(415 * zoom) + xOffset2, 70 * zoom), new Rectangle(224, 148, 32, 21), Color.White, (float)Math.PI / 2f, Vector2.Zero, zoom, SpriteEffects.None, 0.01f);
+					b.Draw(Game1.mouseCursors2, baseVect + new Vector2((float)(405 * zoom) + xOffset2, 100 * zoom), new Rectangle(224, 148, 32, 21), Color.White, (float)Math.PI / 2f, Vector2.Zero, zoom, SpriteEffects.None, 0.01f);
+					b.Draw(Game1.mouseCursors2, baseVect + new Vector2((float)(410 * zoom) + xOffset2, 130 * zoom), new Rectangle(224, 148, 32, 21), Color.White, (float)Math.PI / 2f, Vector2.Zero, zoom, SpriteEffects.None, 0.01f);
+				}
+				b.Draw(titleButtonsTexture, new Vector2(globalXOffset + width / 2 - 200 * zoom, (float)(-300 * zoom) - viewportY / 3f * (float)zoom), new Rectangle(0, 0, 400, 187), Color.White, 0f, Vector2.Zero, zoom, SpriteEffects.None, 0.2f);
+				if (logoSwipeTimer > 0f)
+				{
+					b.Draw(titleButtonsTexture, new Vector2(globalXOffset + width / 2, (float)(-300 * zoom) - viewportY / 3f * (float)zoom + (float)(93 * zoom)), new Rectangle(0, 0, 400, 187), Color.White, 0f, new Vector2(200f, 93f), (float)zoom + (0.5f - Math.Abs(logoSwipeTimer / 1000f - 0.5f)) * 0.1f, SpriteEffects.None, 0.2f);
+				}
+				if (cornerPhaseHolding && cornerClicks > 999 && Game1.content.GetCurrentLanguage() != LocalizedContentManager.LanguageCode.zh)
+				{
+					b.Draw(Game1.mouseCursors2, new Vector2(globalXOffset + r_hole_rect.X + zoom, r_hole_rect.Y - 2), new Rectangle(131, 196, 9, 10), Color.White, 0f, Vector2.Zero, zoom, SpriteEffects.None, 0.24f);
 				}
 			}
-			if (subMenu == null)
+			if (should_draw_menu)
 			{
-				foreach (TemporaryAnimatedSprite tempSprite in tempSprites)
+				bool greyButtons = subMenu is AboutMenu || subMenu is LanguageSelectionMenu;
+				for (int i = 0; i < buttonsToShow; i++)
 				{
-					tempSprite.draw(b);
+					if (buttons.Count > i)
+					{
+						buttons[i].draw(b, (subMenu == null || !greyButtons) ? Color.White : (Color.LightGray * 0.8f), 1f);
+					}
+				}
+				if (subMenu == null)
+				{
+					foreach (TemporaryAnimatedSprite tempSprite in tempSprites)
+					{
+						tempSprite.draw(b);
+					}
 				}
 			}
 			if (subMenu != null && !isTransitioningButtons)
@@ -1501,21 +1902,37 @@ namespace StardewValley.Menus
 			else if (subMenu == null && isTransitioningButtons && (whichSubMenu.Equals("Load") || whichSubMenu.Equals("New")))
 			{
 				int x = 84;
-				int y = Game1.viewport.Height - 64;
+				int y = Game1.uiViewport.Height - 64;
 				int w = 0;
 				int h = 64;
 				Utility.makeSafe(ref x, ref y, w, h);
 				SpriteText.drawStringWithScrollBackground(b, Game1.content.LoadString("Strings\\StringsFromCSFiles:Game1.cs.3689"), x, y);
 			}
-			else if (subMenu == null && !isTransitioningButtons && titleInPosition && !transitioningCharacterCreationMenu && HasActiveUser)
+			else if ((subMenu == null && !isTransitioningButtons && titleInPosition && !transitioningCharacterCreationMenu && HasActiveUser) & should_draw_menu)
 			{
 				aboutButton.draw(b);
 				languageButton.draw(b);
 			}
-			if (chuckleFishTimer > 0)
+			if (amuzioTimer > 0)
 			{
 				b.Draw(Game1.staminaRect, new Rectangle(0, 0, width, height), Color.White);
-				b.Draw(titleButtonsTexture, new Vector2(width / 2 - 264, height / 2 - 192), new Rectangle(chuckleFishTimer % 200 / 100 * 132, 559, 132, 96), Color.White * Math.Min(1f, (float)chuckleFishTimer / 500f), 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.2f);
+				Vector2 pos = new Vector2(width / 2 - amuzioTexture.Width / 2 * 4, height / 2 - amuzioTexture.Height / 2 * 4);
+				pos.X = MathHelper.Lerp(pos.X, -amuzioTexture.Width * 4, (float)Math.Max(0, amuzioTimer - 3750) / 250f);
+				b.Draw(amuzioTexture, pos, null, Color.White * Math.Min(1f, (float)amuzioTimer / 500f), 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.2f);
+			}
+			else if (chuckleFishTimer > 0)
+			{
+				b.Draw(Game1.staminaRect, new Rectangle(0, 0, width, height), Color.White);
+				float fade = 1f;
+				if (chuckleFishTimer < 500)
+				{
+					fade = (float)chuckleFishTimer / 500f;
+				}
+				else if (chuckleFishTimer > 3500)
+				{
+					fade = 1f - (float)(chuckleFishTimer - 3500) / 500f;
+				}
+				b.Draw(titleButtonsTexture, new Vector2(width / 2 - 264, height / 2 - 192), new Rectangle(chuckleFishTimer % 200 / 100 * 132, 559, 132, 96), Color.White * fade, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.2f);
 			}
 			else if (logoFadeTimer > 0 || fadeFromWhiteTimer > 0)
 			{
@@ -1531,7 +1948,7 @@ namespace StardewValley.Menus
 				}
 				if (startupMessage.Length > 0 && logoFadeTimer > 0)
 				{
-					b.DrawString(Game1.smallFont, Game1.parseText(startupMessage, Game1.smallFont, 640), new Vector2(8f, (float)Game1.viewport.Height - Game1.smallFont.MeasureString(Game1.parseText(startupMessage, Game1.smallFont, 640)).Y - 4f), startupMessageColor * ((logoFadeTimer < 500) ? ((float)logoFadeTimer / 500f) : ((logoFadeTimer > 4500) ? (1f - (float)(logoFadeTimer - 4500) / 500f) : 1f)));
+					b.DrawString(Game1.smallFont, Game1.parseText(startupMessage, Game1.smallFont, 640), new Vector2(8f, (float)Game1.uiViewport.Height - Game1.smallFont.MeasureString(Game1.parseText(startupMessage, Game1.smallFont, 640)).Y - 4f), startupMessageColor * ((logoFadeTimer < 500) ? ((float)logoFadeTimer / 500f) : ((logoFadeTimer > 4500) ? (1f - (float)(logoFadeTimer - 4500) / 500f) : 1f)));
 				}
 			}
 			if (logoFadeTimer > 0)
@@ -1551,6 +1968,10 @@ namespace StardewValley.Menus
 			if (ShouldDrawCursor())
 			{
 				drawMouse(b);
+				if (cornerPhaseHolding && cornerClicks < 100)
+				{
+					b.Draw(Game1.mouseCursors2, new Vector2(Game1.getMouseX() + 32 + 4, Game1.getMouseY() + 32 + 4), new Rectangle(131, 196, 9, 10), Color.White, 0f, Vector2.Zero, zoom, SpriteEffects.None, 0.9999f);
+				}
 			}
 		}
 
@@ -1564,7 +1985,7 @@ namespace StardewValley.Menus
 			{
 				return false;
 			}
-			if (showButtonsTimer > 0)
+			if (showButtonsTimer > 0 && HasActiveUser && subMenu == null)
 			{
 				return false;
 			}
@@ -1633,12 +2054,13 @@ namespace StardewValley.Menus
 
 		public override void gameWindowSizeChanged(Rectangle oldBounds, Rectangle newBounds)
 		{
-			width = Game1.viewport.Width;
-			height = Game1.viewport.Height;
-			if (!isTransitioningButtons && !(subMenu is LoadGameMenu) && !(subMenu is CharacterCustomization))
+			if (globalXOffset >= width)
 			{
-				setUpIcons();
+				globalXOffset = Game1.uiViewport.Width;
 			}
+			width = Game1.uiViewport.Width;
+			height = Game1.uiViewport.Height;
+			setUpIcons();
 			if (subMenu != null)
 			{
 				subMenu.gameWindowSizeChanged(oldBounds, newBounds);

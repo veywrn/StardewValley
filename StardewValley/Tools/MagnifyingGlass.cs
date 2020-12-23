@@ -14,7 +14,9 @@ namespace StardewValley.Tools
 
 		public override Item getOne()
 		{
-			return new MagnifyingGlass();
+			MagnifyingGlass magnifyingGlass = new MagnifyingGlass();
+			magnifyingGlass._GetOneFrom(this);
+			return magnifyingGlass;
 		}
 
 		protected override string loadDisplayName()

@@ -39,13 +39,13 @@ namespace StardewValley.Menus
 			doneNaming = b;
 			xPositionOnScreen = 0;
 			yPositionOnScreen = 0;
-			width = Game1.viewport.Width;
-			height = Game1.viewport.Height;
+			width = Game1.uiViewport.Width;
+			height = Game1.uiViewport.Height;
 			this.title = title;
-			randomButton = new ClickableTextureComponent(new Rectangle(xPositionOnScreen + width + 51 + 64, Game1.viewport.Height / 2, 64, 64), Game1.mouseCursors, new Rectangle(381, 361, 10, 10), 4f);
+			randomButton = new ClickableTextureComponent(new Rectangle(xPositionOnScreen + width + 51 + 64, Game1.uiViewport.Height / 2, 64, 64), Game1.mouseCursors, new Rectangle(381, 361, 10, 10), 4f);
 			textBox = new TextBox(null, null, Game1.dialogueFont, Game1.textColor);
-			textBox.X = Game1.viewport.Width / 2 - 192;
-			textBox.Y = Game1.viewport.Height / 2;
+			textBox.X = Game1.uiViewport.Width / 2 - 192;
+			textBox.Y = Game1.uiViewport.Height / 2;
 			textBox.Width = 256;
 			textBox.Height = 192;
 			e = textBoxEnter;
@@ -53,12 +53,12 @@ namespace StardewValley.Menus
 			Game1.keyboardDispatcher.Subscriber = textBox;
 			textBox.Text = ((defaultName != null) ? defaultName : Dialogue.randomName());
 			textBox.Selected = true;
-			randomButton = new ClickableTextureComponent(new Rectangle(textBox.X + textBox.Width + 64 + 48 - 8, Game1.viewport.Height / 2 + 4, 64, 64), Game1.mouseCursors, new Rectangle(381, 361, 10, 10), 4f)
+			randomButton = new ClickableTextureComponent(new Rectangle(textBox.X + textBox.Width + 64 + 48 - 8, Game1.uiViewport.Height / 2 + 4, 64, 64), Game1.mouseCursors, new Rectangle(381, 361, 10, 10), 4f)
 			{
 				myID = 103,
 				leftNeighborID = 102
 			};
-			doneNamingButton = new ClickableTextureComponent(new Rectangle(textBox.X + textBox.Width + 32 + 4, Game1.viewport.Height / 2 - 8, 64, 64), Game1.mouseCursors, Game1.getSourceRectForStandardTileSheet(Game1.mouseCursors, 46), 1f)
+			doneNamingButton = new ClickableTextureComponent(new Rectangle(textBox.X + textBox.Width + 32 + 4, Game1.uiViewport.Height / 2 - 8, 64, 64), Game1.mouseCursors, Game1.getSourceRectForStandardTileSheet(Game1.mouseCursors, 46), 1f)
 			{
 				myID = 102,
 				rightNeighborID = 103,
@@ -163,14 +163,13 @@ namespace StardewValley.Menus
 				randomButton.scale = randomButton.baseScale;
 				Game1.playSound("drumkit6");
 			}
-			textBox.Update();
 		}
 
 		public override void draw(SpriteBatch b)
 		{
 			base.draw(b);
 			b.Draw(Game1.fadeToBlackRect, Game1.graphics.GraphicsDevice.Viewport.Bounds, Color.Black * 0.75f);
-			SpriteText.drawStringWithScrollCenteredAt(b, title, Game1.viewport.Width / 2, Game1.viewport.Height / 2 - 128, title);
+			SpriteText.drawStringWithScrollCenteredAt(b, title, Game1.uiViewport.Width / 2, Game1.uiViewport.Height / 2 - 128, title);
 			textBox.Draw(b);
 			doneNamingButton.draw(b);
 			randomButton.draw(b);

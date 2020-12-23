@@ -16,7 +16,9 @@ namespace StardewValley.Tools
 
 		public override Item getOne()
 		{
-			return new GenericTool(base.BaseName, description, base.UpgradeLevel, base.InitialParentTileIndex, base.IndexOfMenuItemView);
+			GenericTool genericTool = new GenericTool(base.BaseName, description, base.UpgradeLevel, base.InitialParentTileIndex, base.IndexOfMenuItemView);
+			genericTool._GetOneFrom(this);
+			return genericTool;
 		}
 
 		protected override string loadDescription()

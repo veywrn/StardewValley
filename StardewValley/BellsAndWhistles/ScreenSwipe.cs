@@ -51,7 +51,7 @@ namespace StardewValley.BellsAndWhistles
 			}
 			this.swipeVelocity = swipeVelocity;
 			this.durationAfterSwipe = durationAfterSwipe;
-			Vector2 screenCenter = new Vector2(Game1.graphics.GraphicsDevice.Viewport.Width / 2, Game1.graphics.GraphicsDevice.Viewport.Height / 2);
+			Vector2 screenCenter = new Vector2(Game1.uiViewport.Width / 2, Game1.uiViewport.Height / 2);
 			if (which == 0)
 			{
 				messageSource = new Rectangle(128, 1367, 150, 14);
@@ -74,10 +74,10 @@ namespace StardewValley.BellsAndWhistles
 
 		public bool update(GameTime time)
 		{
-			if (durationAfterSwipe > 0 && bgDest.Width <= Game1.viewport.Width)
+			if (durationAfterSwipe > 0 && bgDest.Width <= Game1.uiViewport.Width)
 			{
 				bgDest.Width += (int)((double)swipeVelocity * time.ElapsedGameTime.TotalMilliseconds);
-				if (bgDest.Width > Game1.viewport.Width)
+				if (bgDest.Width > Game1.uiViewport.Width)
 				{
 					Game1.playSound("newRecord");
 				}
@@ -101,7 +101,7 @@ namespace StardewValley.BellsAndWhistles
 					movingFlairPosition = new Vector2(bgDest.X, movingFlairPosition.Y);
 				}
 			}
-			if (bgDest.Width > Game1.viewport.Width && durationAfterSwipe > 0)
+			if (bgDest.Width > Game1.uiViewport.Width && durationAfterSwipe > 0)
 			{
 				if (Game1.oldMouseState.LeftButton == ButtonState.Pressed)
 				{
@@ -114,7 +114,7 @@ namespace StardewValley.BellsAndWhistles
 				}
 			}
 			movingFlairPosition += movingFlairMotion;
-			return bgDest.X > Game1.viewport.Width;
+			return bgDest.X > Game1.uiViewport.Width;
 		}
 
 		public Rectangle getAdjustedSourceRect(Rectangle sourceRect, float xStartPosition)

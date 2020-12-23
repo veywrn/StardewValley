@@ -11,7 +11,7 @@ namespace StardewValley.Menus
 {
 	public class TailoringMenu : MenuWithInventory
 	{
-		public enum CraftState
+		protected enum CraftState
 		{
 			MissingIngredients,
 			Valid,
@@ -489,7 +489,7 @@ namespace StardewValley.Menus
 					return;
 				}
 			}
-			if (Keyboard.GetState().IsKeyDown(Keys.LeftShift) && oldHeldItem != heldItem && heldItem != null)
+			if (Game1.GetKeyboardState().IsKeyDown(Keys.LeftShift) && oldHeldItem != heldItem && heldItem != null)
 			{
 				if (heldItem.Name == "Cloth" || (heldItem is Clothing && (bool)(heldItem as Clothing).dyeable))
 				{
@@ -507,7 +507,7 @@ namespace StardewValley.Menus
 			if (leftIngredientSpot.containsPoint(x, y))
 			{
 				_leftIngredientSpotClicked();
-				if (Keyboard.GetState().IsKeyDown(Keys.LeftShift) && heldItem != null)
+				if (Game1.GetKeyboardState().IsKeyDown(Keys.LeftShift) && heldItem != null)
 				{
 					if (Game1.player.IsEquippedItem(heldItem))
 					{
@@ -522,7 +522,7 @@ namespace StardewValley.Menus
 			else if (rightIngredientSpot.containsPoint(x, y))
 			{
 				_rightIngredientSpotClicked();
-				if (Keyboard.GetState().IsKeyDown(Keys.LeftShift) && heldItem != null)
+				if (Game1.GetKeyboardState().IsKeyDown(Keys.LeftShift) && heldItem != null)
 				{
 					if (Game1.player.IsEquippedItem(heldItem))
 					{
@@ -887,12 +887,15 @@ namespace StardewValley.Menus
 				{
 					DyeItems(crafted_item2 as Clothing, right_item, 1f);
 				}
-				Object crafted_object;
-				Object left_object;
-				Object right_object;
-				if ((crafted_object = (crafted_item2 as Object)) != null && (((left_object = (left_item as Object)) != null && left_object.questItem.Value) || ((right_object = (right_item as Object)) != null && right_object.questItem.Value)))
+				if (crafted_item2 is Object)
 				{
-					crafted_object.questItem.Value = true;
+					Object crafted_object = crafted_item2 as Object;
+					Object left_object = left_item as Object;
+					Object right_object = right_item as Object;
+					if ((left_item is Object && left_object.questItem.Value) || (right_item is Object && right_object.questItem.Value))
+					{
+						crafted_object.questItem.Value = true;
+					}
 				}
 				return crafted_item2;
 			}
@@ -1007,7 +1010,9 @@ namespace StardewValley.Menus
 
 		public override void gameWindowSizeChanged(Rectangle oldBounds, Rectangle newBounds)
 		{
+			Console.WriteLine("meow:" + oldBounds + " " + newBounds + " " + width + " " + height + " " + yPositionOnScreen);
 			base.gameWindowSizeChanged(oldBounds, newBounds);
+			Console.WriteLine("meow2:" + yPositionOnScreen);
 			int yPositionForInventory = yPositionOnScreen + IClickableMenu.spaceToClearTopBorder + IClickableMenu.borderWidth + 192 - 16 + 128 + 4;
 			inventory = new InventoryMenu(xPositionOnScreen + IClickableMenu.spaceToClearSideBorder + IClickableMenu.borderWidth / 2 + 12, yPositionForInventory, playerInventory: false, null, inventory.highlightMethod);
 			_CreateButtons();

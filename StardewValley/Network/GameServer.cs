@@ -1,7 +1,9 @@
+using Lidgren.Network;
 using Microsoft.Xna.Framework;
 using Netcode;
 using StardewValley.Buildings;
 using StardewValley.Locations;
+using StardewValley.Menus;
 using StardewValley.Minigames;
 using System;
 using System.Collections.Generic;
@@ -21,6 +23,10 @@ namespace StardewValley.Network
 		private List<Action> completedPendingActions = new List<Action>();
 
 		private List<string> bannedUsers = new List<string>();
+
+		protected bool _wasConnected;
+
+		protected bool _isLocalMultiplayerInitiatedServer;
 
 		public int connectionsCount => servers.Sum((Server s) => s.connectionsCount);
 
@@ -65,10 +71,11 @@ namespace StardewValley.Network
 			}
 		}
 
-		public GameServer()
+		public GameServer(bool local_multiplayer = false)
 		{
 			servers.Add(Game1.multiplayer.InitServer(new LidgrenServer(this)));
-			if (Program.sdk.Networking != null)
+			_isLocalMultiplayerInitiatedServer = local_multiplayer;
+			if (!_isLocalMultiplayerInitiatedServer && Program.sdk.Networking != null)
 			{
 				servers.Add(Program.sdk.Networking.CreateServer(this));
 			}
@@ -88,6 +95,7 @@ namespace StardewValley.Network
 
 		public virtual void onConnect(string connectionID)
 		{
+			UpdateLocalOnlyFlag();
 		}
 
 		public virtual void onDisconnect(string connectionID)
@@ -100,6 +108,69 @@ namespace StardewValley.Network
 					pendingGameAvailableActions.Remove(_pendingFarmhandSelections[connectionID]);
 				}
 				_pendingFarmhandSelections.Remove(connectionID);
+			}
+			UpdateLocalOnlyFlag();
+		}
+
+		public bool IsLocalMultiplayerInitiatedServer()
+		{
+			return _isLocalMultiplayerInitiatedServer;
+		}
+
+		public virtual void UpdateLocalOnlyFlag()
+		{
+			if (!Game1.game1.IsMainInstance)
+			{
+				return;
+			}
+			bool local_only = true;
+			HashSet<long> local_clients = new HashSet<long>();
+			GameRunner.instance.ExecuteForInstances(delegate
+			{
+				Client client = Game1.client;
+				if (client == null && Game1.activeClickableMenu is FarmhandMenu)
+				{
+					client = (Game1.activeClickableMenu as FarmhandMenu).client;
+				}
+				if (client is LidgrenClient)
+				{
+					local_clients.Add((client as LidgrenClient).client.UniqueIdentifier);
+				}
+			});
+			foreach (Server server in servers)
+			{
+				if (server is LidgrenServer)
+				{
+					foreach (NetConnection connection in (server as LidgrenServer).server.Connections)
+					{
+						if (!local_clients.Contains(connection.RemoteUniqueIdentifier))
+						{
+							local_only = false;
+							break;
+						}
+					}
+				}
+				else if (server.connectionsCount > 0)
+				{
+					local_only = false;
+					break;
+				}
+				if (!local_only)
+				{
+					break;
+				}
+			}
+			if (Game1.hasLocalClientsOnly != local_only)
+			{
+				Game1.hasLocalClientsOnly = local_only;
+				if (Game1.hasLocalClientsOnly)
+				{
+					Console.WriteLine("Game has only local clients.");
+				}
+				else
+				{
+					Console.WriteLine("Game has remote clients.");
+				}
 			}
 		}
 
@@ -120,9 +191,10 @@ namespace StardewValley.Network
 		{
 			foreach (Server server in servers)
 			{
-				if (server.getUserName(farmerId) != null)
+				string name = server.getUserName(farmerId);
+				if (name != null)
 				{
-					return server.getUserName(farmerId);
+					return name;
 				}
 			}
 			return null;
@@ -159,6 +231,10 @@ namespace StardewValley.Network
 
 		public void stopServer()
 		{
+			if (Game1.chatBox != null)
+			{
+				Game1.chatBox.addInfoMessage(Game1.content.LoadString("Strings\\UI:Chat_DisablingServer"));
+			}
 			foreach (Server server in servers)
 			{
 				server.stopServer();
@@ -185,6 +261,19 @@ namespace StardewValley.Network
 				pendingGameAvailableActions.Remove(action);
 			}
 			completedPendingActions.Clear();
+			if (Game1.chatBox == null)
+			{
+				return;
+			}
+			bool any_server_connected = anyServerConnected();
+			if (_wasConnected != any_server_connected)
+			{
+				_wasConnected = any_server_connected;
+				if (_wasConnected)
+				{
+					Game1.chatBox.addInfoMessage(Game1.content.LoadString("Strings\\UI:Chat_StartingServer"));
+				}
+			}
 		}
 
 		public void sendMessage(long peerId, OutgoingMessage message)
@@ -214,6 +303,18 @@ namespace StardewValley.Network
 					s.offerInvite();
 				}
 			}
+		}
+
+		public bool anyServerConnected()
+		{
+			foreach (Server server in servers)
+			{
+				if (server.connected())
+				{
+					return true;
+				}
+			}
+			return false;
 		}
 
 		public bool connected()
@@ -247,7 +348,8 @@ namespace StardewValley.Network
 
 		public void startServer()
 		{
-			Console.WriteLine("Starting server. Protocol version: " + Game1.multiplayer.protocolVersion);
+			_wasConnected = false;
+			Console.WriteLine("Starting server. Protocol version: 1.5");
 			initialize();
 			if (Game1.netWorldState == null)
 			{
@@ -270,8 +372,6 @@ namespace StardewValley.Network
 
 		public void sendServerIntroduction(long peer)
 		{
-			sendLocation(peer, Game1.getFarm());
-			sendLocation(peer, Game1.getLocationFromName("FarmHouse"));
 			sendMessage(peer, new OutgoingMessage(1, Game1.serverHost.Value, Game1.multiplayer.writeObjectFullBytes(Game1.serverHost, peer), Game1.multiplayer.writeObjectFullBytes(Game1.player.teamRoot, peer), Game1.multiplayer.writeObjectFullBytes(Game1.netWorldState, peer)));
 			foreach (KeyValuePair<long, NetRoot<Farmer>> r in Game1.otherFarmers.Roots)
 			{
@@ -385,7 +485,7 @@ namespace StardewValley.Network
 
 		private bool authCheck(string userID, Farmer farmhand)
 		{
-			if (!Game1.options.enableFarmhandCreation && !farmhand.isCustomized)
+			if (!Game1.options.enableFarmhandCreation && !IsLocalMultiplayerInitiatedServer() && !farmhand.isCustomized)
 			{
 				return false;
 			}
@@ -459,6 +559,17 @@ namespace StardewValley.Network
 					Game1.updateCellarAssignments();
 					Game1.multiplayer.addPlayer(farmer);
 					Game1.multiplayer.broadcastPlayerIntroduction(farmer);
+					sendLocation(id, Game1.getFarm());
+					sendLocation(id, Game1.getLocationFromName("FarmHouse"));
+					sendLocation(id, Game1.getLocationFromName("Greenhouse"));
+					if (farmer.Value.lastSleepLocation != null)
+					{
+						GameLocation locationFromName = Game1.getLocationFromName(farmer.Value.lastSleepLocation);
+						if (locationFromName != null && Game1.isLocationAccessible(locationFromName.Name) && !Game1.multiplayer.isAlwaysActiveLocation(locationFromName))
+						{
+							sendLocation(id, locationFromName, force_current: true);
+						}
+					}
 					sendServerIntroduction(id);
 					updateLobbyData();
 				}
@@ -478,7 +589,7 @@ namespace StardewValley.Network
 			foreach (Cabin cabin in cabins())
 			{
 				NetRef<Farmer> farmhand2 = cabin.getFarmhand();
-				if ((!farmhand2.Value.isActive() || Game1.multiplayer.isDisconnecting(farmhand2.Value.UniqueMultiplayerID)) && authCheck(userID, farmhand2.Value) && !cabin.isInventoryOpen())
+				if ((!farmhand2.Value.isActive() || Game1.multiplayer.isDisconnecting(farmhand2.Value.UniqueMultiplayerID)) && !cabin.isInventoryOpen())
 				{
 					availableFarmhands.Add(farmhand2);
 				}
@@ -509,15 +620,18 @@ namespace StardewValley.Network
 			}
 		}
 
-		private void sendLocation(long peer, GameLocation location)
+		private void sendLocation(long peer, GameLocation location, bool force_current = false)
 		{
-			sendMessage(peer, 3, Game1.serverHost.Value, Game1.multiplayer.writeObjectFullBytes(Game1.multiplayer.locationRoot(location), peer));
+			sendMessage(peer, 3, Game1.serverHost.Value, force_current, Game1.multiplayer.writeObjectFullBytes(Game1.multiplayer.locationRoot(location), peer));
 		}
 
 		private void warpFarmer(Farmer farmer, short x, short y, string name, bool isStructure)
 		{
 			GameLocation location = Game1.getLocationFromName(name, isStructure);
-			location.hostSetup();
+			if (Game1.IsMasterGame)
+			{
+				location.hostSetup();
+			}
 			farmer.currentLocation = location;
 			farmer.Position = new Vector2(x * 64, y * 64 - (farmer.Sprite.getHeight() - 32) + 16);
 			sendLocation(farmer.UniqueMultiplayerID, location);
@@ -528,8 +642,14 @@ namespace StardewValley.Network
 			switch (message.MessageType)
 			{
 			case 5:
-				warpFarmer(message.SourceFarmer, message.Reader.ReadInt16(), message.Reader.ReadInt16(), message.Reader.ReadString(), message.Reader.ReadByte() == 1);
+			{
+				short x = message.Reader.ReadInt16();
+				short y = message.Reader.ReadInt16();
+				string name = message.Reader.ReadString();
+				bool isStructure = message.Reader.ReadByte() == 1;
+				warpFarmer(message.SourceFarmer, x, y, name, isStructure);
 				break;
+			}
 			case 2:
 				message.Reader.ReadString();
 				Game1.multiplayer.processIncomingMessage(message);

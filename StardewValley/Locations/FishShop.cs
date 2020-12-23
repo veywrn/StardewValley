@@ -1,4 +1,5 @@
 using StardewValley.BellsAndWhistles;
+using xTile.Dimensions;
 
 namespace StardewValley.Locations
 {
@@ -73,6 +74,23 @@ namespace StardewValley.Locations
 				response = (((int)i.quality != 0) ? Game1.content.LoadString("Data\\ExtraDialogue:PurchasedItem_Pierre_QualityHigh_Willy", whatToCallPlayer, particle, i.DisplayName) : Game1.content.LoadString("Data\\ExtraDialogue:PurchasedItem_Pierre_QualityLow_Willy", whatToCallPlayer, particle, i.DisplayName));
 			}
 			return response;
+		}
+
+		public override bool performAction(string action, Farmer who, Location tileLocation)
+		{
+			if (action == "WarpBoatTunnel")
+			{
+				if (Game1.player.mailReceived.Contains("willyBackRoomInvitation"))
+				{
+					Game1.warpFarmer("BoatTunnel", 6, 12, flip: false);
+					playSound("doorClose");
+				}
+				else
+				{
+					Game1.drawObjectDialogue(Game1.content.LoadString("Strings\\Locations:LockedDoor"));
+				}
+			}
+			return base.performAction(action, who, tileLocation);
 		}
 	}
 }

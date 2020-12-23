@@ -11,10 +11,26 @@ namespace StardewValley.Objects
 		[XmlElement("color")]
 		public readonly NetColor color = new NetColor();
 
+		[XmlElement("colorSameIndexAsParentSheetIndex")]
+		public readonly NetBool colorSameIndexAsParentSheetIndex = new NetBool();
+
+		public bool ColorSameIndexAsParentSheetIndex
+		{
+			get
+			{
+				return colorSameIndexAsParentSheetIndex.Value;
+			}
+			set
+			{
+				colorSameIndexAsParentSheetIndex.Value = value;
+			}
+		}
+
 		protected override void initNetFields()
 		{
 			base.initNetFields();
 			base.NetFields.AddField(color);
+			base.NetFields.AddField(colorSameIndexAsParentSheetIndex);
 		}
 
 		public ColoredObject()
@@ -42,7 +58,7 @@ namespace StardewValley.Objects
 			else
 			{
 				spriteBatch.Draw(Game1.objectSpriteSheet, location + new Vector2(32f, 32f) * scaleSize, Game1.getSourceRectForStandardTileSheet(Game1.objectSpriteSheet, parentSheetIndex, 16, 16), Color.White * transparency, 0f, new Vector2(8f, 8f) * scaleSize, 4f * scaleSize, SpriteEffects.None, layerDepth);
-				spriteBatch.Draw(Game1.objectSpriteSheet, location + new Vector2(32f, 32f) * scaleSize, Game1.getSourceRectForStandardTileSheet(Game1.objectSpriteSheet, (int)parentSheetIndex + 1, 16, 16), color.Value * transparency, 0f, new Vector2(8f, 8f) * scaleSize, 4f * scaleSize, SpriteEffects.None, Math.Min(1f, layerDepth + 2E-05f));
+				spriteBatch.Draw(Game1.objectSpriteSheet, location + new Vector2(32f, 32f) * scaleSize, Game1.getSourceRectForStandardTileSheet(Game1.objectSpriteSheet, (int)parentSheetIndex + ((!colorSameIndexAsParentSheetIndex) ? 1 : 0), 16, 16), color.Value * transparency, 0f, new Vector2(8f, 8f) * scaleSize, 4f * scaleSize, SpriteEffects.None, Math.Min(1f, layerDepth + 2E-05f));
 				if (((drawStackNumber == StackDrawType.Draw && maximumStackSize() > 1 && Stack > 1) || drawStackNumber == StackDrawType.Draw_OneInclusive) && (double)scaleSize > 0.3 && Stack != int.MaxValue)
 				{
 					Utility.drawTinyDigits(stack, spriteBatch, location + new Vector2((float)(64 - Utility.getWidthOfTinyDigitString(stack, 3f * scaleSize)) + 3f * scaleSize, 64f - 18f * scaleSize + 2f), 3f * scaleSize, 1f, Color.White);
@@ -76,6 +92,8 @@ namespace StardewValley.Objects
 			coloredObject.preserve.Set(preserve.Value);
 			coloredObject.preservedParentSheetIndex.Set(preservedParentSheetIndex.Value);
 			coloredObject.Name = Name;
+			coloredObject.colorSameIndexAsParentSheetIndex.Value = colorSameIndexAsParentSheetIndex.Value;
+			coloredObject._GetOneFrom(this);
 			return coloredObject;
 		}
 
@@ -95,20 +113,23 @@ namespace StardewValley.Objects
 			}
 			else if (!Game1.eventUp || Game1.currentLocation.IsFarm)
 			{
-				if ((int)parentSheetIndex != 590)
+				if (!ColorSameIndexAsParentSheetIndex)
 				{
-					spriteBatch.Draw(Game1.shadowTexture, getLocalPosition(Game1.viewport) + new Vector2(32f, 53f), Game1.shadowTexture.Bounds, Color.White, 0f, new Vector2(Game1.shadowTexture.Bounds.Center.X, Game1.shadowTexture.Bounds.Center.Y), 4f, SpriteEffects.None, 1E-07f);
+					if ((int)parentSheetIndex != 590)
+					{
+						spriteBatch.Draw(Game1.shadowTexture, getLocalPosition(Game1.viewport) + new Vector2(32f, 53f), Game1.shadowTexture.Bounds, Color.White, 0f, new Vector2(Game1.shadowTexture.Bounds.Center.X, Game1.shadowTexture.Bounds.Center.Y), 4f, SpriteEffects.None, 1E-07f);
+					}
+					Texture2D objectSpriteSheet = Game1.objectSpriteSheet;
+					Vector2 position2 = Game1.GlobalToLocal(Game1.viewport, new Vector2(x * 64 + 32, y * 64 + 32));
+					Rectangle? sourceRectangle = GameLocation.getSourceRectForObject(base.ParentSheetIndex);
+					Color white = Color.White;
+					Vector2 origin = new Vector2(8f, 8f);
+					_ = scale;
+					spriteBatch.Draw(objectSpriteSheet, position2, sourceRectangle, white, 0f, origin, (scale.Y > 1f) ? getScale().Y : 4f, flipped ? SpriteEffects.FlipHorizontally : SpriteEffects.None, (float)getBoundingBox(new Vector2(x, y)).Bottom / 10000f);
 				}
-				Texture2D objectSpriteSheet = Game1.objectSpriteSheet;
-				Vector2 position2 = Game1.GlobalToLocal(Game1.viewport, new Vector2(x * 64 + 32, y * 64 + 32));
-				Rectangle? sourceRectangle = GameLocation.getSourceRectForObject(base.ParentSheetIndex);
-				Color white = Color.White;
-				Vector2 origin = new Vector2(8f, 8f);
-				_ = scale;
-				spriteBatch.Draw(objectSpriteSheet, position2, sourceRectangle, white, 0f, origin, (scale.Y > 1f) ? getScale().Y : 4f, flipped ? SpriteEffects.FlipHorizontally : SpriteEffects.None, (float)getBoundingBox(new Vector2(x, y)).Bottom / 10000f);
 				Texture2D objectSpriteSheet2 = Game1.objectSpriteSheet;
-				Vector2 position3 = Game1.GlobalToLocal(Game1.viewport, new Vector2(x * 64 + 32, y * 64 + 32));
-				Rectangle? sourceRectangle2 = GameLocation.getSourceRectForObject(base.ParentSheetIndex + 1);
+				Vector2 position3 = Game1.GlobalToLocal(Game1.viewport, new Vector2(x * 64 + 32 + ((shakeTimer > 0) ? Game1.random.Next(-1, 2) : 0), y * 64 + 32 + ((shakeTimer > 0) ? Game1.random.Next(-1, 2) : 0)));
+				Rectangle? sourceRectangle2 = GameLocation.getSourceRectForObject(base.ParentSheetIndex + ((!colorSameIndexAsParentSheetIndex) ? 1 : 0));
 				Color obj = color;
 				Vector2 origin2 = new Vector2(8f, 8f);
 				_ = scale;

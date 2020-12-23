@@ -16,6 +16,10 @@ namespace StardewValley.Monsters
 
 		private readonly NetEvent0 hurtAnimationEvent = new NetEvent0();
 
+		private int numFireballsLeft;
+
+		private float firingTimer;
+
 		public SquidKid()
 		{
 		}
@@ -126,19 +130,19 @@ namespace StardewValley.Monsters
 		{
 			if (isMoving())
 			{
-				if (base.FacingDirection == 0)
+				if (FacingDirection == 0)
 				{
 					Sprite.AnimateUp(time);
 				}
-				else if (base.FacingDirection == 3)
+				else if (FacingDirection == 3)
 				{
 					Sprite.AnimateLeft(time);
 				}
-				else if (base.FacingDirection == 1)
+				else if (FacingDirection == 1)
 				{
 					Sprite.AnimateRight(time);
 				}
-				else if (base.FacingDirection == 2)
+				else if (FacingDirection == 2)
 				{
 					Sprite.AnimateDown(time);
 				}
@@ -148,7 +152,7 @@ namespace StardewValley.Monsters
 
 		private Vector2 fireballFired()
 		{
-			switch (base.FacingDirection)
+			switch (FacingDirection)
 			{
 			case 0:
 				Sprite.currentFrame = 3;
@@ -178,16 +182,51 @@ namespace StardewValley.Monsters
 			base.behaviorAtGameTick(time);
 			faceGeneralDirection(base.Player.Position);
 			lastFireball = Math.Max(0f, lastFireball - (float)time.ElapsedGameTime.Milliseconds);
-			if (withinPlayerThreshold() && lastFireball == 0f && Game1.random.NextDouble() < 0.01)
+			if ((bool)isHardModeMonster)
+			{
+				if ((numFireballsLeft <= 0 && !withinPlayerThreshold()) || !(lastFireball <= 0f))
+				{
+					return;
+				}
+				if (lastFireball <= 0f && numFireballsLeft <= 0)
+				{
+					numFireballsLeft = 4;
+					firingTimer = 0f;
+				}
+				firingTimer -= (float)time.ElapsedGameTime.TotalMilliseconds;
+				if (firingTimer <= 0f && numFireballsLeft > 0)
+				{
+					numFireballsLeft--;
+					base.IsWalkingTowardPlayer = false;
+					Vector2 value = new Vector2(base.Position.X, base.Position.Y + 64f);
+					Halt();
+					fireballEvent.Fire();
+					_ = value + fireballFired();
+					Sprite.UpdateSourceRect();
+					Vector2 trajectory2 = Utility.getVelocityTowardPoint(getStandingPosition(), new Vector2(base.Player.GetBoundingBox().X, base.Player.GetBoundingBox().Y) + new Vector2(Game1.random.Next(-128, 128)), 8f);
+					BasicProjectile projectile2 = new BasicProjectile(15, 10, 2, 4, 0f, trajectory2.X, trajectory2.Y, getStandingPosition() - new Vector2(32f, 0f), "", "", explode: true, damagesMonsters: false, base.currentLocation, this);
+					projectile2.height.Value = 48f;
+					base.currentLocation.projectiles.Add(projectile2);
+					base.currentLocation.playSound("fireball");
+					firingTimer = 400f;
+					if (numFireballsLeft <= 0)
+					{
+						lastFireball = Game1.random.Next(3000, 6500);
+					}
+				}
+			}
+			else if (withinPlayerThreshold() && lastFireball == 0f && Game1.random.NextDouble() < 0.01)
 			{
 				base.IsWalkingTowardPlayer = false;
-				Vector2 value = new Vector2(base.Position.X, base.Position.Y + 64f);
+				Vector2 value2 = new Vector2(base.Position.X, base.Position.Y + 64f);
 				Halt();
 				fireballEvent.Fire();
-				_ = value + fireballFired();
+				_ = value2 + fireballFired();
 				Sprite.UpdateSourceRect();
 				Vector2 trajectory = Utility.getVelocityTowardPlayer(Utility.Vector2ToPoint(getStandingPosition()), 8f, base.Player);
-				base.currentLocation.projectiles.Add(new BasicProjectile(15, 10, 3, 4, 0f, trajectory.X, trajectory.Y, getStandingPosition(), "", "", explode: true, damagesMonsters: false, base.currentLocation, this));
+				BasicProjectile projectile = new BasicProjectile(15, 10, 3, 4, 0f, trajectory.X, trajectory.Y, getStandingPosition() - new Vector2(32f, 0f), "", "", explode: true, damagesMonsters: false, base.currentLocation, this);
+				projectile.height.Value = 48f;
+				base.currentLocation.projectiles.Add(projectile);
 				base.currentLocation.playSound("fireball");
 				lastFireball = Game1.random.Next(1200, 3500);
 			}

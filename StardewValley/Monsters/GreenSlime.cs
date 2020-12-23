@@ -1,8 +1,11 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Netcode;
+using StardewValley.Objects;
+using StardewValley.Projectiles;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Xml.Serialization;
 
 namespace StardewValley.Monsters
@@ -20,6 +23,15 @@ namespace StardewValley.Monsters
 		public const double chanceToMate = 0.001;
 
 		public static int matingRange = 192;
+
+		public const int AQUA_SLIME = 9999899;
+
+		public NetIntDelta stackedSlimes = new NetIntDelta(0);
+
+		public float randomStackOffset;
+
+		[XmlIgnore]
+		public NetEvent1Field<Vector2, NetVector2> attackedEvent = new NetEvent1Field<Vector2, NetVector2>();
 
 		[XmlElement("leftDrift")]
 		public readonly NetBool leftDrift = new NetBool();
@@ -59,6 +71,8 @@ namespace StardewValley.Monsters
 
 		private GreenSlime mate;
 
+		public readonly NetBool prismatic = new NetBool();
+
 		private readonly NetVector2 facePosition = new NetVector2();
 
 		private readonly NetEvent1Field<Vector2, NetVector2> jumpEvent = new NetEvent1Field<Vector2, NetVector2>();
@@ -66,7 +80,9 @@ namespace StardewValley.Monsters
 		protected override void initNetFields()
 		{
 			base.initNetFields();
-			base.NetFields.AddFields(leftDrift, cute, ageUntilFullGrown, specialNumber, firstGeneration, color, pursuingMate, avoidingMate, facePosition, jumpEvent);
+			base.NetFields.AddFields(leftDrift, cute, ageUntilFullGrown, specialNumber, firstGeneration, color, pursuingMate, avoidingMate, facePosition, jumpEvent, prismatic, stackedSlimes, attackedEvent.NetFields);
+			stackedSlimes.Minimum = 0;
+			attackedEvent.onEvent += OnAttacked;
 			jumpEvent.onEvent += doJump;
 			jumpEvent.InterpolationWait = false;
 		}
@@ -95,6 +111,7 @@ namespace StardewValley.Monsters
 		public GreenSlime(Vector2 position, int mineLevel)
 			: base("Green Slime", position)
 		{
+			randomStackOffset = Utility.RandomFloat(0f, 100f);
 			cute.Value = (Game1.random.NextDouble() < 0.49);
 			flip = (Game1.random.NextDouble() < 0.5);
 			specialNumber.Value = Game1.random.Next(100);
@@ -200,6 +217,36 @@ namespace StardewValley.Monsters
 				color.Value = new Color(255, 255, 50);
 				coinsToDrop.Value = 10;
 			}
+			if (mineLevel == 9999899)
+			{
+				color.Value = new Color(0, 255, 200);
+				base.Health *= 2;
+				objectsToDrop.Clear();
+				if (Game1.random.NextDouble() < 0.02)
+				{
+					objectsToDrop.Add(394);
+				}
+				if (Game1.random.NextDouble() < 0.02)
+				{
+					objectsToDrop.Add(60);
+				}
+				if (Game1.random.NextDouble() < 0.02)
+				{
+					objectsToDrop.Add(62);
+				}
+				if (Game1.random.NextDouble() < 0.01)
+				{
+					objectsToDrop.Add(797);
+				}
+				if (Game1.random.NextDouble() < 0.03 && Game1.MasterPlayer.mailReceived.Contains("slimeHutchBuilt"))
+				{
+					objectsToDrop.Add(413);
+				}
+				while (Game1.random.NextDouble() < 0.5)
+				{
+					objectsToDrop.Add(766);
+				}
+			}
 			firstGeneration.Value = true;
 			base.HideShadow = true;
 		}
@@ -212,8 +259,31 @@ namespace StardewValley.Monsters
 			base.HideShadow = true;
 		}
 
+		public void makeTigerSlime()
+		{
+			base.Name = "Tiger Slime";
+			base.reloadSprite();
+			Sprite.SpriteHeight = 24;
+			Sprite.UpdateSourceRect();
+			parseMonsterInfo("Tiger Slime");
+			color.Value = Color.White;
+		}
+
+		public void makePrismatic()
+		{
+			prismatic.Value = true;
+			base.Name = "Prismatic Slime";
+			base.Health = 1000;
+			damageToFarmer.Value = 35;
+		}
+
 		public override void reloadSprite()
 		{
+			if (base.Name == "Tiger Slime")
+			{
+				makeTigerSlime();
+				return;
+			}
 			base.HideShadow = true;
 			string tmp = name;
 			base.Name = "Green Slime";
@@ -223,8 +293,42 @@ namespace StardewValley.Monsters
 			Sprite.UpdateSourceRect();
 		}
 
+		public virtual void OnAttacked(Vector2 trajectory)
+		{
+			if (Game1.IsMasterGame && stackedSlimes.Value > 0)
+			{
+				stackedSlimes.Value--;
+				if (trajectory.LengthSquared() == 0f)
+				{
+					trajectory = new Vector2(0f, -1f);
+				}
+				else
+				{
+					trajectory.Normalize();
+				}
+				trajectory *= 16f;
+				BasicProjectile projectile = new BasicProjectile(base.DamageToFarmer / 3 * 2, 13, 3, 0, (float)Math.PI / 16f, trajectory.X, trajectory.Y, base.Position, "", "", explode: true, damagesMonsters: false, base.currentLocation, this);
+				projectile.height.Value = 24f;
+				projectile.color.Value = color.Value;
+				projectile.ignoreMeleeAttacks.Value = true;
+				projectile.hostTimeUntilAttackable = 0.1f;
+				if (Game1.random.NextDouble() < 0.5)
+				{
+					projectile.debuff.Value = 13;
+				}
+				base.currentLocation.projectiles.Add(projectile);
+			}
+		}
+
 		public override int takeDamage(int damage, int xTrajectory, int yTrajectory, bool isBomb, double addedPrecision, Farmer who)
 		{
+			if (stackedSlimes.Value > 0)
+			{
+				attackedEvent.Fire(new Vector2(xTrajectory, -yTrajectory));
+				xTrajectory = 0;
+				yTrajectory = 0;
+				damage = 1;
+			}
 			int actualDamage = Math.Max(1, damage - (int)resilience);
 			if (Game1.random.NextDouble() < (double)missChance - (double)missChance * addedPrecision)
 			{
@@ -316,7 +420,7 @@ namespace StardewValley.Monsters
 
 		public override void onDealContactDamage(Farmer who)
 		{
-			if (Game1.random.NextDouble() < 0.3 && !base.Player.temporarilyInvincible && !base.Player.isWearingRing(520) && Game1.buffsDisplay.addOtherBuff(new Buff(13)))
+			if (Game1.random.NextDouble() < 0.3 && base.Player == Game1.player && !base.Player.temporarilyInvincible && !base.Player.isWearingRing(520) && Game1.random.Next(11) >= who.immunity && !base.Player.hasBuff(28) && Game1.buffsDisplay.addOtherBuff(new Buff(13)))
 			{
 				base.currentLocation.playSound("slime");
 			}
@@ -329,24 +433,34 @@ namespace StardewValley.Monsters
 			{
 				return;
 			}
-			b.Draw(Sprite.Texture, getLocalPosition(Game1.viewport) + new Vector2(32f, GetBoundingBox().Height / 2 + yOffset), Sprite.SourceRect, color, 0f, new Vector2(8f, 16f), 4f * Math.Max(0.2f, (float)scale - 0.4f * ((float)(int)ageUntilFullGrown / 120000f)), SpriteEffects.None, Math.Max(0f, drawOnTop ? 0.991f : ((float)getStandingY() / 10000f)));
-			if ((int)ageUntilFullGrown <= 0)
+			for (int i = 0; i <= stackedSlimes.Value; i++)
 			{
-				if ((bool)cute || (bool)hasSpecialItem)
+				bool top_slime = i == stackedSlimes.Value;
+				Vector2 stack_adjustment = Vector2.Zero;
+				if (stackedSlimes.Value > 0)
 				{
-					int xDongleSource = (isMoving() || wagTimer > 0) ? (16 * Math.Min(7, Math.Abs(((wagTimer > 0) ? (992 - wagTimer) : (Game1.currentGameTime.TotalGameTime.Milliseconds % 992)) - 496) / 62) % 64) : 48;
-					int yDongleSource = (isMoving() || wagTimer > 0) ? (24 * Math.Min(1, Math.Max(1, Math.Abs(((wagTimer > 0) ? (992 - wagTimer) : (Game1.currentGameTime.TotalGameTime.Milliseconds % 992)) - 496) / 62) / 4)) : 24;
-					if ((bool)hasSpecialItem)
-					{
-						yDongleSource += 48;
-					}
-					b.Draw(Sprite.Texture, getLocalPosition(Game1.viewport) + new Vector2(32f, GetBoundingBox().Height - 16 + ((readyToJump <= 0) ? (4 * (-2 + Math.Abs(Sprite.currentFrame % 4 - 2))) : (4 + 4 * (Sprite.currentFrame % 4 % 3))) + yOffset) * scale, new Rectangle(xDongleSource, 168 + yDongleSource, 16, 24), hasSpecialItem ? Color.White : ((Color)color), 0f, new Vector2(8f, 16f), 4f * Math.Max(0.2f, (float)scale - 0.4f * ((float)(int)ageUntilFullGrown / 120000f)), flip ? SpriteEffects.FlipHorizontally : SpriteEffects.None, Math.Max(0f, drawOnTop ? 0.991f : ((float)getStandingY() / 10000f + 0.0001f)));
+					stack_adjustment = new Vector2((float)Math.Sin((double)randomStackOffset + Game1.currentGameTime.TotalGameTime.TotalSeconds * Math.PI * 2.0 + (double)(i * 30)) * 8f, -30 * i);
 				}
-				b.Draw(Sprite.Texture, getLocalPosition(Game1.viewport) + (new Vector2(32f, GetBoundingBox().Height / 2 + ((readyToJump <= 0) ? (4 * (-2 + Math.Abs(Sprite.currentFrame % 4 - 2))) : (4 - 4 * (Sprite.currentFrame % 4 % 3))) + yOffset) + facePosition) * Math.Max(0.2f, (float)scale - 0.4f * ((float)(int)ageUntilFullGrown / 120000f)), new Rectangle(32 + ((readyToJump > 0 || base.focusedOnFarmers) ? 16 : 0), 120 + ((readyToJump < 0 && (base.focusedOnFarmers || invincibleCountdown > 0)) ? 24 : 0), 16, 24), Color.White * ((base.FacingDirection == 0) ? 0.5f : 1f), 0f, new Vector2(8f, 16f), 4f * Math.Max(0.2f, (float)scale - 0.4f * ((float)(int)ageUntilFullGrown / 120000f)), SpriteEffects.None, Math.Max(0f, drawOnTop ? 0.991f : ((float)getStandingY() / 10000f + 0.0001f)));
-			}
-			if (isGlowing)
-			{
-				b.Draw(Sprite.Texture, getLocalPosition(Game1.viewport) + new Vector2(32f, GetBoundingBox().Height / 2 + yOffset), Sprite.SourceRect, glowingColor * glowingTransparency, 0f, new Vector2(8f, 16f), 4f * Math.Max(0.2f, scale), SpriteEffects.None, Math.Max(0f, drawOnTop ? 0.99f : ((float)getStandingY() / 10000f + 0.001f)));
+				b.Draw(Sprite.Texture, getLocalPosition(Game1.viewport) + new Vector2(32f, GetBoundingBox().Height / 2 + yOffset) + stack_adjustment, Sprite.SourceRect, prismatic ? Utility.GetPrismaticColor(348 + (int)specialNumber, 5f) : ((Color)color), 0f, new Vector2(8f, 16f), 4f * Math.Max(0.2f, (float)scale - 0.4f * ((float)(int)ageUntilFullGrown / 120000f)), SpriteEffects.None, Math.Max(0f, drawOnTop ? 0.991f : ((float)(getStandingY() + i * 2) / 10000f)));
+				b.Draw(Game1.shadowTexture, getLocalPosition(Game1.viewport) + new Vector2(32f, (float)(GetBoundingBox().Height / 2 * 7) / 4f + (float)yOffset + 8f * (float)scale - (float)(((int)ageUntilFullGrown > 0) ? 8 : 0)) + stack_adjustment, Game1.shadowTexture.Bounds, Color.White, 0f, new Vector2(Game1.shadowTexture.Bounds.Center.X, Game1.shadowTexture.Bounds.Center.Y), 3f + (float)scale - (float)(int)ageUntilFullGrown / 120000f - ((Sprite.currentFrame % 4 % 3 != 0 || i != 0) ? 1f : 0f) + (float)yOffset / 30f, SpriteEffects.None, (float)(getStandingY() - 1 + i * 2) / 10000f);
+				if ((int)ageUntilFullGrown <= 0)
+				{
+					if (top_slime && ((bool)cute || (bool)hasSpecialItem))
+					{
+						int xDongleSource = (isMoving() || wagTimer > 0) ? (16 * Math.Min(7, Math.Abs(((wagTimer > 0) ? (992 - wagTimer) : (Game1.currentGameTime.TotalGameTime.Milliseconds % 992)) - 496) / 62) % 64) : 48;
+						int yDongleSource = (isMoving() || wagTimer > 0) ? (24 * Math.Min(1, Math.Max(1, Math.Abs(((wagTimer > 0) ? (992 - wagTimer) : (Game1.currentGameTime.TotalGameTime.Milliseconds % 992)) - 496) / 62) / 4)) : 24;
+						if ((bool)hasSpecialItem)
+						{
+							yDongleSource += 48;
+						}
+						b.Draw(Sprite.Texture, getLocalPosition(Game1.viewport) + stack_adjustment + new Vector2(32f, GetBoundingBox().Height - 16 + ((readyToJump <= 0) ? (4 * (-2 + Math.Abs(Sprite.currentFrame % 4 - 2))) : (4 + 4 * (Sprite.currentFrame % 4 % 3))) + yOffset) * scale, new Rectangle(xDongleSource, 168 + yDongleSource, 16, 24), hasSpecialItem ? Color.White : ((Color)color), 0f, new Vector2(8f, 16f), 4f * Math.Max(0.2f, (float)scale - 0.4f * ((float)(int)ageUntilFullGrown / 120000f)), flip ? SpriteEffects.FlipHorizontally : SpriteEffects.None, Math.Max(0f, drawOnTop ? 0.991f : ((float)getStandingY() / 10000f + 0.0001f)));
+					}
+					b.Draw(Sprite.Texture, getLocalPosition(Game1.viewport) + stack_adjustment + (new Vector2(32f, GetBoundingBox().Height / 2 + ((readyToJump <= 0) ? (4 * (-2 + Math.Abs(Sprite.currentFrame % 4 - 2))) : (4 - 4 * (Sprite.currentFrame % 4 % 3))) + yOffset) + facePosition) * Math.Max(0.2f, (float)scale - 0.4f * ((float)(int)ageUntilFullGrown / 120000f)), new Rectangle(32 + ((readyToJump > 0 || base.focusedOnFarmers) ? 16 : 0), 120 + ((readyToJump < 0 && (base.focusedOnFarmers || invincibleCountdown > 0)) ? 24 : 0), 16, 24), Color.White * ((FacingDirection == 0) ? 0.5f : 1f), 0f, new Vector2(8f, 16f), 4f * Math.Max(0.2f, (float)scale - 0.4f * ((float)(int)ageUntilFullGrown / 120000f)), SpriteEffects.None, Math.Max(0f, drawOnTop ? 0.991f : ((float)(getStandingY() + i * 2) / 10000f + 0.0001f)));
+				}
+				if (isGlowing)
+				{
+					b.Draw(Sprite.Texture, getLocalPosition(Game1.viewport) + stack_adjustment + new Vector2(32f, GetBoundingBox().Height / 2 + yOffset), Sprite.SourceRect, glowingColor * glowingTransparency, 0f, new Vector2(8f, 16f), 4f * Math.Max(0.2f, scale), SpriteEffects.None, Math.Max(0f, drawOnTop ? 0.99f : ((float)getStandingY() / 10000f + 0.001f)));
+				}
 			}
 			if ((bool)pursuingMate)
 			{
@@ -356,7 +470,6 @@ namespace StardewValley.Monsters
 			{
 				b.Draw(Sprite.Texture, getLocalPosition(Game1.viewport) + new Vector2(32f, -32 + yOffset), new Rectangle(24, 120, 8, 8), Color.White, 0f, new Vector2(4f, 4f), 4f, SpriteEffects.None, Math.Max(0f, drawOnTop ? 0.991f : ((float)getStandingY() / 10000f)));
 			}
-			b.Draw(Game1.shadowTexture, getLocalPosition(Game1.viewport) + new Vector2(32f, (float)(GetBoundingBox().Height / 2 * 7) / 4f + (float)yOffset + 8f * (float)scale - (float)(((int)ageUntilFullGrown > 0) ? 8 : 0)), Game1.shadowTexture.Bounds, Color.White, 0f, new Vector2(Game1.shadowTexture.Bounds.Center.X, Game1.shadowTexture.Bounds.Center.Y), 3f + (float)scale - (float)(int)ageUntilFullGrown / 120000f - ((Sprite.currentFrame % 4 % 3 != 0) ? 1f : 0f) + (float)yOffset / 30f, SpriteEffects.None, (float)(getStandingY() - 1) / 10000f);
 		}
 
 		public void moveTowardOtherSlime(GreenSlime other, bool moveAway, GameTime time)
@@ -430,7 +543,12 @@ namespace StardewValley.Monsters
 				int red = baby.color.R;
 				int green = baby.color.G;
 				int blue = baby.color.B;
-				if (red > 100 && blue > 100 && green < 50)
+				baby.Name = name;
+				if (baby.Name == "Tiger Slime")
+				{
+					baby.makeTigerSlime();
+				}
+				else if (red > 100 && blue > 100 && green < 50)
 				{
 					baby.parseMonsterInfo("Sludge");
 					while (r.NextDouble() < 0.1)
@@ -482,57 +600,118 @@ namespace StardewValley.Monsters
 		public override List<Item> getExtraDropItems()
 		{
 			List<Item> extra = new List<Item>();
-			if (color.R < 80 && color.G < 80 && color.B < 80)
+			if ((string)name != "Tiger Slime")
 			{
-				extra.Add(new Object(382, 1));
-				Random random = new Random((int)base.Position.X * 777 + (int)base.Position.Y * 77 + (int)Game1.stats.DaysPlayed);
-				if (random.NextDouble() < 0.05)
+				if (color.R < 80 && color.G < 80 && color.B < 80)
 				{
-					extra.Add(new Object(553, 1));
+					extra.Add(new Object(382, 1));
+					Random random = new Random((int)base.Position.X * 777 + (int)base.Position.Y * 77 + (int)Game1.stats.DaysPlayed);
+					if (random.NextDouble() < 0.05)
+					{
+						extra.Add(new Object(553, 1));
+					}
+					if (random.NextDouble() < 0.05)
+					{
+						extra.Add(new Object(539, 1));
+					}
 				}
-				if (random.NextDouble() < 0.05)
+				else if (color.R > 200 && color.G > 180 && color.B < 50)
 				{
-					extra.Add(new Object(539, 1));
+					extra.Add(new Object(384, 2));
 				}
-			}
-			else if (color.R > 200 && color.G > 180 && color.B < 50)
-			{
-				extra.Add(new Object(384, 2));
-			}
-			else if (color.R > 220 && color.G > 90 && color.G < 150 && color.B < 50)
-			{
-				extra.Add(new Object(378, 2));
-			}
-			else if (color.R > 230 && color.G > 230 && color.B > 230)
-			{
-				extra.Add(new Object(380, 1));
-				if ((int)color.R % 2 == 0 && (int)color.G % 2 == 0 && (int)color.B % 2 == 0)
+				else if (color.R > 220 && color.G > 90 && color.G < 150 && color.B < 50)
 				{
-					extra.Add(new Object(72, 1));
+					extra.Add(new Object(378, 2));
 				}
-			}
-			else if (color.R > 150 && color.G > 150 && color.B > 150)
-			{
-				extra.Add(new Object(390, 2));
-			}
-			else if (color.R > 150 && color.B > 180 && color.G < 50 && (int)specialNumber % (firstGeneration ? 4 : 2) == 0)
-			{
-				extra.Add(new Object(386, 2));
+				else if (color.R > 230 && color.G > 230 && color.B > 230)
+				{
+					if ((int)color.R % 2 == 1)
+					{
+						extra.Add(new Object(338, 1));
+						if ((int)color.G % 2 == 1)
+						{
+							extra.Add(new Object(338, 1));
+						}
+					}
+					else
+					{
+						extra.Add(new Object(380, 1));
+					}
+					if (((int)color.R % 2 == 0 && (int)color.G % 2 == 0 && (int)color.B % 2 == 0) || color.Equals(Color.White))
+					{
+						extra.Add(new Object(72, 1));
+					}
+				}
+				else if (color.R > 150 && color.G > 150 && color.B > 150)
+				{
+					extra.Add(new Object(390, 2));
+				}
+				else if (color.R > 150 && color.B > 180 && color.G < 50 && (int)specialNumber % (firstGeneration ? 4 : 2) == 0)
+				{
+					extra.Add(new Object(386, 2));
+					if ((bool)firstGeneration && Game1.random.NextDouble() < 0.005)
+					{
+						extra.Add(new Object(485, 1));
+					}
+				}
 			}
 			if (Game1.MasterPlayer.mailReceived.Contains("slimeHutchBuilt") && (int)specialNumber == 1)
 			{
-				string name = base.Name;
-				if (!(name == "Green Slime"))
+				switch (base.Name)
 				{
-					if (name == "Frost Jelly")
+				case "Green Slime":
+					extra.Add(new Object(680, 1));
+					break;
+				case "Frost Jelly":
+					extra.Add(new Object(413, 1));
+					break;
+				case "Tiger Slime":
+					extra.Add(new Object(857, 1));
+					break;
+				}
+			}
+			if (base.Name == "Tiger Slime")
+			{
+				if (Game1.random.NextDouble() < 0.001)
+				{
+					extra.Add(new Hat(91));
+				}
+				if (Game1.random.NextDouble() < 0.1)
+				{
+					extra.Add(new Object(831, 1));
+					while (Game1.random.NextDouble() < 0.5)
 					{
-						extra.Add(new Object(413, 1));
+						extra.Add(new Object(831, 1));
 					}
 				}
-				else
+				else if (Game1.random.NextDouble() < 0.1)
 				{
-					extra.Add(new Object(680, 1));
+					extra.Add(new Object(829, 1));
 				}
+				else if (Game1.random.NextDouble() < 0.02)
+				{
+					extra.Add(new Object(833, 1));
+					while (Game1.random.NextDouble() < 0.5)
+					{
+						extra.Add(new Object(833, 1));
+					}
+				}
+				else if (Game1.random.NextDouble() < 0.006)
+				{
+					extra.Add(new Object(835, 1));
+				}
+			}
+			if (prismatic.Value && Game1.player.team.specialOrders.Where((SpecialOrder x) => (string)x.questKey == "Wizard2") != null)
+			{
+				Object o = new Object(876, 1)
+				{
+					specialItem = true
+				};
+				o.questItem.Value = true;
+				return new List<Item>
+				{
+					o
+				};
 			}
 			return extra;
 		}
@@ -586,6 +765,7 @@ namespace StardewValley.Monsters
 		{
 			base.update(time, location);
 			jumpEvent.Poll();
+			attackedEvent.Poll();
 		}
 
 		public override void behaviorAtGameTick(GameTime time)
@@ -595,7 +775,7 @@ namespace StardewValley.Monsters
 				pursuingMate.Value = false;
 				avoidingMate.Value = false;
 			}
-			switch (base.FacingDirection)
+			switch (FacingDirection)
 			{
 			case 2:
 				if (facePosition.X > 0f)
@@ -646,13 +826,16 @@ namespace StardewValley.Monsters
 				}
 				break;
 			}
-			if ((int)ageUntilFullGrown <= 0)
+			if (stackedSlimes.Value <= 0)
 			{
-				readyToMate -= time.ElapsedGameTime.Milliseconds;
-			}
-			else
-			{
-				ageUntilFullGrown.Value -= time.ElapsedGameTime.Milliseconds;
+				if ((int)ageUntilFullGrown <= 0)
+				{
+					readyToMate -= time.ElapsedGameTime.Milliseconds;
+				}
+				else
+				{
+					ageUntilFullGrown.Value -= time.ElapsedGameTime.Milliseconds;
+				}
 			}
 			if ((bool)pursuingMate && mate != null)
 			{
@@ -700,7 +883,7 @@ namespace StardewValley.Monsters
 				if (Game1.random.NextDouble() < 0.001)
 				{
 					GreenSlime newMate = (GreenSlime)Utility.checkForCharacterWithinArea(GetType(), base.Position, base.currentLocation, new Rectangle(getStandingX() - matingRange, getStandingY() - matingRange, matingRange * 2, matingRange * 2));
-					if (newMate != null && newMate.readyToMate <= 0 && !newMate.cute)
+					if (newMate != null && newMate.readyToMate <= 0 && !newMate.cute && newMate.stackedSlimes.Value <= 0)
 					{
 						matingCountdown = 2000;
 						mate = newMate;
@@ -740,7 +923,7 @@ namespace StardewValley.Monsters
 			}
 			else if (Game1.random.NextDouble() < 0.1 && !base.focusedOnFarmers)
 			{
-				if (base.FacingDirection == 0 || base.FacingDirection == 2)
+				if (FacingDirection == 0 || FacingDirection == 2)
 				{
 					if ((bool)leftDrift && !base.currentLocation.isCollidingPosition(nextPosition(3), Game1.viewport, isFarmer: false, 1, glider: false, this))
 					{
@@ -764,7 +947,7 @@ namespace StardewValley.Monsters
 					leftDrift.Value = !leftDrift;
 				}
 			}
-			else if (withinPlayerThreshold() && timeSinceLastJump > (base.focusedOnFarmers ? 1000 : 4000) && Game1.random.NextDouble() < 0.01)
+			else if (withinPlayerThreshold() && timeSinceLastJump > (base.focusedOnFarmers ? 1000 : 4000) && Game1.random.NextDouble() < 0.01 && stackedSlimes.Value <= 0)
 			{
 				if (base.Name.Equals("Frost Jelly") && Game1.random.NextDouble() < 0.25)
 				{

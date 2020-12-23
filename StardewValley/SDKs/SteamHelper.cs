@@ -43,6 +43,12 @@ namespace StardewValley.SDKs
 		} = "Steam";
 
 
+		public bool HasOverlay => false;
+
+		public bool IsJapaneseRegionRelease => false;
+
+		public bool IsEnterButtonAssignmentFlipped => false;
+
 		public void EarlyInitialize()
 		{
 		}
@@ -56,7 +62,7 @@ namespace StardewValley.SDKs
 				if (active)
 				{
 					Console.WriteLine("Initializing GalaxySDK");
-					GalaxyInstance.InitLocal("48767653913349277", "58be5c2e55d7f535cf8c4b6bbc09d185de90b152c8c42703cc13502465f0d04a", ".");
+					GalaxyInstance.Init(new InitParams("48767653913349277", "58be5c2e55d7f535cf8c4b6bbc09d185de90b152c8c42703cc13502465f0d04a", "."));
 					encryptedAppTicketResponse = CallResult<EncryptedAppTicketResponse_t>.Create(onEncryptedAppTicketResponse);
 					galaxyAuthListener = new GalaxyHelper.AuthListener(onGalaxyAuthSuccess, onGalaxyAuthFailure, onGalaxyAuthLost);
 					galaxyStateChangeListener = new GalaxyHelper.OperationalStateChangeListener(onGalaxyStateChange);
@@ -156,7 +162,7 @@ namespace StardewValley.SDKs
 				byte[] ticket = new byte[1024];
 				SteamUser.GetEncryptedAppTicket(ticket, 1024, out uint ticketSize);
 				Console.WriteLine("Signing into GalaxySDK");
-				GalaxyInstance.User().SignIn(ticket, ticketSize, SteamFriends.GetPersonaName());
+				GalaxyInstance.User().SignInSteam(ticket, ticketSize, SteamFriends.GetPersonaName());
 				ConnectionProgress++;
 			}
 			else

@@ -108,6 +108,8 @@ namespace StardewValley.Menus
 
 		protected bool _isStorageShop;
 
+		public bool readOnly;
+
 		public ShopMenu(Dictionary<ISalable, int[]> itemPriceAndStock, int currency = 0, string who = null, Func<ISalable, Farmer, int, bool> on_purchase = null, Func<ISalable, bool> on_sell = null, string context = null)
 			: this(itemPriceAndStock.Keys.ToList(), currency, who, on_purchase, on_sell, context)
 		{
@@ -119,7 +121,7 @@ namespace StardewValley.Menus
 		}
 
 		public ShopMenu(List<ISalable> itemsForSale, int currency = 0, string who = null, Func<ISalable, Farmer, int, bool> on_purchase = null, Func<ISalable, bool> on_sell = null, string context = null)
-			: base(Game1.viewport.Width / 2 - (800 + IClickableMenu.borderWidth * 2) / 2, Game1.viewport.Height / 2 - (600 + IClickableMenu.borderWidth * 2) / 2, 1000 + IClickableMenu.borderWidth * 2, 600 + IClickableMenu.borderWidth * 2, showUpperRightCloseButton: true)
+			: base(Game1.uiViewport.Width / 2 - (800 + IClickableMenu.borderWidth * 2) / 2, Game1.uiViewport.Height / 2 - (600 + IClickableMenu.borderWidth * 2) / 2, 1000 + IClickableMenu.borderWidth * 2, 600 + IClickableMenu.borderWidth * 2, showUpperRightCloseButton: true)
 		{
 			foreach (ISalable j in itemsForSale)
 			{
@@ -147,7 +149,10 @@ namespace StardewValley.Menus
 			onPurchase = on_purchase;
 			onSell = on_sell;
 			Game1.player.forceCanMove();
-			Game1.playSound("dwop");
+			if (context == null || !context.Equals("QiGemShop"))
+			{
+				Game1.playSound("dwop");
+			}
 			inventory = new InventoryMenu(xPositionOnScreen + width, yPositionOnScreen + IClickableMenu.spaceToClearTopBorder + IClickableMenu.borderWidth + 320 + 40, playerInventory: false, null, highlightItemToSell)
 			{
 				showGrayedOutSlots = true
@@ -200,6 +205,10 @@ namespace StardewValley.Menus
 			{
 				populateClickableComponentList();
 				snapToDefaultClickableComponent();
+			}
+			if (currency == 4)
+			{
+				Game1.specialCurrencyDisplay.ShowCurrency("qiGems");
 			}
 		}
 
@@ -255,6 +264,7 @@ namespace StardewValley.Menus
 					-25
 				});
 				break;
+			case "VolcanoShop":
 			case "Blacksmith":
 				categoriesToSellHere.AddRange(new int[3]
 				{
@@ -378,6 +388,12 @@ namespace StardewValley.Menus
 				tabButtons.Add(tab11);
 				break;
 			}
+			case "ReturnedDonations":
+				_isStorageShop = true;
+				break;
+			case "FishTank":
+				_isStorageShop = true;
+				break;
 			case "Dresser":
 			{
 				categoriesToSellHere.AddRange(new int[4]
@@ -515,12 +531,31 @@ namespace StardewValley.Menus
 			string ppDialogue = Game1.content.LoadString("Strings\\StringsFromCSFiles:ShopMenu.cs.11457");
 			switch (who)
 			{
+			case "VolcanoShop":
+				ppDialogue = Game1.content.LoadString("Strings\\StringsFromCSFiles:VolcanoShop" + r.Next(4));
+				if (r.NextDouble() < 0.1)
+				{
+					ppDialogue = Game1.content.LoadString("Strings\\StringsFromCSFiles:VolcanoShop4");
+				}
+				break;
+			case "IslandTrade":
+				ppDialogue = Game1.content.LoadString("Strings\\StringsFromCSFiles:IslandTrader" + (r.Next(2) + 1));
+				if (r.NextDouble() < 0.2)
+				{
+					int which = r.Next(2) + 3;
+					ppDialogue = Game1.content.LoadString("Strings\\StringsFromCSFiles:IslandTrader" + which + ((which == 4) ? ("_" + (Game1.player.isMale ? "male" : "female")) : ""));
+				}
+				if (Game1.stats.getStat("hardModeMonstersKilled") > 50 && Game1.dayOfMonth != 28 && r.NextDouble() < 0.2)
+				{
+					ppDialogue = Game1.content.LoadString("Strings\\StringsFromCSFiles:IslandTraderSecret");
+				}
+				break;
 			case "DesertTrade":
 				ppDialogue = Game1.content.LoadString("Strings\\StringsFromCSFiles:DesertTrader" + (r.Next(2) + 1));
 				if (r.NextDouble() < 0.2)
 				{
-					int which = r.Next(2) + 3;
-					ppDialogue = Game1.content.LoadString("Strings\\StringsFromCSFiles:DesertTrader" + which + ((which == 4) ? ("_" + (Game1.player.isMale ? "male" : "female")) : ""));
+					int which2 = r.Next(2) + 3;
+					ppDialogue = Game1.content.LoadString("Strings\\StringsFromCSFiles:DesertTrader" + which2 + ((which2 == 4) ? ("_" + (Game1.player.isMale ? "male" : "female")) : ""));
 				}
 				break;
 			case "boxOffice":
@@ -721,6 +756,10 @@ namespace StardewValley.Menus
 
 		public bool highlightItemToSell(Item i)
 		{
+			if (heldItem != null)
+			{
+				return heldItem.canStackWith(i);
+			}
 			if (categoriesToSellHere.Contains(i.Category))
 			{
 				return true;
@@ -738,6 +777,8 @@ namespace StardewValley.Menus
 				return who.festivalScore;
 			case 2:
 				return who.clubCoins;
+			case 4:
+				return who.QiGems;
 			default:
 				return 0;
 			}
@@ -810,6 +851,27 @@ namespace StardewValley.Menus
 			updateSaleButtonNeighbors();
 		}
 
+		public override void receiveKeyPress(Keys key)
+		{
+			if (Game1.options.doesInputListContain(Game1.options.menuButton, key) && heldItem != null && heldItem is Item)
+			{
+				Item item = heldItem as Item;
+				heldItem = null;
+				if (Utility.CollectOrDrop(item))
+				{
+					Game1.playSound("stoneStep");
+				}
+				else
+				{
+					Game1.playSound("throwDownITem");
+				}
+			}
+			else
+			{
+				base.receiveKeyPress(key);
+			}
+		}
+
 		public override void receiveLeftClick(int x, int y, bool playSound = true)
 		{
 			base.receiveLeftClick(x, y);
@@ -846,7 +908,7 @@ namespace StardewValley.Menus
 				}
 			}
 			currentItemIndex = Math.Max(0, Math.Min(forSale.Count - 4, currentItemIndex));
-			if (heldItem == null)
+			if (heldItem == null && !readOnly)
 			{
 				Item toSell3 = inventory.leftClick(x, y, null, playSound: false);
 				if (toSell3 != null)
@@ -918,6 +980,10 @@ namespace StardewValley.Menus
 				if (forSale[index] != null)
 				{
 					int toBuy2 = (!Game1.oldKBState.IsKeyDown(Keys.LeftShift)) ? 1 : Math.Min(Math.Min(5, getPlayerCurrencyAmount(Game1.player, currency) / Math.Max(1, itemPriceAndStock[forSale[index]][0])), Math.Max(1, itemPriceAndStock[forSale[index]][1]));
+					if (storeContext == "ReturnedDonations")
+					{
+						toBuy2 = itemPriceAndStock[forSale[index]][1];
+					}
 					toBuy2 = Math.Min(toBuy2, forSale[index].maximumStackSize());
 					if (toBuy2 == -1)
 					{
@@ -934,7 +1000,10 @@ namespace StardewValley.Menus
 					}
 					else if (toBuy2 <= 0)
 					{
-						Game1.dayTimeMoneyBox.moneyShakeTimer = 1000;
+						if (itemPriceAndStock[forSale[index]].Length != 0 && itemPriceAndStock[forSale[index]][0] > 0)
+						{
+							Game1.dayTimeMoneyBox.moneyShakeTimer = 1000;
+						}
 						Game1.playSound("cancel");
 					}
 					if (heldItem != null && (_isStorageShop || Game1.options.SnappyMenus || (Game1.oldKBState.IsKeyDown(Keys.LeftShift) && heldItem.maximumStackSize() == 1)) && Game1.activeClickableMenu != null && Game1.activeClickableMenu is ShopMenu && Game1.player.addItemToInventoryBool(heldItem as Item))
@@ -1097,7 +1166,7 @@ namespace StardewValley.Menus
 									forSale.Add(item);
 								}
 							}
-							else if (currentTab == 5 && item is Furniture && ((item as Furniture).furniture_type.Value == 7 || (item as Furniture).furniture_type.Value == 10 || (item as Furniture).furniture_type.Value == 8 || (item as Furniture).furniture_type.Value == 9 || (item as Furniture).furniture_type.Value == 14))
+							else if (currentTab == 5 && item is Furniture && ((item as Furniture).furniture_type.Value == 7 || (item as Furniture).furniture_type.Value == 17 || (item as Furniture).furniture_type.Value == 10 || (item as Furniture).furniture_type.Value == 8 || (item as Furniture).furniture_type.Value == 9 || (item as Furniture).furniture_type.Value == 14))
 							{
 								forSale.Add(item);
 							}
@@ -1133,6 +1202,8 @@ namespace StardewValley.Menus
 		{
 			switch (currencyType)
 			{
+			case 3:
+				break;
 			case 0:
 				who.Money -= amount;
 				break;
@@ -1142,11 +1213,18 @@ namespace StardewValley.Menus
 			case 2:
 				who.clubCoins -= amount;
 				break;
+			case 4:
+				who.QiGems -= amount;
+				break;
 			}
 		}
 
 		private bool tryToPurchaseItem(ISalable item, ISalable held_item, int numberToBuy, int x, int y, int indexInForSaleList)
 		{
+			if (readOnly)
+			{
+				return false;
+			}
 			if (held_item == null)
 			{
 				if (itemPriceAndStock[item][1] == 0)
@@ -1174,7 +1252,11 @@ namespace StardewValley.Menus
 				{
 					heldItem = item.GetSalableInstance();
 					heldItem.Stack = numberToBuy;
-					if (itemPriceAndStock[item][1] == int.MaxValue && item.Stack != int.MaxValue)
+					if (storeContext == "QiGemShop")
+					{
+						heldItem.Stack *= item.Stack;
+					}
+					else if (itemPriceAndStock[item][1] == int.MaxValue && item.Stack != int.MaxValue)
 					{
 						heldItem.Stack *= item.Stack;
 					}
@@ -1194,7 +1276,7 @@ namespace StardewValley.Menus
 					{
 						Game1.player.removeItemsFromInventory(extraTradeItem2, extraTradeItemCount2);
 					}
-					if (item.actionWhenPurchased())
+					if (!_isStorageShop && item.actionWhenPurchased())
 					{
 						if (heldItem is Object && (bool)(heldItem as Object).isRecipe)
 						{
@@ -1218,16 +1300,24 @@ namespace StardewValley.Menus
 						held_item = null;
 						heldItem = null;
 					}
-					else if (Game1.mouseClickPolling > 300)
+					else
 					{
-						if (purchaseRepeatSound != null)
+						if (heldItem != null && heldItem is Object && (heldItem as Object).ParentSheetIndex == 858)
 						{
-							Game1.playSound(purchaseRepeatSound);
+							Game1.player.team.addQiGemsToTeam.Fire(heldItem.Stack);
+							heldItem = null;
 						}
-					}
-					else if (purchaseSound != null)
-					{
-						Game1.playSound(purchaseSound);
+						if (Game1.mouseClickPolling > 300)
+						{
+							if (purchaseRepeatSound != null)
+							{
+								Game1.playSound(purchaseRepeatSound);
+							}
+						}
+						else if (purchaseSound != null)
+						{
+							Game1.playSound(purchaseSound);
+						}
 					}
 					if (onPurchase != null && onPurchase(item, Game1.player, numberToBuy))
 					{
@@ -1236,7 +1326,10 @@ namespace StardewValley.Menus
 				}
 				else
 				{
-					Game1.dayTimeMoneyBox.moneyShakeTimer = 1000;
+					if (price2 > 0)
+					{
+						Game1.dayTimeMoneyBox.moneyShakeTimer = 1000;
+					}
 					Game1.playSound("cancel");
 				}
 			}
@@ -1295,7 +1388,7 @@ namespace StardewValley.Menus
 						{
 							Game1.player.removeItemsFromInventory(extraTradeItem, extraTradeItemCount);
 						}
-						if (item.actionWhenPurchased())
+						if (!_isStorageShop && item.actionWhenPurchased())
 						{
 							heldItem = null;
 						}
@@ -1306,7 +1399,10 @@ namespace StardewValley.Menus
 					}
 					else
 					{
-						Game1.dayTimeMoneyBox.moneyShakeTimer = 1000;
+						if (price > 0)
+						{
+							Game1.dayTimeMoneyBox.moneyShakeTimer = 1000;
+						}
 						Game1.playSound("cancel");
 					}
 				}
@@ -1322,7 +1418,7 @@ namespace StardewValley.Menus
 		public override void receiveRightClick(int x, int y, bool playSound = true)
 		{
 			Vector2 snappedPosition = inventory.snapToClickableComponent(x, y);
-			if (heldItem == null)
+			if (heldItem == null && !readOnly)
 			{
 				ISalable toSell3 = inventory.rightClick(x, y, null, playSound: false);
 				if (toSell3 != null)
@@ -1571,8 +1667,8 @@ namespace StardewValley.Menus
 		{
 			width = 1000 + IClickableMenu.borderWidth * 2;
 			height = 600 + IClickableMenu.borderWidth * 2;
-			xPositionOnScreen = Game1.viewport.Width / 2 - (800 + IClickableMenu.borderWidth * 2) / 2;
-			yPositionOnScreen = Game1.viewport.Height / 2 - (600 + IClickableMenu.borderWidth * 2) / 2;
+			xPositionOnScreen = Game1.uiViewport.Width / 2 - (800 + IClickableMenu.borderWidth * 2) / 2;
+			yPositionOnScreen = Game1.uiViewport.Height / 2 - (600 + IClickableMenu.borderWidth * 2) / 2;
 			int num = xPositionOnScreen - 320;
 			bool has_portrait_to_draw = false;
 			if (portraitPerson != null)
@@ -1585,9 +1681,18 @@ namespace StardewValley.Menus
 			}
 			if (!((num > 0 && Game1.options.showMerchantPortraits) & has_portrait_to_draw))
 			{
-				xPositionOnScreen = Game1.viewport.Width / 2 - (1000 + IClickableMenu.borderWidth * 2) / 2;
-				yPositionOnScreen = Game1.viewport.Height / 2 - (600 + IClickableMenu.borderWidth * 2) / 2;
+				xPositionOnScreen = Game1.uiViewport.Width / 2 - (1000 + IClickableMenu.borderWidth * 2) / 2;
+				yPositionOnScreen = Game1.uiViewport.Height / 2 - (600 + IClickableMenu.borderWidth * 2) / 2;
 			}
+		}
+
+		protected override void cleanupBeforeExit()
+		{
+			if (currency == 4)
+			{
+				Game1.specialCurrencyDisplay.ShowCurrency(null);
+			}
+			base.cleanupBeforeExit();
 		}
 
 		public override void gameWindowSizeChanged(Rectangle oldBounds, Rectangle newBounds)
@@ -1636,8 +1741,25 @@ namespace StardewValley.Menus
 			{
 				b.Draw(Game1.fadeToBlackRect, Game1.graphics.GraphicsDevice.Viewport.Bounds, Color.Black * 0.75f);
 			}
+			Texture2D purchase_texture = Game1.mouseCursors;
+			Rectangle purchase_window_border = new Rectangle(384, 373, 18, 18);
+			Rectangle purchase_item_rect = new Rectangle(384, 396, 15, 15);
+			int purchase_item_text_color = -1;
+			bool purchase_draw_item_background = true;
+			Rectangle purchase_item_background = new Rectangle(296, 363, 18, 18);
+			Color purchase_selected_color = Color.Wheat;
+			if (storeContext == "QiGemShop")
+			{
+				purchase_texture = Game1.mouseCursors2;
+				purchase_window_border = new Rectangle(0, 256, 18, 18);
+				purchase_item_rect = new Rectangle(18, 256, 15, 15);
+				purchase_item_text_color = 4;
+				purchase_selected_color = Color.Blue;
+				purchase_draw_item_background = true;
+				purchase_item_background = new Rectangle(33, 256, 18, 18);
+			}
 			IClickableMenu.drawTextureBox(b, Game1.mouseCursors, new Rectangle(384, 373, 18, 18), xPositionOnScreen + width - inventory.width - 32 - 24, yPositionOnScreen + height - 256 + 40, inventory.width + 56, height - 448 + 20, Color.White, 4f);
-			IClickableMenu.drawTextureBox(b, Game1.mouseCursors, new Rectangle(384, 373, 18, 18), xPositionOnScreen, yPositionOnScreen, width, height - 256 + 32 + 4, Color.White, 4f);
+			IClickableMenu.drawTextureBox(b, purchase_texture, purchase_window_border, xPositionOnScreen, yPositionOnScreen, width, height - 256 + 32 + 4, Color.White, 4f);
 			drawCurrency(b);
 			for (int k = 0; k < forSaleButtons.Count; k++)
 			{
@@ -1650,14 +1772,18 @@ namespace StardewValley.Menus
 				{
 					failedCanPurchaseCheck = true;
 				}
-				IClickableMenu.drawTextureBox(b, Game1.mouseCursors, new Rectangle(384, 396, 15, 15), forSaleButtons[k].bounds.X, forSaleButtons[k].bounds.Y, forSaleButtons[k].bounds.Width, forSaleButtons[k].bounds.Height, (forSaleButtons[k].containsPoint(Game1.getOldMouseX(), Game1.getOldMouseY()) && !scrolling) ? Color.Wheat : Color.White, 4f, drawShadow: false);
-				b.Draw(Game1.mouseCursors, new Vector2(forSaleButtons[k].bounds.X + 32 - 12, forSaleButtons[k].bounds.Y + 24 - 4), new Rectangle(296, 363, 18, 18), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
+				IClickableMenu.drawTextureBox(b, purchase_texture, purchase_item_rect, forSaleButtons[k].bounds.X, forSaleButtons[k].bounds.Y, forSaleButtons[k].bounds.Width, forSaleButtons[k].bounds.Height, (forSaleButtons[k].containsPoint(Game1.getOldMouseX(), Game1.getOldMouseY()) && !scrolling) ? purchase_selected_color : Color.White, 4f, drawShadow: false);
 				ISalable item = forSale[currentItemIndex + k];
-				bool num = item.Stack > 1 && item.Stack != int.MaxValue && itemPriceAndStock[item][1] == int.MaxValue;
+				bool buyInStacks = item.Stack > 1 && item.Stack != int.MaxValue && itemPriceAndStock[item][1] == int.MaxValue;
 				StackDrawType stackDrawType;
-				if (itemPriceAndStock[item][1] == int.MaxValue)
+				if (storeContext == "QiGemShop")
 				{
-					stackDrawType = StackDrawType.Hide;
+					stackDrawType = StackDrawType.HideButShowQuality;
+					buyInStacks = (item.Stack > 1);
+				}
+				else if (itemPriceAndStock[item][1] == int.MaxValue)
+				{
+					stackDrawType = StackDrawType.HideButShowQuality;
 				}
 				else
 				{
@@ -1667,16 +1793,27 @@ namespace StardewValley.Menus
 						stackDrawType = StackDrawType.Draw;
 					}
 				}
-				forSale[currentItemIndex + k].drawInMenu(b, new Vector2(forSaleButtons[k].bounds.X + 32 - 8, forSaleButtons[k].bounds.Y + 24), 1f, 1f, 0.9f, stackDrawType, Color.White * ((!failedCanPurchaseCheck) ? 1f : 0.25f), drawShadow: true);
 				string displayName = item.DisplayName;
-				if (num)
+				if (buyInStacks)
 				{
 					displayName = displayName + " x" + item.Stack;
 				}
-				SpriteText.drawString(b, displayName, forSaleButtons[k].bounds.X + 96 + 8, forSaleButtons[k].bounds.Y + 28, 999999, -1, 999999, failedCanPurchaseCheck ? 0.5f : 1f);
+				if (forSale[currentItemIndex + k].ShouldDrawIcon())
+				{
+					if (purchase_draw_item_background)
+					{
+						b.Draw(purchase_texture, new Vector2(forSaleButtons[k].bounds.X + 32 - 12, forSaleButtons[k].bounds.Y + 24 - 4), purchase_item_background, Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
+					}
+					forSale[currentItemIndex + k].drawInMenu(b, new Vector2(forSaleButtons[k].bounds.X + 32 - 8, forSaleButtons[k].bounds.Y + 24), 1f, 1f, 0.9f, stackDrawType, Color.White * ((!failedCanPurchaseCheck) ? 1f : 0.25f), drawShadow: true);
+					SpriteText.drawString(b, displayName, forSaleButtons[k].bounds.X + 96 + 8, forSaleButtons[k].bounds.Y + 28, 999999, -1, 999999, failedCanPurchaseCheck ? 0.5f : 1f, 0.88f, junimoText: false, -1, "", purchase_item_text_color);
+				}
+				else
+				{
+					SpriteText.drawString(b, displayName, forSaleButtons[k].bounds.X + 32 + 8, forSaleButtons[k].bounds.Y + 28, 999999, -1, 999999, failedCanPurchaseCheck ? 0.5f : 1f, 0.88f, junimoText: false, -1, "", purchase_item_text_color);
+				}
 				if (itemPriceAndStock[forSale[currentItemIndex + k]][0] > 0)
 				{
-					SpriteText.drawString(b, itemPriceAndStock[forSale[currentItemIndex + k]][0] + " ", forSaleButtons[k].bounds.Right - SpriteText.getWidthOfString(itemPriceAndStock[forSale[currentItemIndex + k]][0] + " ") - 60, forSaleButtons[k].bounds.Y + 28, 999999, -1, 999999, (getPlayerCurrencyAmount(Game1.player, currency) >= itemPriceAndStock[forSale[currentItemIndex + k]][0] && !failedCanPurchaseCheck) ? 1f : 0.5f);
+					SpriteText.drawString(b, itemPriceAndStock[forSale[currentItemIndex + k]][0] + " ", forSaleButtons[k].bounds.Right - SpriteText.getWidthOfString(itemPriceAndStock[forSale[currentItemIndex + k]][0] + " ") - 60, forSaleButtons[k].bounds.Y + 28, 999999, -1, 999999, (getPlayerCurrencyAmount(Game1.player, currency) >= itemPriceAndStock[forSale[currentItemIndex + k]][0] && !failedCanPurchaseCheck) ? 1f : 0.5f, 0.88f, junimoText: false, -1, "", purchase_item_text_color);
 					Utility.drawWithShadow(b, Game1.mouseCursors, new Vector2(forSaleButtons[k].bounds.Right - 52, forSaleButtons[k].bounds.Y + 40 - 4), new Rectangle(193 + currency * 9, 373, 9, 10), Color.White * ((!failedCanPurchaseCheck) ? 1f : 0.25f), 0f, Vector2.Zero, 4f, flipped: false, 1f, -1, -1, (!failedCanPurchaseCheck) ? 0.35f : 0f);
 				}
 				else if (itemPriceAndStock[forSale[currentItemIndex + k]].Length > 2)
@@ -1694,7 +1831,7 @@ namespace StardewValley.Menus
 					}
 					float textWidth = SpriteText.getWidthOfString("x" + required_item_count);
 					Utility.drawWithShadow(b, Game1.objectSpriteSheet, new Vector2((float)(forSaleButtons[k].bounds.Right - 88) - textWidth, forSaleButtons[k].bounds.Y + 28 - 4), Game1.getSourceRectForStandardTileSheet(Game1.objectSpriteSheet, requiredItem, 16, 16), Color.White * (hasEnoughToTrade ? 1f : 0.25f), 0f, Vector2.Zero, -1f, flipped: false, -1f, -1, -1, hasEnoughToTrade ? 0.35f : 0f);
-					SpriteText.drawString(b, "x" + required_item_count, forSaleButtons[k].bounds.Right - (int)textWidth - 16, forSaleButtons[k].bounds.Y + 44, 999999, -1, 999999, hasEnoughToTrade ? 1f : 0.5f);
+					SpriteText.drawString(b, "x" + required_item_count, forSaleButtons[k].bounds.Right - (int)textWidth - 16, forSaleButtons[k].bounds.Y + 44, 999999, -1, 999999, hasEnoughToTrade ? 1f : 0.5f, 0.88f, junimoText: false, -1, "", purchase_item_text_color);
 				}
 			}
 			if (forSale.Count == 0 && !_isStorageShop)
@@ -1730,7 +1867,14 @@ namespace StardewValley.Menus
 			}
 			if (!hoverText.Equals(""))
 			{
-				IClickableMenu.drawToolTip(b, hoverText, boldTitleText, hoveredItem as Item, heldItem != null, -1, currency, getHoveredItemExtraItemIndex(), getHoveredItemExtraItemAmount(), null, (hoverPrice > 0) ? hoverPrice : (-1));
+				if (hoveredItem is Object && (bool)(hoveredItem as Object).isRecipe)
+				{
+					IClickableMenu.drawToolTip(b, " ", boldTitleText, hoveredItem as Item, heldItem != null, -1, currency, getHoveredItemExtraItemIndex(), getHoveredItemExtraItemAmount(), new CraftingRecipe(hoveredItem.Name.Replace(" Recipe", "")), (hoverPrice > 0) ? hoverPrice : (-1));
+				}
+				else
+				{
+					IClickableMenu.drawToolTip(b, hoverText, boldTitleText, hoveredItem as Item, heldItem != null, -1, currency, getHoveredItemExtraItemIndex(), getHoveredItemExtraItemAmount(), null, (hoverPrice > 0) ? hoverPrice : (-1));
+				}
 			}
 			if (heldItem != null)
 			{

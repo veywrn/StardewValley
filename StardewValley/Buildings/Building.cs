@@ -17,11 +17,15 @@ namespace StardewValley.Buildings
 	[XmlInclude(typeof(Mill))]
 	[XmlInclude(typeof(JunimoHut))]
 	[XmlInclude(typeof(ShippingBin))]
+	[XmlInclude(typeof(GreenhouseBuilding))]
 	[XmlInclude(typeof(FishPond))]
 	public class Building : INetObject<NetFields>
 	{
 		[XmlIgnore]
 		public Lazy<Texture2D> texture;
+
+		[XmlIgnore]
+		public Texture2D paintedTexture;
 
 		[XmlElement("indoors")]
 		public readonly NetRef<GameLocation> indoors = new NetRef<GameLocation>();
@@ -52,6 +56,15 @@ namespace StardewValley.Buildings
 
 		[XmlElement("buildingType")]
 		public readonly NetString buildingType = new NetString();
+
+		[XmlElement("buildingPaintColor")]
+		public NetRef<BuildingPaintColor> netBuildingPaintColor = new NetRef<BuildingPaintColor>();
+
+		[XmlIgnore]
+		public NetList<Point, NetPoint> additionalPlacementTiles = new NetList<Point, NetPoint>();
+
+		[XmlIgnore]
+		public ModDataDictionary modData = new ModDataDictionary();
 
 		protected int _isCabin = -1;
 
@@ -93,6 +106,19 @@ namespace StardewValley.Buildings
 		public static Rectangle middleShadow = new Rectangle(672, 394, 16, 16);
 
 		public static Rectangle rightShadow = new Rectangle(688, 394, 16, 16);
+
+		[XmlElement("modData")]
+		public ModDataDictionary modDataForSerialization
+		{
+			get
+			{
+				return modData.GetForSerialization();
+			}
+			set
+			{
+				modData.SetFromSerialization(value);
+			}
+		}
 
 		public bool isCabin
 		{
@@ -190,6 +216,30 @@ namespace StardewValley.Buildings
 			alpha.Value = 1f;
 		}
 
+		public virtual bool CanBePainted()
+		{
+			if (Game1.content.Load<Dictionary<string, string>>("Data\\PaintData").ContainsKey(buildingType))
+			{
+				if (this is GreenhouseBuilding)
+				{
+					if (!Game1.getFarm().greenhouseUnlocked.Value)
+					{
+						return false;
+					}
+				}
+				else if (isCabin)
+				{
+					Cabin cabin = indoors.Value as Cabin;
+					if (cabin != null && cabin.upgradeLevel < 2)
+					{
+						return false;
+					}
+				}
+				return true;
+			}
+			return false;
+		}
+
 		public virtual bool hasCarpenterPermissions()
 		{
 			if (Game1.IsMasterGame)
@@ -238,11 +288,16 @@ namespace StardewValley.Buildings
 
 		protected virtual void initNetFields()
 		{
-			NetFields.AddFields(indoors, tileX, tileY, tilesWide, tilesHigh, maxOccupants, currentOccupants, daysOfConstructionLeft, daysUntilUpgrade, buildingType, humanDoor, animalDoor, magical, animalDoorOpen, owner, newConstructionTimer);
+			NetFields.AddFields(indoors, tileX, tileY, tilesWide, tilesHigh, maxOccupants, currentOccupants, daysOfConstructionLeft, daysUntilUpgrade, buildingType, humanDoor, animalDoor, magical, animalDoorOpen, owner, newConstructionTimer, additionalPlacementTiles, netBuildingPaintColor);
 			buildingType.fieldChangeVisibleEvent += delegate
 			{
 				resetTexture();
 			};
+			if (netBuildingPaintColor.Value == null)
+			{
+				netBuildingPaintColor.Value = new BuildingPaintColor();
+			}
+			NetFields.AddField(modData);
 		}
 
 		public virtual string textureName()
@@ -252,7 +307,21 @@ namespace StardewValley.Buildings
 
 		public virtual void resetTexture()
 		{
-			texture = new Lazy<Texture2D>(() => Game1.content.Load<Texture2D>(textureName()));
+			texture = new Lazy<Texture2D>(delegate
+			{
+				Texture2D texture2D = Game1.content.Load<Texture2D>(textureName());
+				if (paintedTexture != null)
+				{
+					paintedTexture.Dispose();
+					paintedTexture = null;
+				}
+				paintedTexture = BuildingPainter.Apply(texture2D, textureName() + "_PaintMask", netBuildingPaintColor.Value);
+				if (paintedTexture != null)
+				{
+					texture2D = paintedTexture;
+				}
+				return texture2D;
+			});
 		}
 
 		public int getTileSheetIndexForStructurePlacementTile(int x, int y)
@@ -274,8 +343,15 @@ namespace StardewValley.Buildings
 
 		public virtual void resetLocalState()
 		{
+			alpha.Value = 1f;
 			color.Value = Color.White;
 			isMoving = false;
+		}
+
+		public virtual bool CanLeftClick(int x, int y)
+		{
+			Rectangle r = new Rectangle(x, y, 1, 1);
+			return intersects(r);
 		}
 
 		public virtual bool leftClicked()
@@ -285,6 +361,10 @@ namespace StardewValley.Buildings
 
 		public virtual bool doAction(Vector2 tileLocation, Farmer who)
 		{
+			if (who.isRidingHorse())
+			{
+				return false;
+			}
 			if (who.IsLocalPlayer && tileLocation.X >= (float)(int)tileX && tileLocation.X < (float)((int)tileX + (int)tilesWide) && tileLocation.Y >= (float)(int)tileY && tileLocation.Y < (float)((int)tileY + (int)tilesHigh) && (int)daysOfConstructionLeft > 0)
 			{
 				Game1.drawObjectDialogue(Game1.content.LoadString("Strings\\Buildings:UnderConstruction"));
@@ -393,6 +473,9 @@ namespace StardewValley.Buildings
 			case "Desert Obelisk":
 				Game1.warpFarmer("Desert", 35, 43, flip: false);
 				break;
+			case "Island Obelisk":
+				Game1.warpFarmer("IslandSouth", 11, 11, flip: false);
+				break;
 			}
 			Game1.fadeToBlackAlpha = 0.99f;
 			Game1.screenGlow = false;
@@ -427,6 +510,15 @@ namespace StardewValley.Buildings
 				{
 					Vector2 currentGlobalTilePosition = new Vector2((int)tileX + x, (int)tileY + y);
 					farm.terrainFeatures.Remove(currentGlobalTilePosition);
+				}
+			}
+			BluePrint blueprint = new BluePrint(buildingType);
+			if (blueprint != null && blueprint.additionalPlacementTiles != null && blueprint.additionalPlacementTiles.Count > 0)
+			{
+				foreach (Point additional_tile in blueprint.additionalPlacementTiles)
+				{
+					Vector2 currentGlobalTilePosition2 = new Vector2((int)tileX + additional_tile.X, (int)tileY + additional_tile.Y);
+					farm.terrainFeatures.Remove(currentGlobalTilePosition2);
 				}
 			}
 		}
@@ -502,11 +594,68 @@ namespace StardewValley.Buildings
 			indoors.Value = null;
 		}
 
+		public virtual List<Item> GetAdditionalItemsToCheckBeforeDemolish()
+		{
+			return null;
+		}
+
+		public virtual void BeforeDemolish()
+		{
+			List<Item> quest_items = new List<Item>();
+			Action<Item> collect_quest_item_instances = delegate(Item item)
+			{
+				if (item != null && item is Object && (item as Object).questItem.Value)
+				{
+					Item one = item.getOne();
+					one.Stack = item.Stack;
+					quest_items.Add(one);
+				}
+			};
+			List<Item> additional_items = GetAdditionalItemsToCheckBeforeDemolish();
+			if (additional_items != null)
+			{
+				foreach (Item item4 in additional_items)
+				{
+					collect_quest_item_instances(item4);
+				}
+			}
+			if (this is Mill)
+			{
+				foreach (Item item3 in (this as Mill).output.Value.items)
+				{
+					collect_quest_item_instances(item3);
+				}
+			}
+			if (this is JunimoHut)
+			{
+				foreach (Item item2 in (this as JunimoHut).output.Value.items)
+				{
+					collect_quest_item_instances(item2);
+				}
+			}
+			if (indoors.Value != null)
+			{
+				Utility.iterateAllItemsHere(indoors.Value, collect_quest_item_instances);
+				if (indoors.Value is Cabin)
+				{
+					Utility.iterateAllItemsHere(Game1.getLocationFromName((indoors.Value as Cabin).GetCellarName()) as Cellar, collect_quest_item_instances);
+				}
+			}
+			if (quest_items.Count > 0)
+			{
+				Game1.showGlobalMessage(Game1.content.LoadString("Strings\\StringsFromCSFiles:NewLostAndFoundItems"));
+				for (int i = 0; i < quest_items.Count; i++)
+				{
+					Game1.player.team.returnedDonations.Add(quest_items[i]);
+				}
+			}
+		}
+
 		public virtual void performActionOnUpgrade(GameLocation location)
 		{
 		}
 
-		public virtual string isThereAnythingtoPreventConstruction(GameLocation location)
+		public virtual string isThereAnythingtoPreventConstruction(GameLocation location, Vector2 tile_location)
 		{
 			return null;
 		}
@@ -522,6 +671,10 @@ namespace StardewValley.Buildings
 
 		public virtual void updateWhenFarmNotCurrentLocation(GameTime time)
 		{
+			if (netBuildingPaintColor.Value != null)
+			{
+				netBuildingPaintColor.Value.Poll(resetTexture);
+			}
 			if ((int)newConstructionTimer > 0)
 			{
 				newConstructionTimer.Value -= time.ElapsedGameTime.Milliseconds;
@@ -677,7 +830,7 @@ namespace StardewValley.Buildings
 			}
 		}
 
-		public Rectangle getSourceRect()
+		public virtual Rectangle getSourceRect()
 		{
 			if (buildingType.Value.Contains("Cabin"))
 			{
@@ -793,16 +946,15 @@ namespace StardewValley.Buildings
 						pair.Value.reload(this);
 					}
 				}
-				if (indoors.Value is DecoratableLocation)
+				if (indoors.Value != null)
 				{
-					((DecoratableLocation)baseLocation).furniture.Set(((DecoratableLocation)indoors.Value).furniture);
-					foreach (Furniture item in ((DecoratableLocation)baseLocation).furniture)
+					baseLocation.furniture.Set(indoors.Value.furniture);
+					foreach (Furniture item in baseLocation.furniture)
 					{
 						item.updateDrawPosition();
 					}
-					((DecoratableLocation)baseLocation).wallPaper.Set(((DecoratableLocation)indoors.Value).wallPaper);
-					((DecoratableLocation)baseLocation).floor.Set(((DecoratableLocation)indoors.Value).floor);
 				}
+				_ = (indoors.Value is DecoratableLocation);
 				if (indoors.Value is Cabin)
 				{
 					Cabin cabin = baseLocation as Cabin;
@@ -814,6 +966,10 @@ namespace StardewValley.Buildings
 						SaveGame.loadDataToFarmer(cabin.farmhand);
 						cabin.resetFarmhandState();
 					}
+				}
+				if (indoors.Value != null)
+				{
+					baseLocation.TransferDataFromSavedLocation(indoors.Value);
 				}
 				indoors.Value = baseLocation;
 				baseLocation = null;
@@ -857,6 +1013,8 @@ namespace StardewValley.Buildings
 			{
 				humanDoor.X = blueprint.humanDoor.X;
 				humanDoor.Y = blueprint.humanDoor.Y;
+				additionalPlacementTiles.Clear();
+				additionalPlacementTiles.AddRange(blueprint.additionalPlacementTiles);
 			}
 		}
 
@@ -876,11 +1034,12 @@ namespace StardewValley.Buildings
 
 		public virtual bool isTilePassable(Vector2 tile)
 		{
-			if (isCabin && occupiesTile(tile) && (int)tile.Y == (int)tileY + (int)tilesHigh - 1)
+			bool occupied = occupiesTile(tile);
+			if (isCabin && occupied && (int)tile.Y == (int)tileY + (int)tilesHigh - 1)
 			{
 				return true;
 			}
-			return !occupiesTile(tile);
+			return !occupied;
 		}
 
 		public virtual bool isTileOccupiedForPlacement(Vector2 tile, Object to_place)
@@ -936,6 +1095,10 @@ namespace StardewValley.Buildings
 				int yOffset = 28;
 				b.Draw(texture.Value, new Vector2(x + xOffset, y + yOffset), new Rectangle(getSourceRect().Width / 2 - 64, getSourceRect().Height - 136 - 2, 122, 138), color, 0f, new Vector2(0f, 0f), 4f, SpriteEffects.None, 0.89f);
 			}
+		}
+
+		public virtual void drawBackground(SpriteBatch b)
+		{
 		}
 
 		public virtual void draw(SpriteBatch b)
@@ -1062,6 +1225,11 @@ namespace StardewValley.Buildings
 				return new Point((int)tileX + (int)tilesWide - 1, (int)tileY + (int)tilesHigh - 1);
 			}
 			return new Point(68, 16);
+		}
+
+		public virtual int GetAdditionalTilePropertyRadius()
+		{
+			return 0;
 		}
 
 		public void removeOverlappingBushes(GameLocation location)

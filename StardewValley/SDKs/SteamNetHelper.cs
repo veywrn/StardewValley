@@ -43,10 +43,11 @@ namespace StardewValley.SDKs
 		private void onLobbyDataUpdate(LobbyDataUpdate_t pCallback)
 		{
 			CSteamID steamLobby = new CSteamID(pCallback.m_ulSteamIDLobby);
-			GalaxyID lobbyID = parseConnectionString(SteamMatchmaking.GetLobbyData(steamLobby, "connect"));
-			lobbyOwners[lobbyID.ToUint64()] = SteamMatchmaking.GetLobbyOwner(steamLobby);
-			if (lobbyID != null)
+			string con = SteamMatchmaking.GetLobbyData(steamLobby, "connect");
+			GalaxyID lobbyID = parseConnectionString(con);
+			if (!(lobbyID == null))
 			{
+				lobbyOwners[lobbyID.ToUint64()] = SteamMatchmaking.GetLobbyOwner(steamLobby);
 				GalaxyInstance.Matchmaking().RequestLobbyData(lobbyID);
 			}
 		}

@@ -1,4 +1,5 @@
 using Netcode;
+using System.Collections.Generic;
 
 namespace StardewValley.Network
 {
@@ -7,6 +8,12 @@ namespace StardewValley.Network
 		WorldDate Date
 		{
 			get;
+		}
+
+		bool IsTimePaused
+		{
+			get;
+			set;
 		}
 
 		bool IsPaused
@@ -27,6 +34,24 @@ namespace StardewValley.Network
 			set;
 		}
 
+		int MinesDifficulty
+		{
+			get;
+			set;
+		}
+
+		int SkullCavesDifficulty
+		{
+			get;
+			set;
+		}
+
+		int LowestMineLevelForOrder
+		{
+			get;
+			set;
+		}
+
 		int LowestMineLevel
 		{
 			get;
@@ -37,6 +62,11 @@ namespace StardewValley.Network
 		{
 			get;
 			set;
+		}
+
+		Dictionary<string, string> BundleData
+		{
+			get;
 		}
 
 		NetBundles Bundles
@@ -59,6 +89,58 @@ namespace StardewValley.Network
 			get;
 		}
 
+		NetIntDelta GoldenWalnuts
+		{
+			get;
+		}
+
+		NetIntDelta GoldenWalnutsFound
+		{
+			get;
+		}
+
+		NetIntDelta MiniShippingBinsObtained
+		{
+			get;
+		}
+
+		NetBool GoldenCoconutCracked
+		{
+			get;
+		}
+
+		NetBool ParrotPlatformsUnlocked
+		{
+			get;
+		}
+
+		NetStringDictionary<bool, NetBool> FoundBuriedNuts
+		{
+			get;
+		}
+
+		NetStringDictionary<bool, NetBool> IslandVisitors
+		{
+			get;
+		}
+
+		NetIntDictionary<LocationWeather, NetRef<LocationWeather>> LocationWeather
+		{
+			get;
+		}
+
+		int VisitsUntilY1Guarantee
+		{
+			get;
+			set;
+		}
+
+		Game1.MineChestType ShuffleMineChests
+		{
+			get;
+			set;
+		}
+
 		NetInt HighestPlayerLimit
 		{
 			get;
@@ -68,6 +150,19 @@ namespace StardewValley.Network
 		{
 			get;
 		}
+
+		NetRef<Object> DishOfTheDay
+		{
+			get;
+		}
+
+		void RegisterSpecialCurrencies();
+
+		LocationWeather GetWeatherForLocation(GameLocation.LocationContext location_context);
+
+		Dictionary<string, string> GetUnlocalizedBundleData();
+
+		void SetBundleData(Dictionary<string, string> data);
 
 		bool hasWorldStateID(string id);
 

@@ -36,7 +36,8 @@ namespace StardewValley.Menus
 
 		private Item heldItem;
 
-		protected List<Dictionary<ClickableTextureComponent, CraftingRecipe>> pagesOfCraftingRecipes = new List<Dictionary<ClickableTextureComponent, CraftingRecipe>>();
+		[SkipForClickableAggregation]
+		public List<Dictionary<ClickableTextureComponent, CraftingRecipe>> pagesOfCraftingRecipes = new List<Dictionary<ClickableTextureComponent, CraftingRecipe>>();
 
 		private int currentCraftingPage;
 
@@ -54,7 +55,7 @@ namespace StardewValley.Menus
 
 		public float trashCanLidRotation;
 
-		protected List<Chest> _materialContainers;
+		public List<Chest> _materialContainers;
 
 		protected bool _standaloneMenu;
 
@@ -317,6 +318,11 @@ namespace StardewValley.Menus
 			}
 		}
 
+		protected virtual bool checkHeldItem(Func<Item, bool> f = null)
+		{
+			return f?.Invoke(Game1.player.CursorSlotItem) ?? (Game1.player.CursorSlotItem != null);
+		}
+
 		public override void receiveKeyPress(Keys key)
 		{
 			base.receiveKeyPress(key);
@@ -324,6 +330,10 @@ namespace StardewValley.Menus
 			{
 				Utility.trashItem(heldItem);
 				heldItem = null;
+			}
+			if (Game1.isAnyGamePadButtonBeingPressed() && Game1.options.doesInputListContain(Game1.options.menuButton, key) && heldItem != null)
+			{
+				Game1.setMousePosition(trashCan.bounds.Center);
 			}
 		}
 
@@ -414,6 +424,20 @@ namespace StardewValley.Menus
 		private void clickCraftingRecipe(ClickableTextureComponent c, bool playSound = true)
 		{
 			Item crafted = pagesOfCraftingRecipes[currentCraftingPage][c].createItem();
+			List<KeyValuePair<int, int>> seasoning = null;
+			if (cooking && crafted is Object && (crafted as Object).Quality == 0)
+			{
+				seasoning = new List<KeyValuePair<int, int>>();
+				seasoning.Add(new KeyValuePair<int, int>(917, 1));
+				if (CraftingRecipe.DoesFarmerHaveAdditionalIngredientsInInventory(seasoning, getContainerContents()))
+				{
+					(crafted as Object).Quality = 2;
+				}
+				else
+				{
+					seasoning = null;
+				}
+			}
 			if (heldItem == null)
 			{
 				pagesOfCraftingRecipes[currentCraftingPage][c].consumeIngredients(_materialContainers);
@@ -425,7 +449,7 @@ namespace StardewValley.Menus
 			}
 			else
 			{
-				if (!heldItem.Name.Equals(crafted.Name) || heldItem.Stack + pagesOfCraftingRecipes[currentCraftingPage][c].numberProducedPerCraft - 1 >= heldItem.maximumStackSize())
+				if (!heldItem.Name.Equals(crafted.Name) || !heldItem.getOne().canStackWith(crafted.getOne()) || heldItem.Stack + pagesOfCraftingRecipes[currentCraftingPage][c].numberProducedPerCraft - 1 >= heldItem.maximumStackSize())
 				{
 					return;
 				}
@@ -434,6 +458,18 @@ namespace StardewValley.Menus
 				if (playSound)
 				{
 					Game1.playSound("coin");
+				}
+			}
+			if (seasoning != null)
+			{
+				if (playSound)
+				{
+					Game1.playSound("breathin");
+				}
+				CraftingRecipe.ConsumeAdditionalIngredients(seasoning, _materialContainers);
+				if (!CraftingRecipe.DoesFarmerHaveAdditionalIngredientsInInventory(seasoning, getContainerContents()))
+				{
+					Game1.showGlobalMessage(Game1.content.LoadString("Strings\\StringsFromCSFiles:Seasoning_UsedLast"));
 				}
 			}
 			Game1.player.checkForQuestComplete(null, -1, -1, crafted, null, 2);
@@ -573,7 +609,7 @@ namespace StardewValley.Menus
 				b.Draw(Game1.mouseCursors, new Vector2(trashCan.bounds.X + 60, trashCan.bounds.Y + 40), new Rectangle(564 + Game1.player.trashCanLevel * 18, 129, 18, 10), Color.White, trashCanLidRotation, new Vector2(16f, 10f), 4f, SpriteEffects.None, 0.86f);
 			}
 			b.End();
-			b.Begin(SpriteSortMode.FrontToBack, BlendState.NonPremultiplied, SamplerState.PointClamp, null, null);
+			b.Begin(SpriteSortMode.FrontToBack, BlendState.AlphaBlend, SamplerState.PointClamp, null, null);
 			foreach (ClickableTextureComponent c in pagesOfCraftingRecipes[currentCraftingPage].Keys)
 			{
 				if (c.hoverText.Equals("ghosted"))
@@ -582,7 +618,7 @@ namespace StardewValley.Menus
 				}
 				else if (!pagesOfCraftingRecipes[currentCraftingPage][c].doesFarmerHaveIngredientsInInventory(getContainerContents()))
 				{
-					c.draw(b, Color.LightGray * 0.4f, 0.89f);
+					c.draw(b, Color.DimGray * 0.4f, 0.89f);
 					if (pagesOfCraftingRecipes[currentCraftingPage][c].numberProducedPerCraft > 1)
 					{
 						NumberSprite.draw(pagesOfCraftingRecipes[currentCraftingPage][c].numberProducedPerCraft, b, new Vector2(c.bounds.X + 64 - 2, c.bounds.Y + 64 - 2), Color.LightGray * 0.75f, 0.5f * (c.scale / 4f), 0.97f, 1f, 0);
@@ -634,7 +670,7 @@ namespace StardewValley.Menus
 			}
 			if (hoverRecipe != null)
 			{
-				IClickableMenu.drawHoverText(b, " ", Game1.smallFont, (heldItem != null) ? 48 : 0, (heldItem != null) ? 48 : 0, -1, hoverRecipe.DisplayName, -1, (cooking && lastCookingHover != null && Game1.objectInformation[(lastCookingHover as Object).parentSheetIndex].Split('/').Length > 7) ? Game1.objectInformation[(lastCookingHover as Object).parentSheetIndex].Split('/')[7].Split(' ') : null, lastCookingHover, 0, -1, -1, -1, -1, 1f, hoverRecipe, getContainerContents());
+				IClickableMenu.drawHoverText(b, " ", Game1.smallFont, (heldItem != null) ? 48 : 0, (heldItem != null) ? 48 : 0, -1, hoverRecipe.DisplayName + ((hoverRecipe.numberProducedPerCraft > 1) ? (" x" + hoverRecipe.numberProducedPerCraft) : ""), -1, (cooking && lastCookingHover != null && Game1.objectInformation[(lastCookingHover as Object).parentSheetIndex].Split('/').Length > 7) ? Game1.objectInformation[(lastCookingHover as Object).parentSheetIndex].Split('/')[7].Split(' ') : null, lastCookingHover, 0, -1, -1, -1, -1, 1f, hoverRecipe, getContainerContents());
 			}
 		}
 
@@ -658,6 +694,17 @@ namespace StardewValley.Menus
 				return false;
 			}
 			return base.IsAutomaticSnapValid(direction, a, b);
+		}
+
+		public override void emergencyShutDown()
+		{
+			base.emergencyShutDown();
+			if (heldItem != null)
+			{
+				Item item = heldItem;
+				heldItem = null;
+				Utility.CollectOrDrop(item);
+			}
 		}
 	}
 }

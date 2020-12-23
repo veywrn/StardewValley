@@ -955,9 +955,9 @@ namespace StardewValley.Buildings
 				drawInConstruction(b);
 				return;
 			}
-			for (int i = animations.Count - 1; i >= 0; i--)
+			for (int l = animations.Count - 1; l >= 0; l--)
 			{
-				animations[i].draw(b);
+				animations[l].draw(b);
 			}
 			drawShadow(b);
 			b.Draw(texture.Value, Game1.GlobalToLocal(Game1.viewport, new Vector2((int)tileX * 64, (int)tileY * 64 + (int)tilesHigh * 64)), new Rectangle(0, 80, 80, 80), (overrideWaterColor.Equals(Color.White) ? new Color(60, 126, 150) : ((Color)overrideWaterColor)) * alpha, 0f, new Vector2(0f, 80f), 4f, SpriteEffects.None, (((float)(int)tileY + 0.5f) * 64f - 3f) / 10000f);
@@ -998,10 +998,10 @@ namespace StardewValley.Buildings
 			}
 			if (_fishObject != null && ((int)_fishObject.parentSheetIndex == 393 || (int)_fishObject.parentSheetIndex == 397))
 			{
-				for (int l = 0; l < (int)currentOccupants; l++)
+				for (int k = 0; k < (int)currentOccupants; k++)
 				{
 					Vector2 drawOffset = Vector2.Zero;
-					int drawI = (l + seedOffset.Value) % 10;
+					int drawI = (k + seedOffset.Value) % 10;
 					switch (drawI)
 					{
 					case 0:
@@ -1041,20 +1041,20 @@ namespace StardewValley.Buildings
 			}
 			else
 			{
-				for (int k = 0; k < _fishSilhouettes.Count; k++)
+				for (int j = 0; j < _fishSilhouettes.Count; j++)
 				{
-					_fishSilhouettes[k].Draw(b);
+					_fishSilhouettes[j].Draw(b);
 				}
 			}
-			for (int j = 0; j < _jumpingFish.Count; j++)
+			for (int i = 0; i < _jumpingFish.Count; i++)
 			{
-				_jumpingFish[j].Draw(b);
+				_jumpingFish[i].Draw(b);
 			}
 			if (HasUnresolvedNeeds())
 			{
 				Vector2 drawn_position = GetRequestTile() * 64f;
 				drawn_position += 64f * new Vector2(0.5f, 0.5f);
-				float y_offset2 = 3f * (float)Math.Round(Math.Sin(DateTime.Now.TimeOfDay.TotalMilliseconds / 250.0), 2);
+				float y_offset2 = 3f * (float)Math.Round(Math.Sin(Game1.currentGameTime.TotalGameTime.TotalMilliseconds / 250.0), 2);
 				float bubble_layer_depth2 = (drawn_position.Y + 160f) / 10000f + 1E-06f;
 				drawn_position.Y += y_offset2 - 32f;
 				b.Draw(Game1.mouseCursors, Game1.GlobalToLocal(Game1.viewport, drawn_position), new Rectangle(403, 496, 5, 14), Color.White * 0.75f, 0f, new Vector2(2f, 14f), 4f, SpriteEffects.None, bubble_layer_depth2);
@@ -1063,7 +1063,7 @@ namespace StardewValley.Buildings
 			{
 				b.Draw(texture.Value, Game1.GlobalToLocal(Game1.viewport, new Vector2((int)tileX * 64, (int)tileY * 64) + new Vector2(65f, 59f) * 4f), new Rectangle(0, 160, 15, 16), color.Value * alpha, 0f, Vector2.Zero, 4f, SpriteEffects.None, (((float)(int)tileY + 0.5f) * 64f + 1f) / 10000f);
 				Vector2 value = GetItemBucketTile() * 64f;
-				float y_offset = 4f * (float)Math.Round(Math.Sin(DateTime.Now.TimeOfDay.TotalMilliseconds / 250.0), 2);
+				float y_offset = 4f * (float)Math.Round(Math.Sin(Game1.currentGameTime.TotalGameTime.TotalMilliseconds / 250.0), 2);
 				Vector2 bubble_draw_position = value + new Vector2(0f, -2f) * 64f + new Vector2(0f, y_offset);
 				Vector2 item_relative_to_bubble = new Vector2(40f, 36f);
 				float bubble_layer_depth = (value.Y + 64f) / 10000f + 1E-06f;

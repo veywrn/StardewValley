@@ -3,8 +3,6 @@ using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.IO;
 
 namespace StardewValley.Menus
 {
@@ -49,7 +47,7 @@ namespace StardewValley.Menus
 			scrollBarRunner = new Rectangle(scrollBar.bounds.X, upArrow.bounds.Y + upArrow.bounds.Height + 4, scrollBar.bounds.Width, height - 128 - upArrow.bounds.Height - 8);
 			for (int i = 0; i < 7; i++)
 			{
-				optionSlots.Add(new ClickableComponent(new Rectangle(xPositionOnScreen + 16, yPositionOnScreen + 80 + 4 + i * ((height - 128) / 7), width - 32, (height - 128) / 7 + 4), string.Concat(i))
+				optionSlots.Add(new ClickableComponent(new Rectangle(xPositionOnScreen + 16, yPositionOnScreen + 80 + 4 + i * ((height - 128) / 7) + 16, width - 32, (height - 128) / 7 + 4), string.Concat(i))
 				{
 					myID = i,
 					downNeighborID = ((i < 6) ? (i + 1) : (-7777)),
@@ -63,171 +61,218 @@ namespace StardewValley.Menus
 			options.Add(new OptionsCheckbox(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11236"), 8));
 			options.Add(new OptionsCheckbox(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11237"), 11));
 			options.Add(new OptionsCheckbox(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11238"), 12));
-			options.Add(new OptionsDropDown(Game1.content.LoadString("Strings\\UI:Options_GamepadMode"), 38));
+			if (Game1.game1.IsMainInstance)
+			{
+				options.Add(new OptionsDropDown(Game1.content.LoadString("Strings\\UI:Options_GamepadMode"), 38));
+			}
 			options.Add(new OptionsDropDown(Game1.content.LoadString("Strings\\UI:Options_StowingMode"), 28));
+			options.Add(new OptionsDropDown(Game1.content.LoadString("Strings\\UI:Options_SlingshotMode"), 41));
 			options.Add(new OptionsCheckbox(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11239"), 27));
 			options.Add(new OptionsCheckbox(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11240"), 14));
 			options.Add(new OptionsCheckbox(Game1.content.LoadString("Strings\\UI:Options_GamepadStyleMenus"), 29));
 			options.Add(new OptionsCheckbox(Game1.content.LoadString("Strings\\UI:Options_ShowAdvancedCraftingInformation"), 34));
-			if (Game1.multiplayerMode == 2)
+			bool show_local_coop_options = false;
+			if (Game1.game1.IsMainInstance && Game1.game1.IsLocalCoopJoinable())
+			{
+				show_local_coop_options = true;
+			}
+			if ((Game1.multiplayerMode == 2) | show_local_coop_options)
 			{
 				options.Add(new OptionsElement(Game1.content.LoadString("Strings\\UI:OptionsPage_MultiplayerSection")));
+			}
+			if (Game1.multiplayerMode == 2 && Game1.server != null && !Game1.server.IsLocalMultiplayerInitiatedServer())
+			{
 				options.Add(new OptionsDropDown(Game1.content.LoadString("Strings\\UI:GameMenu_ServerMode"), 31));
 				options.Add(new OptionsCheckbox(Game1.content.LoadString("Strings\\UI:OptionsPage_IPConnections"), 30));
 				options.Add(new OptionsCheckbox(Game1.content.LoadString("Strings\\UI:OptionsPage_FarmhandCreation"), 32));
-				if (Program.sdk.Networking != null)
+			}
+			if (Game1.multiplayerMode == 2 && Game1.server != null)
+			{
+				options.Add(new OptionsDropDown(Game1.content.LoadString("Strings\\UI:GameMenu_MoveBuildingPermissions"), 40));
+			}
+			if (Game1.multiplayerMode == 2 && Game1.server != null && !Game1.server.IsLocalMultiplayerInitiatedServer() && Program.sdk.Networking != null)
+			{
+				options.Add(new OptionsButton(Game1.content.LoadString("Strings\\UI:GameMenu_ServerInvite"), delegate
 				{
-					options.Add(new OptionsButton(Game1.content.LoadString("Strings\\UI:GameMenu_ServerInvite"), delegate
+					offerInvite();
+				}));
+				if (Program.sdk.Networking.SupportsInviteCodes())
+				{
+					options.Add(new OptionsButton(Game1.content.LoadString("Strings\\UI:OptionsPage_ShowInviteCode"), delegate
 					{
-						offerInvite();
+						showInviteCode();
 					}));
-					if (Program.sdk.Networking.SupportsInviteCodes())
-					{
-						options.Add(new OptionsButton(Game1.content.LoadString("Strings\\UI:OptionsPage_ShowInviteCode"), delegate
-						{
-							showInviteCode();
-						}));
-					}
 				}
+			}
+			if (show_local_coop_options)
+			{
+				options.Add(new OptionsButton(Game1.content.LoadString("Strings\\UI:StartLocalMulti"), delegate
+				{
+					exitThisMenu(playSound: false);
+					Game1.game1.ShowLocalCoopJoinMenu();
+				}));
 			}
 			if (Game1.IsMultiplayer)
 			{
 				options.Add(new OptionsCheckbox(Game1.content.LoadString("Strings\\UI:OptionsPage_ShowReadyStatus"), 35));
 			}
 			options.Add(new OptionsElement(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11241")));
-			options.Add(new OptionsSlider(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11242"), 1));
-			options.Add(new OptionsSlider(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11243"), 2));
-			options.Add(new OptionsSlider(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11244"), 20));
-			options.Add(new OptionsSlider(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11245"), 21));
+			if (Game1.game1.IsMainInstance)
+			{
+				options.Add(new OptionsSlider(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11242"), 1));
+				options.Add(new OptionsSlider(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11243"), 2));
+				options.Add(new OptionsSlider(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11244"), 20));
+				options.Add(new OptionsSlider(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11245"), 21));
+			}
+			options.Add(new OptionsDropDown(Game1.content.LoadString("Strings\\StringsFromCSFiles:BiteChime"), 42));
 			options.Add(new OptionsCheckbox(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11246"), 3));
+			options.Add(new OptionsCheckbox(Game1.content.LoadString("Strings\\StringsFromCSFiles:Options_ToggleAnimalSounds"), 43));
 			options.Add(new OptionsElement(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11247")));
-			if (!Game1.conventionMode)
+			if (!Game1.conventionMode && Game1.game1.IsMainInstance)
 			{
 				options.Add(new OptionsDropDown(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11248"), 13));
 				options.Add(new OptionsDropDown(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11251"), 6));
 			}
-			options.Add(new OptionsCheckbox(Game1.content.LoadString("Strings\\UI:Options_Vsync"), 37));
+			if (Game1.game1.IsMainInstance)
+			{
+				options.Add(new OptionsCheckbox(Game1.content.LoadString("Strings\\UI:Options_Vsync"), 37));
+			}
+			List<string> zoom_options2 = new List<string>();
+			for (int zoom2 = 75; zoom2 <= 150; zoom2 += 5)
+			{
+				zoom_options2.Add(zoom2 + "%");
+			}
+			options.Add(new OptionsPlusMinus(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage_UIScale"), 39, zoom_options2, zoom_options2));
+			zoom_options2 = new List<string>();
+			for (int zoom = 75; zoom <= 200; zoom += 5)
+			{
+				zoom_options2.Add(zoom + "%");
+			}
 			options.Add(new OptionsCheckbox(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11252"), 9));
 			options.Add(new OptionsCheckbox(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11253"), 15));
-			options.Add(new OptionsPlusMinus(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11254"), 18, new List<string>
-			{
-				"75%",
-				"80%",
-				"85%",
-				"90%",
-				"95%",
-				"100%",
-				"105%",
-				"110%",
-				"115%",
-				"120%",
-				"125%"
-			}, new List<string>
-			{
-				"75%",
-				"80%",
-				"85%",
-				"90%",
-				"95%",
-				"100%",
-				"105%",
-				"110%",
-				"115%",
-				"120%",
-				"125%"
-			}));
+			options.Add(new OptionsPlusMinus(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11254"), 18, zoom_options2, zoom_options2));
 			options.Add(new OptionsCheckbox(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11266"), 19));
-			options.Add(new OptionsPlusMinus(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11267"), 25, new List<string>
+			if (Game1.game1.IsMainInstance)
 			{
-				"Low",
-				"Med.",
-				"High"
-			}, new List<string>
-			{
-				Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11268"),
-				Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11269"),
-				Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11270")
-			}));
+				options.Add(new OptionsPlusMinus(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11267"), 25, new List<string>
+				{
+					"Low",
+					"Med.",
+					"High"
+				}, new List<string>
+				{
+					Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11268"),
+					Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11269"),
+					Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11270")
+				}));
+			}
 			options.Add(new OptionsSlider(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11271"), 23));
 			options.Add(new OptionsCheckbox(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11272"), 24));
-			options.Add(new OptionsCheckbox(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11273"), 26));
+			if (!LocalMultiplayer.IsLocalMultiplayer())
+			{
+				options.Add(new OptionsCheckbox(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11273"), 26));
+			}
 			options.Add(new OptionsElement(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11274")));
 			options.Add(new OptionsCheckbox(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11275"), 16));
 			options.Add(new OptionsCheckbox(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11276"), 22));
-			options.Add(new OptionsInputListener(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11277"), -1, optionSlots[0].bounds.Width));
-			options.Add(new OptionsInputListener(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11278"), 7, optionSlots[0].bounds.Width));
-			options.Add(new OptionsInputListener(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11279"), 10, optionSlots[0].bounds.Width));
-			options.Add(new OptionsInputListener(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11280"), 15, optionSlots[0].bounds.Width));
-			options.Add(new OptionsInputListener(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11281"), 18, optionSlots[0].bounds.Width));
-			options.Add(new OptionsInputListener(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11282"), 19, optionSlots[0].bounds.Width));
-			options.Add(new OptionsInputListener(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11283"), 11, optionSlots[0].bounds.Width));
-			options.Add(new OptionsInputListener(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11284"), 14, optionSlots[0].bounds.Width));
-			options.Add(new OptionsInputListener(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11285"), 13, optionSlots[0].bounds.Width));
-			options.Add(new OptionsInputListener(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11286"), 12, optionSlots[0].bounds.Width));
-			options.Add(new OptionsInputListener(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11287"), 17, optionSlots[0].bounds.Width));
-			options.Add(new OptionsInputListener(Game1.content.LoadString("Strings\\UI:Input_EmoteButton"), 33, optionSlots[0].bounds.Width));
-			options.Add(new OptionsInputListener(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11288"), 16, optionSlots[0].bounds.Width));
-			options.Add(new OptionsInputListener(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.toolbarSwap"), 32, optionSlots[0].bounds.Width));
-			options.Add(new OptionsInputListener(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11289"), 20, optionSlots[0].bounds.Width));
-			options.Add(new OptionsInputListener(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11290"), 21, optionSlots[0].bounds.Width));
-			options.Add(new OptionsInputListener(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11291"), 22, optionSlots[0].bounds.Width));
-			options.Add(new OptionsInputListener(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11292"), 23, optionSlots[0].bounds.Width));
-			options.Add(new OptionsInputListener(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11293"), 24, optionSlots[0].bounds.Width));
-			options.Add(new OptionsInputListener(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11294"), 25, optionSlots[0].bounds.Width));
-			options.Add(new OptionsInputListener(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11295"), 26, optionSlots[0].bounds.Width));
-			options.Add(new OptionsInputListener(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11296"), 27, optionSlots[0].bounds.Width));
-			options.Add(new OptionsInputListener(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11297"), 28, optionSlots[0].bounds.Width));
-			options.Add(new OptionsInputListener(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11298"), 29, optionSlots[0].bounds.Width));
-			options.Add(new OptionsInputListener(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11299"), 30, optionSlots[0].bounds.Width));
-			options.Add(new OptionsInputListener(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11300"), 31, optionSlots[0].bounds.Width));
+			if (Game1.game1.IsMainInstance)
+			{
+				options.Add(new OptionsInputListener(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11277"), -1, optionSlots[0].bounds.Width));
+				options.Add(new OptionsInputListener(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11278"), 7, optionSlots[0].bounds.Width));
+				options.Add(new OptionsInputListener(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11279"), 10, optionSlots[0].bounds.Width));
+				options.Add(new OptionsInputListener(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11280"), 15, optionSlots[0].bounds.Width));
+				options.Add(new OptionsInputListener(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11281"), 18, optionSlots[0].bounds.Width));
+				options.Add(new OptionsInputListener(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11282"), 19, optionSlots[0].bounds.Width));
+				options.Add(new OptionsInputListener(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11283"), 11, optionSlots[0].bounds.Width));
+				options.Add(new OptionsInputListener(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11284"), 14, optionSlots[0].bounds.Width));
+				options.Add(new OptionsInputListener(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11285"), 13, optionSlots[0].bounds.Width));
+				options.Add(new OptionsInputListener(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11286"), 12, optionSlots[0].bounds.Width));
+				options.Add(new OptionsInputListener(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11287"), 17, optionSlots[0].bounds.Width));
+				options.Add(new OptionsInputListener(Game1.content.LoadString("Strings\\UI:Input_EmoteButton"), 33, optionSlots[0].bounds.Width));
+				options.Add(new OptionsInputListener(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11288"), 16, optionSlots[0].bounds.Width));
+				options.Add(new OptionsInputListener(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.toolbarSwap"), 32, optionSlots[0].bounds.Width));
+				options.Add(new OptionsInputListener(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11289"), 20, optionSlots[0].bounds.Width));
+				options.Add(new OptionsInputListener(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11290"), 21, optionSlots[0].bounds.Width));
+				options.Add(new OptionsInputListener(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11291"), 22, optionSlots[0].bounds.Width));
+				options.Add(new OptionsInputListener(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11292"), 23, optionSlots[0].bounds.Width));
+				options.Add(new OptionsInputListener(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11293"), 24, optionSlots[0].bounds.Width));
+				options.Add(new OptionsInputListener(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11294"), 25, optionSlots[0].bounds.Width));
+				options.Add(new OptionsInputListener(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11295"), 26, optionSlots[0].bounds.Width));
+				options.Add(new OptionsInputListener(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11296"), 27, optionSlots[0].bounds.Width));
+				options.Add(new OptionsInputListener(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11297"), 28, optionSlots[0].bounds.Width));
+				options.Add(new OptionsInputListener(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11298"), 29, optionSlots[0].bounds.Width));
+				options.Add(new OptionsInputListener(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11299"), 30, optionSlots[0].bounds.Width));
+				options.Add(new OptionsInputListener(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11300"), 31, optionSlots[0].bounds.Width));
+			}
+			if (!Game1.game1.CanTakeScreenshots())
+			{
+				return;
+			}
 			options.Add(new OptionsElement(Game1.content.LoadString("Strings\\UI:OptionsPage_ScreenshotHeader")));
-			options.Add(new OptionsPlusMinusButton(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11254"), 36, new List<string>
+			int index = options.Count;
+			if (!Game1.game1.CanZoomScreenshots())
 			{
-				"25%",
-				"50%",
-				"75%",
-				"100%"
-			}, new List<string>
-			{
-				"25%",
-				"50%",
-				"75%",
-				"100%"
-			}, Game1.mouseCursors2, new Rectangle(72, 31, 18, 16), delegate(string selection)
-			{
-				Game1.flashAlpha = 1f;
-				selection = selection.Substring(0, selection.Length - 1);
-				int result = 25;
-				if (!int.TryParse(selection, out result))
+				Action action = delegate
 				{
-					result = 25;
-				}
-				string text = Game1.game1.takeMapScreenshot((float)result / 100f);
-				if (text != null)
+					OptionsElement e = options[index];
+					Game1.flashAlpha = 1f;
+					Console.WriteLine("{0}.greyedOut = {1}", e.label, true);
+					e.greyedOut = true;
+					Action onDone = delegate
+					{
+						Console.WriteLine("{0}.greyedOut = {1}", e.label, false);
+						e.greyedOut = false;
+					};
+					string text2 = Game1.game1.takeMapScreenshot(null, null, onDone);
+					if (text2 != null)
+					{
+						Game1.addHUDMessage(new HUDMessage(text2, 6));
+					}
+					Game1.playSound("cameraNoise");
+				};
+				OptionsButton btn = new OptionsButton(Game1.content.LoadString("Strings\\UI:OptionsPage_ScreenshotHeader").Replace(":", ""), action);
+				if (Game1.game1.ScreenshotBusy)
 				{
-					Game1.addHUDMessage(new HUDMessage(text, 6));
+					btn.greyedOut = true;
 				}
-				Game1.playSound("cameraNoise");
-			}));
-			string screenshot_folder = "Screenshots";
-			Environment.SpecialFolder screenshot_folder_root = (Environment.OSVersion.Platform != PlatformID.Unix) ? Environment.SpecialFolder.ApplicationData : Environment.SpecialFolder.LocalApplicationData;
-			string main_folder = Path.Combine(Path.Combine(Environment.GetFolderPath(screenshot_folder_root), "StardewValley"), screenshot_folder);
-			if (Directory.Exists(main_folder))
+				options.Add(btn);
+			}
+			else
+			{
+				options.Add(new OptionsPlusMinusButton(Game1.content.LoadString("Strings\\StringsFromCSFiles:OptionsPage.cs.11254"), 36, new List<string>
+				{
+					"25%",
+					"50%",
+					"75%",
+					"100%"
+				}, new List<string>
+				{
+					"25%",
+					"50%",
+					"75%",
+					"100%"
+				}, Game1.mouseCursors2, new Rectangle(72, 31, 18, 16), delegate(string selection)
+				{
+					Game1.flashAlpha = 1f;
+					selection = selection.Substring(0, selection.Length - 1);
+					int result = 25;
+					if (!int.TryParse(selection, out result))
+					{
+						result = 25;
+					}
+					string text = Game1.game1.takeMapScreenshot((float)result / 100f, null, null);
+					if (text != null)
+					{
+						Game1.addHUDMessage(new HUDMessage(text, 6));
+					}
+					Game1.playSound("cameraNoise");
+				}));
+			}
+			if (Game1.game1.CanBrowseScreenshots())
 			{
 				options.Add(new OptionsButton(Game1.content.LoadString("Strings\\UI:OptionsPage_OpenFolder"), delegate
 				{
-					try
-					{
-						Process.Start(new ProcessStartInfo
-						{
-							FileName = main_folder,
-							UseShellExecute = true,
-							Verb = "open"
-						});
-					}
-					catch (Exception)
-					{
-					}
+					Game1.game1.BrowseScreenshots();
 				}));
 			}
 		}
@@ -341,7 +386,7 @@ namespace StardewValley.Menus
 			if (options.Count > 0)
 			{
 				scrollBar.bounds.Y = scrollBarRunner.Height / Math.Max(1, options.Count - 7 + 1) * currentItemIndex + upArrow.bounds.Bottom + 4;
-				if (currentItemIndex == options.Count - 7)
+				if (scrollBar.bounds.Y > downArrow.bounds.Y - scrollBar.bounds.Height - 4)
 				{
 					scrollBar.bounds.Y = downArrow.bounds.Y - scrollBar.bounds.Height - 4;
 				}
@@ -443,6 +488,10 @@ namespace StardewValley.Menus
 					downArrowPressed();
 					Game1.playSound("shiny4");
 				}
+				if (Game1.options.SnappyMenus)
+				{
+					snapCursorToCurrentSnappedComponent();
+				}
 			}
 		}
 
@@ -473,9 +522,25 @@ namespace StardewValley.Menus
 		{
 			if (!IsDropdownActive())
 			{
+				UnsubscribeFromSelectedTextbox();
 				downArrow.scale = downArrow.baseScale;
 				currentItemIndex++;
 				setScrollBarToCurrentIndex();
+			}
+		}
+
+		public virtual void UnsubscribeFromSelectedTextbox()
+		{
+			if (Game1.keyboardDispatcher.Subscriber != null)
+			{
+				foreach (OptionsElement option in options)
+				{
+					if (option is OptionsTextEntry && Game1.keyboardDispatcher.Subscriber == (option as OptionsTextEntry).textBox)
+					{
+						Game1.keyboardDispatcher.Subscriber = null;
+						break;
+					}
+				}
 			}
 		}
 
@@ -499,6 +564,7 @@ namespace StardewValley.Menus
 		{
 			if (!IsDropdownActive())
 			{
+				UnsubscribeFromSelectedTextbox();
 				upArrow.scale = upArrow.baseScale;
 				currentItemIndex--;
 				setScrollBarToCurrentIndex();
@@ -532,6 +598,7 @@ namespace StardewValley.Menus
 				releaseLeftClick(x, y);
 			}
 			currentItemIndex = Math.Max(0, Math.Min(options.Count - 7, currentItemIndex));
+			UnsubscribeFromSelectedTextbox();
 			int i = 0;
 			while (true)
 			{
@@ -582,12 +649,12 @@ namespace StardewValley.Menus
 		public override void draw(SpriteBatch b)
 		{
 			b.End();
-			b.Begin(SpriteSortMode.FrontToBack, BlendState.NonPremultiplied, SamplerState.PointClamp, null, null);
+			b.Begin(SpriteSortMode.FrontToBack, BlendState.AlphaBlend, SamplerState.PointClamp, null, null);
 			for (int i = 0; i < optionSlots.Count; i++)
 			{
 				if (currentItemIndex >= 0 && currentItemIndex + i < options.Count)
 				{
-					options[currentItemIndex + i].draw(b, optionSlots[i].bounds.X, optionSlots[i].bounds.Y);
+					options[currentItemIndex + i].draw(b, optionSlots[i].bounds.X, optionSlots[i].bounds.Y, this);
 				}
 			}
 			b.End();

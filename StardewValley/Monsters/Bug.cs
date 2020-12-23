@@ -2,7 +2,9 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Netcode;
 using StardewValley.Locations;
+using StardewValley.Tools;
 using System;
+using System.Collections.Generic;
 using System.Xml.Serialization;
 
 namespace StardewValley.Monsters
@@ -53,7 +55,7 @@ namespace StardewValley.Monsters
 
 		protected override void updateMonsterSlaveAnimation(GameTime time)
 		{
-			Sprite.faceDirection(base.FacingDirection);
+			Sprite.faceDirection(FacingDirection);
 			Sprite.animateOnce(time);
 		}
 
@@ -71,7 +73,7 @@ namespace StardewValley.Monsters
 
 		private void collide(GameLocation location)
 		{
-			Rectangle bb = nextPosition(base.FacingDirection);
+			Rectangle bb = nextPosition(FacingDirection);
 			foreach (Farmer farmer in location.farmers)
 			{
 				if (farmer.GetBoundingBox().Intersects(bb))
@@ -79,14 +81,22 @@ namespace StardewValley.Monsters
 					return;
 				}
 			}
-			base.FacingDirection = (base.FacingDirection + 2) % 4;
+			FacingDirection = (FacingDirection + 2) % 4;
 			setMovingInFacingDirection();
+		}
+
+		public override void BuffForAdditionalDifficulty(int additional_difficulty)
+		{
+			FacingDirection = Math.Abs((FacingDirection + Game1.random.Next(-1, 2)) % 4);
+			Halt();
+			setMovingInFacingDirection();
+			base.BuffForAdditionalDifficulty(additional_difficulty);
 		}
 
 		public override int takeDamage(int damage, int xTrajectory, int yTrajectory, bool isBomb, double addedPrecision, Farmer who)
 		{
 			int actualDamage = Math.Max(1, damage - (int)resilience);
-			if ((bool)isArmoredBug)
+			if ((bool)isArmoredBug && (isBomb || !(who.CurrentTool is MeleeWeapon) || !(who.CurrentTool as MeleeWeapon).hasEnchantmentOfType<BugKillerEnchantment>()))
 			{
 				base.currentLocation.playSound("crafting");
 				return 0;
@@ -100,6 +110,12 @@ namespace StardewValley.Monsters
 				base.Health -= actualDamage;
 				base.currentLocation.playSound("hitEnemy");
 				setTrajectory(xTrajectory / 3, yTrajectory / 3);
+				if ((bool)isHardModeMonster)
+				{
+					FacingDirection = Math.Abs((FacingDirection + Game1.random.Next(-1, 2)) % 4);
+					Halt();
+					setMovingInFacingDirection();
+				}
 				if (base.Health <= 0)
 				{
 					deathAnimation();
@@ -108,12 +124,26 @@ namespace StardewValley.Monsters
 			return actualDamage;
 		}
 
+		public override List<Item> getExtraDropItems()
+		{
+			if (isArmoredBug.Value)
+			{
+				List<Item> additional_drops = new List<Item>();
+				if (Game1.random.NextDouble() <= 0.1)
+				{
+					additional_drops.Add(new Object(874, 1));
+				}
+				return additional_drops;
+			}
+			return base.getExtraDropItems();
+		}
+
 		public override void draw(SpriteBatch b)
 		{
 			if (!base.IsInvisible && Utility.isOnScreen(base.Position, 128))
 			{
 				Vector2 offset = default(Vector2);
-				if (base.FacingDirection % 2 == 0)
+				if (FacingDirection % 2 == 0)
 				{
 					offset.X = (float)(Math.Sin((double)((float)Game1.currentGameTime.TotalGameTime.Milliseconds / 1000f) * (Math.PI * 2.0)) * 10.0);
 				}

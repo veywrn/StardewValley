@@ -44,7 +44,7 @@ namespace StardewValley.Network
 
 		public void PlayLocalAt(string audioName, Vector2 position, int pitch = -1, SoundContext sound_context = SoundContext.Default)
 		{
-			if (position == Vector2.Zero || Utility.isOnScreen(position * 64f, 384))
+			if (CanHear(position))
 			{
 				PlayLocal(audioName, pitch, sound_context);
 			}
@@ -54,14 +54,19 @@ namespace StardewValley.Network
 		{
 			if ((!Game1.eventUp || sound_context != SoundContext.NPC) && Game1.currentLocation == location)
 			{
-				if (pitch == -1)
-				{
-					Game1.playSound(audioName);
-				}
-				else
-				{
-					Game1.playSoundPitched(audioName, pitch);
-				}
+				_PlayAudio(audioName, pitch);
+			}
+		}
+
+		protected void _PlayAudio(string audioName, int pitch)
+		{
+			if (pitch == -1)
+			{
+				Game1.playSound(audioName);
+			}
+			else
+			{
+				Game1.playSoundPitched(audioName, pitch);
 			}
 		}
 
@@ -70,8 +75,63 @@ namespace StardewValley.Network
 			audioEvent.Poll();
 		}
 
+		public bool CanHear(Vector2 position)
+		{
+			if (!(position == Vector2.Zero))
+			{
+				return Utility.isOnScreen(position * 64f, 384);
+			}
+			return true;
+		}
+
+		public bool CanShortcutPlay(Vector2 position, SoundContext sound_context)
+		{
+			if (!LocalMultiplayer.IsLocalMultiplayer(is_local_only: true))
+			{
+				return false;
+			}
+			if (Game1.eventUp && sound_context == SoundContext.NPC)
+			{
+				return false;
+			}
+			if ((location == null || location == Game1.currentLocation) && CanHear(position))
+			{
+				return true;
+			}
+			bool someone_can_hear = false;
+			if (location != null)
+			{
+				foreach (Game1 gameInstance in GameRunner.instance.gameInstances)
+				{
+					if (gameInstance.instanceGameLocation == location)
+					{
+						someone_can_hear = true;
+						break;
+					}
+				}
+				if (someone_can_hear && position != Vector2.Zero)
+				{
+					someone_can_hear = false;
+					GameRunner.instance.ExecuteForInstances(delegate
+					{
+						if (!someone_can_hear && location == Game1.currentLocation && CanHear(position))
+						{
+							someone_can_hear = true;
+						}
+					});
+				}
+				return someone_can_hear;
+			}
+			return true;
+		}
+
 		public void Play(string audioName, SoundContext soundContext = SoundContext.Default)
 		{
+			if (CanShortcutPlay(Vector2.Zero, soundContext))
+			{
+				_PlayAudio(audioName, -1);
+				return;
+			}
 			audioEvent.Fire(delegate(BinaryWriter writer)
 			{
 				writer.Write(audioName);
@@ -84,6 +144,11 @@ namespace StardewValley.Network
 
 		public void PlayAt(string audioName, Vector2 position, SoundContext soundContext = SoundContext.Default)
 		{
+			if (CanShortcutPlay(position, soundContext))
+			{
+				_PlayAudio(audioName, -1);
+				return;
+			}
 			audioEvent.Fire(delegate(BinaryWriter writer)
 			{
 				writer.Write(audioName);
@@ -96,6 +161,11 @@ namespace StardewValley.Network
 
 		public void PlayPitched(string audioName, Vector2 position, int pitch, SoundContext soundContext = SoundContext.Default)
 		{
+			if (CanShortcutPlay(Vector2.Zero, soundContext))
+			{
+				_PlayAudio(audioName, pitch);
+				return;
+			}
 			audioEvent.Fire(delegate(BinaryWriter writer)
 			{
 				writer.Write(audioName);

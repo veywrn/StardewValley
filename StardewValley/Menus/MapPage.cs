@@ -78,6 +78,8 @@ namespace StardewValley.Menus
 
 		public const int region_railroad = 1034;
 
+		public const int region_island = 1035;
+
 		private string descriptionText = "";
 
 		private string hoverText = "";
@@ -92,18 +94,17 @@ namespace StardewValley.Menus
 
 		public List<ClickableComponent> points = new List<ClickableComponent>();
 
-		public ClickableTextureComponent okButton;
-
 		private bool drawPamHouseUpgrade;
 
 		private bool drawMovieTheaterJoja;
 
 		private bool drawMovieTheater;
 
+		private bool drawIsland;
+
 		public MapPage(int x, int y, int width, int height)
 			: base(x, y, width, height)
 		{
-			okButton = new ClickableTextureComponent(Game1.content.LoadString("Strings\\StringsFromCSFiles:MapPage.cs.11059"), new Rectangle(xPositionOnScreen + width + 64, yPositionOnScreen + height - IClickableMenu.borderWidth - 16, 64, 64), null, null, Game1.mouseCursors, Game1.getSourceRectForStandardTileSheet(Game1.mouseCursors, 46), 1f);
 			map = Game1.content.Load<Texture2D>("LooseSprites\\map");
 			Vector2 center = Utility.getTopLeftPositionForCenteringOnScreen(map.Bounds.Width * 4, 720);
 			drawPamHouseUpgrade = Game1.MasterPlayer.mailReceived.Contains("pamHouseUpgrade");
@@ -233,14 +234,14 @@ namespace StardewValley.Menus
 				downNeighborID = 1017,
 				leftNeighborID = 1013,
 				upNeighborID = 1027,
-				rightNeighborID = 99989
+				rightNeighborID = -1
 			});
 			points.Add(new ClickableComponent(new Rectangle(mapX + 824, mapY + 564, 28, 20), Game1.content.LoadString("Strings\\StringsFromCSFiles:MapPage.cs.11088"))
 			{
 				myID = 1017,
 				downNeighborID = 1028,
 				upNeighborID = 1015,
-				rightNeighborID = 99989
+				rightNeighborID = -1
 			});
 			points.Add(new ClickableComponent(new Rectangle(mapX + 696, mapY + 448, 24, 20), Game1.content.LoadString("Strings\\StringsFromCSFiles:MapPage.cs.11089"))
 			{
@@ -318,11 +319,11 @@ namespace StardewValley.Menus
 				leftNeighborID = 1021,
 				downNeighborID = 1013
 			});
-			points.Add(new ClickableComponent(new Rectangle(mapX + 844, mapY + 608, 36, 40), Game1.content.LoadString("Strings\\StringsFromCSFiles:MapPage.cs.11107") + Environment.NewLine + Game1.content.LoadString("Strings\\StringsFromCSFiles:MapPage.cs.11108"))
+			points.Add(new ClickableComponent(new Rectangle(mapX + 844, mapY + 608, 36, 40), Game1.content.LoadString("Strings\\StringsFromCSFiles:MapPage.cs.11107") + Environment.NewLine + (Game1.player.mailReceived.Contains("willyHours") ? Game1.content.LoadString("Strings\\StringsFromCSFiles:MapPage.cs.11108_newHours") : Game1.content.LoadString("Strings\\StringsFromCSFiles:MapPage.cs.11108")))
 			{
 				myID = 1028,
 				upNeighborID = 1017,
-				rightNeighborID = 99989
+				rightNeighborID = (Utility.doesMasterPlayerHaveMailReceivedButNotMailForTomorrow("Visited_Island") ? 1035 : (-1))
 			});
 			points.Add(new ClickableComponent(new Rectangle(mapX + 576, mapY + 60, 48, 36), Game1.isLocationAccessible("Railroad") ? (Game1.content.LoadString("Strings\\StringsFromCSFiles:MapPage.cs.11110") + Environment.NewLine + Game1.content.LoadString("Strings\\StringsFromCSFiles:MapPage.cs.11111")) : "???")
 			{
@@ -367,6 +368,17 @@ namespace StardewValley.Menus
 				downNeighborID = 1022
 			});
 			points.Add(new ClickableComponent(new Rectangle(mapX + 728, mapY + 652, 28, 28), Game1.content.LoadString("Strings\\StringsFromCSFiles:MapPage.cs.11122")));
+			if (Game1.MasterPlayer.hasOrWillReceiveMail("Visited_Island"))
+			{
+				drawIsland = true;
+				points.Add(new ClickableComponent(new Rectangle(mapX + 1040, mapY + 600, 160, 120), Game1.content.LoadString("Strings\\StringsFromCSFiles:IslandName"))
+				{
+					myID = 1035,
+					downNeighborID = -1,
+					upNeighborID = 1013,
+					leftNeighborID = 1028
+				});
+			}
 		}
 
 		public override void snapToDefaultClickableComponent()
@@ -390,6 +402,10 @@ namespace StardewValley.Menus
 				{
 					replacedName = Game1.content.LoadString("Strings\\StringsFromCSFiles:MapPage.cs.11062");
 				}
+			}
+			if (player.currentLocation is IslandLocation)
+			{
+				replacedName = Game1.content.LoadString("Strings\\StringsFromCSFiles:IslandName");
 			}
 			switch (player.currentLocation.Name)
 			{
@@ -678,12 +694,6 @@ namespace StardewValley.Menus
 
 		public override void receiveLeftClick(int x, int y, bool playSound = true)
 		{
-			if (okButton.containsPoint(x, y))
-			{
-				okButton.scale -= 0.25f;
-				okButton.scale = Math.Max(0.75f, okButton.scale);
-				(Game1.activeClickableMenu as GameMenu).changeTab(0);
-			}
 			foreach (ClickableComponent c in points)
 			{
 				if (c.containsPoint(x, y))
@@ -714,16 +724,8 @@ namespace StardewValley.Menus
 				if (c.containsPoint(x, y))
 				{
 					hoverText = c.name;
-					return;
+					break;
 				}
-			}
-			if (okButton.containsPoint(x, y))
-			{
-				okButton.scale = Math.Min(okButton.scale + 0.02f, okButton.baseScale + 0.1f);
-			}
-			else
-			{
-				okButton.scale = Math.Max(okButton.scale - 0.02f, okButton.baseScale);
 			}
 		}
 
@@ -745,9 +747,9 @@ namespace StardewValley.Menus
 		{
 			float scroll_draw_y = yPositionOnScreen + height + 32 + 16;
 			float scroll_draw_bottom = scroll_draw_y + 80f;
-			if (scroll_draw_bottom > (float)Game1.viewport.Height)
+			if (scroll_draw_bottom > (float)Game1.uiViewport.Height)
 			{
-				scroll_draw_y -= scroll_draw_bottom - (float)Game1.viewport.Height;
+				scroll_draw_y -= scroll_draw_bottom - (float)Game1.uiViewport.Height;
 			}
 			int boxY = mapY - 96;
 			int mY = mapY;
@@ -770,6 +772,9 @@ namespace StardewValley.Menus
 			case 5:
 				b.Draw(map, new Vector2(mapX, mY + 172), new Rectangle(0, 302, 131, 61), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.861f);
 				break;
+			case 6:
+				b.Draw(map, new Vector2(mapX, mY + 172), new Rectangle(131, 302, 131, 61), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.861f);
+				break;
 			}
 			if (drawPamHouseUpgrade)
 			{
@@ -783,12 +788,15 @@ namespace StardewValley.Menus
 			{
 				b.Draw(map, new Vector2(mapX + 684, mapY + 192), new Rectangle(276, 181, 13, 13), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.861f);
 			}
+			if (drawIsland)
+			{
+				b.Draw(map, new Vector2(mapX + 1040, mapY + 600), new Rectangle(208, 363, 40, 30), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.861f);
+			}
 			drawMiniPortraits(b);
 			if (playerLocationName != null)
 			{
 				SpriteText.drawStringWithScrollCenteredAt(b, playerLocationName, xPositionOnScreen + width / 2, (int)scroll_draw_y);
 			}
-			okButton.draw(b);
 			if (!hoverText.Equals(""))
 			{
 				IClickableMenu.drawHoverText(b, hoverText, Game1.smallFont);

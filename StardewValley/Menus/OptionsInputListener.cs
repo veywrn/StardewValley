@@ -91,7 +91,7 @@ namespace StardewValley.Menus
 			}
 		}
 
-		public override void draw(SpriteBatch b, int slotX, int slotY)
+		public override void draw(SpriteBatch b, int slotX, int slotY, IClickableMenu context = null)
 		{
 			if (buttonNames.Count > 0 || whichOption == -1)
 			{
@@ -107,7 +107,7 @@ namespace StardewValley.Menus
 			Utility.drawWithShadow(b, Game1.mouseCursors, new Vector2(setbuttonBounds.X + slotX, setbuttonBounds.Y + slotY), setButtonSource, Color.White, 0f, Vector2.Zero, 4f, flipped: false, 0.15f);
 			if (listening)
 			{
-				b.Draw(Game1.staminaRect, new Rectangle(0, 0, Game1.viewport.Width, Game1.viewport.Height), new Rectangle(0, 0, 1, 1), Color.Black * 0.75f, 0f, Vector2.Zero, SpriteEffects.None, 0.999f);
+				b.Draw(Game1.staminaRect, new Rectangle(0, 0, Game1.uiViewport.Width, Game1.uiViewport.Height), new Rectangle(0, 0, 1, 1), Color.Black * 0.75f, 0f, Vector2.Zero, SpriteEffects.None, 0.999f);
 				b.DrawString(Game1.dialogueFont, listenerMessage, Utility.getTopLeftPositionForCenteringOnScreen(192, 64), Color.White, 0f, Vector2.Zero, 1f, SpriteEffects.None, 0.9999f);
 			}
 		}

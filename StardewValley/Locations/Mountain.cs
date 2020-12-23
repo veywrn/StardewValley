@@ -1,9 +1,13 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Netcode;
+using StardewValley.Events;
 using StardewValley.TerrainFeatures;
+using StardewValley.Tools;
+using System.Xml.Serialization;
 using xTile;
 using xTile.Dimensions;
+using xTile.ObjectModel;
 using xTile.Tiles;
 
 namespace StardewValley.Locations
@@ -15,6 +19,12 @@ namespace StardewValley.Locations
 		private TemporaryAnimatedSprite minecartSteam;
 
 		private bool bridgeRestored;
+
+		[XmlIgnore]
+		public bool treehouseBuilt;
+
+		[XmlIgnore]
+		public bool treehouseDoorDirty;
 
 		private readonly NetBool oreBoulderPresent = new NetBool();
 
@@ -99,6 +109,24 @@ namespace StardewValley.Locations
 			return base.checkAction(tileLocation, viewport, who);
 		}
 
+		public void ApplyTreehouseIfNecessary()
+		{
+			if (((Game1.farmEvent != null && Game1.farmEvent is WorldChangeEvent && (int)(Game1.farmEvent as WorldChangeEvent).whichEvent == 14) || Game1.MasterPlayer.mailReceived.Contains("leoMoved") || Game1.MasterPlayer.mailReceived.Contains("leoMoved%&NL&%")) && !treehouseBuilt)
+			{
+				TileSheet tilesheet = map.GetTileSheet("untitled tile sheet2");
+				map.GetLayer("Buildings").Tiles[16, 6] = new StaticTile(map.GetLayer("Buildings"), tilesheet, BlendMode.Alpha, 197);
+				map.GetLayer("Buildings").Tiles[16, 7] = new StaticTile(map.GetLayer("Buildings"), tilesheet, BlendMode.Alpha, 213);
+				map.GetLayer("Back").Tiles[16, 8] = new StaticTile(map.GetLayer("Back"), tilesheet, BlendMode.Alpha, 229);
+				map.GetLayer("Buildings").Tiles[16, 7].Properties["Action"] = new PropertyValue("LockedDoorWarp 3 8 LeoTreeHouse 600 2300");
+				treehouseBuilt = true;
+				if (Game1.IsMasterGame)
+				{
+					updateDoors();
+					treehouseDoorDirty = true;
+				}
+			}
+		}
+
 		private void restoreBridge()
 		{
 			LocalizedContentManager temp2 = Game1.content.CreateTemporary();
@@ -169,6 +197,22 @@ namespace StardewValley.Locations
 				raildroadBlocksourceRect = new Microsoft.Xna.Framework.Rectangle(640, 1453, 64, 80);
 			}
 			addFrog();
+			if (!(Game1.farmEvent is WorldChangeEvent) || (Game1.farmEvent as WorldChangeEvent).whichEvent.Value != 14)
+			{
+				ApplyTreehouseIfNecessary();
+			}
+			if (Game1.MasterPlayer.mailReceived.Contains("communityUpgradeShortcuts"))
+			{
+				ApplyMapOverride("Mountain_Shortcuts");
+				waterTiles[81, 37] = false;
+				waterTiles[82, 37] = false;
+				waterTiles[83, 37] = false;
+				waterTiles[84, 37] = false;
+				waterTiles[85, 37] = false;
+				waterTiles[85, 38] = false;
+				waterTiles[85, 39] = false;
+				waterTiles[85, 40] = false;
+			}
 		}
 
 		public override void DayUpdate(int dayOfMonth)
@@ -296,9 +340,22 @@ namespace StardewValley.Locations
 
 		public override Object getFish(float millisecondsAfterNibble, int bait, int waterDepth, Farmer who, double baitPotency, Vector2 bobberTile, string locationName = null)
 		{
-			if (Game1.currentSeason.Equals("spring") && Game1.isRaining && who.FishingLevel >= 10 && !who.fishCaught.ContainsKey(163) && waterDepth >= 4 && Game1.random.NextDouble() < 0.1)
+			bool using_magic_bait = IsUsingMagicBait(who);
+			float bobberAddition = 0f;
+			if (who != null && who.CurrentTool is FishingRod && (who.CurrentTool as FishingRod).getBobberAttachmentIndex() == 856)
 			{
-				return new Object(163, 1);
+				bobberAddition += 0.1f;
+			}
+			if (((Game1.player.team.SpecialOrderRuleActive("LEGENDARY_FAMILY") || Game1.isRaining) | using_magic_bait) && who.FishingLevel >= 10 && waterDepth >= 4 && Game1.random.NextDouble() < 0.1 + (double)bobberAddition)
+			{
+				if (Game1.player.team.SpecialOrderRuleActive("LEGENDARY_FAMILY"))
+				{
+					return new Object(900, 1);
+				}
+				if (!who.fishCaught.ContainsKey(163) && (Game1.currentSeason.Equals("spring") | using_magic_bait))
+				{
+					return new Object(163, 1);
+				}
 			}
 			return base.getFish(millisecondsAfterNibble, bait, waterDepth, who, baitPotency, bobberTile, locationName);
 		}

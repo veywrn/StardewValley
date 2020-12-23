@@ -77,15 +77,15 @@ namespace StardewValley.Menus
 		private string parentName;
 
 		public AnimalQueryMenu(FarmAnimal animal)
-			: base(Game1.viewport.Width / 2 - width / 2, Game1.viewport.Height / 2 - height / 2, width, height)
+			: base(Game1.uiViewport.Width / 2 - width / 2, Game1.uiViewport.Height / 2 - height / 2, width, height)
 		{
 			Game1.player.Halt();
-			Game1.player.faceGeneralDirection(animal.Position);
+			Game1.player.faceGeneralDirection(animal.Position, 0, opposite: false, useTileCalculations: false);
 			width = 384;
 			height = 512;
 			this.animal = animal;
 			textBox = new TextBox(null, null, Game1.dialogueFont, Game1.textColor);
-			textBox.X = Game1.viewport.Width / 2 - 128 - 12;
+			textBox.X = Game1.uiViewport.Width / 2 - 128 - 12;
 			textBox.Y = yPositionOnScreen - 4 + 128;
 			textBox.Width = 256;
 			textBox.Height = 192;
@@ -105,7 +105,7 @@ namespace StardewValley.Menus
 					parentName = parent.displayName;
 				}
 			}
-			if (animal.sound.Value != null && Game1.soundBank != null)
+			if (animal.sound.Value != null && Game1.soundBank != null && !Game1.options.muteAnimalSounds)
 			{
 				ICue cue = Game1.soundBank.GetCue(animal.sound.Value);
 				cue.SetVariable("Pitch", 1200 + Game1.random.Next(-200, 201));
@@ -128,7 +128,7 @@ namespace StardewValley.Menus
 				downNeighborID = 103,
 				upNeighborID = 110
 			};
-			if (!animal.isBaby() && !animal.isCoopDweller())
+			if (!animal.isBaby() && !animal.isCoopDweller() && animal.CanHavePregnancy())
 			{
 				allowReproductionButton = new ClickableTextureComponent(new Microsoft.Xna.Framework.Rectangle(xPositionOnScreen + width + 16, yPositionOnScreen + height - 128 - IClickableMenu.borderWidth + 8, 36, 36), Game1.mouseCursors, new Microsoft.Xna.Framework.Rectangle(animal.allowReproduction ? 128 : 137, 393, 9, 9), 4f)
 				{
@@ -166,6 +166,11 @@ namespace StardewValley.Menus
 				populateClickableComponentList();
 				snapToDefaultClickableComponent();
 			}
+		}
+
+		public override bool shouldClampGamePadCursor()
+		{
+			return movingAnimal;
 		}
 
 		public override void snapToDefaultClickableComponent()
@@ -212,8 +217,8 @@ namespace StardewValley.Menus
 			base.update(time);
 			if (movingAnimal)
 			{
-				int mouseX = Game1.getOldMouseX() + Game1.viewport.X;
-				int mouseY = Game1.getOldMouseY() + Game1.viewport.Y;
+				int mouseX = Game1.getOldMouseX(ui_scale: false) + Game1.viewport.X;
+				int mouseY = Game1.getOldMouseY(ui_scale: false) + Game1.viewport.Y;
 				if (mouseX - Game1.viewport.X < 64)
 				{
 					Game1.panScreen(-8, 0);
@@ -263,7 +268,7 @@ namespace StardewValley.Menus
 					Game1.globalFadeToBlack(prepareForReturnFromPlacement);
 					Game1.playSound("smallSelect");
 				}
-				Vector2 clickTile = new Vector2((x + Game1.viewport.X) / 64, (y + Game1.viewport.Y) / 64);
+				Vector2 clickTile = new Vector2((Game1.viewport.X + Game1.getOldMouseX(ui_scale: false)) / 64, (Game1.viewport.Y + Game1.getOldMouseY(ui_scale: false)) / 64);
 				Building selection = (Game1.getLocationFromName("Farm") as Farm).getBuildingAt(clickTile);
 				if (selection == null)
 				{
@@ -306,6 +311,10 @@ namespace StardewValley.Menus
 					Game1.player.Money += animal.getSellPrice();
 					(animal.home.indoors.Value as AnimalHouse).animalsThatLiveHere.Remove(animal.myID);
 					animal.health.Value = -1;
+					if (animal.foundGrass != null && FarmAnimal.reservedGrass.Contains(animal.foundGrass))
+					{
+						FarmAnimal.reservedGrass.Remove(animal.foundGrass);
+					}
 					int numClouds = animal.frontBackSourceRect.Width / 2;
 					for (int i = 0; i < numClouds; i++)
 					{
@@ -346,12 +355,12 @@ namespace StardewValley.Menus
 			if (sellButton.containsPoint(x, y))
 			{
 				confirmingSell = true;
-				yesButton = new ClickableTextureComponent(new Microsoft.Xna.Framework.Rectangle(Game1.viewport.Width / 2 - 64 - 4, Game1.viewport.Height / 2 - 32, 64, 64), Game1.mouseCursors, Game1.getSourceRectForStandardTileSheet(Game1.mouseCursors, 46), 1f)
+				yesButton = new ClickableTextureComponent(new Microsoft.Xna.Framework.Rectangle(Game1.uiViewport.Width / 2 - 64 - 4, Game1.uiViewport.Height / 2 - 32, 64, 64), Game1.mouseCursors, Game1.getSourceRectForStandardTileSheet(Game1.mouseCursors, 46), 1f)
 				{
 					myID = 111,
 					rightNeighborID = 105
 				};
-				noButton = new ClickableTextureComponent(new Microsoft.Xna.Framework.Rectangle(Game1.viewport.Width / 2 + 4, Game1.viewport.Height / 2 - 32, 64, 64), Game1.mouseCursors, Game1.getSourceRectForStandardTileSheet(Game1.mouseCursors, 47), 1f)
+				noButton = new ClickableTextureComponent(new Microsoft.Xna.Framework.Rectangle(Game1.uiViewport.Width / 2 + 4, Game1.uiViewport.Height / 2 - 32, 64, 64), Game1.mouseCursors, Game1.getSourceRectForStandardTileSheet(Game1.mouseCursors, 47), 1f)
 				{
 					myID = 105,
 					leftNeighborID = 111
@@ -396,8 +405,8 @@ namespace StardewValley.Menus
 			movingAnimal = true;
 			Game1.currentLocation = Game1.getLocationFromName("Farm");
 			Game1.globalFadeToClear();
-			okButton.bounds.X = Game1.viewport.Width - 128;
-			okButton.bounds.Y = Game1.viewport.Height - 128;
+			okButton.bounds.X = Game1.uiViewport.Width - 128;
+			okButton.bounds.Y = Game1.uiViewport.Height - 128;
 			Game1.displayHUD = false;
 			Game1.viewportFreeze = true;
 			Game1.viewport.Location = new Location(3136, 320);
@@ -456,7 +465,7 @@ namespace StardewValley.Menus
 			hoverText = "";
 			if (movingAnimal)
 			{
-				Vector2 clickTile = new Vector2((x + Game1.viewport.X) / 64, (y + Game1.viewport.Y) / 64);
+				Vector2 clickTile = new Vector2((Game1.viewport.X + Game1.getOldMouseX(ui_scale: false)) / 64, (Game1.viewport.Y + Game1.getOldMouseY(ui_scale: false)) / 64);
 				Farm f = Game1.getLocationFromName("Farm") as Farm;
 				foreach (Building building in f.buildings)
 				{
@@ -556,7 +565,7 @@ namespace StardewValley.Menus
 				{
 					textBox.Draw(b);
 				}
-				int age = ((int)animal.age + 1) / 28 + 1;
+				int age = (animal.GetDaysOwned() + 1) / 28 + 1;
 				string ageText = (age <= 1) ? Game1.content.LoadString("Strings\\UI:AnimalQuery_Age1") : Game1.content.LoadString("Strings\\UI:AnimalQuery_AgeN", age);
 				if ((int)animal.age < (byte)animal.ageWhenMature)
 				{
@@ -589,9 +598,9 @@ namespace StardewValley.Menus
 				if (confirmingSell)
 				{
 					b.Draw(Game1.fadeToBlackRect, Game1.graphics.GraphicsDevice.Viewport.Bounds, Color.Black * 0.75f);
-					Game1.drawDialogueBox(Game1.viewport.Width / 2 - 160, Game1.viewport.Height / 2 - 192, 320, 256, speaker: false, drawOnlyBox: true);
+					Game1.drawDialogueBox(Game1.uiViewport.Width / 2 - 160, Game1.uiViewport.Height / 2 - 192, 320, 256, speaker: false, drawOnlyBox: true);
 					string confirmText = Game1.content.LoadString("Strings\\UI:AnimalQuery_ConfirmSell");
-					b.DrawString(Game1.dialogueFont, confirmText, new Vector2((float)(Game1.viewport.Width / 2) - Game1.dialogueFont.MeasureString(confirmText).X / 2f, Game1.viewport.Height / 2 - 96 + 8), Game1.textColor);
+					b.DrawString(Game1.dialogueFont, confirmText, new Vector2((float)(Game1.uiViewport.Width / 2) - Game1.dialogueFont.MeasureString(confirmText).X / 2f, Game1.uiViewport.Height / 2 - 96 + 8), Game1.textColor);
 					yesButton.draw(b);
 					noButton.draw(b);
 				}

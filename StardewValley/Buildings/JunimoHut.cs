@@ -8,7 +8,6 @@ using StardewValley.Objects;
 using StardewValley.TerrainFeatures;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Xml.Serialization;
 
 namespace StardewValley.Buildings
@@ -133,7 +132,7 @@ namespace StardewValley.Buildings
 		{
 			for (int i = 0; i < 3; i++)
 			{
-				if (i >= myJunimos.Count())
+				if (i >= myJunimos.Count)
 				{
 					return i;
 				}
@@ -167,7 +166,7 @@ namespace StardewValley.Buildings
 				return;
 			}
 			junimoSendOutTimer -= time.ElapsedGameTime.Milliseconds;
-			if (junimoSendOutTimer <= 0 && myJunimos.Count() < 3 && !Game1.IsWinter && !Game1.isRaining && areThereMatureCropsWithinRadius() && Game1.farmEvent == null)
+			if (junimoSendOutTimer <= 0 && myJunimos.Count < 3 && !Game1.IsWinter && !Game1.isRaining && areThereMatureCropsWithinRadius() && Game1.farmEvent == null)
 			{
 				int junimoNumber = getUnusedJunimoNumber();
 				bool isPrismatic = false;
@@ -252,7 +251,7 @@ namespace StardewValley.Buildings
 					myJunimos[i].pokeToHarvest();
 				}
 			}
-			if (myJunimos.Count() < 3 && Game1.timeOfDay < 1900)
+			if (myJunimos.Count < 3 && Game1.timeOfDay < 1900)
 			{
 				junimoSendOutTimer = 1;
 			}
@@ -277,6 +276,11 @@ namespace StardewValley.Buildings
 				return true;
 			}
 			return base.doAction(tileLocation, who);
+		}
+
+		public override List<Item> GetAdditionalItemsToCheckBeforeDemolish()
+		{
+			return new List<Item>(output.Value.items);
 		}
 
 		public override void drawInMenu(SpriteBatch b, int x, int y)

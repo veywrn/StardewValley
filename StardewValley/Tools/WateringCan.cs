@@ -1,12 +1,21 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using Microsoft.Xna.Framework.Input;
+using Netcode;
 using System;
 using System.Collections.Generic;
+using System.Xml.Serialization;
 
 namespace StardewValley.Tools
 {
 	public class WateringCan : Tool
 	{
+		[XmlElement("isBottomless")]
+		public readonly NetBool isBottomless = new NetBool();
+
+		[XmlIgnore]
+		protected bool _emptyCanPlayed;
+
 		public int waterCanMax = 40;
 
 		private int waterLeft = 40;
@@ -23,18 +32,37 @@ namespace StardewValley.Tools
 			}
 		}
 
+		public bool IsBottomless
+		{
+			get
+			{
+				return isBottomless;
+			}
+			set
+			{
+				isBottomless.Value = value;
+			}
+		}
+
 		public WateringCan()
 			: base("Watering Can", 0, 273, 296, stackable: false)
 		{
 			base.UpgradeLevel = 0;
 		}
 
+		protected override void initNetFields()
+		{
+			base.initNetFields();
+			base.NetFields.AddFields(isBottomless);
+		}
+
 		public override Item getOne()
 		{
-			return new WateringCan
-			{
-				UpgradeLevel = base.UpgradeLevel
-			};
+			WateringCan result = new WateringCan();
+			result.UpgradeLevel = base.UpgradeLevel;
+			CopyEnchantments(this, result);
+			result._GetOneFrom(this);
+			return result;
 		}
 
 		protected override string loadDisplayName()
@@ -53,7 +81,7 @@ namespace StardewValley.Tools
 			if (drawStackNumber != 0 && !Game1.player.hasWateringCanEnchantment)
 			{
 				spriteBatch.Draw(Game1.mouseCursors, location + new Vector2(4f, 44f), new Rectangle(297, 420, 14, 5), Color.White * transparency, 0f, Vector2.Zero, 4f, SpriteEffects.None, layerDepth + 0.0001f);
-				spriteBatch.Draw(Game1.staminaRect, new Rectangle((int)location.X + 8, (int)location.Y + 64 - 16, (int)((float)waterLeft / (float)waterCanMax * 48f), 8), Color.DodgerBlue * 0.7f * transparency);
+				spriteBatch.Draw(Game1.staminaRect, new Rectangle((int)location.X + 8, (int)location.Y + 64 - 16, (int)((float)waterLeft / (float)waterCanMax * 48f), 8), IsBottomless ? (Color.BlueViolet * 1f * transparency) : (Color.DodgerBlue * 0.7f * transparency));
 			}
 		}
 
@@ -89,17 +117,16 @@ namespace StardewValley.Tools
 					waterCanMax = 100;
 					break;
 				}
-				if (who.mailReceived.Contains("qiCaveEnchant"))
-				{
-					waterCanMax = int.MaxValue;
-				}
 				waterLeft = waterCanMax;
 				location.playSound("slosh");
 				DelayedAction.playSoundAfterDelay("glug", 250, location);
 			}
 			else if (waterLeft > 0 || who.hasWateringCanEnchantment)
 			{
-				who.Stamina -= (float)(2 * (power + 1)) - (float)who.FarmingLevel * 0.1f;
+				if (!isEfficient)
+				{
+					who.Stamina -= (float)(2 * (power + 1)) - (float)who.FarmingLevel * 0.1f;
+				}
 				int j = 0;
 				foreach (Vector2 tileLocation in tileLocations)
 				{
@@ -118,7 +145,7 @@ namespace StardewValley.Tools
 					});
 					j++;
 				}
-				if (!who.hasWateringCanEnchantment)
+				if (!isBottomless)
 				{
 					waterLeft -= power + 1;
 				}
@@ -149,10 +176,32 @@ namespace StardewValley.Tools
 					}
 				}
 			}
-			else
+			else if (!_emptyCanPlayed)
 			{
+				_emptyCanPlayed = true;
 				who.doEmote(4);
 				Game1.showRedMessage(Game1.content.LoadString("Strings\\StringsFromCSFiles:WateringCan.cs.14335"));
+			}
+		}
+
+		public override bool CanUseOnStandingTile()
+		{
+			return true;
+		}
+
+		public override void tickUpdate(GameTime time, Farmer who)
+		{
+			base.tickUpdate(time, who);
+			if (who.IsLocalPlayer)
+			{
+				if (Game1.areAllOfTheseKeysUp(Game1.input.GetKeyboardState(), Game1.options.useToolButton) && Game1.input.GetMouseState().LeftButton == ButtonState.Released && Game1.input.GetGamePadState().IsButtonUp(Buttons.X))
+				{
+					_emptyCanPlayed = false;
+				}
+			}
+			else
+			{
+				_emptyCanPlayed = false;
 			}
 		}
 	}

@@ -55,6 +55,8 @@ namespace StardewValley.Menus
 
 		private Dictionary<Item, int> itemValues = new Dictionary<Item, int>();
 
+		private Dictionary<Item, int> singleItemValues = new Dictionary<Item, int>();
+
 		private List<List<Item>> categoryItems = new List<List<Item>>();
 
 		private int categoryLabelsWidth;
@@ -101,10 +103,12 @@ namespace StardewValley.Menus
 
 		protected bool _hasFinished;
 
+		public bool _activated;
+
 		public ShippingMenu(IList<Item> items)
-			: base(0, 0, Game1.viewport.Width, Game1.viewport.Height)
+			: base(0, 0, Game1.uiViewport.Width, Game1.uiViewport.Height)
 		{
-			Game1.player.team.endOfNightStatus.UpdateState("shipment");
+			_activated = false;
 			parseItems(items);
 			if (!Game1.wasRainingYesterday)
 			{
@@ -115,8 +119,8 @@ namespace StardewValley.Menus
 			itemSlotWidth = 96;
 			itemAndPlusButtonWidth = plusButtonWidth + itemSlotWidth + 8;
 			totalWidth = categoryLabelsWidth + itemAndPlusButtonWidth;
-			centerX = Game1.viewport.Width / 2;
-			centerY = Game1.viewport.Height / 2;
+			centerX = Game1.uiViewport.Width / 2;
+			centerY = Game1.uiViewport.Height / 2;
 			_hasFinished = false;
 			int lastVisible = -1;
 			for (int i = 0; i < 6; i++)
@@ -132,18 +136,11 @@ namespace StardewValley.Menus
 				lastVisible = ((i < 5 && categoryItems[i].Count > 0) ? i : lastVisible);
 			}
 			dayPlaqueY = categories[0].bounds.Y - 128;
-			Rectangle okRect = new Rectangle(centerX + totalWidth / 2 - itemAndPlusButtonWidth + 32, centerY + 300 - 64, 64, 64);
-			okButton = new ClickableTextureComponent(Game1.content.LoadString("Strings\\StringsFromCSFiles:ShippingMenu.cs.11382"), okRect, null, Game1.content.LoadString("Strings\\StringsFromCSFiles:ShippingMenu.cs.11382"), Game1.mouseCursors, new Rectangle(128, 256, 64, 64), 1f)
+			okButton = new ClickableTextureComponent(bounds: new Rectangle(centerX + totalWidth / 2 - itemAndPlusButtonWidth + 32, centerY + 300 - 64, 64, 64), name: Game1.content.LoadString("Strings\\StringsFromCSFiles:ShippingMenu.cs.11382"), label: null, hoverText: Game1.content.LoadString("Strings\\StringsFromCSFiles:ShippingMenu.cs.11382"), texture: Game1.mouseCursors, sourceRect: new Rectangle(128, 256, 64, 64), scale: 1f)
 			{
 				myID = 101,
 				upNeighborID = lastVisible
 			};
-			if (Game1.options.gamepadControls)
-			{
-				Mouse.SetPosition(okRect.Center.X, okRect.Center.Y);
-				Game1.InvalidateOldMouseMovement();
-				Game1.lastCursorMotionWasMouse = false;
-			}
 			backButton = new ClickableTextureComponent("", new Rectangle(xPositionOnScreen + 32, yPositionOnScreen + height - 64, 48, 44), null, "", Game1.mouseCursors, new Rectangle(352, 495, 12, 11), 4f)
 			{
 				myID = 103,
@@ -156,7 +153,7 @@ namespace StardewValley.Menus
 			};
 			if (Game1.dayOfMonth == 25 && Game1.currentSeason.Equals("winter"))
 			{
-				Vector2 startingPosition = new Vector2(Game1.viewport.Width, Game1.random.Next(0, 200));
+				Vector2 startingPosition = new Vector2(Game1.uiViewport.Width, Game1.random.Next(0, 200));
 				Rectangle sourceRect = new Rectangle(640, 800, 32, 16);
 				int loops = 1000;
 				TemporaryAnimatedSprite t = new TemporaryAnimatedSprite("LooseSprites\\Cursors", sourceRect, 80f, 2, loops, startingPosition, flicker: false, flipped: false, 0.01f, 0f, Color.White, 4f, 0f, 0f, 0f, local: true)
@@ -181,8 +178,8 @@ namespace StardewValley.Menus
 
 		public void RepositionItems()
 		{
-			centerX = Game1.viewport.Width / 2;
-			centerY = Game1.viewport.Height / 2;
+			centerX = Game1.uiViewport.Width / 2;
+			centerY = Game1.uiViewport.Height / 2;
 			for (int i = 0; i < 6; i++)
 			{
 				categories[i].bounds = new Rectangle(centerX + totalWidth / 2 - plusButtonWidth, centerY - 300 + i * 27 * 4, plusButtonWidth, 44);
@@ -244,9 +241,11 @@ namespace StardewValley.Menus
 					Object o = k as Object;
 					int category = getCategoryIndexForObject(o);
 					categoryItems[category].Add(o);
-					int price = o.sellToStorePrice(-1L) * o.Stack;
+					int sell_to_store_price = o.sellToStorePrice(-1L);
+					int price = sell_to_store_price * o.Stack;
 					categoryTotals[category] += price;
 					itemValues[k] = price;
+					singleItemValues[k] = sell_to_store_price;
 					Game1.stats.itemsShipped += (uint)o.Stack;
 					if (o.Category == -75 || o.Category == -79)
 					{
@@ -333,6 +332,11 @@ namespace StardewValley.Menus
 		public override void update(GameTime time)
 		{
 			base.update(time);
+			if (!_activated)
+			{
+				_activated = true;
+				Game1.player.team.endOfNightStatus.UpdateState("shipment");
+			}
 			if (_hasFinished)
 			{
 				if (Game1.PollForEndOfNewDaySync())
@@ -383,9 +387,9 @@ namespace StardewValley.Menus
 					{
 						newDayPlaque = true;
 						Game1.playSound("newRecipe");
-						if (!Game1.currentSeason.Equals("winter"))
+						if (!Game1.currentSeason.Equals("winter") && Game1.game1.IsMainInstance)
 						{
-							DelayedAction.playSoundAfterDelay(Game1.isRaining ? "rainsound" : "rooster", 1500);
+							DelayedAction.playSoundAfterDelay(Game1.IsRainingHere() ? "rainsound" : "rooster", 1500);
 						}
 						finalOutroTimer = 2000;
 						animations.Clear();
@@ -444,7 +448,7 @@ namespace StardewValley.Menus
 			{
 				if (!Game1.wasRainingYesterday)
 				{
-					Vector2 startingPosition2 = new Vector2(Game1.viewport.Width, Game1.random.Next(200));
+					Vector2 startingPosition2 = new Vector2(Game1.uiViewport.Width, Game1.random.Next(200));
 					Rectangle sourceRect2 = new Rectangle(640, 752, 16, 16);
 					int rows = Game1.random.Next(1, 4);
 					if (Game1.random.NextDouble() < 0.001)
@@ -472,13 +476,13 @@ namespace StardewValley.Menus
 					}
 					else if (Game1.random.NextDouble() < 0.0002)
 					{
-						TemporaryAnimatedSprite bird3 = new TemporaryAnimatedSprite(position: new Vector2(Game1.viewport.Width, Game1.random.Next(4, 256)), textureName: "", sourceRect: new Rectangle(0, 0, 1, 1), animationInterval: 9999f, animationLength: 1, numberOfLoops: 10000, flicker: false, flipped: false, layerDepth: 0.01f, alphaFade: 0f, color: Color.White * (0.25f + (float)Game1.random.NextDouble()), scale: 4f, scaleChange: 0f, rotation: 0f, rotationChange: 0f, local: true);
+						TemporaryAnimatedSprite bird3 = new TemporaryAnimatedSprite(position: new Vector2(Game1.uiViewport.Width, Game1.random.Next(4, 256)), textureName: "", sourceRect: new Rectangle(0, 0, 1, 1), animationInterval: 9999f, animationLength: 1, numberOfLoops: 10000, flicker: false, flipped: false, layerDepth: 0.01f, alphaFade: 0f, color: Color.White * (0.25f + (float)Game1.random.NextDouble()), scale: 4f, scaleChange: 0f, rotation: 0f, rotationChange: 0f, local: true);
 						bird3.motion = new Vector2(-0.25f, 0f);
 						animations.Add(bird3);
 					}
 					else if (Game1.random.NextDouble() < 5E-05)
 					{
-						startingPosition2 = new Vector2(Game1.viewport.Width, Game1.viewport.Height - 192);
+						startingPosition2 = new Vector2(Game1.uiViewport.Width, Game1.uiViewport.Height - 192);
 						for (int i = 0; i < rows; i++)
 						{
 							TemporaryAnimatedSprite bird2 = new TemporaryAnimatedSprite("LooseSprites\\Cursors", sourceRect2, Game1.random.Next(60, 101), 4, 100, startingPosition2 + new Vector2((i + 1) * Game1.random.Next(15, 18), (i + 1) * -20), flicker: false, flipped: false, 0.01f, 0f, Color.Black, 4f, 0f, 0f, 0f, local: true);
@@ -505,7 +509,7 @@ namespace StardewValley.Menus
 				if (smokeTimer <= 0)
 				{
 					smokeTimer = 50;
-					animations.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Rectangle(684, 1075, 1, 1), 1000f, 1, 1000, new Vector2(188f, Game1.viewport.Height - 128 + 20), flicker: false, flipped: false)
+					animations.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Rectangle(684, 1075, 1, 1), 1000f, 1, 1000, new Vector2(188f, Game1.uiViewport.Height - 128 + 20), flicker: false, flipped: false)
 					{
 						color = (Game1.wasRainingYesterday ? Color.SlateGray : Color.White),
 						scale = 4f,
@@ -697,7 +701,7 @@ namespace StardewValley.Menus
 							break;
 						}
 					}
-					if (Game1.dayOfMonth == 28 && timesPokedMoon <= 10 && new Rectangle(Game1.viewport.Width - 176, 4, 172, 172).Contains(x, y))
+					if (Game1.dayOfMonth == 28 && timesPokedMoon <= 10 && new Rectangle(Game1.uiViewport.Width - 176, 4, 172, 172).Contains(x, y))
 					{
 						moonShake = 100;
 						timesPokedMoon++;
@@ -747,7 +751,7 @@ namespace StardewValley.Menus
 
 		public override void gameWindowSizeChanged(Rectangle oldBounds, Rectangle newBounds)
 		{
-			initialize(0, 0, Game1.viewport.Width, Game1.viewport.Height);
+			initialize(0, 0, Game1.uiViewport.Width, Game1.uiViewport.Height);
 			RepositionItems();
 		}
 
@@ -755,18 +759,18 @@ namespace StardewValley.Menus
 		{
 			if (Game1.wasRainingYesterday)
 			{
-				b.Draw(Game1.mouseCursors, new Rectangle(0, 0, Game1.viewport.Width, Game1.viewport.Height), new Rectangle(639, 858, 1, 184), Game1.currentSeason.Equals("winter") ? Color.LightSlateGray : (Color.SlateGray * (1f - (float)introTimer / 3500f)));
-				b.Draw(Game1.mouseCursors, new Rectangle(2556, 0, Game1.viewport.Width, Game1.viewport.Height), new Rectangle(639, 858, 1, 184), Game1.currentSeason.Equals("winter") ? Color.LightSlateGray : (Color.SlateGray * (1f - (float)introTimer / 3500f)));
-				for (int x = -244; x < Game1.viewport.Width + 244; x += 244)
+				b.Draw(Game1.mouseCursors, new Rectangle(0, 0, Game1.uiViewport.Width, Game1.uiViewport.Height), new Rectangle(639, 858, 1, 184), Game1.currentSeason.Equals("winter") ? Color.LightSlateGray : (Color.SlateGray * (1f - (float)introTimer / 3500f)));
+				b.Draw(Game1.mouseCursors, new Rectangle(2556, 0, Game1.uiViewport.Width, Game1.uiViewport.Height), new Rectangle(639, 858, 1, 184), Game1.currentSeason.Equals("winter") ? Color.LightSlateGray : (Color.SlateGray * (1f - (float)introTimer / 3500f)));
+				for (int x = -244; x < Game1.uiViewport.Width + 244; x += 244)
 				{
 					b.Draw(Game1.mouseCursors, new Vector2((float)x + weatherX / 2f % 244f, 32f), new Rectangle(643, 1142, 61, 53), Color.DarkSlateGray * 1f * (1f - (float)introTimer / 3500f), 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
 				}
-				b.Draw(Game1.mouseCursors, new Vector2(0f, Game1.viewport.Height - 192), new Rectangle(0, Game1.currentSeason.Equals("winter") ? 1034 : 737, 639, 48), (Game1.currentSeason.Equals("winter") ? (Color.White * 0.25f) : new Color(30, 62, 50)) * (0.5f - (float)introTimer / 3500f), 0f, Vector2.Zero, 4f, SpriteEffects.FlipHorizontally, 1f);
-				b.Draw(Game1.mouseCursors, new Vector2(2556f, Game1.viewport.Height - 192), new Rectangle(0, Game1.currentSeason.Equals("winter") ? 1034 : 737, 639, 48), (Game1.currentSeason.Equals("winter") ? (Color.White * 0.25f) : new Color(30, 62, 50)) * (0.5f - (float)introTimer / 3500f), 0f, Vector2.Zero, 4f, SpriteEffects.FlipHorizontally, 1f);
-				b.Draw(Game1.mouseCursors, new Vector2(0f, Game1.viewport.Height - 128), new Rectangle(0, Game1.currentSeason.Equals("winter") ? 1034 : 737, 639, 32), (Game1.currentSeason.Equals("winter") ? (Color.White * 0.5f) : new Color(30, 62, 50)) * (1f - (float)introTimer / 3500f), 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
-				b.Draw(Game1.mouseCursors, new Vector2(2556f, Game1.viewport.Height - 128), new Rectangle(0, Game1.currentSeason.Equals("winter") ? 1034 : 737, 639, 32), (Game1.currentSeason.Equals("winter") ? (Color.White * 0.5f) : new Color(30, 62, 50)) * (1f - (float)introTimer / 3500f), 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
-				b.Draw(Game1.mouseCursors, new Vector2(160f, Game1.viewport.Height - 128 + 16 + 8), new Rectangle(653, 880, 10, 10), Color.White * (1f - (float)introTimer / 3500f), 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
-				for (int x2 = -244; x2 < Game1.viewport.Width + 244; x2 += 244)
+				b.Draw(Game1.mouseCursors, new Vector2(0f, Game1.uiViewport.Height - 192), new Rectangle(0, Game1.currentSeason.Equals("winter") ? 1034 : 737, 639, 48), (Game1.currentSeason.Equals("winter") ? (Color.White * 0.25f) : new Color(30, 62, 50)) * (0.5f - (float)introTimer / 3500f), 0f, Vector2.Zero, 4f, SpriteEffects.FlipHorizontally, 1f);
+				b.Draw(Game1.mouseCursors, new Vector2(2556f, Game1.uiViewport.Height - 192), new Rectangle(0, Game1.currentSeason.Equals("winter") ? 1034 : 737, 639, 48), (Game1.currentSeason.Equals("winter") ? (Color.White * 0.25f) : new Color(30, 62, 50)) * (0.5f - (float)introTimer / 3500f), 0f, Vector2.Zero, 4f, SpriteEffects.FlipHorizontally, 1f);
+				b.Draw(Game1.mouseCursors, new Vector2(0f, Game1.uiViewport.Height - 128), new Rectangle(0, Game1.currentSeason.Equals("winter") ? 1034 : 737, 639, 32), (Game1.currentSeason.Equals("winter") ? (Color.White * 0.5f) : new Color(30, 62, 50)) * (1f - (float)introTimer / 3500f), 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
+				b.Draw(Game1.mouseCursors, new Vector2(2556f, Game1.uiViewport.Height - 128), new Rectangle(0, Game1.currentSeason.Equals("winter") ? 1034 : 737, 639, 32), (Game1.currentSeason.Equals("winter") ? (Color.White * 0.5f) : new Color(30, 62, 50)) * (1f - (float)introTimer / 3500f), 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
+				b.Draw(Game1.mouseCursors, new Vector2(160f, Game1.uiViewport.Height - 128 + 16 + 8), new Rectangle(653, 880, 10, 10), Color.White * (1f - (float)introTimer / 3500f), 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
+				for (int x2 = -244; x2 < Game1.uiViewport.Width + 244; x2 += 244)
 				{
 					b.Draw(Game1.mouseCursors, new Vector2((float)x2 + weatherX % 244f, -32f), new Rectangle(643, 1142, 61, 53), Color.SlateGray * 0.85f * (1f - (float)introTimer / 3500f), 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.9f);
 				}
@@ -774,30 +778,30 @@ namespace StardewValley.Menus
 				{
 					animation.draw(b, localPosition: true);
 				}
-				for (int x3 = -244; x3 < Game1.viewport.Width + 244; x3 += 244)
+				for (int x3 = -244; x3 < Game1.uiViewport.Width + 244; x3 += 244)
 				{
 					b.Draw(Game1.mouseCursors, new Vector2((float)x3 + weatherX * 1.5f % 244f, -128f), new Rectangle(643, 1142, 61, 53), Color.LightSlateGray * (1f - (float)introTimer / 3500f), 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.9f);
 				}
 			}
 			else
 			{
-				b.Draw(Game1.mouseCursors, new Rectangle(0, 0, Game1.viewport.Width, Game1.viewport.Height), new Rectangle(639, 858, 1, 184), Color.White * (1f - (float)introTimer / 3500f));
-				b.Draw(Game1.mouseCursors, new Rectangle(2556, 0, Game1.viewport.Width, Game1.viewport.Height), new Rectangle(639, 858, 1, 184), Color.White * (1f - (float)introTimer / 3500f));
+				b.Draw(Game1.mouseCursors, new Rectangle(0, 0, Game1.uiViewport.Width, Game1.uiViewport.Height), new Rectangle(639, 858, 1, 184), Color.White * (1f - (float)introTimer / 3500f));
+				b.Draw(Game1.mouseCursors, new Rectangle(2556, 0, Game1.uiViewport.Width, Game1.uiViewport.Height), new Rectangle(639, 858, 1, 184), Color.White * (1f - (float)introTimer / 3500f));
 				b.Draw(Game1.mouseCursors, new Vector2(0f, 0f), new Rectangle(0, 1453, 639, 195), Color.White * (1f - (float)introTimer / 3500f), 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
 				b.Draw(Game1.mouseCursors, new Vector2(2556f, 0f), new Rectangle(0, 1453, 639, 195), Color.White * (1f - (float)introTimer / 3500f), 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
 				if (Game1.dayOfMonth == 28)
 				{
-					b.Draw(Game1.mouseCursors, new Vector2(Game1.viewport.Width - 176, 4f) + ((moonShake > 0) ? new Vector2(Game1.random.Next(-1, 2), Game1.random.Next(-1, 2)) : Vector2.Zero), new Rectangle(642, 835, 43, 43), Color.White * (1f - (float)introTimer / 3500f), 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
+					b.Draw(Game1.mouseCursors, new Vector2(Game1.uiViewport.Width - 176, 4f) + ((moonShake > 0) ? new Vector2(Game1.random.Next(-1, 2), Game1.random.Next(-1, 2)) : Vector2.Zero), new Rectangle(642, 835, 43, 43), Color.White * (1f - (float)introTimer / 3500f), 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
 					if (timesPokedMoon > 10)
 					{
-						b.Draw(Game1.mouseCursors, new Vector2(Game1.viewport.Width - 136, 48f) + ((moonShake > 0) ? new Vector2(Game1.random.Next(-1, 2), Game1.random.Next(-1, 2)) : Vector2.Zero), new Rectangle(685, 844 + ((Game1.currentGameTime.TotalGameTime.TotalMilliseconds % 4000.0 < 200.0 || (Game1.currentGameTime.TotalGameTime.TotalMilliseconds % 8000.0 > 7600.0 && Game1.currentGameTime.TotalGameTime.TotalMilliseconds % 8000.0 < 7800.0)) ? 21 : 0), 19, 21), Color.White * (1f - (float)introTimer / 3500f), 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
+						b.Draw(Game1.mouseCursors, new Vector2(Game1.uiViewport.Width - 136, 48f) + ((moonShake > 0) ? new Vector2(Game1.random.Next(-1, 2), Game1.random.Next(-1, 2)) : Vector2.Zero), new Rectangle(685, 844 + ((Game1.currentGameTime.TotalGameTime.TotalMilliseconds % 4000.0 < 200.0 || (Game1.currentGameTime.TotalGameTime.TotalMilliseconds % 8000.0 > 7600.0 && Game1.currentGameTime.TotalGameTime.TotalMilliseconds % 8000.0 < 7800.0)) ? 21 : 0), 19, 21), Color.White * (1f - (float)introTimer / 3500f), 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
 					}
 				}
-				b.Draw(Game1.mouseCursors, new Vector2(0f, Game1.viewport.Height - 192), new Rectangle(0, Game1.currentSeason.Equals("winter") ? 1034 : 737, 639, 48), (Game1.currentSeason.Equals("winter") ? (Color.White * 0.25f) : new Color(0, 20, 40)) * (0.65f - (float)introTimer / 3500f), 0f, Vector2.Zero, 4f, SpriteEffects.FlipHorizontally, 1f);
-				b.Draw(Game1.mouseCursors, new Vector2(2556f, Game1.viewport.Height - 192), new Rectangle(0, Game1.currentSeason.Equals("winter") ? 1034 : 737, 639, 48), (Game1.currentSeason.Equals("winter") ? (Color.White * 0.25f) : new Color(0, 20, 40)) * (0.65f - (float)introTimer / 3500f), 0f, Vector2.Zero, 4f, SpriteEffects.FlipHorizontally, 1f);
-				b.Draw(Game1.mouseCursors, new Vector2(0f, Game1.viewport.Height - 128), new Rectangle(0, Game1.currentSeason.Equals("winter") ? 1034 : 737, 639, 32), (Game1.currentSeason.Equals("winter") ? (Color.White * 0.5f) : new Color(0, 32, 20)) * (1f - (float)introTimer / 3500f), 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
-				b.Draw(Game1.mouseCursors, new Vector2(2556f, Game1.viewport.Height - 128), new Rectangle(0, Game1.currentSeason.Equals("winter") ? 1034 : 737, 639, 32), (Game1.currentSeason.Equals("winter") ? (Color.White * 0.5f) : new Color(0, 32, 20)) * (1f - (float)introTimer / 3500f), 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
-				b.Draw(Game1.mouseCursors, new Vector2(160f, Game1.viewport.Height - 128 + 16 + 8), new Rectangle(653, 880, 10, 10), Color.White * (1f - (float)introTimer / 3500f), 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
+				b.Draw(Game1.mouseCursors, new Vector2(0f, Game1.uiViewport.Height - 192), new Rectangle(0, Game1.currentSeason.Equals("winter") ? 1034 : 737, 639, 48), (Game1.currentSeason.Equals("winter") ? (Color.White * 0.25f) : new Color(0, 20, 40)) * (0.65f - (float)introTimer / 3500f), 0f, Vector2.Zero, 4f, SpriteEffects.FlipHorizontally, 1f);
+				b.Draw(Game1.mouseCursors, new Vector2(2556f, Game1.uiViewport.Height - 192), new Rectangle(0, Game1.currentSeason.Equals("winter") ? 1034 : 737, 639, 48), (Game1.currentSeason.Equals("winter") ? (Color.White * 0.25f) : new Color(0, 20, 40)) * (0.65f - (float)introTimer / 3500f), 0f, Vector2.Zero, 4f, SpriteEffects.FlipHorizontally, 1f);
+				b.Draw(Game1.mouseCursors, new Vector2(0f, Game1.uiViewport.Height - 128), new Rectangle(0, Game1.currentSeason.Equals("winter") ? 1034 : 737, 639, 32), (Game1.currentSeason.Equals("winter") ? (Color.White * 0.5f) : new Color(0, 32, 20)) * (1f - (float)introTimer / 3500f), 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
+				b.Draw(Game1.mouseCursors, new Vector2(2556f, Game1.uiViewport.Height - 128), new Rectangle(0, Game1.currentSeason.Equals("winter") ? 1034 : 737, 639, 32), (Game1.currentSeason.Equals("winter") ? (Color.White * 0.5f) : new Color(0, 32, 20)) * (1f - (float)introTimer / 3500f), 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
+				b.Draw(Game1.mouseCursors, new Vector2(160f, Game1.uiViewport.Height - 128 + 16 + 8), new Rectangle(653, 880, 10, 10), Color.White * (1f - (float)introTimer / 3500f), 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
 			}
 			if (!outro && !Game1.wasRainingYesterday)
 			{
@@ -811,7 +815,7 @@ namespace StardewValley.Menus
 				int scroll_draw_y = categories[0].bounds.Y - 128;
 				if (scroll_draw_y >= 0)
 				{
-					SpriteText.drawStringWithScrollCenteredAt(b, Utility.getYesterdaysDate(), Game1.viewport.Width / 2, scroll_draw_y);
+					SpriteText.drawStringWithScrollCenteredAt(b, Utility.getYesterdaysDate(), Game1.uiViewport.Width / 2, scroll_draw_y);
 				}
 				int yOffset = -20;
 				int l = 0;
@@ -844,7 +848,7 @@ namespace StardewValley.Menus
 			}
 			else
 			{
-				IClickableMenu.drawTextureBox(b, 0, 0, Game1.viewport.Width, Game1.viewport.Height, Color.White);
+				IClickableMenu.drawTextureBox(b, 0, 0, Game1.uiViewport.Width, Game1.uiViewport.Height, Color.White);
 				Vector2 position = new Vector2(xPositionOnScreen + 32, yPositionOnScreen + 32);
 				for (int j = currentTab * itemsPerCategoryPage; j < currentTab * itemsPerCategoryPage + itemsPerCategoryPage; j++)
 				{
@@ -854,32 +858,36 @@ namespace StardewValley.Menus
 					}
 					Item item = categoryItems[currentPage][j];
 					item.drawInMenu(b, position, 1f, 1f, 1f, StackDrawType.Draw);
+					bool show_single_item_price = true;
 					if (LocalizedContentManager.CurrentLanguageLatin)
 					{
-						SpriteText.drawString(b, item.DisplayName + ((item.Stack > 1) ? (" x" + item.Stack) : ""), (int)position.X + 64 + 12, (int)position.Y + 12);
+						string line_string2 = "";
+						line_string2 = ((!show_single_item_price) ? (item.DisplayName + ((item.Stack > 1) ? (" x" + item.Stack) : "")) : (item.DisplayName + " x" + Game1.content.LoadString("Strings\\StringsFromCSFiles:LoadGameMenu.cs.11020", singleItemValues[item])));
+						SpriteText.drawString(b, line_string2, (int)position.X + 64 + 12, (int)position.Y + 12);
 						string dots = ".";
-						for (int i = 0; i < width - 96 - SpriteText.getWidthOfString(item.DisplayName + ((item.Stack > 1) ? (" x" + item.Stack) : "") + Game1.content.LoadString("Strings\\StringsFromCSFiles:LoadGameMenu.cs.11020", itemValues[item])); i += SpriteText.getWidthOfString(" ."))
+						for (int i = 0; i < width - 96 - SpriteText.getWidthOfString(line_string2 + Game1.content.LoadString("Strings\\StringsFromCSFiles:LoadGameMenu.cs.11020", itemValues[item])); i += SpriteText.getWidthOfString(" ."))
 						{
 							dots += " .";
 						}
-						SpriteText.drawString(b, dots, (int)position.X + 80 + SpriteText.getWidthOfString(item.DisplayName + ((item.Stack > 1) ? (" x" + item.Stack) : "")), (int)position.Y + 8);
+						SpriteText.drawString(b, dots, (int)position.X + 80 + SpriteText.getWidthOfString(line_string2), (int)position.Y + 8);
 						SpriteText.drawString(b, Game1.content.LoadString("Strings\\StringsFromCSFiles:LoadGameMenu.cs.11020", itemValues[item]), (int)position.X + width - 64 - SpriteText.getWidthOfString(Game1.content.LoadString("Strings\\StringsFromCSFiles:LoadGameMenu.cs.11020", itemValues[item])), (int)position.Y + 12);
 					}
 					else
 					{
-						string dotsAndName = item.DisplayName + ((item.Stack > 1) ? (" x" + item.Stack) : ".");
+						string dotsAndName2 = "";
+						dotsAndName2 = ((!show_single_item_price) ? (item.DisplayName + ((item.Stack > 1) ? (" x" + item.Stack) : ".")) : (item.DisplayName + " x" + Game1.content.LoadString("Strings\\StringsFromCSFiles:LoadGameMenu.cs.11020", singleItemValues[item])));
 						string qtyTxt = Game1.content.LoadString("Strings\\StringsFromCSFiles:LoadGameMenu.cs.11020", itemValues[item]);
 						int qtyPosX = (int)position.X + width - 64 - SpriteText.getWidthOfString(Game1.content.LoadString("Strings\\StringsFromCSFiles:LoadGameMenu.cs.11020", itemValues[item]));
-						SpriteText.getWidthOfString(dotsAndName + qtyTxt);
-						while (SpriteText.getWidthOfString(dotsAndName + qtyTxt) < 1123)
+						SpriteText.getWidthOfString(dotsAndName2 + qtyTxt);
+						while (SpriteText.getWidthOfString(dotsAndName2 + qtyTxt) < 1123)
 						{
-							dotsAndName += " .";
+							dotsAndName2 += " .";
 						}
-						if (SpriteText.getWidthOfString(dotsAndName + qtyTxt) >= 1155)
+						if (SpriteText.getWidthOfString(dotsAndName2 + qtyTxt) >= 1155)
 						{
-							dotsAndName = dotsAndName.Remove(dotsAndName.Length - 1);
+							dotsAndName2 = dotsAndName2.Remove(dotsAndName2.Length - 1);
 						}
-						SpriteText.drawString(b, dotsAndName, (int)position.X + 64 + 12, (int)position.Y + 12);
+						SpriteText.drawString(b, dotsAndName2, (int)position.X + 64 + 12, (int)position.Y + 12);
 						SpriteText.drawString(b, qtyTxt, qtyPosX, (int)position.Y + 12);
 					}
 					position.Y += 68f;
@@ -892,15 +900,15 @@ namespace StardewValley.Menus
 			}
 			if (outro)
 			{
-				b.Draw(Game1.mouseCursors, new Rectangle(0, 0, Game1.viewport.Width, Game1.viewport.Height), new Rectangle(639, 858, 1, 184), Color.Black * (1f - (float)outroFadeTimer / 800f));
-				SpriteText.drawStringWithScrollCenteredAt(b, newDayPlaque ? Utility.getDateString() : Utility.getYesterdaysDate(), Game1.viewport.Width / 2, dayPlaqueY);
+				b.Draw(Game1.mouseCursors, new Rectangle(0, 0, Game1.uiViewport.Width, Game1.uiViewport.Height), new Rectangle(639, 858, 1, 184), Color.Black * (1f - (float)outroFadeTimer / 800f));
+				SpriteText.drawStringWithScrollCenteredAt(b, newDayPlaque ? Utility.getDateString() : Utility.getYesterdaysDate(), Game1.uiViewport.Width / 2, dayPlaqueY);
 				foreach (TemporaryAnimatedSprite animation3 in animations)
 				{
 					animation3.draw(b, localPosition: true);
 				}
 				if (finalOutroTimer > 0 || _hasFinished)
 				{
-					b.Draw(Game1.staminaRect, new Rectangle(0, 0, Game1.viewport.Width, Game1.viewport.Height), new Rectangle(0, 0, 1, 1), Color.Black * (1f - (float)finalOutroTimer / 2000f));
+					b.Draw(Game1.staminaRect, new Rectangle(0, 0, Game1.uiViewport.Width, Game1.uiViewport.Height), new Rectangle(0, 0, 1, 1), Color.Black * (1f - (float)finalOutroTimer / 2000f));
 				}
 			}
 			if (saveGameMenu != null)
@@ -909,6 +917,7 @@ namespace StardewValley.Menus
 			}
 			if (!Game1.options.SnappyMenus || (introTimer <= 0 && !outro))
 			{
+				Game1.mouseCursorTransparency = 1f;
 				drawMouse(b);
 			}
 		}

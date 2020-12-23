@@ -10,6 +10,7 @@ using System.Linq;
 
 namespace StardewValley.Minigames
 {
+	[InstanceStatics]
 	public class Intro : IMinigame
 	{
 		public class Balloon

@@ -24,7 +24,7 @@ namespace StardewValley.Menus
 		private int myID;
 
 		public ButtonTutorialMenu(int which)
-			: base(-168, Game1.viewport.Height / 2 - 218, 168, 436)
+			: base(-168, Game1.uiViewport.Height / 2 - 218, 168, 436)
 		{
 			this.which = which;
 			current++;

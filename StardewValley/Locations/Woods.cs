@@ -2,6 +2,7 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Netcode;
 using StardewValley.Monsters;
+using StardewValley.Objects;
 using StardewValley.TerrainFeatures;
 using StardewValley.Tools;
 using System;
@@ -125,7 +126,6 @@ namespace StardewValley.Locations
 						{
 							statueTimer = 1000;
 							who.freezePause = 1000;
-							who.FarmerSprite.ignoreDefaultActionThisTime = true;
 							Game1.changeMusicTrack("none");
 							playSound("newArtifact");
 						}
@@ -146,6 +146,15 @@ namespace StardewValley.Locations
 				}
 			}
 			return base.checkAction(tileLocation, viewport, who);
+		}
+
+		public override Object getFish(float millisecondsAfterNibble, int bait, int waterDepth, Farmer who, double baitPotency, Vector2 bobberTile, string locationName = null)
+		{
+			if (Game1.random.NextDouble() < 0.08)
+			{
+				return new Furniture(2425, Vector2.Zero);
+			}
+			return base.getFish(millisecondsAfterNibble, bait, waterDepth, who, baitPotency, bobberTile, locationName);
 		}
 
 		public override bool isCollidingPosition(Microsoft.Xna.Framework.Rectangle position, xTile.Dimensions.Rectangle viewport, bool isFarmer, int damagesFarmer, bool glider, Character character)

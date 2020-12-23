@@ -2,6 +2,7 @@ using System;
 
 namespace StardewValley
 {
+	[InstanceStatics]
 	internal static class NoiseGenerator
 	{
 		public static int Seed

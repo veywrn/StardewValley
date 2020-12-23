@@ -7,18 +7,26 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Text;
 
 namespace StardewValley.Menus
 {
+	[InstanceStatics]
 	public abstract class IClickableMenu
 	{
 		public delegate void onExit();
+
+		protected IClickableMenu _childMenu;
+
+		protected IClickableMenu _parentMenu;
 
 		public const int currency_g = 0;
 
 		public const int currency_starTokens = 1;
 
 		public const int currency_qiCoins = 2;
+
+		public const int currency_qiGems = 4;
 
 		public const int greyedOutSpotIndex = 57;
 
@@ -72,6 +80,8 @@ namespace StardewValley.Menus
 
 		public bool gamePadControlsImplemented;
 
+		protected int _dependencies;
+
 		public List<ClickableComponent> allClickableComponents;
 
 		public ClickableComponent currentlySnappedComponent;
@@ -108,6 +118,49 @@ namespace StardewValley.Menus
 			{
 				Game1.directionKeyPolling[i] = 250;
 			}
+		}
+
+		public virtual bool HasFocus()
+		{
+			return Game1.activeClickableMenu == this;
+		}
+
+		public IClickableMenu GetChildMenu()
+		{
+			return _childMenu;
+		}
+
+		public IClickableMenu GetParentMenu()
+		{
+			return _parentMenu;
+		}
+
+		public void SetChildMenu(IClickableMenu menu)
+		{
+			_childMenu = menu;
+			if (_childMenu != null)
+			{
+				_childMenu._parentMenu = this;
+			}
+		}
+
+		public void AddDependency()
+		{
+			_dependencies++;
+		}
+
+		public void RemoveDependency()
+		{
+			_dependencies--;
+			if (_dependencies <= 0 && Game1.activeClickableMenu != this && TitleMenu.subMenu != this && this is IDisposable)
+			{
+				(this as IDisposable).Dispose();
+			}
+		}
+
+		public bool HasDependencies()
+		{
+			return _dependencies > 0;
 		}
 
 		public virtual bool areGamePadControlsImplemented()
@@ -171,11 +224,20 @@ namespace StardewValley.Menus
 			}
 		}
 
-		public void drawMouse(SpriteBatch b)
+		public void drawMouse(SpriteBatch b, bool ignore_transparency = false, int cursor = -1)
 		{
 			if (!Game1.options.hardwareCursor)
 			{
-				b.Draw(Game1.mouseCursors, new Vector2(Game1.getMouseX(), Game1.getMouseY()), Game1.getSourceRectForStandardTileSheet(Game1.mouseCursors, (Game1.options.snappyMenus && Game1.options.gamepadControls) ? 44 : 0, 16, 16), Color.White * Game1.mouseCursorTransparency, 0f, Vector2.Zero, 4f + Game1.dialogueButtonScale / 150f, SpriteEffects.None, 1f);
+				float transparency = Game1.mouseCursorTransparency;
+				if (ignore_transparency)
+				{
+					transparency = 1f;
+				}
+				if (cursor < 0)
+				{
+					cursor = ((Game1.options.snappyMenus && Game1.options.gamepadControls) ? 44 : 0);
+				}
+				b.Draw(Game1.mouseCursors, new Vector2(Game1.getMouseX(), Game1.getMouseY()), Game1.getSourceRectForStandardTileSheet(Game1.mouseCursors, cursor, 16, 16), Color.White * transparency, 0f, Vector2.Zero, 4f + Game1.dialogueButtonScale / 150f, SpriteEffects.None, 1f);
 			}
 		}
 
@@ -185,7 +247,7 @@ namespace StardewValley.Menus
 			FieldInfo[] fields = GetType().GetFields();
 			foreach (FieldInfo f in fields)
 			{
-				if (f.DeclaringType == typeof(IClickableMenu))
+				if (f.GetCustomAttributes(typeof(SkipForClickableAggregation), inherit: true).Length != 0 || f.DeclaringType == typeof(IClickableMenu))
 				{
 					continue;
 				}
@@ -466,14 +528,17 @@ namespace StardewValley.Menus
 				currentlySnappedComponent = old;
 			}
 			snapCursorToCurrentSnappedComponent();
-			Game1.playSound("shiny4");
+			if (currentlySnappedComponent != old)
+			{
+				Game1.playSound("shiny4");
+			}
 		}
 
 		public virtual void snapCursorToCurrentSnappedComponent()
 		{
 			if (currentlySnappedComponent != null)
 			{
-				Game1.setMousePosition(currentlySnappedComponent.bounds.Right - currentlySnappedComponent.bounds.Width / 4, currentlySnappedComponent.bounds.Bottom - currentlySnappedComponent.bounds.Height / 4);
+				Game1.setMousePosition(currentlySnappedComponent.bounds.Right - currentlySnappedComponent.bounds.Width / 4, currentlySnappedComponent.bounds.Bottom - currentlySnappedComponent.bounds.Height / 4, ui_scale: true);
 			}
 		}
 
@@ -483,6 +548,20 @@ namespace StardewValley.Menus
 
 		protected virtual void customSnapBehavior(int direction, int oldRegion, int oldID)
 		{
+		}
+
+		public virtual bool IsActive()
+		{
+			if (_parentMenu == null)
+			{
+				return this == Game1.activeClickableMenu;
+			}
+			IClickableMenu root = _parentMenu;
+			while (root != null && root._parentMenu != null)
+			{
+				root = root._parentMenu;
+			}
+			return root == Game1.activeClickableMenu;
 		}
 
 		public virtual void automaticSnapBehavior(int direction, int oldRegion, int oldID)
@@ -613,9 +692,9 @@ namespace StardewValley.Menus
 		{
 			if (this is ShopMenu)
 			{
-				for (int x = 0; x < Game1.viewport.Width; x += 400)
+				for (int x = 0; x < Game1.uiViewport.Width; x += 400)
 				{
-					for (int y = 0; y < Game1.viewport.Height; y += 384)
+					for (int y = 0; y < Game1.uiViewport.Height; y += 384)
 					{
 						b.Draw(Game1.mouseCursors, new Vector2(x, y), new Rectangle(527, 0, 100, 96), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.08f);
 					}
@@ -624,21 +703,21 @@ namespace StardewValley.Menus
 			}
 			if (Game1.isDarkOut())
 			{
-				b.Draw(Game1.mouseCursors, new Rectangle(0, 0, Game1.viewport.Width, Game1.viewport.Height), new Rectangle(639, 858, 1, 144), Color.White, 0f, Vector2.Zero, SpriteEffects.None, 0.9f);
+				b.Draw(Game1.mouseCursors, new Rectangle(0, 0, Game1.uiViewport.Width, Game1.uiViewport.Height), new Rectangle(639, 858, 1, 144), Color.White, 0f, Vector2.Zero, SpriteEffects.None, 0.9f);
 			}
-			else if (Game1.isRaining)
+			else if (Game1.IsRainingHere())
 			{
-				b.Draw(Game1.mouseCursors, new Rectangle(0, 0, Game1.viewport.Width, Game1.viewport.Height), new Rectangle(640, 858, 1, 184), Color.White, 0f, Vector2.Zero, SpriteEffects.None, 0.9f);
+				b.Draw(Game1.mouseCursors, new Rectangle(0, 0, Game1.uiViewport.Width, Game1.uiViewport.Height), new Rectangle(640, 858, 1, 184), Color.White, 0f, Vector2.Zero, SpriteEffects.None, 0.9f);
 			}
 			else
 			{
-				b.Draw(Game1.mouseCursors, new Rectangle(0, 0, Game1.viewport.Width, Game1.viewport.Height), new Rectangle(639 + Utility.getSeasonNumber(Game1.currentSeason), 1051, 1, 400), Color.White, 0f, Vector2.Zero, SpriteEffects.None, 0.9f);
+				b.Draw(Game1.mouseCursors, new Rectangle(0, 0, Game1.uiViewport.Width, Game1.uiViewport.Height), new Rectangle(639 + Utility.getSeasonNumber(Game1.currentSeason), 1051, 1, 400), Color.White, 0f, Vector2.Zero, SpriteEffects.None, 0.9f);
 			}
-			b.Draw(Game1.mouseCursors, new Vector2(-120f, Game1.viewport.Height - 592), new Rectangle(0, Game1.currentSeason.Equals("winter") ? 1035 : ((Game1.isRaining || Game1.isDarkOut()) ? 886 : 737), 639, 148), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.08f);
-			b.Draw(Game1.mouseCursors, new Vector2(2436f, Game1.viewport.Height - 592), new Rectangle(0, Game1.currentSeason.Equals("winter") ? 1035 : ((Game1.isRaining || Game1.isDarkOut()) ? 886 : 737), 639, 148), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.08f);
+			b.Draw(Game1.mouseCursors, new Vector2(-120f, Game1.uiViewport.Height - 592), new Rectangle(0, Game1.currentSeason.Equals("winter") ? 1035 : ((Game1.isRaining || Game1.isDarkOut()) ? 886 : 737), 639, 148), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.08f);
+			b.Draw(Game1.mouseCursors, new Vector2(2436f, Game1.uiViewport.Height - 592), new Rectangle(0, Game1.currentSeason.Equals("winter") ? 1035 : ((Game1.isRaining || Game1.isDarkOut()) ? 886 : 737), 639, 148), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.08f);
 			if (Game1.isRaining)
 			{
-				b.Draw(Game1.staminaRect, Utility.xTileToMicrosoftRectangle(Game1.viewport), Color.Blue * 0.2f);
+				b.Draw(Game1.staminaRect, Utility.xTileToMicrosoftRectangle(Game1.uiViewport), Color.Blue * 0.2f);
 			}
 		}
 
@@ -657,12 +736,17 @@ namespace StardewValley.Menus
 
 		public virtual void gameWindowSizeChanged(Rectangle oldBounds, Rectangle newBounds)
 		{
-			xPositionOnScreen = (int)((float)newBounds.Width * ((float)xPositionOnScreen / (float)oldBounds.Width));
-			yPositionOnScreen = (int)((float)newBounds.Height * ((float)yPositionOnScreen / (float)oldBounds.Height));
+			xPositionOnScreen = (int)((float)(newBounds.Width - width) * ((float)xPositionOnScreen / (float)(oldBounds.Width - width)));
+			yPositionOnScreen = (int)((float)(newBounds.Height - height) * ((float)yPositionOnScreen / (float)(oldBounds.Height - height)));
 		}
 
 		public virtual void setUpForGamePadMode()
 		{
+		}
+
+		public virtual bool shouldClampGamePadCursor()
+		{
+			return false;
 		}
 
 		public virtual void releaseLeftClick(int x, int y)
@@ -792,6 +876,12 @@ namespace StardewValley.Menus
 			{
 				Game1.exitActiveMenu();
 			}
+			if (_parentMenu != null)
+			{
+				IClickableMenu parentMenu = _parentMenu;
+				_parentMenu = null;
+				parentMenu.SetChildMenu(null);
+			}
 			if (exitFunction != null)
 			{
 				onExit onExit = exitFunction;
@@ -865,29 +955,35 @@ namespace StardewValley.Menus
 			drawTextureBox(b, Game1.menuTexture, new Rectangle(0, 256, 60, 60), x, y, width, height, color);
 		}
 
-		public static void drawTextureBox(SpriteBatch b, Texture2D texture, Rectangle sourceRect, int x, int y, int width, int height, Color color, float scale = 1f, bool drawShadow = true)
+		public static void drawTextureBox(SpriteBatch b, Texture2D texture, Rectangle sourceRect, int x, int y, int width, int height, Color color, float scale = 1f, bool drawShadow = true, float draw_layer = -1f)
 		{
 			int cornerSize = sourceRect.Width / 3;
+			float shadow_layer = draw_layer - 0.03f;
+			if (draw_layer < 0f)
+			{
+				draw_layer = 0.8f - (float)y * 1E-06f;
+				shadow_layer = 0.77f;
+			}
 			if (drawShadow)
 			{
-				b.Draw(texture, new Vector2(x + width - (int)((float)cornerSize * scale) - 8, y + 8), new Rectangle(sourceRect.X + cornerSize * 2, sourceRect.Y, cornerSize, cornerSize), Color.Black * 0.4f, 0f, Vector2.Zero, scale, SpriteEffects.None, 0.77f);
-				b.Draw(texture, new Vector2(x - 8, y + height - (int)((float)cornerSize * scale) + 8), new Rectangle(sourceRect.X, cornerSize * 2 + sourceRect.Y, cornerSize, cornerSize), Color.Black * 0.4f, 0f, Vector2.Zero, scale, SpriteEffects.None, 0.77f);
-				b.Draw(texture, new Vector2(x + width - (int)((float)cornerSize * scale) - 8, y + height - (int)((float)cornerSize * scale) + 8), new Rectangle(sourceRect.X + cornerSize * 2, cornerSize * 2 + sourceRect.Y, cornerSize, cornerSize), Color.Black * 0.4f, 0f, Vector2.Zero, scale, SpriteEffects.None, 0.77f);
-				b.Draw(texture, new Rectangle(x + (int)((float)cornerSize * scale) - 8, y + 8, width - (int)((float)cornerSize * scale) * 2, (int)((float)cornerSize * scale)), new Rectangle(sourceRect.X + cornerSize, sourceRect.Y, cornerSize, cornerSize), Color.Black * 0.4f, 0f, Vector2.Zero, SpriteEffects.None, 0.77f);
-				b.Draw(texture, new Rectangle(x + (int)((float)cornerSize * scale) - 8, y + height - (int)((float)cornerSize * scale) + 8, width - (int)((float)cornerSize * scale) * 2, (int)((float)cornerSize * scale)), new Rectangle(sourceRect.X + cornerSize, cornerSize * 2 + sourceRect.Y, cornerSize, cornerSize), Color.Black * 0.4f, 0f, Vector2.Zero, SpriteEffects.None, 0.77f);
-				b.Draw(texture, new Rectangle(x - 8, y + (int)((float)cornerSize * scale) + 8, (int)((float)cornerSize * scale), height - (int)((float)cornerSize * scale) * 2), new Rectangle(sourceRect.X, cornerSize + sourceRect.Y, cornerSize, cornerSize), Color.Black * 0.4f, 0f, Vector2.Zero, SpriteEffects.None, 0.77f);
-				b.Draw(texture, new Rectangle(x + width - (int)((float)cornerSize * scale) - 8, y + (int)((float)cornerSize * scale) + 8, (int)((float)cornerSize * scale), height - (int)((float)cornerSize * scale) * 2), new Rectangle(sourceRect.X + cornerSize * 2, cornerSize + sourceRect.Y, cornerSize, cornerSize), Color.Black * 0.4f, 0f, Vector2.Zero, SpriteEffects.None, 0.77f);
-				b.Draw(texture, new Rectangle((int)((float)cornerSize * scale / 2f) + x - 8, (int)((float)cornerSize * scale / 2f) + y + 8, width - (int)((float)cornerSize * scale), height - (int)((float)cornerSize * scale)), new Rectangle(cornerSize + sourceRect.X, cornerSize + sourceRect.Y, cornerSize, cornerSize), Color.Black * 0.4f, 0f, Vector2.Zero, SpriteEffects.None, 0.77f);
+				b.Draw(texture, new Vector2(x + width - (int)((float)cornerSize * scale) - 8, y + 8), new Rectangle(sourceRect.X + cornerSize * 2, sourceRect.Y, cornerSize, cornerSize), Color.Black * 0.4f, 0f, Vector2.Zero, scale, SpriteEffects.None, shadow_layer);
+				b.Draw(texture, new Vector2(x - 8, y + height - (int)((float)cornerSize * scale) + 8), new Rectangle(sourceRect.X, cornerSize * 2 + sourceRect.Y, cornerSize, cornerSize), Color.Black * 0.4f, 0f, Vector2.Zero, scale, SpriteEffects.None, shadow_layer);
+				b.Draw(texture, new Vector2(x + width - (int)((float)cornerSize * scale) - 8, y + height - (int)((float)cornerSize * scale) + 8), new Rectangle(sourceRect.X + cornerSize * 2, cornerSize * 2 + sourceRect.Y, cornerSize, cornerSize), Color.Black * 0.4f, 0f, Vector2.Zero, scale, SpriteEffects.None, shadow_layer);
+				b.Draw(texture, new Rectangle(x + (int)((float)cornerSize * scale) - 8, y + 8, width - (int)((float)cornerSize * scale) * 2, (int)((float)cornerSize * scale)), new Rectangle(sourceRect.X + cornerSize, sourceRect.Y, cornerSize, cornerSize), Color.Black * 0.4f, 0f, Vector2.Zero, SpriteEffects.None, shadow_layer);
+				b.Draw(texture, new Rectangle(x + (int)((float)cornerSize * scale) - 8, y + height - (int)((float)cornerSize * scale) + 8, width - (int)((float)cornerSize * scale) * 2, (int)((float)cornerSize * scale)), new Rectangle(sourceRect.X + cornerSize, cornerSize * 2 + sourceRect.Y, cornerSize, cornerSize), Color.Black * 0.4f, 0f, Vector2.Zero, SpriteEffects.None, shadow_layer);
+				b.Draw(texture, new Rectangle(x - 8, y + (int)((float)cornerSize * scale) + 8, (int)((float)cornerSize * scale), height - (int)((float)cornerSize * scale) * 2), new Rectangle(sourceRect.X, cornerSize + sourceRect.Y, cornerSize, cornerSize), Color.Black * 0.4f, 0f, Vector2.Zero, SpriteEffects.None, shadow_layer);
+				b.Draw(texture, new Rectangle(x + width - (int)((float)cornerSize * scale) - 8, y + (int)((float)cornerSize * scale) + 8, (int)((float)cornerSize * scale), height - (int)((float)cornerSize * scale) * 2), new Rectangle(sourceRect.X + cornerSize * 2, cornerSize + sourceRect.Y, cornerSize, cornerSize), Color.Black * 0.4f, 0f, Vector2.Zero, SpriteEffects.None, shadow_layer);
+				b.Draw(texture, new Rectangle((int)((float)cornerSize * scale / 2f) + x - 8, (int)((float)cornerSize * scale / 2f) + y + 8, width - (int)((float)cornerSize * scale), height - (int)((float)cornerSize * scale)), new Rectangle(cornerSize + sourceRect.X, cornerSize + sourceRect.Y, cornerSize, cornerSize), Color.Black * 0.4f, 0f, Vector2.Zero, SpriteEffects.None, shadow_layer);
 			}
-			b.Draw(texture, new Rectangle((int)((float)cornerSize * scale) + x, (int)((float)cornerSize * scale) + y, width - (int)((float)cornerSize * scale * 2f), height - (int)((float)cornerSize * scale * 2f)), new Rectangle(cornerSize + sourceRect.X, cornerSize + sourceRect.Y, cornerSize, cornerSize), color, 0f, Vector2.Zero, SpriteEffects.None, 0.8f - (float)y * 1E-06f);
-			b.Draw(texture, new Vector2(x, y), new Rectangle(sourceRect.X, sourceRect.Y, cornerSize, cornerSize), color, 0f, Vector2.Zero, scale, SpriteEffects.None, 0.8f - (float)y * 1E-06f);
-			b.Draw(texture, new Vector2(x + width - (int)((float)cornerSize * scale), y), new Rectangle(sourceRect.X + cornerSize * 2, sourceRect.Y, cornerSize, cornerSize), color, 0f, Vector2.Zero, scale, SpriteEffects.None, 0.8f - (float)y * 1E-06f);
-			b.Draw(texture, new Vector2(x, y + height - (int)((float)cornerSize * scale)), new Rectangle(sourceRect.X, cornerSize * 2 + sourceRect.Y, cornerSize, cornerSize), color, 0f, Vector2.Zero, scale, SpriteEffects.None, 0.8f - (float)y * 1E-06f);
-			b.Draw(texture, new Vector2(x + width - (int)((float)cornerSize * scale), y + height - (int)((float)cornerSize * scale)), new Rectangle(sourceRect.X + cornerSize * 2, cornerSize * 2 + sourceRect.Y, cornerSize, cornerSize), color, 0f, Vector2.Zero, scale, SpriteEffects.None, 0.8f - (float)y * 1E-06f);
-			b.Draw(texture, new Rectangle(x + (int)((float)cornerSize * scale), y, width - (int)((float)cornerSize * scale) * 2, (int)((float)cornerSize * scale)), new Rectangle(sourceRect.X + cornerSize, sourceRect.Y, cornerSize, cornerSize), color, 0f, Vector2.Zero, SpriteEffects.None, 0.8f - (float)y * 1E-06f);
-			b.Draw(texture, new Rectangle(x + (int)((float)cornerSize * scale), y + height - (int)((float)cornerSize * scale), width - (int)((float)cornerSize * scale) * 2, (int)((float)cornerSize * scale)), new Rectangle(sourceRect.X + cornerSize, cornerSize * 2 + sourceRect.Y, cornerSize, cornerSize), color, 0f, Vector2.Zero, SpriteEffects.None, 0.8f - (float)y * 1E-06f);
-			b.Draw(texture, new Rectangle(x, y + (int)((float)cornerSize * scale), (int)((float)cornerSize * scale), height - (int)((float)cornerSize * scale) * 2), new Rectangle(sourceRect.X, cornerSize + sourceRect.Y, cornerSize, cornerSize), color, 0f, Vector2.Zero, SpriteEffects.None, 0.8f - (float)y * 1E-06f);
-			b.Draw(texture, new Rectangle(x + width - (int)((float)cornerSize * scale), y + (int)((float)cornerSize * scale), (int)((float)cornerSize * scale), height - (int)((float)cornerSize * scale) * 2), new Rectangle(sourceRect.X + cornerSize * 2, cornerSize + sourceRect.Y, cornerSize, cornerSize), color, 0f, Vector2.Zero, SpriteEffects.None, 0.8f - (float)y * 1E-06f);
+			b.Draw(texture, new Rectangle((int)((float)cornerSize * scale) + x, (int)((float)cornerSize * scale) + y, width - (int)((float)cornerSize * scale * 2f), height - (int)((float)cornerSize * scale * 2f)), new Rectangle(cornerSize + sourceRect.X, cornerSize + sourceRect.Y, cornerSize, cornerSize), color, 0f, Vector2.Zero, SpriteEffects.None, draw_layer);
+			b.Draw(texture, new Vector2(x, y), new Rectangle(sourceRect.X, sourceRect.Y, cornerSize, cornerSize), color, 0f, Vector2.Zero, scale, SpriteEffects.None, draw_layer);
+			b.Draw(texture, new Vector2(x + width - (int)((float)cornerSize * scale), y), new Rectangle(sourceRect.X + cornerSize * 2, sourceRect.Y, cornerSize, cornerSize), color, 0f, Vector2.Zero, scale, SpriteEffects.None, draw_layer);
+			b.Draw(texture, new Vector2(x, y + height - (int)((float)cornerSize * scale)), new Rectangle(sourceRect.X, cornerSize * 2 + sourceRect.Y, cornerSize, cornerSize), color, 0f, Vector2.Zero, scale, SpriteEffects.None, draw_layer);
+			b.Draw(texture, new Vector2(x + width - (int)((float)cornerSize * scale), y + height - (int)((float)cornerSize * scale)), new Rectangle(sourceRect.X + cornerSize * 2, cornerSize * 2 + sourceRect.Y, cornerSize, cornerSize), color, 0f, Vector2.Zero, scale, SpriteEffects.None, draw_layer);
+			b.Draw(texture, new Rectangle(x + (int)((float)cornerSize * scale), y, width - (int)((float)cornerSize * scale) * 2, (int)((float)cornerSize * scale)), new Rectangle(sourceRect.X + cornerSize, sourceRect.Y, cornerSize, cornerSize), color, 0f, Vector2.Zero, SpriteEffects.None, draw_layer);
+			b.Draw(texture, new Rectangle(x + (int)((float)cornerSize * scale), y + height - (int)((float)cornerSize * scale), width - (int)((float)cornerSize * scale) * 2, (int)((float)cornerSize * scale)), new Rectangle(sourceRect.X + cornerSize, cornerSize * 2 + sourceRect.Y, cornerSize, cornerSize), color, 0f, Vector2.Zero, SpriteEffects.None, draw_layer);
+			b.Draw(texture, new Rectangle(x, y + (int)((float)cornerSize * scale), (int)((float)cornerSize * scale), height - (int)((float)cornerSize * scale) * 2), new Rectangle(sourceRect.X, cornerSize + sourceRect.Y, cornerSize, cornerSize), color, 0f, Vector2.Zero, SpriteEffects.None, draw_layer);
+			b.Draw(texture, new Rectangle(x + width - (int)((float)cornerSize * scale), y + (int)((float)cornerSize * scale), (int)((float)cornerSize * scale), height - (int)((float)cornerSize * scale) * 2), new Rectangle(sourceRect.X + cornerSize * 2, cornerSize + sourceRect.Y, cornerSize, cornerSize), color, 0f, Vector2.Zero, SpriteEffects.None, draw_layer);
 		}
 
 		public void drawBorderLabel(SpriteBatch b, string text, SpriteFont font, int x, int y)
@@ -910,10 +1006,20 @@ namespace StardewValley.Menus
 				int buffer = 92;
 				width2 = (int)Math.Max(width2, Math.Max(Game1.smallFont.MeasureString(Game1.content.LoadString("Strings\\UI:ItemHover_Energy", maxStat)).X + (float)buffer, Game1.smallFont.MeasureString(Game1.content.LoadString("Strings\\UI:ItemHover_Health", maxStat)).X + (float)buffer));
 			}
-			drawHoverText(b, hoverText, Game1.smallFont, heldItem ? 40 : 0, heldItem ? 40 : 0, moneyAmountToShowAtBottom, hoverTitle, edibleItem ? ((int)(hoveredItem as Object).edibility) : (-1), (edibleItem && Game1.objectInformation[(hoveredItem as Object).parentSheetIndex].Split('/').Length > 7) ? Game1.objectInformation[(hoveredItem as Object).parentSheetIndex].Split('/')[7].Split(' ') : null, hoveredItem, currencySymbol, extraItemToShowIndex, extraItemToShowAmount, -1, -1, 1f, craftingIngredients);
+			drawHoverText(b, hoverText, Game1.smallFont, heldItem ? 40 : 0, heldItem ? 40 : 0, moneyAmountToShowAtBottom, hoverTitle, edibleItem ? ((int)(hoveredItem as Object).edibility) : (-1), (edibleItem && Game1.objectInformation[(hoveredItem as Object).parentSheetIndex].Split('/').Length > 7) ? hoveredItem.ModifyItemBuffs(Game1.objectInformation[(hoveredItem as Object).parentSheetIndex].Split('/')[7].Split(' ')) : null, hoveredItem, currencySymbol, extraItemToShowIndex, extraItemToShowAmount, -1, -1, 1f, craftingIngredients);
 		}
 
 		public static void drawHoverText(SpriteBatch b, string text, SpriteFont font, int xOffset = 0, int yOffset = 0, int moneyAmountToDisplayAtBottom = -1, string boldTitleText = null, int healAmountToDisplay = -1, string[] buffIconsToDisplay = null, Item hoveredItem = null, int currencySymbol = 0, int extraItemToShowIndex = -1, int extraItemToShowAmount = -1, int overrideX = -1, int overrideY = -1, float alpha = 1f, CraftingRecipe craftingIngredients = null, IList<Item> additional_craft_materials = null)
+		{
+			StringBuilder sb = null;
+			if (text != null)
+			{
+				sb = new StringBuilder(text);
+			}
+			drawHoverText(b, sb, font, xOffset, yOffset, moneyAmountToDisplayAtBottom, boldTitleText, healAmountToDisplay, buffIconsToDisplay, hoveredItem, currencySymbol, extraItemToShowIndex, extraItemToShowAmount, overrideX, overrideY, alpha, craftingIngredients, additional_craft_materials);
+		}
+
+		public static void drawHoverText(SpriteBatch b, StringBuilder text, SpriteFont font, int xOffset = 0, int yOffset = 0, int moneyAmountToDisplayAtBottom = -1, string boldTitleText = null, int healAmountToDisplay = -1, string[] buffIconsToDisplay = null, Item hoveredItem = null, int currencySymbol = 0, int extraItemToShowIndex = -1, int extraItemToShowAmount = -1, int overrideX = -1, int overrideY = -1, float alpha = 1f, CraftingRecipe craftingIngredients = null, IList<Item> additional_craft_materials = null)
 		{
 			if (text == null || text.Length == 0)
 			{
@@ -925,7 +1031,7 @@ namespace StardewValley.Menus
 				boldTitleText = null;
 			}
 			int width = Math.Max((healAmountToDisplay != -1) ? ((int)font.MeasureString(healAmountToDisplay + "+ Energy" + 32).X) : 0, Math.Max((int)font.MeasureString(text).X, (boldTitleText != null) ? ((int)Game1.dialogueFont.MeasureString(boldTitleText).X) : 0)) + 32;
-			int height = Math.Max(20 * 3, (int)font.MeasureString(text).Y + 32 + (int)((moneyAmountToDisplayAtBottom > -1) ? (font.MeasureString(string.Concat(moneyAmountToDisplayAtBottom)).Y + 4f) : 8f) + (int)((boldTitleText != null) ? (Game1.dialogueFont.MeasureString(boldTitleText).Y + 16f) : 0f));
+			int height2 = Math.Max(20 * 3, (int)font.MeasureString(text).Y + 32 + (int)((moneyAmountToDisplayAtBottom > -1) ? (font.MeasureString(string.Concat(moneyAmountToDisplayAtBottom)).Y + 4f) : 8f) + (int)((boldTitleText != null) ? (Game1.dialogueFont.MeasureString(boldTitleText).Y + 16f) : 0f));
 			if (extraItemToShowIndex != -1)
 			{
 				string[] split = Game1.objectInformation[extraItemToShowIndex].Split('/');
@@ -944,33 +1050,41 @@ namespace StardewValley.Menus
 				{
 					if (!buffIconsToDisplay[k].Equals("0"))
 					{
-						height += 34;
+						height2 += 34;
 					}
 				}
-				height += 4;
+				height2 += 4;
 			}
 			if (craftingIngredients != null && Game1.options.showAdvancedCraftingInformation && craftingIngredients.getCraftCountText() != null)
 			{
-				height += (int)font.MeasureString("T").Y;
+				height2 += (int)font.MeasureString("T").Y;
 			}
 			string categoryName = null;
 			if (hoveredItem != null)
 			{
-				height += 68 * hoveredItem.attachmentSlots();
+				height2 += 68 * hoveredItem.attachmentSlots();
 				categoryName = hoveredItem.getCategoryName();
 				if (categoryName.Length > 0)
 				{
 					width = Math.Max(width, (int)font.MeasureString(categoryName).X + 32);
-					height += (int)font.MeasureString("T").Y;
+					height2 += (int)font.MeasureString("T").Y;
 				}
 				int maxStat = 9999;
 				int buffer = 92;
-				Point p = hoveredItem.getExtraSpaceNeededForTooltipSpecialIcons(font, width, buffer, height, text, boldTitleText, moneyAmountToDisplayAtBottom);
+				Point p = hoveredItem.getExtraSpaceNeededForTooltipSpecialIcons(font, width, buffer, height2, text, boldTitleText, moneyAmountToDisplayAtBottom);
 				width = ((p.X != 0) ? p.X : width);
-				height = ((p.Y != 0) ? p.Y : height);
+				height2 = ((p.Y != 0) ? p.Y : height2);
+				if (hoveredItem is MeleeWeapon && (hoveredItem as MeleeWeapon).GetTotalForgeLevels() > 0)
+				{
+					height2 += (int)font.MeasureString("T").Y;
+				}
+				if (hoveredItem is MeleeWeapon && (hoveredItem as MeleeWeapon).GetEnchantmentLevel<GalaxySoulEnchantment>() > 0)
+				{
+					height2 += (int)font.MeasureString("T").Y;
+				}
 				if (hoveredItem is Object && (int)(hoveredItem as Object).edibility != -300)
 				{
-					height = ((healAmountToDisplay == -1) ? (height + 40) : (height + 40 * ((healAmountToDisplay <= 0) ? 1 : 2)));
+					height2 = ((healAmountToDisplay == -1) ? (height2 + 40) : (height2 + 40 * ((healAmountToDisplay <= 0) ? 1 : 2)));
 					healAmountToDisplay = (hoveredItem as Object).staminaRecoveredOnConsumption();
 					width = (int)Math.Max(width, Math.Max(font.MeasureString(Game1.content.LoadString("Strings\\UI:ItemHover_Energy", maxStat)).X + (float)buffer, font.MeasureString(Game1.content.LoadString("Strings\\UI:ItemHover_Health", maxStat)).X + (float)buffer));
 				}
@@ -998,82 +1112,101 @@ namespace StardewValley.Menus
 					}
 				}
 				width = (int)Math.Max(Game1.dialogueFont.MeasureString(boldTitleText).X + small_text_size.X + 12f, 384f);
-				height += craftingIngredients.getDescriptionHeight(width - 8) + ((healAmountToDisplay == -1) ? (-32) : 0);
+				height2 += craftingIngredients.getDescriptionHeight(width - 8) + ((healAmountToDisplay == -1) ? (-32) : 0);
 			}
 			else if (bold_title_subtext != null && boldTitleText != null)
 			{
 				small_text_size = Game1.smallFont.MeasureString(bold_title_subtext);
 				width = (int)Math.Max(width, Game1.dialogueFont.MeasureString(boldTitleText).X + small_text_size.X + 12f);
 			}
-			if (hoveredItem is FishingRod && moneyAmountToDisplayAtBottom > -1)
-			{
-				height += (int)font.MeasureString("T").Y;
-			}
 			int x = Game1.getOldMouseX() + 32 + xOffset;
-			int y5 = Game1.getOldMouseY() + 32 + yOffset;
+			int y4 = Game1.getOldMouseY() + 32 + yOffset;
 			if (overrideX != -1)
 			{
 				x = overrideX;
 			}
 			if (overrideY != -1)
 			{
-				y5 = overrideY;
+				y4 = overrideY;
 			}
 			if (x + width > Utility.getSafeArea().Right)
 			{
 				x = Utility.getSafeArea().Right - width;
-				y5 += 16;
+				y4 += 16;
 			}
-			if (y5 + height > Utility.getSafeArea().Bottom)
+			if (y4 + height2 > Utility.getSafeArea().Bottom)
 			{
 				x += 16;
 				if (x + width > Utility.getSafeArea().Right)
 				{
 					x = Utility.getSafeArea().Right - width;
 				}
-				y5 = Utility.getSafeArea().Bottom - height;
+				y4 = Utility.getSafeArea().Bottom - height2;
 			}
-			drawTextureBox(b, Game1.menuTexture, new Rectangle(0, 256, 60, 60), x, y5, width + ((craftingIngredients != null) ? 21 : 0), height, Color.White * alpha);
+			drawTextureBox(b, Game1.menuTexture, new Rectangle(0, 256, 60, 60), x, y4, width + ((craftingIngredients != null) ? 21 : 0), height2, Color.White * alpha);
 			if (boldTitleText != null)
 			{
 				Vector2 bold_text_size = Game1.dialogueFont.MeasureString(boldTitleText);
-				drawTextureBox(b, Game1.menuTexture, new Rectangle(0, 256, 60, 60), x, y5, width + ((craftingIngredients != null) ? 21 : 0), (int)Game1.dialogueFont.MeasureString(boldTitleText).Y + 32 + (int)((hoveredItem != null && categoryName.Length > 0) ? font.MeasureString("asd").Y : 0f) - 4, Color.White * alpha, 1f, drawShadow: false);
-				b.Draw(Game1.menuTexture, new Rectangle(x + 12, y5 + (int)Game1.dialogueFont.MeasureString(boldTitleText).Y + 32 + (int)((hoveredItem != null && categoryName.Length > 0) ? font.MeasureString("asd").Y : 0f) - 4, width - 4 * ((craftingIngredients != null) ? 1 : 6), 4), new Rectangle(44, 300, 4, 4), Color.White);
-				b.DrawString(Game1.dialogueFont, boldTitleText, new Vector2(x + 16, y5 + 16 + 4) + new Vector2(2f, 2f), Game1.textShadowColor);
-				b.DrawString(Game1.dialogueFont, boldTitleText, new Vector2(x + 16, y5 + 16 + 4) + new Vector2(0f, 2f), Game1.textShadowColor);
-				b.DrawString(Game1.dialogueFont, boldTitleText, new Vector2(x + 16, y5 + 16 + 4), Game1.textColor);
+				drawTextureBox(b, Game1.menuTexture, new Rectangle(0, 256, 60, 60), x, y4, width + ((craftingIngredients != null) ? 21 : 0), (int)Game1.dialogueFont.MeasureString(boldTitleText).Y + 32 + (int)((hoveredItem != null && categoryName.Length > 0) ? font.MeasureString("asd").Y : 0f) - 4, Color.White * alpha, 1f, drawShadow: false);
+				b.Draw(Game1.menuTexture, new Rectangle(x + 12, y4 + (int)Game1.dialogueFont.MeasureString(boldTitleText).Y + 32 + (int)((hoveredItem != null && categoryName.Length > 0) ? font.MeasureString("asd").Y : 0f) - 4, width - 4 * ((craftingIngredients != null) ? 1 : 6), 4), new Rectangle(44, 300, 4, 4), Color.White);
+				b.DrawString(Game1.dialogueFont, boldTitleText, new Vector2(x + 16, y4 + 16 + 4) + new Vector2(2f, 2f), Game1.textShadowColor);
+				b.DrawString(Game1.dialogueFont, boldTitleText, new Vector2(x + 16, y4 + 16 + 4) + new Vector2(0f, 2f), Game1.textShadowColor);
+				b.DrawString(Game1.dialogueFont, boldTitleText, new Vector2(x + 16, y4 + 16 + 4), Game1.textColor);
 				if (bold_title_subtext != null)
 				{
-					Utility.drawTextWithShadow(b, bold_title_subtext, Game1.smallFont, new Vector2((float)(x + 16) + bold_text_size.X, (int)((float)(y5 + 16 + 4) + bold_text_size.Y / 2f - small_text_size.Y / 2f)), Game1.textColor);
+					Utility.drawTextWithShadow(b, bold_title_subtext, Game1.smallFont, new Vector2((float)(x + 16) + bold_text_size.X, (int)((float)(y4 + 16 + 4) + bold_text_size.Y / 2f - small_text_size.Y / 2f)), Game1.textColor);
 				}
-				y5 += (int)Game1.dialogueFont.MeasureString(boldTitleText).Y;
+				y4 += (int)Game1.dialogueFont.MeasureString(boldTitleText).Y;
 			}
 			if (hoveredItem != null && categoryName.Length > 0)
 			{
-				y5 -= 4;
-				Utility.drawTextWithShadow(b, categoryName, font, new Vector2(x + 16, y5 + 16 + 4), hoveredItem.getCategoryColor(), 1f, -1f, 2, 2);
-				y5 += (int)font.MeasureString("T").Y + ((boldTitleText != null) ? 16 : 0) + 4;
+				y4 -= 4;
+				Utility.drawTextWithShadow(b, categoryName, font, new Vector2(x + 16, y4 + 16 + 4), hoveredItem.getCategoryColor(), 1f, -1f, 2, 2);
+				y4 += (int)font.MeasureString("T").Y + ((boldTitleText != null) ? 16 : 0) + 4;
+				if (hoveredItem is Tool && (hoveredItem as Tool).GetTotalForgeLevels() > 0)
+				{
+					string forged_string2 = Game1.content.LoadString("Strings\\UI:Item_Tooltip_Forged");
+					Utility.drawTextWithShadow(b, forged_string2, font, new Vector2(x + 16, y4 + 16 + 4), Color.DarkRed, 1f, -1f, 2, 2);
+					int forges = (hoveredItem as Tool).GetTotalForgeLevels();
+					if (forges < (hoveredItem as Tool).GetMaxForges() && !(hoveredItem as Tool).hasEnchantmentOfType<DiamondEnchantment>())
+					{
+						Utility.drawTextWithShadow(b, " (" + forges + "/" + (hoveredItem as Tool).GetMaxForges() + ")", font, new Vector2((float)(x + 16) + font.MeasureString(forged_string2).X, y4 + 16 + 4), Color.DimGray, 1f, -1f, 2, 2);
+					}
+					y4 += (int)font.MeasureString("T").Y;
+				}
+				if (hoveredItem is MeleeWeapon && (hoveredItem as MeleeWeapon).GetEnchantmentLevel<GalaxySoulEnchantment>() > 0)
+				{
+					GalaxySoulEnchantment enchantment = (hoveredItem as MeleeWeapon).GetEnchantmentOfType<GalaxySoulEnchantment>();
+					string forged_string = Game1.content.LoadString("Strings\\UI:Item_Tooltip_GalaxyForged");
+					Utility.drawTextWithShadow(b, forged_string, font, new Vector2(x + 16, y4 + 16 + 4), Color.DarkRed, 1f, -1f, 2, 2);
+					int level = enchantment.GetLevel();
+					if (level < enchantment.GetMaximumLevel())
+					{
+						Utility.drawTextWithShadow(b, " (" + level + "/" + enchantment.GetMaximumLevel() + ")", font, new Vector2((float)(x + 16) + font.MeasureString(forged_string).X, y4 + 16 + 4), Color.DimGray, 1f, -1f, 2, 2);
+					}
+					y4 += (int)font.MeasureString("T").Y;
+				}
 			}
 			else
 			{
-				y5 += ((boldTitleText != null) ? 16 : 0);
+				y4 += ((boldTitleText != null) ? 16 : 0);
 			}
 			if (hoveredItem != null && craftingIngredients == null)
 			{
-				hoveredItem.drawTooltip(b, ref x, ref y5, font, alpha, text);
+				hoveredItem.drawTooltip(b, ref x, ref y4, font, alpha, text);
 			}
-			else if (!string.IsNullOrEmpty(text) && text != " ")
+			else if (text != null && text.Length != 0 && (text.Length != 1 || text[0] != ' '))
 			{
-				b.DrawString(font, text, new Vector2(x + 16, y5 + 16 + 4) + new Vector2(2f, 2f), Game1.textShadowColor * alpha);
-				b.DrawString(font, text, new Vector2(x + 16, y5 + 16 + 4) + new Vector2(0f, 2f), Game1.textShadowColor * alpha);
-				b.DrawString(font, text, new Vector2(x + 16, y5 + 16 + 4) + new Vector2(2f, 0f), Game1.textShadowColor * alpha);
-				b.DrawString(font, text, new Vector2(x + 16, y5 + 16 + 4), Game1.textColor * 0.9f * alpha);
-				y5 += (int)font.MeasureString(text).Y + 4;
+				b.DrawString(font, text, new Vector2(x + 16, y4 + 16 + 4) + new Vector2(2f, 2f), Game1.textShadowColor * alpha);
+				b.DrawString(font, text, new Vector2(x + 16, y4 + 16 + 4) + new Vector2(0f, 2f), Game1.textShadowColor * alpha);
+				b.DrawString(font, text, new Vector2(x + 16, y4 + 16 + 4) + new Vector2(2f, 0f), Game1.textShadowColor * alpha);
+				b.DrawString(font, text, new Vector2(x + 16, y4 + 16 + 4), Game1.textColor * 0.9f * alpha);
+				y4 += (int)font.MeasureString(text).Y + 4;
 			}
 			if (craftingIngredients != null)
 			{
-				craftingIngredients.drawRecipeDescription(b, new Vector2(x + 16, y5 - 8), width, additional_craft_materials);
-				y5 += craftingIngredients.getDescriptionHeight(width - 8);
+				craftingIngredients.drawRecipeDescription(b, new Vector2(x + 16, y4 - 8), width, additional_craft_materials);
+				y4 += craftingIngredients.getDescriptionHeight(width - 8);
 			}
 			if (healAmountToDisplay != -1)
 			{
@@ -1081,21 +1214,21 @@ namespace StardewValley.Menus
 				if (stamina_recovery >= 0)
 				{
 					int health_recovery = (hoveredItem as Object).healthRecoveredOnConsumption();
-					Utility.drawWithShadow(b, Game1.mouseCursors, new Vector2(x + 16 + 4, y5 + 16), new Rectangle((stamina_recovery < 0) ? 140 : 0, 428, 10, 10), Color.White, 0f, Vector2.Zero, 3f, flipped: false, 0.95f);
-					Utility.drawTextWithShadow(b, Game1.content.LoadString("Strings\\UI:ItemHover_Energy", ((stamina_recovery > 0) ? "+" : "") + stamina_recovery), font, new Vector2(x + 16 + 34 + 4, y5 + 16), Game1.textColor);
-					y5 += 34;
+					Utility.drawWithShadow(b, Game1.mouseCursors, new Vector2(x + 16 + 4, y4 + 16), new Rectangle((stamina_recovery < 0) ? 140 : 0, 428, 10, 10), Color.White, 0f, Vector2.Zero, 3f, flipped: false, 0.95f);
+					Utility.drawTextWithShadow(b, Game1.content.LoadString("Strings\\UI:ItemHover_Energy", ((stamina_recovery > 0) ? "+" : "") + stamina_recovery), font, new Vector2(x + 16 + 34 + 4, y4 + 16), Game1.textColor);
+					y4 += 34;
 					if (health_recovery > 0)
 					{
-						Utility.drawWithShadow(b, Game1.mouseCursors, new Vector2(x + 16 + 4, y5 + 16), new Rectangle(0, 438, 10, 10), Color.White, 0f, Vector2.Zero, 3f, flipped: false, 0.95f);
-						Utility.drawTextWithShadow(b, Game1.content.LoadString("Strings\\UI:ItemHover_Health", ((health_recovery > 0) ? "+" : "") + health_recovery), font, new Vector2(x + 16 + 34 + 4, y5 + 16), Game1.textColor);
+						Utility.drawWithShadow(b, Game1.mouseCursors, new Vector2(x + 16 + 4, y4 + 16), new Rectangle(0, 438, 10, 10), Color.White, 0f, Vector2.Zero, 3f, flipped: false, 0.95f);
+						Utility.drawTextWithShadow(b, Game1.content.LoadString("Strings\\UI:ItemHover_Health", ((health_recovery > 0) ? "+" : "") + health_recovery), font, new Vector2(x + 16 + 34 + 4, y4 + 16), Game1.textColor);
+						y4 += 34;
 					}
-					y5 += 34;
 				}
 				else if (stamina_recovery != -300)
 				{
-					Utility.drawWithShadow(b, Game1.mouseCursors, new Vector2(x + 16 + 4, y5 + 16), new Rectangle(140, 428, 10, 10), Color.White, 0f, Vector2.Zero, 3f, flipped: false, 0.95f);
-					Utility.drawTextWithShadow(b, Game1.content.LoadString("Strings\\UI:ItemHover_Energy", string.Concat(stamina_recovery)), font, new Vector2(x + 16 + 34 + 4, y5 + 16), Game1.textColor);
-					y5 += 34;
+					Utility.drawWithShadow(b, Game1.mouseCursors, new Vector2(x + 16 + 4, y4 + 16), new Rectangle(140, 428, 10, 10), Color.White, 0f, Vector2.Zero, 3f, flipped: false, 0.95f);
+					Utility.drawTextWithShadow(b, Game1.content.LoadString("Strings\\UI:ItemHover_Energy", string.Concat(stamina_recovery)), font, new Vector2(x + 16 + 34 + 4, y4 + 16), Game1.textColor);
+					y4 += 34;
 				}
 			}
 			if (buffIconsToDisplay != null)
@@ -1104,67 +1237,69 @@ namespace StardewValley.Menus
 				{
 					if (!buffIconsToDisplay[i].Equals("0"))
 					{
-						Utility.drawWithShadow(b, Game1.mouseCursors, new Vector2(x + 16 + 4, y5 + 16), new Rectangle(10 + i * 10, 428, 10, 10), Color.White, 0f, Vector2.Zero, 3f, flipped: false, 0.95f);
+						Utility.drawWithShadow(b, Game1.mouseCursors, new Vector2(x + 16 + 4, y4 + 16), new Rectangle(10 + i * 10, 428, 10, 10), Color.White, 0f, Vector2.Zero, 3f, flipped: false, 0.95f);
 						string buffName = ((Convert.ToInt32(buffIconsToDisplay[i]) > 0) ? "+" : "") + buffIconsToDisplay[i] + " ";
 						if (i <= 11)
 						{
 							buffName = Game1.content.LoadString("Strings\\UI:ItemHover_Buff" + i, buffName);
 						}
-						Utility.drawTextWithShadow(b, buffName, font, new Vector2(x + 16 + 34 + 4, y5 + 16), Game1.textColor);
-						y5 += 34;
+						Utility.drawTextWithShadow(b, buffName, font, new Vector2(x + 16 + 34 + 4, y4 + 16), Game1.textColor);
+						y4 += 34;
 					}
 				}
 			}
 			if (hoveredItem != null && hoveredItem.attachmentSlots() > 0)
 			{
-				y5 += 16;
-				hoveredItem.drawAttachments(b, x + 16, y5);
+				hoveredItem.drawAttachments(b, x + 16, y4 + 16);
 				if (moneyAmountToDisplayAtBottom > -1)
 				{
-					y5 += 64 * hoveredItem.attachmentSlots();
+					y4 += 68 * hoveredItem.attachmentSlots();
 				}
 			}
 			if (moneyAmountToDisplayAtBottom > -1)
 			{
-				b.DrawString(font, string.Concat(moneyAmountToDisplayAtBottom), new Vector2(x + 16, y5 + 16 + 4) + new Vector2(2f, 2f), Game1.textShadowColor);
-				b.DrawString(font, string.Concat(moneyAmountToDisplayAtBottom), new Vector2(x + 16, y5 + 16 + 4) + new Vector2(0f, 2f), Game1.textShadowColor);
-				b.DrawString(font, string.Concat(moneyAmountToDisplayAtBottom), new Vector2(x + 16, y5 + 16 + 4) + new Vector2(2f, 0f), Game1.textShadowColor);
-				b.DrawString(font, string.Concat(moneyAmountToDisplayAtBottom), new Vector2(x + 16, y5 + 16 + 4), Game1.textColor);
+				b.DrawString(font, string.Concat(moneyAmountToDisplayAtBottom), new Vector2(x + 16, y4 + 16 + 4) + new Vector2(2f, 2f), Game1.textShadowColor);
+				b.DrawString(font, string.Concat(moneyAmountToDisplayAtBottom), new Vector2(x + 16, y4 + 16 + 4) + new Vector2(0f, 2f), Game1.textShadowColor);
+				b.DrawString(font, string.Concat(moneyAmountToDisplayAtBottom), new Vector2(x + 16, y4 + 16 + 4) + new Vector2(2f, 0f), Game1.textShadowColor);
+				b.DrawString(font, string.Concat(moneyAmountToDisplayAtBottom), new Vector2(x + 16, y4 + 16 + 4), Game1.textColor);
 				switch (currencySymbol)
 				{
 				case 0:
-					b.Draw(Game1.debrisSpriteSheet, new Vector2((float)(x + 16) + font.MeasureString(string.Concat(moneyAmountToDisplayAtBottom)).X + 20f, y5 + 16 + 16), Game1.getSourceRectForStandardTileSheet(Game1.debrisSpriteSheet, 8, 16, 16), Color.White, 0f, new Vector2(8f, 8f), 4f, SpriteEffects.None, 0.95f);
+					b.Draw(Game1.debrisSpriteSheet, new Vector2((float)(x + 16) + font.MeasureString(string.Concat(moneyAmountToDisplayAtBottom)).X + 20f, y4 + 16 + 16), Game1.getSourceRectForStandardTileSheet(Game1.debrisSpriteSheet, 8, 16, 16), Color.White, 0f, new Vector2(8f, 8f), 4f, SpriteEffects.None, 0.95f);
 					break;
 				case 1:
-					b.Draw(Game1.mouseCursors, new Vector2((float)(x + 8) + font.MeasureString(string.Concat(moneyAmountToDisplayAtBottom)).X + 20f, y5 + 16 - 5), new Rectangle(338, 400, 8, 8), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
+					b.Draw(Game1.mouseCursors, new Vector2((float)(x + 8) + font.MeasureString(string.Concat(moneyAmountToDisplayAtBottom)).X + 20f, y4 + 16 - 5), new Rectangle(338, 400, 8, 8), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
 					break;
 				case 2:
-					b.Draw(Game1.mouseCursors, new Vector2((float)(x + 8) + font.MeasureString(string.Concat(moneyAmountToDisplayAtBottom)).X + 20f, y5 + 16 - 7), new Rectangle(211, 373, 9, 10), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
+					b.Draw(Game1.mouseCursors, new Vector2((float)(x + 8) + font.MeasureString(string.Concat(moneyAmountToDisplayAtBottom)).X + 20f, y4 + 16 - 7), new Rectangle(211, 373, 9, 10), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
+					break;
+				case 4:
+					b.Draw(Game1.objectSpriteSheet, new Vector2((float)(x + 8) + font.MeasureString(string.Concat(moneyAmountToDisplayAtBottom)).X + 20f, y4 + 16 - 7), Game1.getSourceRectForStandardTileSheet(Game1.objectSpriteSheet, 858, 16, 16), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
 					break;
 				}
-				y5 += 48;
+				y4 += 48;
 			}
 			if (extraItemToShowIndex != -1)
 			{
 				if (moneyAmountToDisplayAtBottom == -1)
 				{
-					y5 += 8;
+					y4 += 8;
 				}
 				string displayName = Game1.objectInformation[extraItemToShowIndex].Split('/')[4];
 				string requirement = Game1.content.LoadString("Strings\\UI:ItemHover_Requirements", extraItemToShowAmount, displayName);
 				float minimum_box_height = Math.Max(font.MeasureString(requirement).Y + 21f, 96f);
-				drawTextureBox(b, Game1.menuTexture, new Rectangle(0, 256, 60, 60), x, y5 + 4, width, (int)minimum_box_height, Color.White);
-				y5 += 20;
-				b.DrawString(font, requirement, new Vector2(x + 16, y5 + 4) + new Vector2(2f, 2f), Game1.textShadowColor);
-				b.DrawString(font, requirement, new Vector2(x + 16, y5 + 4) + new Vector2(0f, 2f), Game1.textShadowColor);
-				b.DrawString(font, requirement, new Vector2(x + 16, y5 + 4) + new Vector2(2f, 0f), Game1.textShadowColor);
-				b.DrawString(Game1.smallFont, requirement, new Vector2(x + 16, y5 + 4), Game1.textColor);
-				b.Draw(Game1.objectSpriteSheet, new Vector2(x + 16 + (int)font.MeasureString(requirement).X + 21, y5), Game1.getSourceRectForStandardTileSheet(Game1.objectSpriteSheet, extraItemToShowIndex, 16, 16), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
+				drawTextureBox(b, Game1.menuTexture, new Rectangle(0, 256, 60, 60), x, y4 + 4, width + ((craftingIngredients != null) ? 21 : 0), (int)minimum_box_height, Color.White);
+				y4 += 20;
+				b.DrawString(font, requirement, new Vector2(x + 16, y4 + 4) + new Vector2(2f, 2f), Game1.textShadowColor);
+				b.DrawString(font, requirement, new Vector2(x + 16, y4 + 4) + new Vector2(0f, 2f), Game1.textShadowColor);
+				b.DrawString(font, requirement, new Vector2(x + 16, y4 + 4) + new Vector2(2f, 0f), Game1.textShadowColor);
+				b.DrawString(Game1.smallFont, requirement, new Vector2(x + 16, y4 + 4), Game1.textColor);
+				b.Draw(Game1.objectSpriteSheet, new Vector2(x + 16 + (int)font.MeasureString(requirement).X + 21, y4), Game1.getSourceRectForStandardTileSheet(Game1.objectSpriteSheet, extraItemToShowIndex, 16, 16), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
 			}
 			if (craftingIngredients != null && Game1.options.showAdvancedCraftingInformation)
 			{
-				Utility.drawTextWithShadow(b, craftingIngredients.getCraftCountText(), font, new Vector2(x + 16, y5 + 16 + 4), Game1.textColor, 1f, -1f, 2, 2);
-				y5 += (int)font.MeasureString("T").Y + 4;
+				Utility.drawTextWithShadow(b, craftingIngredients.getCraftCountText(), font, new Vector2(x + 16, y4 + 16 + 4), Game1.textColor, 1f, -1f, 2, 2);
+				y4 += (int)font.MeasureString("T").Y + 4;
 			}
 		}
 	}

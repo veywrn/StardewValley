@@ -1,5 +1,6 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using Microsoft.Xna.Framework.Input;
 using Netcode;
 using StardewValley.Projectiles;
 using System;
@@ -35,6 +36,12 @@ namespace StardewValley.Tools
 		[XmlIgnore]
 		public int mouseDragAmount;
 
+		[XmlIgnore]
+		public double pullStartTime = -1.0;
+
+		[XmlIgnore]
+		public float nextAutoFire = -1f;
+
 		private bool canPlaySound;
 
 		[XmlIgnore]
@@ -56,7 +63,10 @@ namespace StardewValley.Tools
 
 		public override Item getOne()
 		{
-			return new Slingshot();
+			Slingshot slingshot = new Slingshot();
+			CopyEnchantments(this, slingshot);
+			slingshot._GetOneFrom(this);
+			return slingshot;
 		}
 
 		protected override string loadDisplayName()
@@ -97,17 +107,40 @@ namespace StardewValley.Tools
 			finishEvent.onEvent += doFinish;
 		}
 
+		public int GetBackArmDistance(Farmer who)
+		{
+			if (CanAutoFire() && nextAutoFire > 0f)
+			{
+				return (int)Utility.Lerp(20f, 0f, nextAutoFire / GetAutoFireRate());
+			}
+			if (!Game1.options.useLegacySlingshotFiring)
+			{
+				return (int)(20f * GetSlingshotChargeTime());
+			}
+			return Math.Min(20, (int)Vector2.Distance(who.getStandingPosition(), new Vector2(aimPos.X, aimPos.Y)) / 20);
+		}
+
 		public override void DoFunction(GameLocation location, int x, int y, int power, Farmer who)
 		{
 			base.IndexOfMenuItemView = base.InitialParentTileIndex;
+			if (!CanAutoFire())
+			{
+				PerformFire(location, who);
+			}
+			finish();
+		}
+
+		public virtual void PerformFire(GameLocation location, Farmer who)
+		{
 			if (attachments[0] != null)
 			{
 				updateAimPos();
 				int mouseX = aimPos.X;
 				int mouseY = aimPos.Y;
-				int num = Math.Min(20, (int)Vector2.Distance(new Vector2(who.getStandingX(), who.getStandingY() - 64), new Vector2(mouseX, mouseY)) / 20);
-				Vector2 v = Utility.getVelocityTowardPoint(new Point(who.getStandingX(), who.getStandingY() + 64), new Vector2(mouseX, mouseY + 64), (float)(15 + Game1.random.Next(4, 6)) * (1f + who.weaponSpeedModifier));
-				if (num > 4 && !canPlaySound)
+				int backArmDistance = GetBackArmDistance(who);
+				Vector2 shoot_origin = GetShootOrigin(who);
+				Vector2 v = Utility.getVelocityTowardPoint(GetShootOrigin(who), AdjustForHeight(new Vector2(mouseX, mouseY)), (float)(15 + Game1.random.Next(4, 6)) * (1f + who.weaponSpeedModifier));
+				if (backArmDistance > 4 && !canPlaySound)
 				{
 					Object ammunition = (Object)attachments[0].getOne();
 					attachments[0].Stack--;
@@ -168,9 +201,14 @@ namespace StardewValley.Tools
 					{
 						collisionSound = "slimedead";
 					}
-					location.projectiles.Add(new BasicProjectile((int)(damageMod * (float)(damage + Game1.random.Next(-(damage / 2), damage + 2)) * (1f + who.attackIncreaseModifier)), ammunition.ParentSheetIndex, 0, 0, (float)(Math.PI / (double)(64f + (float)Game1.random.Next(-63, 64))), 0f - v.X, 0f - v.Y, new Vector2(who.getStandingX() - 16, who.getStandingY() - 64 - 8), collisionSound, "", explode: false, damagesMonsters: true, location, who, spriteFromObjectSheet: true, collisionBehavior)
+					if (!Game1.options.useLegacySlingshotFiring)
 					{
-						IgnoreLocationCollision = (Game1.currentLocation.currentEvent != null)
+						v.X *= -1f;
+						v.Y *= -1f;
+					}
+					location.projectiles.Add(new BasicProjectile((int)(damageMod * (float)(damage + Game1.random.Next(-(damage / 2), damage + 2)) * (1f + who.attackIncreaseModifier)), ammunition.ParentSheetIndex, 0, 0, (float)(Math.PI / (double)(64f + (float)Game1.random.Next(-63, 64))), 0f - v.X, 0f - v.Y, shoot_origin - new Vector2(32f, 32f), collisionSound, "", explode: false, damagesMonsters: true, location, who, spriteFromObjectSheet: true, collisionBehavior)
+					{
+						IgnoreLocationCollision = (Game1.currentLocation.currentEvent != null || Game1.currentMinigame != null)
 					});
 				}
 			}
@@ -179,7 +217,20 @@ namespace StardewValley.Tools
 				Game1.showRedMessage(Game1.content.LoadString("Strings\\StringsFromCSFiles:Slingshot.cs.14254"));
 			}
 			canPlaySound = true;
-			finish();
+		}
+
+		public Vector2 GetShootOrigin(Farmer who)
+		{
+			return AdjustForHeight(new Vector2(who.getStandingX(), who.getStandingY()), for_cursor: false);
+		}
+
+		public Vector2 AdjustForHeight(Vector2 position, bool for_cursor = true)
+		{
+			if (!Game1.options.useLegacySlingshotFiring && for_cursor)
+			{
+				return new Vector2(position.X, position.Y);
+			}
+			return new Vector2(position.X, position.Y - 32f - 8f);
 		}
 
 		public void finish()
@@ -189,11 +240,18 @@ namespace StardewValley.Tools
 
 		private void doFinish()
 		{
-			lastUser.usingSlingshot = false;
-			lastUser.canReleaseTool = true;
-			lastUser.UsingTool = false;
-			lastUser.canMove = true;
-			lastUser.Halt();
+			if (lastUser != null)
+			{
+				lastUser.usingSlingshot = false;
+				lastUser.canReleaseTool = true;
+				lastUser.UsingTool = false;
+				lastUser.canMove = true;
+				lastUser.Halt();
+				if (lastUser == Game1.player && Game1.options.gamepadControls)
+				{
+					Game1.game1.controllerSlingshotSafeTime = 0.2f;
+				}
+			}
 		}
 
 		public override bool canThisBeAttached(Object o)
@@ -243,44 +301,93 @@ namespace StardewValley.Tools
 			{
 				return true;
 			}
-			double mouseX3 = Game1.getOldMouseX() + Game1.viewport.X - who.getStandingX();
-			double mouseY3 = Game1.getOldMouseY() + Game1.viewport.Y - who.getStandingY();
-			if (Math.Abs(mouseX3) > Math.Abs(mouseY3))
-			{
-				mouseX3 /= Math.Abs(mouseX3);
-				mouseY3 = 0.5;
-			}
-			else
-			{
-				mouseY3 /= Math.Abs(mouseY3);
-				mouseX3 = 0.0;
-			}
-			mouseX3 *= 16.0;
-			mouseY3 *= 16.0;
 			Game1.oldMouseState = Game1.input.GetMouseState();
 			Game1.lastMousePositionBeforeFade = Game1.getMousePosition();
 			lastClickX = Game1.getOldMouseX() + Game1.viewport.X;
 			lastClickY = Game1.getOldMouseY() + Game1.viewport.Y;
+			pullStartTime = Game1.currentGameTime.TotalGameTime.TotalSeconds;
+			if (CanAutoFire())
+			{
+				nextAutoFire = -1f;
+			}
 			updateAimPos();
 			return true;
 		}
 
+		public virtual float GetAutoFireRate()
+		{
+			return 0.3f;
+		}
+
+		public virtual bool CanAutoFire()
+		{
+			return false;
+		}
+
 		private void updateAimPos()
 		{
-			if (lastUser != null && lastUser.IsLocalPlayer)
+			if (lastUser == null || !lastUser.IsLocalPlayer)
 			{
-				Point mousePos = Game1.getMousePosition();
-				if (Game1.options.gamepadControls)
-				{
-					mousePos = Utility.Vector2ToPoint(lastUser.getStandingPosition() + new Vector2(Game1.oldPadState.ThumbSticks.Left.X, 0f - Game1.oldPadState.ThumbSticks.Left.Y) * 64f * 4f);
-					mousePos.X -= Game1.viewport.X;
-					mousePos.Y -= Game1.viewport.Y;
-				}
-				int mouseX = mousePos.X + Game1.viewport.X;
-				int mouseY = mousePos.Y + Game1.viewport.Y;
-				aimPos.X = mouseX;
-				aimPos.Y = mouseY;
+				return;
 			}
+			Point mousePos = Game1.getMousePosition();
+			if (Game1.options.gamepadControls && !Game1.lastCursorMotionWasMouse)
+			{
+				Vector2 stick = Game1.oldPadState.ThumbSticks.Left;
+				if (stick.Length() < 0.25f)
+				{
+					stick.X = 0f;
+					stick.Y = 0f;
+					if (Game1.oldPadState.DPad.Down == ButtonState.Pressed)
+					{
+						stick.Y = -1f;
+					}
+					else if (Game1.oldPadState.DPad.Up == ButtonState.Pressed)
+					{
+						stick.Y = 1f;
+					}
+					if (Game1.oldPadState.DPad.Left == ButtonState.Pressed)
+					{
+						stick.X = -1f;
+					}
+					if (Game1.oldPadState.DPad.Right == ButtonState.Pressed)
+					{
+						stick.X = 1f;
+					}
+					if (stick.X != 0f && stick.Y != 0f)
+					{
+						stick.Normalize();
+						stick *= 1f;
+					}
+				}
+				Vector2 shootOrigin = GetShootOrigin(lastUser);
+				if (!Game1.options.useLegacySlingshotFiring && stick.Length() < 0.25f)
+				{
+					if ((int)lastUser.facingDirection == 3)
+					{
+						stick = new Vector2(-1f, 0f);
+					}
+					else if ((int)lastUser.facingDirection == 1)
+					{
+						stick = new Vector2(1f, 0f);
+					}
+					else if ((int)lastUser.facingDirection == 0)
+					{
+						stick = new Vector2(0f, 1f);
+					}
+					else if ((int)lastUser.facingDirection == 2)
+					{
+						stick = new Vector2(0f, -1f);
+					}
+				}
+				mousePos = Utility.Vector2ToPoint(shootOrigin + new Vector2(stick.X, 0f - stick.Y) * 600f);
+				mousePos.X -= Game1.viewport.X;
+				mousePos.Y -= Game1.viewport.Y;
+			}
+			int mouseX = mousePos.X + Game1.viewport.X;
+			int mouseY = mousePos.Y + Game1.viewport.Y;
+			aimPos.X = mouseX;
+			aimPos.Y = mouseY;
 		}
 
 		public override void tickUpdate(GameTime time, Farmer who)
@@ -298,15 +405,77 @@ namespace StardewValley.Tools
 				int mouseY = aimPos.Y;
 				Game1.debugOutput = "playerPos: " + who.getStandingPosition().ToString() + ", mousePos: " + mouseX + ", " + mouseY;
 				mouseDragAmount++;
-				who.faceGeneralDirection(new Vector2(mouseX, mouseY), 0, opposite: true);
-				if (canPlaySound && (Math.Abs(mouseX - lastClickX) > 8 || Math.Abs(mouseY - lastClickY) > 8) && mouseDragAmount > 4)
+				if (!Game1.options.useLegacySlingshotFiring)
+				{
+					Vector2 shoot_origin = GetShootOrigin(who);
+					Vector2 aim_offset = AdjustForHeight(new Vector2(mouseX, mouseY)) - shoot_origin;
+					if (Math.Abs(aim_offset.X) > Math.Abs(aim_offset.Y))
+					{
+						if (aim_offset.X < 0f)
+						{
+							who.faceDirection(3);
+						}
+						if (aim_offset.X > 0f)
+						{
+							who.faceDirection(1);
+						}
+					}
+					else
+					{
+						if (aim_offset.Y < 0f)
+						{
+							who.faceDirection(0);
+						}
+						if (aim_offset.Y > 0f)
+						{
+							who.faceDirection(2);
+						}
+					}
+				}
+				else
+				{
+					who.faceGeneralDirection(new Vector2(mouseX, mouseY), 0, opposite: true);
+				}
+				if (!Game1.options.useLegacySlingshotFiring)
+				{
+					if (canPlaySound && GetSlingshotChargeTime() >= 1f)
+					{
+						who.currentLocation.playSound("slingshot");
+						canPlaySound = false;
+					}
+				}
+				else if (canPlaySound && (Math.Abs(mouseX - lastClickX) > 8 || Math.Abs(mouseY - lastClickY) > 8) && mouseDragAmount > 4)
 				{
 					who.currentLocation.playSound("slingshot");
 					canPlaySound = false;
 				}
-				lastClickX = mouseX;
-				lastClickY = mouseY;
-				Game1.mouseCursor = -1;
+				if (!CanAutoFire())
+				{
+					lastClickX = mouseX;
+					lastClickY = mouseY;
+				}
+				if (Game1.options.useLegacySlingshotFiring)
+				{
+					Game1.mouseCursor = -1;
+				}
+				if (CanAutoFire())
+				{
+					bool first_fire = false;
+					if (GetBackArmDistance(who) >= 20 && nextAutoFire < 0f)
+					{
+						nextAutoFire = 0f;
+						first_fire = true;
+					}
+					if ((nextAutoFire > 0f) | first_fire)
+					{
+						nextAutoFire -= (float)time.ElapsedGameTime.TotalSeconds;
+						if (nextAutoFire <= 0f)
+						{
+							PerformFire(who.currentLocation, who);
+							nextAutoFire = GetAutoFireRate();
+						}
+					}
+				}
 			}
 			int offset = (who.FacingDirection == 3 || who.FacingDirection == 1) ? 1 : ((who.FacingDirection == 0) ? 2 : 0);
 			who.FarmerSprite.setCurrentFrame(42 + offset);
@@ -323,24 +492,39 @@ namespace StardewValley.Tools
 			attachments[0].drawInMenu(b, new Vector2(x, y), 1f);
 		}
 
+		public float GetSlingshotChargeTime()
+		{
+			if (pullStartTime < 0.0)
+			{
+				return 0f;
+			}
+			return Utility.Clamp((float)((Game1.currentGameTime.TotalGameTime.TotalSeconds - pullStartTime) / (double)GetRequiredChargeTime()), 0f, 1f);
+		}
+
+		public float GetRequiredChargeTime()
+		{
+			return 0.3f;
+		}
+
 		public override void draw(SpriteBatch b)
 		{
 			if (lastUser.usingSlingshot && lastUser.IsLocalPlayer)
 			{
 				int mouseX = aimPos.X;
 				int mouseY = aimPos.Y;
-				Vector2 v = Utility.getVelocityTowardPoint(new Point(lastUser.getStandingX(), lastUser.getStandingY() + 32), new Vector2(mouseX, mouseY), 256f);
-				if (Math.Abs(v.X) < 1f)
-				{
-					_ = mouseDragAmount;
-					_ = 100;
-				}
+				Vector2 shoot_origin = GetShootOrigin(lastUser);
+				Vector2 v = Utility.getVelocityTowardPoint(shoot_origin, AdjustForHeight(new Vector2(mouseX, mouseY)), 256f);
 				double distanceBetweenRadiusAndSquare = Math.Sqrt(v.X * v.X + v.Y * v.Y) - 181.0;
 				double xPercent = v.X / 256f;
 				double yPercent = v.Y / 256f;
 				int x = (int)((double)v.X - distanceBetweenRadiusAndSquare * xPercent);
 				int y = (int)((double)v.Y - distanceBetweenRadiusAndSquare * yPercent);
-				b.Draw(Game1.mouseCursors, Game1.GlobalToLocal(Game1.viewport, new Vector2(lastUser.getStandingX() - x, lastUser.getStandingY() - 64 - 8 - y)), Game1.getSourceRectForStandardTileSheet(Game1.mouseCursors, 43), Color.White, 0f, new Vector2(32f, 32f), 1f, SpriteEffects.None, 0.999999f);
+				if (!Game1.options.useLegacySlingshotFiring)
+				{
+					x *= -1;
+					y *= -1;
+				}
+				b.Draw(Game1.mouseCursors, Game1.GlobalToLocal(Game1.viewport, new Vector2(shoot_origin.X - (float)x, shoot_origin.Y - (float)y)), Game1.getSourceRectForStandardTileSheet(Game1.mouseCursors, 43), Color.White, 0f, new Vector2(32f, 32f), 1f, SpriteEffects.None, 0.999999f);
 			}
 		}
 

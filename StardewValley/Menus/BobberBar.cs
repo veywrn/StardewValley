@@ -172,12 +172,38 @@ namespace StardewValley.Menus
 				perfect = true;
 				fishQuality = ((!((double)fishSize < 0.33)) ? (((double)fishSize < 0.66) ? 1 : 2) : 0);
 				fishSizeReductionTimer = 800;
+				if (whichBobber == 877)
+				{
+					fishQuality++;
+					if (fishQuality > 2)
+					{
+						fishQuality = 4;
+					}
+				}
 				if (beginnersRod)
 				{
 					fishQuality = 0;
 					fishSize = minFishSize;
 				}
 			}
+			Reposition();
+			if (bobber == 695)
+			{
+				bobberBarHeight += 24;
+			}
+			bobberBarPos = 568 - bobberBarHeight;
+			bobberPosition = 508f;
+			bobberTargetPosition = (100f - difficulty) / 100f * 548f;
+			if (Game1.soundBank != null)
+			{
+				reelSound = Game1.soundBank.GetCue("fastReel");
+			}
+			whichBobber = bobber;
+			Game1.setRichPresence("fishing", Game1.currentLocation.Name);
+		}
+
+		public virtual void Reposition()
+		{
 			switch (Game1.player.FacingDirection)
 			{
 			case 1:
@@ -216,19 +242,12 @@ namespace StardewValley.Menus
 			{
 				yPositionOnScreen = Game1.viewport.Height - 636;
 			}
-			if (bobber == 695)
-			{
-				bobberBarHeight += 24;
-			}
-			bobberBarPos = 568 - bobberBarHeight;
-			bobberPosition = 508f;
-			bobberTargetPosition = (100f - difficulty) / 100f * 548f;
-			if (Game1.soundBank != null)
-			{
-				reelSound = Game1.soundBank.GetCue("fastReel");
-			}
-			whichBobber = bobber;
-			Game1.setRichPresence("fishing", Game1.currentLocation.Name);
+		}
+
+		public override void gameWindowSizeChanged(Rectangle oldBounds, Rectangle newBounds)
+		{
+			base.gameWindowSizeChanged(oldBounds, newBounds);
+			Reposition();
 		}
 
 		public override void receiveLeftClick(int x, int y, bool playSound = true)
@@ -245,6 +264,7 @@ namespace StardewValley.Menus
 
 		public override void update(GameTime time)
 		{
+			Reposition();
 			if (sparkleText != null && sparkleText.update(time))
 			{
 				sparkleText = null;
@@ -581,13 +601,14 @@ namespace StardewValley.Menus
 
 		public override void draw(SpriteBatch b)
 		{
+			Game1.StartWorldDrawInUI(b);
 			b.Draw(Game1.mouseCursors, new Vector2(xPositionOnScreen - (flipBubble ? 44 : 20) + 104, yPositionOnScreen - 16 + 314) + everythingShake, new Rectangle(652, 1685, 52, 157), Color.White * 0.6f * scale, 0f, new Vector2(26f, 78.5f) * scale, 4f * scale, flipBubble ? SpriteEffects.FlipHorizontally : SpriteEffects.None, 0.001f);
 			b.Draw(Game1.mouseCursors, new Vector2(xPositionOnScreen + 70, yPositionOnScreen + 296) + everythingShake, new Rectangle(644, 1999, 37, 150), Color.White * scale, 0f, new Vector2(18.5f, 74f) * scale, 4f * scale, SpriteEffects.None, 0.01f);
 			if (scale == 1f)
 			{
-				b.Draw(Game1.mouseCursors, new Vector2(xPositionOnScreen + 64, yPositionOnScreen + 12 + (int)bobberBarPos) + barShake + everythingShake, new Rectangle(682, 2078, 9, 2), bobberInBar ? Color.White : (Color.White * 0.25f * ((float)Math.Round(Math.Sin(DateTime.Now.TimeOfDay.TotalMilliseconds / 100.0), 2) + 2f)), 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.89f);
-				b.Draw(Game1.mouseCursors, new Vector2(xPositionOnScreen + 64, yPositionOnScreen + 12 + (int)bobberBarPos + 8) + barShake + everythingShake, new Rectangle(682, 2081, 9, 1), bobberInBar ? Color.White : (Color.White * 0.25f * ((float)Math.Round(Math.Sin(DateTime.Now.TimeOfDay.TotalMilliseconds / 100.0), 2) + 2f)), 0f, Vector2.Zero, new Vector2(4f, bobberBarHeight - 16), SpriteEffects.None, 0.89f);
-				b.Draw(Game1.mouseCursors, new Vector2(xPositionOnScreen + 64, yPositionOnScreen + 12 + (int)bobberBarPos + bobberBarHeight - 8) + barShake + everythingShake, new Rectangle(682, 2085, 9, 2), bobberInBar ? Color.White : (Color.White * 0.25f * ((float)Math.Round(Math.Sin(DateTime.Now.TimeOfDay.TotalMilliseconds / 100.0), 2) + 2f)), 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.89f);
+				b.Draw(Game1.mouseCursors, new Vector2(xPositionOnScreen + 64, yPositionOnScreen + 12 + (int)bobberBarPos) + barShake + everythingShake, new Rectangle(682, 2078, 9, 2), bobberInBar ? Color.White : (Color.White * 0.25f * ((float)Math.Round(Math.Sin(Game1.currentGameTime.TotalGameTime.TotalMilliseconds / 100.0), 2) + 2f)), 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.89f);
+				b.Draw(Game1.mouseCursors, new Vector2(xPositionOnScreen + 64, yPositionOnScreen + 12 + (int)bobberBarPos + 8) + barShake + everythingShake, new Rectangle(682, 2081, 9, 1), bobberInBar ? Color.White : (Color.White * 0.25f * ((float)Math.Round(Math.Sin(Game1.currentGameTime.TotalGameTime.TotalMilliseconds / 100.0), 2) + 2f)), 0f, Vector2.Zero, new Vector2(4f, bobberBarHeight - 16), SpriteEffects.None, 0.89f);
+				b.Draw(Game1.mouseCursors, new Vector2(xPositionOnScreen + 64, yPositionOnScreen + 12 + (int)bobberBarPos + bobberBarHeight - 8) + barShake + everythingShake, new Rectangle(682, 2085, 9, 2), bobberInBar ? Color.White : (Color.White * 0.25f * ((float)Math.Round(Math.Sin(Game1.currentGameTime.TotalGameTime.TotalMilliseconds / 100.0), 2) + 2f)), 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.89f);
 				b.Draw(Game1.staminaRect, new Rectangle(xPositionOnScreen + 124, yPositionOnScreen + 4 + (int)(580f * (1f - distanceFromCatching)), 16, (int)(580f * distanceFromCatching)), Utility.getRedToGreenLerpColor(distanceFromCatching));
 				b.Draw(Game1.mouseCursors, new Vector2(xPositionOnScreen + 18, yPositionOnScreen + 514) + everythingShake, new Rectangle(257, 1990, 5, 10), Color.White, reelRotation, new Vector2(2f, 10f), 4f, SpriteEffects.None, 0.9f);
 				b.Draw(Game1.mouseCursors, new Vector2(xPositionOnScreen + 64 + 18, (float)(yPositionOnScreen + 12 + 24) + treasurePosition) + treasureShake + everythingShake, new Rectangle(638, 1865, 20, 24), Color.White, 0f, new Vector2(10f, 10f), 2f * treasureScale, SpriteEffects.None, 0.85f);
@@ -614,6 +635,7 @@ namespace StardewValley.Menus
 					b.Draw(Game1.controllerMaps, pos, Utility.controllerMapSourceRect(new Rectangle(681, 0, 96, 138)), Color.White, 0f, Vector2.Zero, 2f, SpriteEffects.None, 0.88f);
 				}
 			}
+			Game1.EndWorldDrawInUI(b);
 		}
 	}
 }

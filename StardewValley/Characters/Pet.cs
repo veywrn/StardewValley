@@ -74,6 +74,7 @@ namespace StardewValley.Characters
 		{
 			base.initNetFields();
 			base.NetFields.AddFields(netCurrentBehavior, whichBreed, friendshipTowardFarmer, grantedFriendshipForPet, mutex.NetFields, lastPetDay, petAnimationEvent, isSleepingOnFarmerBed);
+			name.FilterStringEvent += Utility.FilterDirtyWords;
 			petAnimationEvent.onEvent += OnPetAnimationEvent;
 			friendshipTowardFarmer.fieldChangeVisibleEvent += delegate
 			{
@@ -100,7 +101,7 @@ namespace StardewValley.Characters
 		public override void behaviorOnFarmerLocationEntry(GameLocation location, Farmer who)
 		{
 			base.behaviorOnFarmerLocationEntry(location, who);
-			if (location is Farm && Game1.timeOfDay >= 2000 && location.farmers.Count <= 0)
+			if (location is Farm && Game1.timeOfDay >= 2000 && !location.farmers.Any())
 			{
 				if (CurrentBehavior != 1 || base.currentLocation is Farm)
 				{
@@ -119,6 +120,16 @@ namespace StardewValley.Characters
 		public override void behaviorOnLocalFarmerLocationEntry(GameLocation location)
 		{
 			base.behaviorOnLocalFarmerLocationEntry(location);
+			netCurrentBehavior.CancelInterpolation();
+			if (netCurrentBehavior.Value == 1)
+			{
+				position.NetFields.CancelInterpolation();
+				if (_currentBehavior != 1)
+				{
+					_OnNewBehavior();
+					Sprite.UpdateSourceRect();
+				}
+			}
 			UpdateSleepingOnBed();
 		}
 
@@ -164,12 +175,22 @@ namespace StardewValley.Characters
 					rugs.Add(house_furniture);
 				}
 			}
-			if (!Game1.newDay && Game1.timeOfDay >= 2000 && ((this is Cat && Game1.random.NextDouble() <= 0.75) || Game1.random.NextDouble() <= 0.05000000074505806))
+			BedFurniture player_bed = farmHouse.GetPlayerBed();
+			if (player_bed != null && !Game1.newDay && Game1.timeOfDay >= 2000 && ((this is Cat && Game1.random.NextDouble() <= 0.75) || Game1.random.NextDouble() <= 0.05000000074505806))
 			{
-				sleepTile3 = Utility.PointToVector2(farmHouse.getBedSpot()) + new Vector2(-1f, 0f);
+				sleepTile3 = Utility.PointToVector2(player_bed.GetBedSpot()) + new Vector2(-1f, 0f);
 				Game1.warpCharacter(this, farmHouse, sleepTile3);
+				base.NetFields.CancelInterpolation();
 				CurrentBehavior = 1;
 				isSleepingOnFarmerBed.Value = true;
+				foreach (Furniture furniture in farmHouse.furniture)
+				{
+					if (furniture is BedFurniture && furniture.getBoundingBox(furniture.TileLocation).Intersects(GetBoundingBox()))
+					{
+						(furniture as BedFurniture).ReserveForNPC();
+						break;
+					}
+				}
 				UpdateSleepingOnBed();
 				_OnNewBehavior();
 				Sprite.UpdateSourceRect();
@@ -342,9 +363,9 @@ namespace StardewValley.Characters
 					pushingTimer = 0;
 					Halt();
 					facePlayer(Game1.player);
-					base.FacingDirection += 2;
-					base.FacingDirection %= 4;
-					faceDirection(base.FacingDirection);
+					FacingDirection += 2;
+					FacingDirection %= 4;
+					faceDirection(FacingDirection);
 					CurrentBehavior = 0;
 				}
 			}
@@ -382,7 +403,7 @@ namespace StardewValley.Characters
 					MovePosition(time, Game1.viewport, location);
 				}
 				flip = false;
-				if (base.FacingDirection == 3 && Sprite.CurrentFrame >= 16)
+				if (FacingDirection == 3 && Sprite.CurrentFrame >= 16)
 				{
 					flip = true;
 				}
@@ -391,10 +412,10 @@ namespace StardewValley.Characters
 
 		public virtual void RunState(GameTime time)
 		{
-			if (_currentBehavior == 0 && Game1.IsMasterGame && base.currentLocation.isCollidingPosition(nextPosition(base.FacingDirection), Game1.viewport, this))
+			if (_currentBehavior == 0 && Game1.IsMasterGame && base.currentLocation.isCollidingPosition(nextPosition(FacingDirection), Game1.viewport, this))
 			{
 				int new_direction = Game1.random.Next(0, 4);
-				if (!base.currentLocation.isCollidingPosition(nextPosition(base.FacingDirection), Game1.viewport, this))
+				if (!base.currentLocation.isCollidingPosition(nextPosition(FacingDirection), Game1.viewport, this))
 				{
 					faceDirection(new_direction);
 				}
@@ -413,7 +434,7 @@ namespace StardewValley.Characters
 			}
 			else if (CurrentBehavior == 0)
 			{
-				Sprite.faceDirection(base.FacingDirection);
+				Sprite.faceDirection(FacingDirection);
 				if (isMoving())
 				{
 					animateInFacingDirection(time);
@@ -473,7 +494,8 @@ namespace StardewValley.Characters
 
 		public override Rectangle GetBoundingBox()
 		{
-			return new Rectangle((int)base.Position.X + 16, (int)base.Position.Y + 16, Sprite.SpriteWidth * 4 * 3 / 4, 32);
+			Vector2 position = base.Position;
+			return new Rectangle((int)position.X + 16, (int)position.Y + 16, Sprite.SpriteWidth * 4 * 3 / 4, 32);
 		}
 
 		public override void draw(SpriteBatch b)
@@ -494,10 +516,10 @@ namespace StardewValley.Characters
 			{
 				return false;
 			}
+			Vector2 tileLocationOfMonster = getTileLocation();
 			foreach (Farmer farmer in base.currentLocation.farmers)
 			{
 				Vector2 tileLocationOfPlayer = farmer.getTileLocation();
-				Vector2 tileLocationOfMonster = getTileLocation();
 				if (Math.Abs(tileLocationOfMonster.X - tileLocationOfPlayer.X) <= (float)threshold && Math.Abs(tileLocationOfMonster.Y - tileLocationOfPlayer.Y) <= (float)threshold)
 				{
 					return true;

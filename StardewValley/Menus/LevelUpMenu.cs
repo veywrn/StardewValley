@@ -68,7 +68,7 @@ namespace StardewValley.Menus
 		public bool hasMovedSelection;
 
 		public LevelUpMenu()
-			: base(Game1.viewport.Width / 2 - 384, Game1.viewport.Height / 2 - 256, 768, 512)
+			: base(Game1.uiViewport.Width / 2 - 384, Game1.uiViewport.Height / 2 - 256, 768, 512)
 		{
 			Game1.player.team.endOfNightStatus.UpdateState("level");
 			width = 768;
@@ -80,7 +80,7 @@ namespace StardewValley.Menus
 		}
 
 		public LevelUpMenu(int skill, int level)
-			: base(Game1.viewport.Width / 2 - 384, Game1.viewport.Height / 2 - 256, 768, 512)
+			: base(Game1.uiViewport.Width / 2 - 384, Game1.uiViewport.Height / 2 - 256, 768, 512)
 		{
 			Game1.player.team.endOfNightStatus.UpdateState("level");
 			timerBeforeStart = 250;
@@ -229,8 +229,8 @@ namespace StardewValley.Menus
 
 		public override void gameWindowSizeChanged(Rectangle oldBounds, Rectangle newBounds)
 		{
-			xPositionOnScreen = Game1.viewport.Width / 2 - width / 2;
-			yPositionOnScreen = Game1.viewport.Height / 2 - height / 2;
+			xPositionOnScreen = Game1.uiViewport.Width / 2 - width / 2;
+			yPositionOnScreen = Game1.uiViewport.Height / 2 - height / 2;
 			okButton.bounds = new Rectangle(xPositionOnScreen + width + 4, yPositionOnScreen + height - 64 - IClickableMenu.borderWidth, 64, 64);
 		}
 
@@ -786,7 +786,7 @@ namespace StardewValley.Menus
 			{
 				return;
 			}
-			b.Draw(Game1.fadeToBlackRect, new Rectangle(0, 0, Game1.viewport.Width, Game1.viewport.Height), Color.Black * 0.5f);
+			b.Draw(Game1.fadeToBlackRect, new Rectangle(0, 0, Game1.uiViewport.Width, Game1.uiViewport.Height), Color.Black * 0.5f);
 			foreach (TemporaryAnimatedSprite littleStar in littleStars)
 			{
 				littleStar.draw(b);
@@ -853,6 +853,7 @@ namespace StardewValley.Menus
 				}
 				if (!Game1.options.SnappyMenus || !isProfessionChooser || hasMovedSelection)
 				{
+					Game1.mouseCursorTransparency = 1f;
 					drawMouse(b);
 				}
 			}

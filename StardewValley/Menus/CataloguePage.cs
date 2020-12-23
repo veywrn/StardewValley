@@ -5,7 +5,6 @@ using StardewValley.Buildings;
 using StardewValley.Locations;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using xTile.Dimensions;
 
 namespace StardewValley.Menus
@@ -174,7 +173,7 @@ namespace StardewValley.Menus
 				}
 				Vector2 tileLocation = new Vector2((Game1.viewport.X + Game1.getOldMouseX()) / 64, (Game1.viewport.Y + Game1.getOldMouseY()) / 64);
 				Building destroyed = ((Farm)Game1.currentLocation).getBuildingAt(tileLocation);
-				if (Game1.IsMultiplayer && destroyed != null && destroyed.indoors.Value.farmers.Count() > 0)
+				if (Game1.IsMultiplayer && destroyed != null && destroyed.indoors.Value.farmers.Any())
 				{
 					Game1.addHUDMessage(new HUDMessage(Game1.content.LoadString("Strings\\StringsFromCSFiles:CataloguePage.cs.10149"), Color.Red, 3500f));
 				}

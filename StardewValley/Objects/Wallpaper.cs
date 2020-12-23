@@ -75,17 +75,14 @@ namespace StardewValley.Objects
 			Vector2 nonTile = tile * 64f;
 			nonTile.X += 32f;
 			nonTile.Y += 32f;
-			if (l is DecoratableLocation)
+			foreach (Furniture f in l.furniture)
 			{
-				foreach (Furniture f in (l as DecoratableLocation).furniture)
+				if ((int)f.furniture_type != 12 && f.getBoundingBox(f.tileLocation).Contains((int)nonTile.X, (int)nonTile.Y))
 				{
-					if ((int)f.furniture_type != 12 && f.getBoundingBox(f.tileLocation).Contains((int)nonTile.X, (int)nonTile.Y))
-					{
-						return false;
-					}
+					return false;
 				}
 			}
-			return base.canBePlacedHere(l, tile);
+			return true;
 		}
 
 		public override bool placementAction(GameLocation location, int x, int y, Farmer who = null)
@@ -116,7 +113,12 @@ namespace StardewValley.Objects
 					List<Rectangle> walls = farmHouse.getWalls();
 					for (int i = 0; i < walls.Count; i++)
 					{
-						if (walls[i].Contains(tile))
+						Rectangle wall = walls[i];
+						if (wall.Height == 2)
+						{
+							wall.Height = 3;
+						}
+						if (wall.Contains(tile))
 						{
 							farmHouse.setWallpaper(parentSheetIndex, i, persist: true);
 							location.playSound("coin");
@@ -178,7 +180,9 @@ namespace StardewValley.Objects
 
 		public override Item getOne()
 		{
-			return new Wallpaper(parentSheetIndex, isFloor);
+			Wallpaper wallpaper = new Wallpaper(parentSheetIndex, isFloor);
+			wallpaper._GetOneFrom(this);
+			return wallpaper;
 		}
 	}
 }

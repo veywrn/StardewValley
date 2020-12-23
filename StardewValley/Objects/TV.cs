@@ -3,6 +3,7 @@ using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 
 namespace StardewValley.Objects
 {
@@ -17,6 +18,8 @@ namespace StardewValley.Objects
 		public const int tipsChannel = 4;
 
 		public const int cookingChannel = 5;
+
+		public const int fishingChannel = 6;
 
 		private int currentChannel;
 
@@ -61,6 +64,10 @@ namespace StardewValley.Objects
 			{
 				channels.Add(new Response("???", "???"));
 			}
+			if (Game1.player.mailReceived.Contains("pamNewChannel"))
+			{
+				channels.Add(new Response("Fishing", Game1.content.LoadString("Strings\\StringsFromCSFiles:TV_Fishing_Channel")));
+			}
 			channels.Add(new Response("(Leave)", Game1.content.LoadString("Strings\\StringsFromCSFiles:TV.cs.13118")));
 			Game1.currentLocation.createQuestionDialogue(Game1.content.LoadString("Strings\\StringsFromCSFiles:TV.cs.13120"), channels.ToArray(), selectChannel);
 			Game1.player.Halt();
@@ -76,6 +83,7 @@ namespace StardewValley.Objects
 			tV.currentRotation.Value = (int)currentRotation - 1;
 			tV.rotations.Value = rotations;
 			tV.rotate();
+			tV._GetOneFrom(this);
 			return tV;
 		}
 
@@ -113,13 +121,19 @@ namespace StardewValley.Objects
 				Game1.drawObjectDialogue(Game1.parseText(Game1.content.LoadString("Strings\\StringsFromCSFiles:TV.cs.13127")));
 				Game1.afterDialogues = proceedToNextScene;
 				return;
-			}
-			if (text == "???")
-			{
+			case "???":
 				Game1.changeMusicTrack("none");
 				currentChannel = 666;
 				screen = new TemporaryAnimatedSprite("Maps\\springobjects", new Rectangle(112, 64, 16, 16), 150f, 1, 999999, getScreenPosition() + (((int)parentSheetIndex == 1468) ? new Vector2(56f, 32f) : new Vector2(8f, 8f)), flicker: false, flipped: false, (float)(boundingBox.Bottom - 1) / 10000f + 1E-05f, 0f, Color.White, 3f, 0f, 0f, 0f);
 				Game1.drawObjectDialogue(Game1.parseText(Game1.content.LoadString("Strings\\StringsFromCSFiles:Cursed_Doll")));
+				Game1.afterDialogues = proceedToNextScene;
+				return;
+			}
+			if (text == "Fishing")
+			{
+				currentChannel = 6;
+				screen = new TemporaryAnimatedSprite("LooseSprites\\Cursors2", new Rectangle(172, 33, 42, 28), 150f, 2, 999999, getScreenPosition(), flicker: false, flipped: false, (float)(boundingBox.Bottom - 1) / 10000f + 1E-05f, 0f, Color.White, getScreenSizeModifier(), 0f, 0f, 0f);
+				Game1.drawObjectDialogue(Game1.parseText(Game1.content.LoadString("Strings\\StringsFromCSFiles:Fishing_Channel_Intro")));
 				Game1.afterDialogues = proceedToNextScene;
 			}
 		}
@@ -154,7 +168,7 @@ namespace StardewValley.Objects
 
 		public virtual float getScreenSizeModifier()
 		{
-			if ((int)parentSheetIndex != 1468)
+			if ((int)parentSheetIndex != 1468 && (int)parentSheetIndex != 2326)
 			{
 				return 2f;
 			}
@@ -171,6 +185,10 @@ namespace StardewValley.Objects
 			{
 				return new Vector2(boundingBox.X + 12, boundingBox.Y - 128 + 32);
 			}
+			if ((int)parentSheetIndex == 2326)
+			{
+				return new Vector2(boundingBox.X + 12, boundingBox.Y - 128 + 40);
+			}
 			if ((int)parentSheetIndex == 1680)
 			{
 				return new Vector2(boundingBox.X + 24, boundingBox.Y - 12);
@@ -184,9 +202,19 @@ namespace StardewValley.Objects
 			{
 				if (screenOverlay == null)
 				{
-					screen = new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Rectangle(497, 305, 42, 28), 9999f, 1, 999999, getScreenPosition(), flicker: false, flipped: false, (float)(boundingBox.Bottom - 1) / 10000f + 1E-05f, 0f, Color.White, getScreenSizeModifier(), 0f, 0f, 0f);
+					screen = new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Rectangle(497, 305, 42, 28), 9999f, 1, 999999, getScreenPosition(), flicker: false, flipped: false, (float)(boundingBox.Bottom - 1) / 10000f + 1E-05f, 0f, Color.White, getScreenSizeModifier(), 0f, 0f, 0f)
+					{
+						id = 777f
+					};
 					Game1.drawObjectDialogue(Game1.parseText(getWeatherForecast()));
 					setWeatherOverlay();
+					Game1.afterDialogues = proceedToNextScene;
+				}
+				else if (Game1.player.hasOrWillReceiveMail("Visited_Island") && screen.id == 777f)
+				{
+					screen = new TemporaryAnimatedSprite("LooseSprites\\Cursors2", new Rectangle(148, 62, 42, 28), 9999f, 1, 999999, getScreenPosition(), flicker: false, flipped: false, (float)(boundingBox.Bottom - 1) / 10000f + 1E-05f, 0f, Color.White, getScreenSizeModifier(), 0f, 0f, 0f);
+					Game1.drawObjectDialogue(Game1.parseText(getIslandWeatherForecast()));
+					setWeatherOverlay(island: true);
 					Game1.afterDialogues = proceedToNextScene;
 				}
 				else
@@ -248,6 +276,22 @@ namespace StardewValley.Objects
 				Game1.player.mailReceived.Add("cursed_doll");
 				turnOffTV();
 			}
+			else if (currentChannel == 6)
+			{
+				if (screenOverlay == null)
+				{
+					Game1.multipleDialogues(getFishingInfo());
+					Game1.afterDialogues = proceedToNextScene;
+					screenOverlay = new TemporaryAnimatedSprite
+					{
+						alpha = 1E-07f
+					};
+				}
+				else
+				{
+					turnOffTV();
+				}
+			}
 		}
 
 		public virtual void turnOffTV()
@@ -256,11 +300,11 @@ namespace StardewValley.Objects
 			screenOverlay = null;
 		}
 
-		protected virtual void setWeatherOverlay()
+		protected virtual void setWeatherOverlay(bool island = false)
 		{
 			WorldDate tomorrow = new WorldDate(Game1.Date);
 			int num = ++tomorrow.TotalDays;
-			switch ((!Game1.IsMasterGame) ? Game1.getWeatherModificationsForDate(tomorrow, Game1.netWorldState.Value.WeatherForTomorrow) : Game1.getWeatherModificationsForDate(tomorrow, Game1.weatherForTomorrow))
+			switch (island ? Game1.netWorldState.Value.GetWeatherForLocation(Game1.getLocationFromName("IslandSouth").GetLocationContext()).weatherForTomorrow.Value : ((!Game1.IsMasterGame) ? Game1.getWeatherModificationsForDate(tomorrow, Game1.netWorldState.Value.WeatherForTomorrow) : Game1.getWeatherModificationsForDate(tomorrow, Game1.weatherForTomorrow)))
 			{
 			case 0:
 			case 6:
@@ -282,6 +326,91 @@ namespace StardewValley.Objects
 				screenOverlay = new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Rectangle(413, 372, 13, 13), 120f, 4, 999999, getScreenPosition() + new Vector2(3f, 3f) * getScreenSizeModifier(), flicker: false, flipped: false, (float)(boundingBox.Bottom - 1) / 10000f + 2E-05f, 0f, Color.White, getScreenSizeModifier(), 0f, 0f, 0f);
 				break;
 			}
+		}
+
+		private string[] getFishingInfo()
+		{
+			List<string> allDialogues = new List<string>();
+			StringBuilder sb = new StringBuilder();
+			StringBuilder singleLineSB = new StringBuilder();
+			int currentSeasonNumber = Utility.getSeasonNumber(Game1.currentSeason);
+			sb.AppendLine("---" + Utility.getSeasonNameFromNumber(currentSeasonNumber) + "---^^");
+			Dictionary<int, string> dictionary = Game1.content.Load<Dictionary<int, string>>("Data\\Fish");
+			Dictionary<string, string> locationsData = Game1.content.Load<Dictionary<string, string>>("Data\\Locations");
+			List<string> locationsFound = new List<string>();
+			int count = 0;
+			foreach (KeyValuePair<int, string> v in dictionary)
+			{
+				if (!v.Value.Contains("spring summer fall winter"))
+				{
+					locationsFound.Clear();
+					foreach (KeyValuePair<string, string> i in locationsData)
+					{
+						if (i.Value.Split('/')[4 + currentSeasonNumber].Contains(string.Concat(v.Key)) && !locationsFound.Contains(getSanitizedFishingLocation(i.Key)))
+						{
+							locationsFound.Add(getSanitizedFishingLocation(i.Key));
+						}
+					}
+					if (locationsFound.Count > 0)
+					{
+						string[] split = v.Value.Split('/');
+						string name = (split.Count() > 13) ? split[13] : split[0];
+						string weather = split[7];
+						string lowerTime = split[5].Split(' ')[0];
+						string upperTime = split[5].Split(' ')[1];
+						singleLineSB.Append(name);
+						singleLineSB.Append("...... ");
+						singleLineSB.Append(Game1.getTimeOfDayString(Convert.ToInt32(lowerTime)).Replace(" ", ""));
+						singleLineSB.Append("-");
+						singleLineSB.Append(Game1.getTimeOfDayString(Convert.ToInt32(upperTime)).Replace(" ", ""));
+						if (weather != "both")
+						{
+							singleLineSB.Append(", " + Game1.content.LoadString("Strings\\StringsFromCSFiles:TV_Fishing_Channel_" + weather));
+						}
+						bool anySanitized = false;
+						foreach (string s in locationsFound)
+						{
+							if (s != "")
+							{
+								anySanitized = true;
+								singleLineSB.Append(", ");
+								singleLineSB.Append(s);
+							}
+						}
+						if (anySanitized)
+						{
+							singleLineSB.Append("^^");
+							sb.Append(singleLineSB.ToString());
+							count++;
+						}
+						singleLineSB.Clear();
+						if (count > 3)
+						{
+							allDialogues.Add(sb.ToString());
+							sb.Clear();
+							count = 0;
+						}
+					}
+				}
+			}
+			return allDialogues.ToArray();
+		}
+
+		private string getSanitizedFishingLocation(string rawLocationName)
+		{
+			if (!(rawLocationName == "Town") && !(rawLocationName == "Forest"))
+			{
+				if (!(rawLocationName == "Beach"))
+				{
+					if (rawLocationName == "Mountain")
+					{
+						return Game1.content.LoadString("Strings\\StringsFromCSFiles:TV_Fishing_Channel_Lake");
+					}
+					return "";
+				}
+				return Game1.content.LoadString("Strings\\StringsFromCSFiles:TV_Fishing_Channel_Ocean");
+			}
+			return Game1.content.LoadString("Strings\\StringsFromCSFiles:TV_Fishing_Channel_River");
 		}
 
 		protected virtual string getTodaysTip()
@@ -377,6 +506,24 @@ namespace StardewValley.Objects
 				}
 				Game1.player.cookingRecipes.Add(recipeName, 0);
 				return text;
+			}
+		}
+
+		private string getIslandWeatherForecast()
+		{
+			int num = ++new WorldDate(Game1.Date).TotalDays;
+			int forecast = Game1.netWorldState.Value.GetWeatherForLocation(Game1.getLocationFromName("IslandSouth").GetLocationContext()).weatherForTomorrow.Value;
+			string response = Game1.content.LoadString("Strings\\StringsFromCSFiles:TV_IslandWeatherIntro");
+			switch (forecast)
+			{
+			case 0:
+				return response + ((Game1.random.NextDouble() < 0.5) ? Game1.content.LoadString("Strings\\StringsFromCSFiles:TV.cs.13182") : Game1.content.LoadString("Strings\\StringsFromCSFiles:TV.cs.13183"));
+			case 1:
+				return response + Game1.content.LoadString("Strings\\StringsFromCSFiles:TV.cs.13184");
+			case 3:
+				return response + Game1.content.LoadString("Strings\\StringsFromCSFiles:TV.cs.13185");
+			default:
+				return response + "???";
 			}
 		}
 

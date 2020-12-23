@@ -35,10 +35,10 @@ namespace StardewValley.Menus
 			}
 		}
 
-		public override void draw(SpriteBatch b, int slotX, int slotY)
+		public override void draw(SpriteBatch b, int slotX, int slotY, IClickableMenu context = null)
 		{
 			b.Draw(_buttonTexture, new Vector2(slotX + _buttonBounds.X, slotY + _buttonBounds.Y), _buttonRect, Color.White * (greyedOut ? 0.33f : 1f), 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.4f);
-			base.draw(b, slotX, slotY);
+			base.draw(b, slotX, slotY, context);
 		}
 
 		public override void receiveLeftClick(int x, int y)

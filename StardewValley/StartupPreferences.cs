@@ -1,7 +1,5 @@
 using System;
-using System.Globalization;
 using System.IO;
-using System.Threading;
 using System.Threading.Tasks;
 using System.Xml;
 using System.Xml.Serialization;
@@ -32,6 +30,8 @@ namespace StardewValley
 
 		public bool skipWindowPreparation;
 
+		public bool sawAdvancedCharacterCreationIndicator;
+
 		public int timesPlayed;
 
 		public int windowMode;
@@ -44,6 +44,8 @@ namespace StardewValley
 
 		public int fullscreenResolutionY;
 
+		public string lastEnteredIP = "";
+
 		public LocalizedContentManager.LanguageCode languageCode;
 
 		public Options clientOptions = new Options();
@@ -52,6 +54,8 @@ namespace StardewValley
 		public bool isLoaded;
 
 		private bool _isBusy;
+
+		private bool _pendingApplyLanguage;
 
 		private Task _task;
 
@@ -81,7 +85,10 @@ namespace StardewValley
 					{
 						_task = null;
 						_isBusy = false;
-						LocalizedContentManager.CurrentLanguageCode = languageCode;
+						if (_pendingApplyLanguage)
+						{
+							LocalizedContentManager.CurrentLanguageCode = languageCode;
+						}
 					}
 					return _isBusy;
 				}
@@ -116,40 +123,20 @@ namespace StardewValley
 		{
 			lock (this)
 			{
-				if (_isBusy)
+				languageCode = LocalizedContentManager.CurrentLanguageCode;
+				Console.WriteLine("savePreferences(); async={0}, languageCode={1}", async, languageCode);
+				try
 				{
-					Console.WriteLine("savePreferences(); ignoring because already busy");
+					_savePreferences();
 				}
-				else
+				catch (Exception ex)
 				{
-					_isBusy = true;
-					languageCode = LocalizedContentManager.CurrentLanguageCode;
-					Console.WriteLine("savePreferences(); async={0}, languageCode={1}", async, languageCode);
-					Task task = new Task(delegate
-					{
-						Thread.CurrentThread.CurrentCulture = CultureInfo.InvariantCulture;
-						_savePreferences();
-					});
-					task.Start();
-					_task = task;
-					if (!async)
-					{
-						try
-						{
-							task.Wait();
-						}
-						catch (Exception ex)
-						{
-							Exception baseException = ex.GetBaseException();
-							Console.WriteLine("StartupPreferences._task failed with an exception");
-							Console.WriteLine(baseException.GetType());
-							Console.WriteLine(baseException.Message);
-							Console.WriteLine(baseException.StackTrace);
-							throw ex;
-						}
-						_task = null;
-						_isBusy = false;
-					}
+					Exception baseException = ex.GetBaseException();
+					Console.WriteLine("StartupPreferences._task failed with an exception");
+					Console.WriteLine(baseException.GetType());
+					Console.WriteLine(baseException.Message);
+					Console.WriteLine(baseException.StackTrace);
+					throw ex;
 				}
 			}
 		}
@@ -189,48 +176,29 @@ namespace StardewValley
 			}
 		}
 
-		public void loadPreferences(bool async, bool updateLanguage = true)
+		public void loadPreferences(bool async, bool applyLanguage)
 		{
 			lock (this)
 			{
-				if (_isBusy)
+				_pendingApplyLanguage = applyLanguage;
+				Console.WriteLine("loadPreferences(); begin - languageCode={0}", languageCode);
+				Init();
+				try
 				{
-					Console.WriteLine("loadPreferences(); ignoring because already busy");
+					_loadPreferences();
 				}
-				else
+				catch (Exception)
 				{
-					_isBusy = true;
-					Console.WriteLine("loadPreferences(); begin - languageCode={0}", languageCode);
-					Init();
-					Task task = new Task(delegate
-					{
-						Thread.CurrentThread.CurrentCulture = CultureInfo.InvariantCulture;
-						_loadPreferences();
-					});
-					task.Start();
-					_task = task;
-					if (!async)
-					{
-						try
-						{
-							_task.Wait();
-						}
-						catch (Exception)
-						{
-							Exception baseException = _task.Exception.GetBaseException();
-							Console.WriteLine("StartupPreferences._task failed with an exception");
-							Console.WriteLine(baseException.GetType());
-							Console.WriteLine(baseException.Message);
-							Console.WriteLine(baseException.StackTrace);
-							throw baseException;
-						}
-						_task = null;
-						_isBusy = false;
-						if (updateLanguage)
-						{
-							LocalizedContentManager.CurrentLanguageCode = languageCode;
-						}
-					}
+					Exception baseException = _task.Exception.GetBaseException();
+					Console.WriteLine("StartupPreferences._task failed with an exception");
+					Console.WriteLine(baseException.GetType());
+					Console.WriteLine(baseException.Message);
+					Console.WriteLine(baseException.StackTrace);
+					throw baseException;
+				}
+				if (applyLanguage)
+				{
+					LocalizedContentManager.CurrentLanguageCode = languageCode;
 				}
 			}
 		}
@@ -286,6 +254,7 @@ namespace StardewValley
 			gamepadMode = p.gamepadMode;
 			fullscreenResolutionX = p.fullscreenResolutionX;
 			fullscreenResolutionY = p.fullscreenResolutionY;
+			lastEnteredIP = p.lastEnteredIP;
 			languageCode = p.languageCode;
 			clientOptions = p.clientOptions;
 		}

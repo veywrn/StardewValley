@@ -3,7 +3,6 @@ using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using StardewValley.BellsAndWhistles;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace StardewValley.Minigames
 {
@@ -48,15 +47,14 @@ namespace StardewValley.Minigames
 			zoom = 4;
 			content = Game1.content.CreateTemporary();
 			cometTexture = content.Load<Texture2D>("Minigames\\MaruComet");
-			float pixel_zoom_adjustment = 1f / Game1.options.zoomLevel;
-			centerOfScreen = pixel_zoom_adjustment * new Vector2(Game1.graphics.GraphicsDevice.Viewport.Width / 2, Game1.graphics.GraphicsDevice.Viewport.Height / 2);
-			cometColorOrigin = centerOfScreen + pixel_zoom_adjustment * new Vector2(-71 * zoom, 71 * zoom);
+			changeScreenSize();
 		}
 
 		public void changeScreenSize()
 		{
-			centerOfScreen = new Vector2(Game1.graphics.GraphicsDevice.Viewport.Width / 2, Game1.graphics.GraphicsDevice.Viewport.Height / 2);
-			cometColorOrigin = centerOfScreen + new Vector2(-71 * zoom, 71 * zoom);
+			float pixel_zoom_adjustment = 1f / Game1.options.zoomLevel;
+			centerOfScreen = pixel_zoom_adjustment * new Vector2(Game1.graphics.GraphicsDevice.Viewport.Width / 2, Game1.graphics.GraphicsDevice.Viewport.Height / 2);
+			cometColorOrigin = centerOfScreen + pixel_zoom_adjustment * new Vector2(-71 * zoom, 71 * zoom);
 		}
 
 		public bool doMainGameUpdates()
@@ -79,7 +77,7 @@ namespace StardewValley.Minigames
 				flybysClose.Add(new Vector2(bottom ? Game1.random.Next(143 * zoom) : (-8 * zoom), bottom ? (8 * zoom) : (-Game1.random.Next(143 * zoom))));
 				flybysFar.Add(new Vector2(bottom ? Game1.random.Next(143 * zoom) : (-8 * zoom), bottom ? (8 * zoom) : (-Game1.random.Next(143 * zoom))));
 			}
-			for (int i = flybys.Count() - 1; i >= 0; i--)
+			for (int i = flybys.Count - 1; i >= 0; i--)
 			{
 				flybys[i] = new Vector2(flybys[i].X + 0.8f * (float)time.ElapsedGameTime.Milliseconds, flybys[i].Y - 0.8f * (float)time.ElapsedGameTime.Milliseconds);
 				if (cometColorOrigin.Y + flybys[i].Y < centerOfScreen.Y - (float)(143 * zoom / 2))
@@ -87,7 +85,7 @@ namespace StardewValley.Minigames
 					flybys.RemoveAt(i);
 				}
 			}
-			for (int j = flybysClose.Count() - 1; j >= 0; j--)
+			for (int j = flybysClose.Count - 1; j >= 0; j--)
 			{
 				flybysClose[j] = new Vector2(flybysClose[j].X + 0.8f * (float)time.ElapsedGameTime.Milliseconds * 1.5f, flybysClose[j].Y - 0.8f * (float)time.ElapsedGameTime.Milliseconds * 1.5f);
 				if (cometColorOrigin.Y + flybysClose[j].Y < centerOfScreen.Y - (float)(143 * zoom / 2))
@@ -95,7 +93,7 @@ namespace StardewValley.Minigames
 					flybysClose.RemoveAt(j);
 				}
 			}
-			for (int k = flybysFar.Count() - 1; k >= 0; k--)
+			for (int k = flybysFar.Count - 1; k >= 0; k--)
 			{
 				flybysFar[k] = new Vector2(flybysFar[k].X + 0.8f * (float)time.ElapsedGameTime.Milliseconds * 0.5f, flybysFar[k].Y - 0.8f * (float)time.ElapsedGameTime.Milliseconds * 0.5f);
 				if (cometColorOrigin.Y + flybysFar[k].Y < centerOfScreen.Y - (float)(143 * zoom / 2))

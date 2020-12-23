@@ -26,7 +26,13 @@ namespace StardewValley.Menus
 
 		public const int chatboxHeight = 56;
 
+		public const int region_chatBox = 101;
+
+		public const int region_emojiButton = 102;
+
 		public ChatTextBox chatBox;
+
+		public ClickableComponent chatBoxCC;
 
 		private TextBoxEvent e;
 
@@ -44,7 +50,7 @@ namespace StardewValley.Menus
 
 		public static Texture2D emojiTexture;
 
-		private ClickableTextureComponent emojiMenuIcon;
+		public ClickableTextureComponent emojiMenuIcon;
 
 		public EmojiMenu emojiMenu;
 
@@ -61,12 +67,28 @@ namespace StardewValley.Menus
 			chatBox = new ChatTextBox(chatboxTexture, null, Game1.smallFont, Color.White);
 			e = textBoxEnter;
 			chatBox.OnEnterPressed += e;
+			chatBox.TitleText = "Chat";
+			chatBoxCC = new ClickableComponent(new Rectangle(chatBox.X, chatBox.Y, chatBox.Width, chatBox.Height), "")
+			{
+				myID = 101
+			};
 			Game1.keyboardDispatcher.Subscriber = chatBox;
 			emojiTexture = Game1.content.Load<Texture2D>("LooseSprites\\emojis");
-			emojiMenuIcon = new ClickableTextureComponent(new Rectangle(0, 0, 40, 36), emojiTexture, new Rectangle(0, 0, 9, 9), 4f);
+			emojiMenuIcon = new ClickableTextureComponent(new Rectangle(0, 0, 40, 36), emojiTexture, new Rectangle(0, 0, 9, 9), 4f)
+			{
+				myID = 102,
+				leftNeighborID = 101
+			};
 			emojiMenu = new EmojiMenu(this, emojiTexture, chatboxTexture);
+			chatBoxCC.rightNeighborID = 102;
 			updatePosition();
 			chatBox.Selected = false;
+		}
+
+		public override void snapToDefaultClickableComponent()
+		{
+			currentlySnappedComponent = getComponentWithID(101);
+			snapCursorToCurrentSnappedComponent();
 		}
 
 		private void updatePosition()
@@ -76,10 +98,11 @@ namespace StardewValley.Menus
 			width = chatBox.Width;
 			height = chatBox.Height;
 			xPositionOnScreen = 0;
-			yPositionOnScreen = Game1.viewport.Height - chatBox.Height;
+			yPositionOnScreen = Game1.uiViewport.Height - chatBox.Height;
 			Utility.makeSafe(ref xPositionOnScreen, ref yPositionOnScreen, chatBox.Width, chatBox.Height);
 			chatBox.X = xPositionOnScreen;
 			chatBox.Y = yPositionOnScreen;
+			chatBoxCC.bounds = new Rectangle(chatBox.X, chatBox.Y, chatBox.Width, chatBox.Height);
 			emojiMenuIcon.bounds.Y = chatBox.Y + 8;
 			emojiMenuIcon.bounds.X = chatBox.Width - emojiMenuIcon.bounds.Width - 8;
 			if (emojiMenu != null)
@@ -335,32 +358,33 @@ namespace StardewValley.Menus
 				}
 				break;
 			case "mapscreenshot":
-			{
-				int scale = 25;
-				string screenshot_name = null;
-				if (split.Count() > 2 && !int.TryParse(split[2], out scale))
+				if (Game1.game1.CanTakeScreenshots())
 				{
-					scale = 25;
-				}
-				if (split.Count() > 1)
-				{
-					screenshot_name = split[1];
-				}
-				if (scale <= 10)
-				{
-					scale = 10;
-				}
-				string result = Game1.game1.takeMapScreenshot((float)scale / 100f, screenshot_name);
-				if (result != null)
-				{
-					addMessage("Wrote '" + result + "'.", Color.White);
-				}
-				else
-				{
-					addMessage("Failed.", Color.Red);
+					int scale = 25;
+					string screenshot_name = null;
+					if (split.Count() > 2 && !int.TryParse(split[2], out scale))
+					{
+						scale = 25;
+					}
+					if (split.Count() > 1)
+					{
+						screenshot_name = split[1];
+					}
+					if (scale <= 10)
+					{
+						scale = 10;
+					}
+					string result = Game1.game1.takeMapScreenshot((float)scale / 100f, screenshot_name, null);
+					if (result != null)
+					{
+						addMessage("Wrote '" + result + "'.", Color.White);
+					}
+					else
+					{
+						addMessage("Failed.", Color.Red);
+					}
 				}
 				break;
-			}
 			case "mbp":
 			case "movepermission":
 			case "movebuildingpermission":
@@ -422,6 +446,16 @@ namespace StardewValley.Menus
 				{
 					addMessage(Game1.content.LoadString("Strings\\UI:Chat_ConcernedApeNiceTry"), new Color(104, 214, 255));
 				}
+				break;
+			case "recountnuts":
+				Game1.game1.RecountWalnuts();
+				break;
+			case "resetisland":
+				Game1.game1.ResetIslandLocations();
+				break;
+			case "fixweapons":
+				Game1.applySaveFix(SaveGame.SaveFixes.ResetForges);
+				addMessage("Reset forged weapon attributes.", Color.White);
 				break;
 			case "e":
 			case "emote":
@@ -795,39 +829,36 @@ namespace StardewValley.Menus
 				}
 				break;
 			}
+			if (!Game1.options.doesInputListContain(Game1.options.moveUpButton, key) && !Game1.options.doesInputListContain(Game1.options.moveRightButton, key) && !Game1.options.doesInputListContain(Game1.options.moveDownButton, key) && !Game1.options.doesInputListContain(Game1.options.moveLeftButton, key))
+			{
+				base.receiveKeyPress(key);
+			}
+		}
+
+		public override bool readyToClose()
+		{
+			return false;
 		}
 
 		public override void receiveGamePadButton(Buttons b)
 		{
-			if (Game1.options.snappyMenus && Game1.options.gamepadControls)
-			{
-				switch (b)
-				{
-				case Buttons.DPadUp:
-					receiveKeyPress(Keys.Up);
-					break;
-				case Buttons.DPadDown:
-					receiveKeyPress(Keys.Down);
-					break;
-				}
-			}
 		}
 
-		public bool isHoveringOverEmojiUI(int x, int y)
+		public bool isHoveringOverClickable(int x, int y)
 		{
-			if (!emojiMenuIcon.containsPoint(x, y))
+			if (emojiMenuIcon.containsPoint(x, y) || (choosingEmoji && emojiMenu.isWithinBounds(x, y)))
 			{
-				if (choosingEmoji)
-				{
-					return emojiMenu.isWithinBounds(x, y);
-				}
-				return false;
+				return true;
 			}
-			return true;
+			return false;
 		}
 
 		public override void receiveLeftClick(int x, int y, bool playSound = true)
 		{
+			if (!chatBox.Selected)
+			{
+				return;
+			}
 			if (emojiMenuIcon.containsPoint(x, y))
 			{
 				choosingEmoji = !choosingEmoji;
@@ -871,13 +902,18 @@ namespace StardewValley.Menus
 		private string formatMessage(long sourceFarmer, int chatKind, string message)
 		{
 			string userName = Game1.content.LoadString("Strings\\UI:Chat_UnknownUserName");
+			Farmer farmer = null;
 			if (sourceFarmer == Game1.player.UniqueMultiplayerID)
 			{
-				userName = formattedUserName(Game1.player);
+				farmer = Game1.player;
 			}
 			if (Game1.otherFarmers.ContainsKey(sourceFarmer))
 			{
-				userName = formattedUserName(Game1.otherFarmers[sourceFarmer]);
+				farmer = Game1.otherFarmers[sourceFarmer];
+			}
+			if (farmer != null)
+			{
+				userName = formattedUserName(farmer);
 			}
 			switch (chatKind)
 			{
@@ -1041,7 +1077,7 @@ namespace StardewValley.Menus
 			{
 				ChatMessage message2 = messages[i];
 				heightSoFar2 += message2.verticalSize;
-				message2.draw(b, 12, yPositionOnScreen - heightSoFar2 - 8 + ((!chatBox.Selected) ? chatBox.Height : 0));
+				message2.draw(b, xPositionOnScreen + 12, yPositionOnScreen - heightSoFar2 - 8 + ((!chatBox.Selected) ? chatBox.Height : 0));
 			}
 			if (chatBox.Selected)
 			{

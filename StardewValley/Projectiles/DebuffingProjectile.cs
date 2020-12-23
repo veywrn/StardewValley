@@ -46,11 +46,21 @@ namespace StardewValley.Projectiles
 
 		public override void behaviorOnCollisionWithPlayer(GameLocation location, Farmer player)
 		{
-			if (Game1.random.Next(10) >= player.immunity)
+			if (Game1.random.Next(11) >= player.immunity && !player.hasBuff(28))
 			{
-				Game1.buffsDisplay.addOtherBuff(new Buff(debuff));
+				if (Game1.player == player)
+				{
+					Game1.buffsDisplay.addOtherBuff(new Buff(debuff));
+				}
 				explosionAnimation(location);
-				location.playSound("debuffHit");
+				if ((int)debuff == 19)
+				{
+					location.playSound("frozen");
+				}
+				else
+				{
+					location.playSound("debuffHit");
+				}
 			}
 		}
 

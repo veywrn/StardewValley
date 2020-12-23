@@ -5,6 +5,7 @@ using StardewValley.Buildings;
 using StardewValley.Locations;
 using StardewValley.Menus;
 using StardewValley.Network;
+using StardewValley.Objects;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -116,7 +117,7 @@ namespace StardewValley
 		{
 			public struct Enumerator : IEnumerator<GameLocation>, IDisposable, IEnumerator
 			{
-				private NetCollection<Building>.Enumerator _enumerator;
+				private List<Building>.Enumerator _enumerator;
 
 				private GameLocation _current;
 
@@ -170,6 +171,16 @@ namespace StardewValley
 						}
 					}
 					if (_step == 3)
+					{
+						_step++;
+						GameLocation greenhouse = Game1.getLocationFromName("Greenhouse");
+						if (greenhouse != null && greenhouse != Game1.currentLocation)
+						{
+							_current = greenhouse;
+							return true;
+						}
+					}
+					if (_step == 4)
 					{
 						_step++;
 						Farm farm = Game1.getFarm();
@@ -227,6 +238,7 @@ namespace StardewValley
 			ServerOfflineMode,
 			ServerFull,
 			Kicked,
+			AcceptedOtherInvite,
 			ClientTimeout,
 			LidgrenTimeout,
 			GalaxyTimeout,
@@ -290,6 +302,12 @@ namespace StardewValley
 
 		public const byte requestGrandpaReevaluation = 26;
 
+		public const byte digBuriedNut = 27;
+
+		public const byte requestPassout = 28;
+
+		public const byte passout = 29;
+
 		public int defaultInterpolationTicks = 15;
 
 		public int farmerDeltaBroadcastPeriod = 3;
@@ -302,13 +320,15 @@ namespace StardewValley
 
 		public static string kicked = "KICKED";
 
-		public string protocolVersion = "1.4.5";
+		public const string protocolVersion = "1.5";
 
 		public readonly NetLogger logging = new NetLogger();
 
 		protected List<long> disconnectingFarmers = new List<long>();
 
 		public ulong latestID;
+
+		public Dictionary<string, CachedMultiplayerMap> cachedMultiplayerMaps = new Dictionary<string, CachedMultiplayerMap>();
 
 		public const string MSG_START_FESTIVAL_EVENT = "festivalEvent";
 
@@ -387,6 +407,10 @@ namespace StardewValley
 			{
 				return 0;
 			}
+			if (LocalMultiplayer.IsLocalMultiplayer(is_local_only: true))
+			{
+				return 4;
+			}
 			return defaultInterpolationTicks;
 		}
 
@@ -407,7 +431,7 @@ namespace StardewValley
 
 		public virtual NetFarmerRoot farmerRoot(long id)
 		{
-			if (id == Game1.serverHost.Value.UniqueMultiplayerID)
+			if (Game1.serverHost != null && id == Game1.serverHost.Value.UniqueMultiplayerID)
 			{
 				return Game1.serverHost;
 			}
@@ -509,6 +533,14 @@ namespace StardewValley
 					updateRoot(mine.Root);
 				}
 			}
+			foreach (VolcanoDungeon level in VolcanoDungeon.activeLevels)
+			{
+				if (level.Root != null)
+				{
+					level.Root.Clock.InterpolationTicks = interpolationTicks();
+					updateRoot(level.Root);
+				}
+			}
 		}
 
 		public virtual void broadcastLocationDeltas()
@@ -536,6 +568,13 @@ namespace StardewValley
 				if (mine.Root != null && mine.Root.Dirty)
 				{
 					broadcastLocationDelta(mine);
+				}
+			});
+			VolcanoDungeon.ForEach(delegate(VolcanoDungeon level)
+			{
+				if (level.Root != null && level.Root.Dirty)
+				{
+					broadcastLocationDelta(level);
 				}
 			});
 		}
@@ -681,13 +720,121 @@ namespace StardewValley
 			return location.Root;
 		}
 
-		public virtual void broadcastEvent(Event evt, GameLocation location, Vector2 positionBeforeEvent)
+		public virtual void sendPassoutRequest()
+		{
+			object[] message = new object[1]
+			{
+				Game1.player.UniqueMultiplayerID
+			};
+			if (Game1.IsMasterGame)
+			{
+				_receivePassoutRequest(Game1.player);
+			}
+			else
+			{
+				Game1.client.sendMessage(28, message);
+			}
+		}
+
+		public virtual void receivePassoutRequest(IncomingMessage msg)
+		{
+			if (Game1.IsServer)
+			{
+				Farmer farmer = Game1.getFarmer(msg.Reader.ReadInt64());
+				if (farmer != null)
+				{
+					_receivePassoutRequest(farmer);
+				}
+			}
+		}
+
+		protected virtual void _receivePassoutRequest(Farmer farmer)
+		{
+			if (!Game1.IsMasterGame)
+			{
+				return;
+			}
+			if (farmer.lastSleepLocation.Value != null && Game1.isLocationAccessible(farmer.lastSleepLocation) && Game1.getLocationFromName(farmer.lastSleepLocation) != null && Game1.getLocationFromName(farmer.lastSleepLocation).GetLocationContext() == farmer.currentLocation.GetLocationContext() && BedFurniture.IsBedHere(Game1.getLocationFromName(farmer.lastSleepLocation), farmer.lastSleepPoint.Value.X, farmer.lastSleepPoint.Value.Y))
+			{
+				if (Game1.IsServer && farmer != Game1.player)
+				{
+					object[] message2 = new object[4]
+					{
+						farmer.lastSleepLocation.Value,
+						farmer.lastSleepPoint.X,
+						farmer.lastSleepPoint.Y,
+						true
+					};
+					Game1.server.sendMessage(farmer.UniqueMultiplayerID, 29, Game1.player, message2.ToArray());
+				}
+				else
+				{
+					Farmer.performPassoutWarp(farmer, farmer.lastSleepLocation, farmer.lastSleepPoint, has_bed: true);
+				}
+				return;
+			}
+			string wakeup_location = Utility.getHomeOfFarmer(farmer).NameOrUniqueName;
+			Point wakeup_point = Utility.getHomeOfFarmer(farmer).GetPlayerBedSpot();
+			bool has_bed = Utility.getHomeOfFarmer(farmer).GetPlayerBed() != null;
+			if (farmer.currentLocation.GetLocationContext() == GameLocation.LocationContext.Island)
+			{
+				IslandWest island_west = Game1.getLocationFromName("IslandWest") as IslandWest;
+				if (island_west != null && island_west.farmhouseRestored.Value)
+				{
+					IslandFarmHouse island_farmhouse = Game1.getLocationFromName("IslandFarmHouse") as IslandFarmHouse;
+					if (island_farmhouse != null)
+					{
+						wakeup_location = island_farmhouse.NameOrUniqueName;
+						wakeup_point = new Point(14, 17);
+						has_bed = false;
+						foreach (Furniture furniture in island_farmhouse.furniture)
+						{
+							if (furniture is BedFurniture && (furniture as BedFurniture).bedType != BedFurniture.BedType.Child)
+							{
+								wakeup_point = (furniture as BedFurniture).GetBedSpot();
+								has_bed = true;
+								break;
+							}
+						}
+					}
+				}
+			}
+			if (Game1.IsServer && farmer != Game1.player)
+			{
+				object[] message = new object[4]
+				{
+					wakeup_location,
+					wakeup_point.X,
+					wakeup_point.Y,
+					has_bed
+				};
+				Game1.server.sendMessage(farmer.UniqueMultiplayerID, 29, Game1.player, message.ToArray());
+			}
+			else
+			{
+				Farmer.performPassoutWarp(farmer, wakeup_location, wakeup_point, has_bed);
+			}
+		}
+
+		public virtual void receivePassout(IncomingMessage msg)
+		{
+			if (msg.SourceFarmer == Game1.serverHost.Value)
+			{
+				string wakeup_location = msg.Reader.ReadString();
+				Point wakeup_point = new Point(msg.Reader.ReadInt32(), msg.Reader.ReadInt32());
+				bool has_bed = msg.Reader.ReadBoolean();
+				Farmer.performPassoutWarp(Game1.player, wakeup_location, wakeup_point, has_bed);
+			}
+		}
+
+		public virtual void broadcastEvent(Event evt, GameLocation location, Vector2 positionBeforeEvent, bool use_local_farmer = true)
 		{
 			if (evt.id != -1)
 			{
-				object[] message = new object[5]
+				object[] message = new object[6]
 				{
 					evt.id,
+					use_local_farmer,
 					(int)positionBeforeEvent.X,
 					(int)positionBeforeEvent.Y,
 					(byte)(location.isStructure ? 1 : 0),
@@ -744,6 +891,49 @@ namespace StardewValley
 			else if (Game1.IsClient)
 			{
 				Game1.client.sendMessage(24, message.ToArray());
+			}
+		}
+
+		public virtual void broadcastNutDig(GameLocation location, Point point)
+		{
+			if (Game1.IsMasterGame)
+			{
+				_performNutDig(location, point);
+				return;
+			}
+			List<object> message = new List<object>();
+			message.Add(location.NameOrUniqueName);
+			message.Add(point.X);
+			message.Add(point.Y);
+			Game1.client.sendMessage(27, message.ToArray());
+		}
+
+		protected virtual void receiveNutDig(IncomingMessage msg)
+		{
+			if (Game1.IsMasterGame)
+			{
+				string name = msg.Reader.ReadString();
+				Point point = new Point(msg.Reader.ReadInt32(), msg.Reader.ReadInt32());
+				GameLocation location = Game1.getLocationFromName(name);
+				_performNutDig(location, point);
+			}
+		}
+
+		protected virtual void _performNutDig(GameLocation location, Point point)
+		{
+			if (!(location is IslandLocation))
+			{
+				return;
+			}
+			IslandLocation island_location = location as IslandLocation;
+			if (island_location.IsBuriedNutLocation(point))
+			{
+				string key = location.NameOrUniqueName + "_" + point.X + "_" + point.Y;
+				if (!Game1.netWorldState.Value.FoundBuriedNuts.ContainsKey(key))
+				{
+					Game1.netWorldState.Value.FoundBuriedNuts[key] = true;
+					Game1.createItemDebris(new Object(73, 1), new Vector2(point.X, point.Y) * 64f, -1, island_location);
+				}
 			}
 		}
 
@@ -1017,17 +1207,24 @@ namespace StardewValley
 
 		private void returnToMainMenu()
 		{
-			Game1.ExitToTitle(delegate
+			if (!Game1.game1.IsMainInstance)
 			{
-				(Game1.activeClickableMenu as TitleMenu).skipToTitleButtons();
-				TitleMenu.subMenu = new ConfirmationDialog(Game1.content.LoadString("Strings\\UI:Client_RemotelyDisconnected"), null)
+				GameRunner.instance.RemoveGameInstance(Game1.game1);
+			}
+			else
+			{
+				Game1.ExitToTitle(delegate
 				{
-					okButton = 
+					(Game1.activeClickableMenu as TitleMenu).skipToTitleButtons();
+					TitleMenu.subMenu = new ConfirmationDialog(Game1.content.LoadString("Strings\\UI:Client_RemotelyDisconnected"), null)
 					{
-						visible = false
-					}
-				};
-			});
+						okButton = 
+						{
+							visible = false
+						}
+					};
+				});
+			}
 		}
 
 		public static bool ShouldLogDisconnect(DisconnectType disconnectType)
@@ -1039,6 +1236,7 @@ namespace StardewValley
 			case DisconnectType.ExitedToMainMenu_FromFarmhandSelect:
 			case DisconnectType.ServerOfflineMode:
 			case DisconnectType.ServerFull:
+			case DisconnectType.AcceptedOtherInvite:
 				return false;
 			default:
 				return true;
@@ -1047,7 +1245,7 @@ namespace StardewValley
 
 		public static bool IsTimeout(DisconnectType disconnectType)
 		{
-			if ((uint)(disconnectType - 8) <= 2u)
+			if ((uint)(disconnectType - 9) <= 2u)
 			{
 				return true;
 			}
@@ -1132,11 +1330,17 @@ namespace StardewValley
 
 		public virtual void globalChatInfoMessage(string messageKey, params string[] args)
 		{
-			if (Game1.IsMultiplayer)
+			if (Game1.IsMultiplayer || Game1.multiplayerMode != 0)
 			{
 				receiveChatInfoMessage(Game1.player, messageKey, args);
 				sendChatInfoMessage(messageKey, args);
 			}
+		}
+
+		public void globalChatInfoMessageEvenInSinglePlayer(string messageKey, params string[] args)
+		{
+			receiveChatInfoMessage(Game1.player, messageKey, args);
+			sendChatInfoMessage(messageKey, args);
 		}
 
 		protected virtual void sendChatInfoMessage(string messageKey, params string[] args)
@@ -1236,6 +1440,11 @@ namespace StardewValley
 			{
 				yield return farmhouse;
 			}
+			GameLocation greenhouse = Game1.getLocationFromName("Greenhouse");
+			if (greenhouse != null && greenhouse != Game1.currentLocation)
+			{
+				yield return greenhouse;
+			}
 			foreach (Building building in farm.buildings)
 			{
 				if (building.indoors.Value != null && building.indoors.Value != Game1.currentLocation)
@@ -1247,7 +1456,7 @@ namespace StardewValley
 
 		public virtual bool isAlwaysActiveLocation(GameLocation location)
 		{
-			if (!(location.Name == "Farm") && !(location.Name == "FarmHouse"))
+			if (!(location.Name == "Farm") && !(location.Name == "FarmHouse") && !(location.Name == "Greenhouse"))
 			{
 				if (location.Root != null)
 				{
@@ -1258,21 +1467,39 @@ namespace StardewValley
 			return true;
 		}
 
-		protected virtual void readActiveLocation(IncomingMessage msg, bool forceCurrentLocation = false)
+		protected virtual void readActiveLocation(IncomingMessage msg)
 		{
+			bool force_current_location = msg.Reader.ReadBoolean();
 			NetRoot<GameLocation> root = readObjectFull<GameLocation>(msg.Reader);
 			if (isAlwaysActiveLocation(root.Value))
 			{
 				for (int i = 0; i < Game1.locations.Count; i++)
 				{
-					if (Game1.locations[i].Equals(root.Value))
+					if (!Game1.locations[i].Equals(root.Value))
 					{
-						Game1.locations[i] = root.Value;
+						continue;
+					}
+					if (Game1.locations[i] == root.Value)
+					{
 						break;
 					}
+					if (Game1.locations[i] != null)
+					{
+						if (Game1.currentLocation == Game1.locations[i])
+						{
+							Game1.currentLocation = root.Value;
+						}
+						if (Game1.player.currentLocation == Game1.locations[i])
+						{
+							Game1.player.currentLocation = root.Value;
+						}
+						Game1.removeLocationFromLocationLookup(Game1.locations[i]);
+					}
+					Game1.locations[i] = root.Value;
+					break;
 				}
 			}
-			if (!((Game1.locationRequest != null) | forceCurrentLocation))
+			if (!((Game1.locationRequest != null) | force_current_location))
 			{
 				return;
 			}
@@ -1284,12 +1511,13 @@ namespace StardewValley
 					Game1.currentLocation = root.Value;
 				}
 			}
-			else if (forceCurrentLocation)
+			else if (force_current_location)
 			{
 				Game1.currentLocation = root.Value;
 			}
 			if (Game1.locationRequest != null)
 			{
+				Game1.locationRequest.Location = root.Value;
 				Game1.locationRequest.Loaded(root.Value);
 			}
 			Game1.currentLocation.resetForPlayerEntry();
@@ -1299,7 +1527,7 @@ namespace StardewValley
 				Game1.locationRequest.Warped(root.Value);
 			}
 			Game1.currentLocation.updateSeasonalTileSheets();
-			if (Game1.isDebrisWeather)
+			if (Game1.IsDebrisWeatherHere())
 			{
 				Game1.populateDebrisWeatherArray();
 			}
@@ -1426,17 +1654,18 @@ namespace StardewValley
 
 		protected void _performPartyWideMail(string mail_key, PartyWideMessageQueue message_queue, bool no_letter)
 		{
-			if (message_queue == PartyWideMessageQueue.MailForTomorrow)
+			switch (message_queue)
 			{
+			case PartyWideMessageQueue.MailForTomorrow:
 				Game1.addMailForTomorrow(mail_key, no_letter);
+				break;
+			case PartyWideMessageQueue.SeenMail:
+				Game1.addMail(mail_key, no_letter);
+				break;
 			}
 			if (no_letter)
 			{
 				mail_key += "%&NL&%";
-			}
-			if (message_queue == PartyWideMessageQueue.SeenMail && !Game1.player.mailReceived.Contains(mail_key))
-			{
-				Game1.player.mailReceived.Add(mail_key);
 			}
 			switch (message_queue)
 			{
@@ -1502,36 +1731,56 @@ namespace StardewValley
 				break;
 			case 6:
 			{
-				GameLocation location2 = readLocation(msg.Reader);
-				if (location2 != null)
+				GameLocation location3 = readLocation(msg.Reader);
+				if (location3 != null)
 				{
-					readObjectDelta(msg.Reader, location2.Root);
+					readObjectDelta(msg.Reader, location3.Root);
 				}
 				break;
 			}
 			case 7:
 			{
-				GameLocation location2 = readLocation(msg.Reader);
-				location2?.temporarySprites.AddRange(readSprites(msg.Reader, location2));
+				GameLocation location3 = readLocation(msg.Reader);
+				location3?.temporarySprites.AddRange(readSprites(msg.Reader, location3));
 				break;
 			}
 			case 8:
 			{
 				NPC character = readNPC(msg.Reader);
-				GameLocation location2 = readLocation(msg.Reader);
-				if (character != null && location2 != null)
+				GameLocation location3 = readLocation(msg.Reader);
+				if (character != null && location3 != null)
 				{
-					Game1.warpCharacter(character, location2, msg.Reader.ReadVector2());
+					Game1.warpCharacter(character, location3, msg.Reader.ReadVector2());
 				}
 				break;
 			}
 			case 4:
 			{
 				int eventId = msg.Reader.ReadInt32();
+				bool use_local_farmer = msg.Reader.ReadBoolean();
 				int tileX = msg.Reader.ReadInt32();
 				int tileY = msg.Reader.ReadInt32();
-				Farmer farmerActor = (msg.SourceFarmer.NetFields.Root as NetRoot<Farmer>).Clone().Value;
 				LocationRequest request = readLocationRequest(msg.Reader);
+				GameLocation location_for_event_check = Game1.getLocationFromName(request.Name);
+				if (location_for_event_check == null || location_for_event_check.findEventById(eventId) == null)
+				{
+					Console.WriteLine("Couldn't find event " + eventId + " for broadcast event!");
+					break;
+				}
+				Farmer farmerActor = null;
+				if (use_local_farmer)
+				{
+					farmerActor = (Game1.player.NetFields.Root as NetRoot<Farmer>).Clone().Value;
+				}
+				else
+				{
+					farmerActor = (msg.SourceFarmer.NetFields.Root as NetRoot<Farmer>).Clone().Value;
+				}
+				int old_x = (int)Game1.player.getTileLocation().X;
+				int old_y = (int)Game1.player.getTileLocation().Y;
+				string old_location = Game1.player.currentLocation.NameOrUniqueName;
+				int direction = Game1.player.facingDirection.Value;
+				Game1.player.locationBeforeForcedEvent.Value = old_location;
 				request.OnWarp += delegate
 				{
 					farmerActor.currentLocation = Game1.currentLocation;
@@ -1539,22 +1788,33 @@ namespace StardewValley
 					farmerActor.UsingTool = false;
 					farmerActor.items.Clear();
 					farmerActor.hidden.Value = false;
-					Event evt = Game1.currentLocation.findEventById(eventId, farmerActor);
-					Game1.currentLocation.startEvent(evt);
+					Event @event = Game1.currentLocation.findEventById(eventId, farmerActor);
+					Game1.currentLocation.startEvent(@event);
 					farmerActor.Position = Game1.player.Position;
 					Game1.warpingForForcedRemoteEvent = false;
+					string value = Game1.player.locationBeforeForcedEvent.Value;
+					Game1.player.locationBeforeForcedEvent.Value = null;
+					@event.setExitLocation(old_location, old_x, old_y);
+					Game1.player.locationBeforeForcedEvent.Value = value;
+					Game1.player.orientationBeforeEvent = direction;
 				};
 				Action performForcedEvent = delegate
 				{
 					Game1.warpingForForcedRemoteEvent = true;
+					Game1.player.completelyStopAnimatingOrDoingAction();
 					Game1.warpFarmer(request, tileX, tileY, Game1.player.FacingDirection);
 				};
 				Game1.remoteEventQueue.Add(performForcedEvent);
 				break;
 			}
 			case 10:
-				receiveChatMessage(msg.SourceFarmer, msg.Reader.ReadInt64(), msg.Reader.ReadEnum<LocalizedContentManager.LanguageCode>(), msg.Reader.ReadString());
+			{
+				long recipientId = msg.Reader.ReadInt64();
+				LocalizedContentManager.LanguageCode langCode = msg.Reader.ReadEnum<LocalizedContentManager.LanguageCode>();
+				string message = msg.Reader.ReadString();
+				receiveChatMessage(msg.SourceFarmer, recipientId, langCode, message);
 				break;
+			}
 			case 15:
 			{
 				string messageKey = msg.Reader.ReadString();
@@ -1599,6 +1859,9 @@ namespace StardewValley
 			case 22:
 				receivePartyWideMail(msg);
 				break;
+			case 27:
+				receiveNutDig(msg);
+				break;
 			case 23:
 				receiveForceKick();
 				break;
@@ -1608,7 +1871,19 @@ namespace StardewValley
 			case 26:
 				receiveRequestGrandpaReevaluation(msg);
 				break;
+			case 28:
+				receivePassoutRequest(msg);
+				break;
+			case 29:
+				receivePassout(msg);
+				break;
 			}
+		}
+
+		public virtual void StartLocalMultiplayerServer()
+		{
+			Game1.server = new GameServer(local_multiplayer: true);
+			Game1.server.startServer();
 		}
 
 		public virtual void StartServer()
@@ -1736,6 +2011,69 @@ namespace StardewValley
 		public virtual Server InitServer(Server server)
 		{
 			return server;
+		}
+
+		public static string MessageTypeToString(byte type)
+		{
+			switch (type)
+			{
+			case 0:
+				return "farmerDelta";
+			case 1:
+				return "serverIntroduction";
+			case 2:
+				return "playerIntroduction";
+			case 3:
+				return "locationIntroduction";
+			case 4:
+				return "forceEvent";
+			case 5:
+				return "warpFarmer";
+			case 6:
+				return "locationDelta";
+			case 7:
+				return "locationSprites";
+			case 8:
+				return "characterWarp";
+			case 9:
+				return "availableFarmhands";
+			case 10:
+				return "chatMessage";
+			case 11:
+				return "connectionMessage";
+			case 12:
+				return "worldDelta";
+			case 13:
+				return "teamDelta";
+			case 14:
+				return "newDaySync";
+			case 15:
+				return "chatInfoMessage";
+			case 16:
+				return "userNameUpdate";
+			case 17:
+				return "farmerGainExperience";
+			case 18:
+				return "serverToClientsMessage";
+			case 19:
+				return "disconnecting";
+			case 20:
+				return "sharedAchievement";
+			case 21:
+				return "globalMessage";
+			case 22:
+				return "partyWideMail";
+			case 23:
+				return "forceKick";
+			case 24:
+				return "removeLocationFromLookup";
+			case 25:
+				return "farmerKilledMonster";
+			case 26:
+				return "requestGrandpaReevaluation";
+			default:
+				return type.ToString();
+			}
 		}
 	}
 }

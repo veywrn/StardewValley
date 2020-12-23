@@ -36,12 +36,16 @@ namespace StardewValley.Quests
 				parts.Clear();
 				parts.Add(new DescriptionElement("Strings\\StringsFromCSFiles:SocializeQuest.cs.13786", (random.NextDouble() < 0.3) ? new DescriptionElement("Strings\\StringsFromCSFiles:SocializeQuest.cs.13787") : ((random.NextDouble() < 0.5) ? new DescriptionElement("Strings\\StringsFromCSFiles:SocializeQuest.cs.13788") : new DescriptionElement("Strings\\StringsFromCSFiles:SocializeQuest.cs.13789"))));
 				parts.Add("Strings\\StringsFromCSFiles:SocializeQuest.cs.13791");
-				foreach (string name in Game1.content.Load<Dictionary<string, string>>("Data\\NPCDispositions").Keys)
+				Dictionary<string, string> npcs = Game1.content.Load<Dictionary<string, string>>("Data\\NPCDispositions");
+				foreach (string name in npcs.Keys)
 				{
 					switch (name)
 					{
 					default:
-						whoToGreet.Add(name);
+						if (!(npcs[name].Split('/')[7] != "Town"))
+						{
+							whoToGreet.Add(name);
+						}
 						break;
 					case "Kent":
 					case "Sandy":
@@ -49,6 +53,7 @@ namespace StardewValley.Quests
 					case "Marlon":
 					case "Wizard":
 					case "Krobus":
+					case "Leo":
 						break;
 					}
 				}

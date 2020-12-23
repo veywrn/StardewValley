@@ -56,17 +56,17 @@ namespace StardewValley.SDKs
 
 		private class GalaxyLobbyLeftListener : ILobbyLeftListener
 		{
-			private Action<GalaxyID, bool> callback;
+			private Action<GalaxyID, LobbyLeaveReason> callback;
 
-			public GalaxyLobbyLeftListener(Action<GalaxyID, bool> callback)
+			public GalaxyLobbyLeftListener(Action<GalaxyID, LobbyLeaveReason> callback)
 			{
 				this.callback = callback;
 				GalaxyInstance.ListenerRegistrar().Register(GalaxyTypeAwareListenerLobbyLeft.GetListenerType(), this);
 			}
 
-			public override void OnLobbyLeft(GalaxyID lobbyID, bool ioFailure)
+			public override void OnLobbyLeft(GalaxyID lobbyID, LobbyLeaveReason leaveReason)
 			{
-				callback(lobbyID, ioFailure);
+				callback(lobbyID, leaveReason);
 			}
 
 			public override void Dispose()
@@ -88,7 +88,13 @@ namespace StardewValley.SDKs
 
 		private const byte HeartbeatMessage = byte.MaxValue;
 
+		public bool isRecreatedLobby;
+
+		public bool isFirstRecreateAttempt;
+
 		private GalaxyID selfId;
+
+		private GalaxyID connectingLobbyID;
 
 		private GalaxyID lobby;
 
@@ -234,26 +240,37 @@ namespace StardewValley.SDKs
 			this.privacy = privacy;
 			this.memberLimit = memberLimit;
 			lobbyOwner = selfId;
+			isRecreatedLobby = false;
 			tryCreateLobby();
 		}
 
 		private void tryCreateLobby()
 		{
 			Console.WriteLine("Creating lobby...");
+			if (galaxyLobbyLeftCallback != null)
+			{
+				galaxyLobbyLeftCallback.Dispose();
+				galaxyLobbyLeftCallback = null;
+			}
 			galaxyLobbyLeftCallback = new GalaxyLobbyLeftListener(onGalaxyLobbyLeft);
 			GalaxyInstance.Matchmaking().CreateLobby(privacyToLobbyType(privacy), memberLimit, joinable: true, LobbyTopologyType.LOBBY_TOPOLOGY_TYPE_STAR);
 			recreateTimer = 0L;
 		}
 
-		public void JoinLobby(GalaxyID lobbyId)
+		public void JoinLobby(GalaxyID lobbyId, Action<string> onError)
 		{
 			try
 			{
-				GalaxyInstance.Matchmaking().JoinLobby(lobbyId);
+				connectingLobbyID = lobbyId;
+				GalaxyInstance.Matchmaking().JoinLobby(connectingLobbyID);
 			}
-			catch (Exception value)
+			catch (Exception e)
 			{
-				Console.WriteLine(value);
+				Console.WriteLine(e);
+				string error_message2 = Game1.content.LoadString("Strings\\UI:CoopMenu_Failed");
+				error_message2 = ((!e.Message.EndsWith("already joined this lobby")) ? (error_message2 + " (" + e.Message + ")") : (error_message2 + " (already connected)"));
+				onError(error_message2);
+				Close();
 			}
 		}
 
@@ -300,35 +317,90 @@ namespace StardewValley.SDKs
 
 		private void onGalaxyLobbyCreated(GalaxyID lobbyID, LobbyCreateResult result)
 		{
-			if (result == LobbyCreateResult.LOBBY_CREATE_RESULT_ERROR)
+			if (result != LobbyCreateResult.LOBBY_CREATE_RESULT_ERROR)
 			{
-				Console.WriteLine("Failed to create lobby.");
-				recreateTimer = getTimeNow() + 20000;
+				return;
 			}
+			Console.WriteLine("Failed to create lobby.");
+			if (Game1.chatBox != null && isFirstRecreateAttempt)
+			{
+				if (isRecreatedLobby)
+				{
+					Game1.chatBox.addInfoMessage(Game1.content.LoadString("Strings\\UI:Chat_LobbyCreateFail"));
+				}
+				else
+				{
+					Game1.chatBox.addInfoMessage(Game1.content.LoadString("Strings\\UI:Chat_LobbyCreateFail"));
+				}
+			}
+			recreateTimer = getTimeNow() + 20000;
+			isRecreatedLobby = true;
+			isFirstRecreateAttempt = false;
 		}
 
-		private void onGalaxyLobbyLeft(GalaxyID lobbyID, bool ioFailure)
+		private void onGalaxyLobbyLeft(GalaxyID lobbyID, ILobbyLeftListener.LobbyLeaveReason leaveReason)
 		{
-			Console.WriteLine("Left lobby {0} - ioFailure: {1}", lobbyID.ToUint64(), ioFailure);
+			if (leaveReason != ILobbyLeftListener.LobbyLeaveReason.LOBBY_LEAVE_REASON_USER_LEFT)
+			{
+				Program.WriteLog(Program.LogType.Disconnect, "Forcibly left Galaxy lobby at " + DateTime.Now.ToLongTimeString() + " - " + leaveReason, append: true);
+			}
+			if (Game1.chatBox != null)
+			{
+				string lobby_lost_reason = "";
+				switch (leaveReason)
+				{
+				case ILobbyLeftListener.LobbyLeaveReason.LOBBY_LEAVE_REASON_CONNECTION_LOST:
+					lobby_lost_reason = Game1.content.LoadString("Strings\\UI:Chat_LobbyLost_ConnectionLost");
+					break;
+				case ILobbyLeftListener.LobbyLeaveReason.LOBBY_LEAVE_REASON_LOBBY_CLOSED:
+					lobby_lost_reason = Game1.content.LoadString("Strings\\UI:Chat_LobbyLost_LobbyClosed");
+					break;
+				case ILobbyLeftListener.LobbyLeaveReason.LOBBY_LEAVE_REASON_USER_LEFT:
+					lobby_lost_reason = Game1.content.LoadString("Strings\\UI:Chat_LobbyLost_UserLeft");
+					break;
+				}
+				Game1.chatBox.addInfoMessage(Game1.content.LoadString("Strings\\UI:Chat_LobbyLost", lobby_lost_reason).Trim());
+			}
+			Console.WriteLine("Left lobby {0} - leaveReason: {1}", lobbyID.ToUint64(), leaveReason);
 			lobby = null;
 			recreateTimer = getTimeNow() + 20000;
+			isRecreatedLobby = true;
+			isFirstRecreateAttempt = true;
 		}
 
 		private void onGalaxyLobbyEnter(GalaxyID lobbyID, LobbyEnterResult result)
 		{
-			if (result == LobbyEnterResult.LOBBY_ENTER_RESULT_SUCCESS)
+			connectingLobbyID = null;
+			if (result != 0)
 			{
-				Console.WriteLine("Lobby entered: {0}", lobbyID.ToUint64());
-				lobby = lobbyID;
-				lobbyOwner = GalaxyInstance.Matchmaking().GetLobbyOwner(lobbyID);
-				if (lobbyOwner == selfId)
+				return;
+			}
+			Console.WriteLine("Lobby entered: {0}", lobbyID.ToUint64());
+			lobby = lobbyID;
+			lobbyOwner = GalaxyInstance.Matchmaking().GetLobbyOwner(lobbyID);
+			if (Game1.chatBox != null)
+			{
+				string invite_code_string = "";
+				if (Program.sdk.Networking != null && Program.sdk.Networking.SupportsInviteCodes())
 				{
-					foreach (KeyValuePair<string, string> pair in lobbyData)
-					{
-						GalaxyInstance.Matchmaking().SetLobbyData(lobby, pair.Key, pair.Value);
-					}
-					updateLobbyPrivacy();
+					invite_code_string = Game1.content.LoadString("Strings\\UI:Chat_LobbyJoined_InviteCode", GetInviteCode());
 				}
+				if (isRecreatedLobby)
+				{
+					Game1.chatBox.addInfoMessage(Game1.content.LoadString("Strings\\UI:Chat_LobbyRecreated", invite_code_string).Trim());
+				}
+				else
+				{
+					Game1.chatBox.addInfoMessage(Game1.content.LoadString("Strings\\UI:Chat_LobbyJoined", invite_code_string).Trim());
+				}
+			}
+			if (lobbyOwner == selfId)
+			{
+				foreach (KeyValuePair<string, string> pair in lobbyData)
+				{
+					GalaxyInstance.Matchmaking().SetLobbyData(lobby, pair.Key, pair.Value);
+				}
+				updateLobbyPrivacy();
 			}
 		}
 
@@ -354,8 +426,17 @@ namespace StardewValley.SDKs
 			{
 				yield break;
 			}
+			uint lobby_members_count;
+			try
+			{
+				lobby_members_count = GalaxyInstance.Matchmaking().GetNumLobbyMembers(lobby);
+			}
+			catch (Exception)
+			{
+				yield break;
+			}
 			uint i = 0u;
-			while (i < GalaxyInstance.Matchmaking().GetNumLobbyMembers(lobby))
+			while (i < lobby_members_count)
 			{
 				GalaxyID lobbyMember = GalaxyInstance.Matchmaking().GetLobbyMemberByIndex(lobby, i);
 				if (!(lobbyMember == selfId) && !ghosts.Contains(lobbyMember.ToUint64()))
@@ -392,6 +473,11 @@ namespace StardewValley.SDKs
 
 		public void Close()
 		{
+			if (connectingLobbyID != null)
+			{
+				GalaxyInstance.Matchmaking().LeaveLobby(connectingLobbyID);
+				connectingLobbyID = null;
+			}
 			if (lobby != null)
 			{
 				while (ConnectionCount > 0)
@@ -402,8 +488,20 @@ namespace StardewValley.SDKs
 				lobby = null;
 			}
 			updateLobbyPrivacy();
-			galaxyLobbyEnterCallback.Dispose();
-			galaxyLobbyCreatedCallback.Dispose();
+			try
+			{
+				galaxyLobbyEnterCallback.Dispose();
+			}
+			catch (Exception)
+			{
+			}
+			try
+			{
+				galaxyLobbyCreatedCallback.Dispose();
+			}
+			catch (Exception)
+			{
+			}
 			if (galaxyLobbyLeftCallback != null)
 			{
 				galaxyLobbyLeftCallback.Dispose();
@@ -420,14 +518,21 @@ namespace StardewValley.SDKs
 					recreateTimer = 0L;
 					tryCreateLobby();
 				}
+				DisconnectPeers(onDisconnect);
 				return;
 			}
-			string lobbyVersion = GalaxyInstance.Matchmaking().GetLobbyData(lobby, "protocolVersion");
-			if (lobbyVersion != "" && lobbyVersion != protocolVersion)
+			try
 			{
-				onError("Strings\\UI:CoopMenu_FailedProtocolVersion");
-				Close();
-				return;
+				string lobbyVersion = GalaxyInstance.Matchmaking().GetLobbyData(lobby, "protocolVersion");
+				if (lobbyVersion != "" && lobbyVersion != protocolVersion)
+				{
+					onError(Game1.content.LoadString("Strings\\UI:CoopMenu_FailedProtocolVersion"));
+					Close();
+					return;
+				}
+			}
+			catch (Exception)
+			{
 			}
 			foreach (GalaxyID lobbyMember in LobbyMembers())
 			{
@@ -475,18 +580,23 @@ namespace StardewValley.SDKs
 					onMessage(sender, messageData2);
 				}
 			}
+			DisconnectPeers(onDisconnect);
+		}
+
+		public virtual void DisconnectPeers(Action<GalaxyID> onDisconnect)
+		{
 			List<GalaxyID> disconnectedPeers = new List<GalaxyID>();
-			foreach (GalaxyID peer3 in connections.Values)
+			foreach (GalaxyID peer2 in connections.Values)
 			{
-				if (!lobbyContains(peer3) || ghosts.Contains(peer3.ToUint64()))
+				if (lobby == null || !lobbyContains(peer2) || ghosts.Contains(peer2.ToUint64()))
 				{
-					disconnectedPeers.Add(peer3);
+					disconnectedPeers.Add(peer2);
 				}
 			}
-			foreach (GalaxyID peer2 in disconnectedPeers)
+			foreach (GalaxyID peer in disconnectedPeers)
 			{
-				onDisconnect(peer2);
-				close(peer2);
+				onDisconnect(peer);
+				close(peer);
 			}
 		}
 

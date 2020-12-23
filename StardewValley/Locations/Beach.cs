@@ -3,6 +3,7 @@ using Microsoft.Xna.Framework.Graphics;
 using Netcode;
 using StardewValley.BellsAndWhistles;
 using StardewValley.Network;
+using StardewValley.Tools;
 using System;
 using System.Xml.Serialization;
 using xTile.Dimensions;
@@ -15,6 +16,8 @@ namespace StardewValley.Locations
 
 		[XmlElement("bridgeFixed")]
 		public readonly NetBool bridgeFixed = new NetBool();
+
+		private bool hasShownCCUpgrade;
 
 		public Beach()
 		{
@@ -81,9 +84,22 @@ namespace StardewValley.Locations
 
 		public override Object getFish(float millisecondsAfterNibble, int bait, int waterDepth, Farmer who, double baitPotency, Vector2 bobberTile, string locationName = null)
 		{
-			if (Game1.currentSeason.Equals("summer") && who.getTileX() >= 82 && who.FishingLevel >= 5 && !who.fishCaught.ContainsKey(159) && waterDepth >= 3 && Game1.random.NextDouble() < 0.18)
+			bool using_magic_bait = IsUsingMagicBait(who);
+			float bobberAddition = 0f;
+			if (who != null && who.CurrentTool is FishingRod && (who.CurrentTool as FishingRod).getBobberAttachmentIndex() == 856)
 			{
-				return new Object(159, 1);
+				bobberAddition += 0.07f;
+			}
+			if (who.getTileX() >= 82 && who.FishingLevel >= 5 && waterDepth >= 3 && Game1.random.NextDouble() < 0.18 + (double)bobberAddition)
+			{
+				if (Game1.player.team.SpecialOrderRuleActive("LEGENDARY_FAMILY"))
+				{
+					return new Object(898, 1);
+				}
+				if (!who.fishCaught.ContainsKey(159) && (Game1.currentSeason.Equals("summer") | using_magic_bait))
+				{
+					return new Object(159, 1);
+				}
 			}
 			return base.getFish(millisecondsAfterNibble, bait, waterDepth, who, baitPotency, bobberTile, locationName);
 		}
@@ -152,10 +168,12 @@ namespace StardewValley.Locations
 		{
 			Game1.globalFadeToClear();
 			Game1.viewportFreeze = false;
+			Game1.freezeControls = false;
 		}
 
 		public void fadedForBridgeFix()
 		{
+			Game1.freezeControls = true;
 			DelayedAction.playSoundAfterDelay("crafting", 1000);
 			DelayedAction.playSoundAfterDelay("crafting", 1500);
 			DelayedAction.playSoundAfterDelay("crafting", 2000);
@@ -304,6 +322,42 @@ namespace StardewValley.Locations
 			{
 				fixBridge(this);
 			}
+			if (Game1.MasterPlayer.mailReceived.Contains("communityUpgradeShortcuts"))
+			{
+				showCommunityUpgradeShortcuts(this, ref hasShownCCUpgrade);
+			}
+		}
+
+		public static void showCommunityUpgradeShortcuts(GameLocation location, ref bool flag)
+		{
+			if (flag)
+			{
+				return;
+			}
+			flag = true;
+			location.warps.Add(new Warp(-1, 4, "Forest", 119, 35, flipFarmer: false));
+			location.warps.Add(new Warp(-1, 5, "Forest", 119, 35, flipFarmer: false));
+			location.warps.Add(new Warp(-1, 6, "Forest", 119, 36, flipFarmer: false));
+			location.warps.Add(new Warp(-1, 7, "Forest", 119, 36, flipFarmer: false));
+			for (int x = 0; x < 5; x++)
+			{
+				for (int y = 4; y < 7; y++)
+				{
+					location.removeTile(x, y, "Buildings");
+				}
+			}
+			location.removeTile(7, 6, "Buildings");
+			location.removeTile(5, 6, "Buildings");
+			location.removeTile(6, 6, "Buildings");
+			location.setMapTileIndex(3, 7, 107, "Back");
+			location.removeTile(67, 5, "Buildings");
+			location.removeTile(67, 4, "Buildings");
+			location.removeTile(67, 3, "Buildings");
+			location.removeTile(67, 2, "Buildings");
+			location.removeTile(67, 1, "Buildings");
+			location.removeTile(67, 0, "Buildings");
+			location.removeTile(66, 3, "Buildings");
+			location.removeTile(68, 3, "Buildings");
 		}
 
 		public static void fixBridge(GameLocation location)
@@ -333,7 +387,7 @@ namespace StardewValley.Locations
 			base.draw(b);
 			if (!bridgeFixed)
 			{
-				float yOffset = 4f * (float)Math.Round(Math.Sin(DateTime.UtcNow.TimeOfDay.TotalMilliseconds / 250.0), 2);
+				float yOffset = 4f * (float)Math.Round(Math.Sin(Game1.currentGameTime.TotalGameTime.TotalMilliseconds / 250.0), 2);
 				b.Draw(Game1.mouseCursors, Game1.GlobalToLocal(Game1.viewport, new Vector2(3704f, 720f + yOffset)), new Microsoft.Xna.Framework.Rectangle(141, 465, 20, 24), Color.White * 0.75f, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.095401f);
 				b.Draw(Game1.mouseCursors, Game1.GlobalToLocal(Game1.viewport, new Vector2(3744f, 760f + yOffset)), new Microsoft.Xna.Framework.Rectangle(175, 425, 12, 12), Color.White * 0.75f, 0f, new Vector2(6f, 6f), 4f, SpriteEffects.None, 0.09541f);
 			}

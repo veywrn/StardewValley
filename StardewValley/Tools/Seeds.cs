@@ -45,7 +45,9 @@ namespace StardewValley.Tools
 
 		public override Item getOne()
 		{
-			return new Seeds(SeedType, 1);
+			Seeds seeds = new Seeds(SeedType, 1);
+			seeds._GetOneFrom(this);
+			return seeds;
 		}
 
 		protected override string loadDisplayName()

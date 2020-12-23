@@ -20,7 +20,9 @@ namespace StardewValley.Tools
 
 		public override Item getOne()
 		{
-			return new Sword(base.BaseName, base.InitialParentTileIndex);
+			Sword sword = new Sword(base.BaseName, base.InitialParentTileIndex);
+			sword._GetOneFrom(this);
+			return sword;
 		}
 
 		public void DoFunction(GameLocation location, int x, int y, int facingDirection, int power, Farmer who)

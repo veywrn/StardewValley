@@ -1,6 +1,5 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using Microsoft.Xna.Framework.Input;
 using System;
 using System.Collections.Generic;
 
@@ -249,10 +248,6 @@ namespace StardewValley
 				});
 				steamTimer = 100;
 			}
-			if (Mouse.GetState().LeftButton == ButtonState.Pressed)
-			{
-				_ = Game1.oldMouseState.LeftButton;
-			}
 			if (phaseTimer <= 0)
 			{
 				currentPhase++;
@@ -445,7 +440,7 @@ namespace StardewValley
 					}
 					break;
 				}
-				Game1.oldMouseState = Mouse.GetState();
+				Game1.InvalidateOldMouseMovement();
 			}
 			if (text != null)
 			{

@@ -35,7 +35,10 @@ namespace StardewValley.Characters
 			{
 				if (Utility.isOnScreen(getTileLocationPoint(), 640, base.currentLocation))
 				{
-					Game1.playSound("dog_bark");
+					if (!Game1.options.muteAnimalSounds)
+					{
+						Game1.playSound("dog_bark");
+					}
 					shake(500);
 				}
 				Sprite.setCurrentAnimation(new List<FarmerSprite.AnimationFrame>
@@ -143,7 +146,7 @@ namespace StardewValley.Characters
 				{
 					sprintTimer -= time.ElapsedGameTime.Milliseconds;
 					base.speed = 6;
-					tryToMoveInDirection(base.FacingDirection, isFarmer: false, -1, glider: false);
+					tryToMoveInDirection(FacingDirection, isFarmer: false, -1, glider: false);
 					if (sprintTimer <= 0)
 					{
 						base.speed = 2;
@@ -244,7 +247,7 @@ namespace StardewValley.Characters
 					break;
 				case 4:
 				case 5:
-					switch (base.FacingDirection)
+					switch (FacingDirection)
 					{
 					case 2:
 						faceDirection(2);
@@ -253,11 +256,11 @@ namespace StardewValley.Characters
 					case 0:
 					case 1:
 					case 3:
-						if (base.FacingDirection == 0)
+						if (FacingDirection == 0)
 						{
-							base.FacingDirection = ((!(Game1.random.NextDouble() < 0.5)) ? 1 : 3);
+							FacingDirection = ((!(Game1.random.NextDouble() < 0.5)) ? 1 : 3);
 						}
-						faceDirection(base.FacingDirection);
+						faceDirection(FacingDirection);
 						base.CurrentBehavior = 50;
 						break;
 					}
@@ -292,7 +295,7 @@ namespace StardewValley.Characters
 					faceDirection((!(Game1.random.NextDouble() < 0.5)) ? 1 : 3);
 					sprintTimer = Game1.random.Next(1000, 3500);
 				}
-				if (Utility.isOnScreen(getTileLocationPoint(), 64, base.currentLocation))
+				if (Utility.isOnScreen(getTileLocationPoint(), 64, base.currentLocation) && !Game1.options.muteAnimalSounds)
 				{
 					Game1.playSound("dog_bark");
 				}
@@ -371,7 +374,7 @@ namespace StardewValley.Characters
 
 		public void pantSound(Farmer who)
 		{
-			if (withinPlayerThreshold(5))
+			if (withinPlayerThreshold(5) && !Game1.options.muteAnimalSounds)
 			{
 				base.currentLocation.localSound("dog_pant");
 			}
@@ -387,7 +390,7 @@ namespace StardewValley.Characters
 
 		public override void playContentSound()
 		{
-			if (Utility.isOnScreen(getTileLocationPoint(), 128, base.currentLocation))
+			if (Utility.isOnScreen(getTileLocationPoint(), 128, base.currentLocation) && !Game1.options.muteAnimalSounds)
 			{
 				Game1.playSound("dog_pant");
 				DelayedAction.playSoundAfterDelay("dog_pant", 400);

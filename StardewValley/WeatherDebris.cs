@@ -3,6 +3,7 @@ using Microsoft.Xna.Framework.Graphics;
 
 namespace StardewValley
 {
+	[InstanceStatics]
 	public class WeatherDebris
 	{
 		public const int pinkPetals = 0;

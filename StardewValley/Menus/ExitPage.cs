@@ -12,8 +12,13 @@ namespace StardewValley.Menus
 		public ExitPage(int x, int y, int width, int height)
 			: base(x, y, width, height)
 		{
-			Vector2 exitPos2 = new Vector2(xPositionOnScreen + width / 2 - (int)((Game1.dialogueFont.MeasureString(Game1.content.LoadString("Strings\\UI:ExitToTitle")).X + 64f) / 2f), yPositionOnScreen + 256 - 32);
-			exitToTitle = new ClickableComponent(new Rectangle((int)exitPos2.X, (int)exitPos2.Y, (int)Game1.dialogueFont.MeasureString(Game1.content.LoadString("Strings\\UI:ExitToTitle")).X + 64, 96), "", Game1.content.LoadString("Strings\\UI:ExitToTitle"))
+			string exit_to_title_string = Game1.content.LoadString("Strings\\UI:ExitToTitle");
+			if (!Game1.game1.IsMainInstance)
+			{
+				exit_to_title_string = Game1.content.LoadString("Strings\\UI:DropOutLocalMulti");
+			}
+			Vector2 exitPos2 = new Vector2(xPositionOnScreen + width / 2 - (int)((Game1.dialogueFont.MeasureString(exit_to_title_string).X + 64f) / 2f), yPositionOnScreen + 256 - 32);
+			exitToTitle = new ClickableComponent(new Rectangle((int)exitPos2.X, (int)exitPos2.Y, (int)Game1.dialogueFont.MeasureString(exit_to_title_string).X + 64, 96), "", exit_to_title_string)
 			{
 				myID = 535,
 				upNeighborID = 12347,
@@ -25,6 +30,10 @@ namespace StardewValley.Menus
 				myID = 536,
 				upNeighborID = 535
 			};
+			if (!Game1.game1.IsMainInstance)
+			{
+				exitToDesktop.visible = false;
+			}
 			if (Game1.options.SnappyMenus)
 			{
 				populateClickableComponentList();

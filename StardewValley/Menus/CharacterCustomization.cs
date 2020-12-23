@@ -1,6 +1,7 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
+using StardewValley.BellsAndWhistles;
 using StardewValley.Characters;
 using StardewValley.Minigames;
 using StardewValley.Objects;
@@ -91,6 +92,8 @@ namespace StardewValley.Menus
 
 		public const int region_coopHelpButtons = 635;
 
+		public const int region_advancedOptions = 636;
+
 		public const int region_colorPicker1 = 522;
 
 		public const int region_colorPicker2 = 523;
@@ -120,6 +123,8 @@ namespace StardewValley.Menus
 		public const int region_farmSelection5 = 535;
 
 		public const int region_farmSelection6 = 545;
+
+		public const int region_farmSelection7 = 546;
 
 		public const int region_nameBox = 536;
 
@@ -182,6 +187,8 @@ namespace StardewValley.Menus
 		public ClickableTextureComponent coopHelpRightButton;
 
 		public ClickableTextureComponent coopHelpLeftButton;
+
+		public ClickableTextureComponent advancedOptionsButton;
 
 		private TextBox nameBox;
 
@@ -275,6 +282,10 @@ namespace StardewValley.Menus
 
 		public Rectangle? petPortraitBox;
 
+		public string oldName = "";
+
+		private float advancedCCHighlightTimer;
+
 		private ColorPicker lastHeldColorPicker;
 
 		private int timesRandom;
@@ -284,6 +295,10 @@ namespace StardewValley.Menus
 		{
 			_itemToDye = item;
 			setUpPositions();
+			if (source == Source.NewGame || source == Source.HostNewFarm)
+			{
+				Game1.spawnMonstersAtNight = false;
+			}
 			_recolorPantsAction = delegate
 			{
 				DyeItem(pantsColorPicker.getSelectedColor());
@@ -309,8 +324,9 @@ namespace StardewValley.Menus
 		}
 
 		public CharacterCustomization(Source source)
-			: base(Game1.viewport.Width / 2 - (632 + IClickableMenu.borderWidth * 2) / 2, Game1.viewport.Height / 2 - (648 + IClickableMenu.borderWidth * 2) / 2 - 64, 632 + IClickableMenu.borderWidth * 2, 648 + IClickableMenu.borderWidth * 2 + 64)
+			: base(Game1.uiViewport.Width / 2 - (632 + IClickableMenu.borderWidth * 2) / 2, Game1.uiViewport.Height / 2 - (648 + IClickableMenu.borderWidth * 2) / 2 - 64, 632 + IClickableMenu.borderWidth * 2, 648 + IClickableMenu.borderWidth * 2 + 64)
 		{
+			oldName = Game1.player.Name;
 			int items_to_dye = 0;
 			if (source == Source.ClothesDye || source == Source.DyePots)
 			{
@@ -332,13 +348,8 @@ namespace StardewValley.Menus
 					break;
 				}
 				height = 308 + IClickableMenu.borderWidth * 2 + 64 + 72 * items_to_dye - 4;
-				xPositionOnScreen = Game1.viewport.Width / 2 - width / 2;
-				yPositionOnScreen = Game1.viewport.Height / 2 - height / 2 - 64;
-			}
-			if (source == Source.Wizard)
-			{
-				height = 540 + IClickableMenu.borderWidth * 2 + 64 + 72 * items_to_dye - 4;
-				yPositionOnScreen = Game1.viewport.Height / 2 - height / 2 - 64;
+				xPositionOnScreen = Game1.uiViewport.Width / 2 - width / 2;
+				yPositionOnScreen = Game1.uiViewport.Height / 2 - height / 2 - 64;
 			}
 			shirtOptions = new List<int>
 			{
@@ -445,15 +456,20 @@ namespace StardewValley.Menus
 			base.gameWindowSizeChanged(oldBounds, newBounds);
 			if (_isDyeMenu)
 			{
-				xPositionOnScreen = Game1.viewport.Width / 2 - width / 2;
-				yPositionOnScreen = Game1.viewport.Height / 2 - height / 2 - 64;
+				xPositionOnScreen = Game1.uiViewport.Width / 2 - width / 2;
+				yPositionOnScreen = Game1.uiViewport.Height / 2 - height / 2 - 64;
 			}
 			else
 			{
-				xPositionOnScreen = Game1.viewport.Width / 2 - (632 + IClickableMenu.borderWidth * 2) / 2;
-				yPositionOnScreen = Game1.viewport.Height / 2 - (600 + IClickableMenu.borderWidth * 2) / 2 - 64;
+				xPositionOnScreen = Game1.uiViewport.Width / 2 - (632 + IClickableMenu.borderWidth * 2) / 2;
+				yPositionOnScreen = Game1.uiViewport.Height / 2 - (600 + IClickableMenu.borderWidth * 2) / 2 - 64;
 			}
 			setUpPositions();
+		}
+
+		public void showAdvancedCharacterCreationHighlight()
+		{
+			advancedCCHighlightTimer = 4000f;
 		}
 
 		private void setUpPositions()
@@ -480,6 +496,21 @@ namespace StardewValley.Menus
 			leftSelectionButtons.Clear();
 			rightSelectionButtons.Clear();
 			farmTypeButtons.Clear();
+			if (source == Source.NewGame || source == Source.HostNewFarm)
+			{
+				advancedOptionsButton = new ClickableTextureComponent("Advanced", new Rectangle(xPositionOnScreen - 80, yPositionOnScreen + height - 80 - 16, 80, 80), null, null, Game1.mouseCursors2, new Rectangle(154, 154, 20, 20), 4f)
+				{
+					myID = 636,
+					upNeighborID = -99998,
+					leftNeighborID = -99998,
+					rightNeighborID = -99998,
+					downNeighborID = -99998
+				};
+			}
+			else
+			{
+				advancedOptionsButton = null;
+			}
 			okButton = new ClickableTextureComponent("OK", new Rectangle(xPositionOnScreen + width - IClickableMenu.borderWidth - IClickableMenu.spaceToClearSideBorder - 64, yPositionOnScreen + height - IClickableMenu.borderWidth - IClickableMenu.spaceToClearTopBorder + 16, 64, 64), null, null, Game1.mouseCursors, Game1.getSourceRectForStandardTileSheet(Game1.mouseCursors, 46), 1f)
 			{
 				myID = 505,
@@ -488,7 +519,7 @@ namespace StardewValley.Menus
 				rightNeighborID = -99998,
 				downNeighborID = -99998
 			};
-			backButton = new ClickableComponent(new Rectangle(Game1.viewport.Width + -198 - 48, Game1.viewport.Height - 81 - 24, 198, 81), "")
+			backButton = new ClickableComponent(new Rectangle(Game1.uiViewport.Width + -198 - 48, Game1.uiViewport.Height - 81 - 24, 198, 81), "")
 			{
 				myID = 81114,
 				upNeighborID = -99998,
@@ -557,7 +588,7 @@ namespace StardewValley.Menus
 				randomButton.visible = false;
 			}
 			portraitBox = new Rectangle(xPositionOnScreen + 64 + 42 - 2, yPositionOnScreen + IClickableMenu.borderWidth + IClickableMenu.spaceToClearTopBorder - 16, 128, 192);
-			if (_isDyeMenu || source == Source.Wizard)
+			if (_isDyeMenu)
 			{
 				portraitBox.X = xPositionOnScreen + (width - portraitBox.Width) / 2;
 				randomButton.bounds.X = portraitBox.X - 56;
@@ -588,24 +619,31 @@ namespace StardewValley.Menus
 			}
 			if (source == Source.NewGame || source == Source.HostNewFarm || source == Source.NewFarmhand || source == Source.Wizard)
 			{
-				if (source != Source.Wizard)
+				genderButtons.Add(new ClickableTextureComponent("Male", new Rectangle(xPositionOnScreen + IClickableMenu.spaceToClearSideBorder + IClickableMenu.borderWidth + 32 + 8, yPositionOnScreen + IClickableMenu.borderWidth + IClickableMenu.spaceToClearTopBorder + 192, 64, 64), null, "Male", Game1.mouseCursors, new Rectangle(128, 192, 16, 16), 4f)
 				{
-					genderButtons.Add(new ClickableTextureComponent("Male", new Rectangle(xPositionOnScreen + IClickableMenu.spaceToClearSideBorder + IClickableMenu.borderWidth + 32 + 8, yPositionOnScreen + IClickableMenu.borderWidth + IClickableMenu.spaceToClearTopBorder + 192, 64, 64), null, "Male", Game1.mouseCursors, new Rectangle(128, 192, 16, 16), 4f)
+					myID = 508,
+					upNeighborID = -99998,
+					leftNeighborID = -99998,
+					rightNeighborID = -99998,
+					downNeighborID = -99998
+				});
+				genderButtons.Add(new ClickableTextureComponent("Female", new Rectangle(xPositionOnScreen + IClickableMenu.spaceToClearSideBorder + IClickableMenu.borderWidth + 32 + 64 + 24, yPositionOnScreen + IClickableMenu.borderWidth + IClickableMenu.spaceToClearTopBorder + 192, 64, 64), null, "Female", Game1.mouseCursors, new Rectangle(144, 192, 16, 16), 4f)
+				{
+					myID = 509,
+					upNeighborID = -99998,
+					leftNeighborID = -99998,
+					rightNeighborID = -99998,
+					downNeighborID = -99998
+				});
+				if (source == Source.Wizard && genderButtons != null && genderButtons.Count > 0)
+				{
+					int start_x = xPositionOnScreen + IClickableMenu.spaceToClearSideBorder + IClickableMenu.borderWidth + 320 + 16;
+					int start_y = yPositionOnScreen + IClickableMenu.borderWidth + IClickableMenu.spaceToClearTopBorder + 64 + 48;
+					for (int i = 0; i < genderButtons.Count; i++)
 					{
-						myID = 508,
-						upNeighborID = -99998,
-						leftNeighborID = -99998,
-						rightNeighborID = -99998,
-						downNeighborID = -99998
-					});
-					genderButtons.Add(new ClickableTextureComponent("Female", new Rectangle(xPositionOnScreen + IClickableMenu.spaceToClearSideBorder + IClickableMenu.borderWidth + 32 + 64 + 24, yPositionOnScreen + IClickableMenu.borderWidth + IClickableMenu.spaceToClearTopBorder + 192, 64, 64), null, "Female", Game1.mouseCursors, new Rectangle(144, 192, 16, 16), 4f)
-					{
-						myID = 509,
-						upNeighborID = -99998,
-						leftNeighborID = -99998,
-						rightNeighborID = -99998,
-						downNeighborID = -99998
-					});
+						genderButtons[i].bounds.X = start_x + 80 * i;
+						genderButtons[i].bounds.Y = start_y;
+					}
 				}
 				yOffset4 = 256;
 				if (source == Source.Wizard)
@@ -682,6 +720,14 @@ namespace StardewValley.Menus
 				farmTypeButtons.Add(new ClickableTextureComponent("Four Corners", new Rectangle(baseFarmButton.X, baseFarmButton.Y + 528, 88, 80), null, Game1.content.LoadString("Strings\\UI:Character_FarmFourCorners"), Game1.mouseCursors, new Rectangle(0, 345, 22, 20), 4f)
 				{
 					myID = 545,
+					upNeighborID = -99998,
+					leftNeighborID = -99998,
+					rightNeighborID = -99998,
+					downNeighborID = -99998
+				});
+				farmTypeButtons.Add(new ClickableTextureComponent("Beach", new Rectangle(baseFarmButton.X, baseFarmButton.Y + 616, 88, 80), null, Game1.content.LoadString("Strings\\UI:Character_FarmBeach"), Game1.mouseCursors, new Rectangle(22, 345, 22, 20), 4f)
+				{
+					myID = 546,
 					upNeighborID = -99998,
 					leftNeighborID = -99998,
 					rightNeighborID = -99998,
@@ -1147,6 +1193,16 @@ namespace StardewValley.Menus
 				nameLabel.visible = false;
 				favoriteLabel.visible = false;
 			}
+			if (source == Source.Wizard)
+			{
+				nameLabel.visible = true;
+				nameBoxCC.visible = true;
+				favThingBoxCC.visible = true;
+				favoriteLabel.visible = true;
+				favThingBoxCC.bounds.Y = farmnameBoxCC.bounds.Y;
+				favoriteLabel.bounds.Y = farmLabel.bounds.Y;
+				favThingBox.Y = farmnameBox.Y;
+			}
 			if (source == Source.NewGame || source == Source.HostNewFarm)
 			{
 				skipIntroButton.visible = true;
@@ -1407,10 +1463,17 @@ namespace StardewValley.Menus
 					Game1.spawnMonstersAtNight = false;
 				}
 				break;
+			case "Beach":
+				if (source == Source.NewGame || source == Source.HostNewFarm)
+				{
+					Game1.whichFarm = 6;
+					Game1.spawnMonstersAtNight = false;
+				}
+				break;
 			case "Male":
+				Game1.player.changeGender(male: true);
 				if (source != Source.Wizard)
 				{
-					Game1.player.changeGender(male: true);
 					Game1.player.changeHairStyle(0);
 				}
 				break;
@@ -1421,9 +1484,9 @@ namespace StardewValley.Menus
 				Game1.cabinsSeparate = true;
 				break;
 			case "Female":
+				Game1.player.changeGender(male: false);
 				if (source != Source.Wizard)
 				{
-					Game1.player.changeGender(male: false);
 					Game1.player.changeHairStyle(16);
 				}
 				break;
@@ -1466,6 +1529,48 @@ namespace StardewValley.Menus
 				if (source == Source.HostNewFarm)
 				{
 					Game1.multiplayerMode = 2;
+				}
+				try
+				{
+					if (Game1.player.Name != oldName && Game1.player.Name.IndexOf("[") != -1 && Game1.player.Name.IndexOf("]") != -1)
+					{
+						int start = Game1.player.Name.IndexOf("[");
+						int end = Game1.player.Name.IndexOf("]");
+						if (end > start)
+						{
+							string s = Game1.player.Name.Substring(start + 1, end - start - 1);
+							int item_index = -1;
+							if (int.TryParse(s, out item_index))
+							{
+								string itemName = Game1.objectInformation[item_index].Split('/')[0];
+								switch (Game1.random.Next(5))
+								{
+								case 0:
+									Game1.chatBox.addMessage(Game1.content.LoadString("Strings\\UI:NameChange_EasterEgg1"), new Color(104, 214, 255));
+									break;
+								case 1:
+									Game1.chatBox.addMessage(Game1.content.LoadString("Strings\\UI:NameChange_EasterEgg2", Lexicon.makePlural(itemName)), new Color(100, 50, 255));
+									break;
+								case 2:
+									Game1.chatBox.addMessage(Game1.content.LoadString("Strings\\UI:NameChange_EasterEgg3", Lexicon.makePlural(itemName)), new Color(0, 220, 40));
+									break;
+								case 3:
+									Game1.chatBox.addMessage(Game1.content.LoadString("Strings\\UI:NameChange_EasterEgg4"), new Color(0, 220, 40));
+									DelayedAction.functionAfterDelay(delegate
+									{
+										Game1.chatBox.addMessage(Game1.content.LoadString("Strings\\UI:NameChange_EasterEgg5"), new Color(104, 214, 255));
+									}, 12000);
+									break;
+								case 4:
+									Game1.chatBox.addMessage(Game1.content.LoadString("Strings\\UI:NameChange_EasterEgg6", Lexicon.getProperArticleForWord(itemName), itemName), new Color(100, 120, 255));
+									break;
+								}
+							}
+						}
+					}
+				}
+				catch (Exception)
+				{
 				}
 				string changed_pet_name = null;
 				if (petPortraitBox.HasValue && Game1.gameMode == 3 && Game1.locations != null)
@@ -1532,9 +1637,22 @@ namespace StardewValley.Menus
 				Game1.playSound("skeletonStep");
 				break;
 			case "Hair":
-				Game1.player.changeHairStyle((int)Game1.player.hair + change);
+			{
+				List<int> all_hairs = Farmer.GetAllHairstyleIndices();
+				int current_index2 = all_hairs.IndexOf(Game1.player.hair);
+				current_index2 += change;
+				if (current_index2 >= all_hairs.Count)
+				{
+					current_index2 = 0;
+				}
+				else if (current_index2 < 0)
+				{
+					current_index2 = all_hairs.Count() - 1;
+				}
+				Game1.player.changeHairStyle(all_hairs[current_index2]);
 				Game1.playSound("grassyStep");
 				break;
+			}
 			case "Shirt":
 				Game1.player.changeShirt((int)Game1.player.shirt + change, is_customization_screen: true);
 				Game1.playSound("coin");
@@ -1608,11 +1726,37 @@ namespace StardewValley.Menus
 			}
 		}
 
+		public void ShowAdvancedOptions()
+		{
+			AddDependency();
+			(TitleMenu.subMenu = new AdvancedGameOptions()).exitFunction = delegate
+			{
+				TitleMenu.subMenu = this;
+				RemoveDependency();
+				populateClickableComponentList();
+				if (Game1.options.SnappyMenus)
+				{
+					setCurrentlySnappedComponentTo(636);
+					snapCursorToCurrentSnappedComponent();
+				}
+			};
+		}
+
 		public override bool readyToClose()
 		{
 			if (showingCoopHelp)
 			{
 				return false;
+			}
+			if (Game1.lastCursorMotionWasMouse)
+			{
+				foreach (ClickableTextureComponent farmTypeButton in farmTypeButtons)
+				{
+					if (farmTypeButton.containsPoint(Game1.getMouseX(ui_scale: true), Game1.getMouseY(ui_scale: true)))
+					{
+						return false;
+					}
+				}
 			}
 			return base.readyToClose();
 		}
@@ -1774,7 +1918,7 @@ namespace StardewValley.Menus
 				Game1.player.changeEyeColor(eyeColorPicker.click(x, y));
 				lastHeldColorPicker = eyeColorPicker;
 			}
-			if (source != Source.Wizard && source != Source.Dresser && source != Source.ClothesDye && source != Source.DyePots)
+			if (source != Source.Dresser && source != Source.ClothesDye && source != Source.DyePots)
 			{
 				nameBox.Update();
 				if (source == Source.NewGame || source == Source.HostNewFarm)
@@ -1809,6 +1953,11 @@ namespace StardewValley.Menus
 				coopHelpRightButton.bounds.X = xPositionOnScreen + (int)helpStringSize.X - IClickableMenu.borderWidth * 5;
 				coopHelpLeftButton.bounds.Y = yPositionOnScreen + (int)helpStringSize.Y + IClickableMenu.borderWidth * 2 - 4;
 				coopHelpLeftButton.bounds.X = xPositionOnScreen - IClickableMenu.borderWidth * 4;
+			}
+			if (advancedOptionsButton != null && advancedOptionsButton.containsPoint(x, y))
+			{
+				Game1.playSound("drumkit6");
+				ShowAdvancedOptions();
 			}
 			if (!randomButton.containsPoint(x, y))
 			{
@@ -1916,6 +2065,7 @@ namespace StardewValley.Menus
 					hairColor.B = (byte)Game1.random.Next(15, 50);
 				}
 				Game1.player.changeHairColor(hairColor);
+				hairColorPicker.setColor(hairColor);
 			}
 			if (shirtLabel != null && shirtLabel.visible)
 			{
@@ -2239,6 +2389,10 @@ namespace StardewValley.Menus
 					coopHelpLeftButton.scale = Math.Max(coopHelpLeftButton.scale - 0.025f, coopHelpLeftButton.baseScale);
 				}
 			}
+			if (advancedOptionsButton != null)
+			{
+				advancedOptionsButton.tryHover(x, y);
+			}
 			randomButton.tryHover(x, y, 0.25f);
 			randomButton.tryHover(x, y, 0.25f);
 			if ((hairColorPicker != null && hairColorPicker.containsPoint(x, y)) || (pantsColorPicker != null && pantsColorPicker.containsPoint(x, y)) || (eyeColorPicker != null && eyeColorPicker.containsPoint(x, y)))
@@ -2253,7 +2407,7 @@ namespace StardewValley.Menus
 
 		public bool canLeaveMenu()
 		{
-			if (source != Source.ClothesDye && source != Source.DyePots && source != Source.Wizard)
+			if (source != Source.ClothesDye && source != Source.DyePots)
 			{
 				if (Game1.player.Name.Length > 0 && Game1.player.farmName.Length > 0)
 				{
@@ -2395,7 +2549,7 @@ namespace StardewValley.Menus
 						offset = 21f - Game1.smallFont.MeasureString(c.name).X / 2f;
 						if (!c.name.Contains("Color"))
 						{
-							sub = string.Concat((int)Game1.player.hair + 1);
+							sub = string.Concat(Farmer.GetAllHairstyleIndices().IndexOf(Game1.player.hair) + 1);
 						}
 					}
 					else if (c == accLabel)
@@ -2443,7 +2597,7 @@ namespace StardewValley.Menus
 			}
 			if (farmTypeButtons.Count > 0)
 			{
-				IClickableMenu.drawTextureBox(b, farmTypeButtons[0].bounds.X - 16, farmTypeButtons[0].bounds.Y - 20, 120, 564, Color.White);
+				IClickableMenu.drawTextureBox(b, farmTypeButtons[0].bounds.X - 16, farmTypeButtons[0].bounds.Y - 20, 120, 652, Color.White);
 				for (int i = 0; i < farmTypeButtons.Count; i++)
 				{
 					farmTypeButtons[i].draw(b, farmTypeButtons[i].name.Contains("Gray") ? (Color.Black * 0.5f) : Color.White, 0.88f);
@@ -2460,6 +2614,10 @@ namespace StardewValley.Menus
 			if (petPortraitBox.HasValue)
 			{
 				b.Draw(Game1.mouseCursors, petPortraitBox.Value, new Rectangle(160 + ((!Game1.player.catPerson) ? 48 : 0) + Game1.player.whichPetBreed * 16, 208, 16, 16), Color.White, 0f, Vector2.Zero, SpriteEffects.None, 0.89f);
+			}
+			if (advancedOptionsButton != null)
+			{
+				advancedOptionsButton.draw(b);
 			}
 			if (canLeaveMenu())
 			{
@@ -2486,7 +2644,7 @@ namespace StardewValley.Menus
 			{
 				eyeColorPicker.draw(b);
 			}
-			if (source != Source.Wizard && source != Source.Dresser && source != Source.DyePots && source != Source.ClothesDye)
+			if (source != Source.Dresser && source != Source.DyePots && source != Source.ClothesDye)
 			{
 				nameBox.Draw(b);
 				favThingBox.Draw(b);
@@ -2500,6 +2658,10 @@ namespace StardewValley.Menus
 			{
 				skipIntroButton.draw(b);
 				Utility.drawTextWithShadow(b, Game1.content.LoadString("Strings\\UI:Character_SkipIntro"), Game1.smallFont, new Vector2(skipIntroButton.bounds.X + skipIntroButton.bounds.Width + 8, skipIntroButton.bounds.Y + 8), Game1.textColor);
+			}
+			if (advancedCCHighlightTimer > 0f)
+			{
+				b.Draw(Game1.mouseCursors, advancedOptionsButton.getVector2() + new Vector2(4f, 84f), new Rectangle(128 + ((advancedCCHighlightTimer % 500f < 250f) ? 16 : 0), 208, 16, 16), Color.White * Math.Min(1f, advancedCCHighlightTimer / 500f), 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.5f);
 			}
 			randomButton.draw(b);
 			b.End();
@@ -2532,6 +2694,17 @@ namespace StardewValley.Menus
 			if (a.region != b.region)
 			{
 				return false;
+			}
+			if (source == Source.Wizard)
+			{
+				if (a == favThingBoxCC && b.myID >= 522 && b.myID <= 530)
+				{
+					return false;
+				}
+				if (b == favThingBoxCC && a.myID >= 522 && a.myID <= 530)
+				{
+					return false;
+				}
 			}
 			if (source == Source.Wizard)
 			{
@@ -2593,6 +2766,10 @@ namespace StardewValley.Menus
 				{
 					_sliderOpTarget.LastColor = col;
 				}
+			}
+			if (advancedCCHighlightTimer > 0f)
+			{
+				advancedCCHighlightTimer -= (float)time.ElapsedGameTime.TotalMilliseconds;
 			}
 		}
 

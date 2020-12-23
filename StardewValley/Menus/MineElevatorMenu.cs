@@ -16,8 +16,8 @@ namespace StardewValley.Menus
 			int numElevators = Math.Min(MineShaft.lowestLevelReached, 120) / 5;
 			width = ((numElevators > 50) ? (484 + IClickableMenu.borderWidth * 2) : Math.Min(220 + IClickableMenu.borderWidth * 2, numElevators * 44 + IClickableMenu.borderWidth * 2));
 			height = Math.Max(64 + IClickableMenu.borderWidth * 3, numElevators * 44 / (width - IClickableMenu.borderWidth) * 44 + 64 + IClickableMenu.borderWidth * 3);
-			xPositionOnScreen = Game1.viewport.Width / 2 - width / 2;
-			yPositionOnScreen = Game1.viewport.Height / 2 - height / 2;
+			xPositionOnScreen = Game1.uiViewport.Width / 2 - width / 2;
+			yPositionOnScreen = Game1.uiViewport.Height / 2 - height / 2;
 			Game1.playSound("crystal");
 			int buttonsPerRow = width / 44 - 1;
 			int x2 = xPositionOnScreen + IClickableMenu.borderWidth + IClickableMenu.spaceToClearSideBorder * 3 / 4;
@@ -134,8 +134,8 @@ namespace StardewValley.Menus
 				b.Draw(Game1.mouseCursors, new Vector2(c.bounds.X, c.bounds.Y), new Rectangle((c.scale > 1f) ? 267 : 256, 256, 10, 10), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.868f);
 				NumberSprite.draw(position: new Vector2(c.bounds.X + 16 + NumberSprite.numberOfDigits(Convert.ToInt32(c.name)) * 6, c.bounds.Y + 24 - NumberSprite.getHeight() / 4), number: Convert.ToInt32(c.name), b: b, c: (Game1.CurrentMineLevel == Convert.ToInt32(c.name)) ? (Color.Gray * 0.75f) : Color.Gold, scale: 0.5f, layerDepth: 0.86f, alpha: 1f, secondDigitOffset: 0);
 			}
-			drawMouse(b);
 			base.draw(b);
+			drawMouse(b);
 		}
 	}
 }

@@ -1,6 +1,7 @@
 using Microsoft.Xna.Framework;
 using StardewValley.Locations;
 using StardewValley.Network;
+using StardewValley.TerrainFeatures;
 using System;
 using System.Collections.Generic;
 using System.Threading;
@@ -9,6 +10,7 @@ using xTile.Tiles;
 
 namespace StardewValley
 {
+	[InstanceStatics]
 	public class PathFindController
 	{
 		public delegate bool isAtEnd(PathNode currentNode, Point endPoint, GameLocation location, Character c);
@@ -36,6 +38,10 @@ namespace StardewValley
 		private isAtEnd endFunction;
 
 		public endBehavior endBehaviorFunction;
+
+		public bool nonDestructivePathing;
+
+		public bool allowPlayerPathingInEvent;
 
 		public bool NPCSchedule;
 
@@ -155,7 +161,7 @@ namespace StardewValley
 
 		public bool isPlayerPresent()
 		{
-			return location.farmers.Count > 0;
+			return location.farmers.Any();
 		}
 
 		public bool update(GameTime time)
@@ -198,6 +204,11 @@ namespace StardewValley
 			}
 			try
 			{
+				bool ignore_obstructions = false;
+				if (character is FarmAnimal && (character as FarmAnimal).type.Value == "Duck" && (character as FarmAnimal).isSwimming.Value)
+				{
+					ignore_obstructions = true;
+				}
 				_openList.Clear();
 				_closedList.Clear();
 				PriorityQueue openList = _openList;
@@ -230,7 +241,7 @@ namespace StardewValley
 							{
 								PathNode neighbor = new PathNode(nx, ny, currentNode);
 								neighbor.g = (byte)(currentNode.g + 1);
-								if (location.isCollidingPosition(new Rectangle(neighbor.x * 64 + 1, neighbor.y * 64 + 1, 62, 62), Game1.viewport, character is Farmer, 0, glider: false, character, pathfinding: true))
+								if (!ignore_obstructions && location.isCollidingPosition(new Rectangle(neighbor.x * 64 + 1, neighbor.y * 64 + 1, 62, 62), Game1.viewport, character is Farmer, 0, glider: false, character, pathfinding: true))
 								{
 									closedList.Add(nid);
 								}
@@ -293,7 +304,8 @@ namespace StardewValley
 
 		private void moveCharacter(GameTime time)
 		{
-			Rectangle targetTile = new Rectangle(pathToEndPoint.Peek().X * 64, pathToEndPoint.Peek().Y * 64, 64, 64);
+			Point peek = pathToEndPoint.Peek();
+			Rectangle targetTile = new Rectangle(peek.X * 64, peek.Y * 64, 64, 64);
 			targetTile.Inflate(-2, 0);
 			Rectangle bbox = character.GetBoundingBox();
 			if ((targetTile.Contains(bbox) || (bbox.Width > targetTile.Width && targetTile.Contains(bbox.Center))) && targetTile.Bottom - bbox.Bottom >= 2)
@@ -310,8 +322,9 @@ namespace StardewValley
 					}
 					if (NPCSchedule)
 					{
-						(character as NPC).DirectionsToNewLocation = null;
-						(character as NPC).endOfRouteMessage.Value = (character as NPC).nextEndOfRouteMessage;
+						NPC npc = character as NPC;
+						npc.DirectionsToNewLocation = null;
+						npc.endOfRouteMessage.Value = npc.nextEndOfRouteMessage;
 					}
 					if (endBehaviorFunction != null)
 					{
@@ -320,15 +333,17 @@ namespace StardewValley
 				}
 				return;
 			}
-			if (character is Farmer)
+			Farmer farmer = character as Farmer;
+			if (farmer != null)
 			{
-				(character as Farmer).movementDirections.Clear();
+				farmer.movementDirections.Clear();
 			}
 			else if (!(location is MovieTheater))
 			{
+				string name = character.Name;
 				foreach (NPC c in location.characters)
 				{
-					if (!c.Equals(character) && c.GetBoundingBox().Intersects(bbox) && c.isMoving() && string.Compare(c.Name, character.Name) < 0)
+					if (!c.Equals(character) && c.GetBoundingBox().Intersects(bbox) && c.isMoving() && string.Compare(c.Name, name, StringComparison.Ordinal) < 0)
 					{
 						character.Halt();
 						return;
@@ -352,7 +367,30 @@ namespace StardewValley
 				character.SetMovingUp(b: true);
 			}
 			character.MovePosition(time, Game1.viewport, location);
-			if (NPCSchedule)
+			if (nonDestructivePathing)
+			{
+				if (targetTile.Intersects(character.nextPosition(character.facingDirection)))
+				{
+					Vector2 next_position = character.nextPositionVector2();
+					Object next_tile_object = location.getObjectAt((int)next_position.X, (int)next_position.Y);
+					if (next_tile_object != null)
+					{
+						Fence fence;
+						if ((fence = (next_tile_object as Fence)) != null && (bool)fence.isGate)
+						{
+							fence.toggleGate(location, open: true);
+						}
+						else if (!next_tile_object.isPassable())
+						{
+							character.Halt();
+							character.controller = null;
+							return;
+						}
+					}
+				}
+				handleWarps(character.nextPosition(character.getDirection()));
+			}
+			else if (NPCSchedule)
 			{
 				handleWarps(character.nextPosition(character.getDirection()));
 			}
@@ -360,7 +398,7 @@ namespace StardewValley
 
 		public void handleWarps(Rectangle position)
 		{
-			Warp w = location.isCollidingWithWarpOrDoor(position);
+			Warp w = location.isCollidingWithWarpOrDoor(position, character);
 			if (w == null)
 			{
 				return;
@@ -416,6 +454,126 @@ namespace StardewValley
 			{
 				pathToEndPoint.Pop();
 			}
+		}
+
+		public static bool IsPositionImpassableOnFarm(GameLocation loc, int x, int y)
+		{
+			Farm farm;
+			if ((farm = (loc as Farm)) != null)
+			{
+				NPC.isCheckingSpouseTileOccupancy = true;
+				if (farm.isTileOccupied(new Vector2(x, y), "", ignoreAllCharacters: true))
+				{
+					NPC.isCheckingSpouseTileOccupancy = false;
+					return true;
+				}
+				NPC.isCheckingSpouseTileOccupancy = false;
+				if (farm.getBuildingAt(new Vector2(x, y)) != null)
+				{
+					return true;
+				}
+			}
+			return isPositionImpassableForNPCSchedule(loc, x, y);
+		}
+
+		public static Stack<Point> FindPathOnFarm(Point startPoint, Point endPoint, GameLocation location, int limit)
+		{
+			Dictionary<Vector2, int> weight_map = new Dictionary<Vector2, int>();
+			PriorityQueue openList = new PriorityQueue();
+			HashSet<int> closedList = new HashSet<int>();
+			int iterations = 0;
+			openList.Enqueue(new PathNode(startPoint.X, startPoint.Y, 0, null), Math.Abs(endPoint.X - startPoint.X) + Math.Abs(endPoint.Y - startPoint.Y));
+			PathNode previousNode = (PathNode)openList.Peek();
+			int layerWidth = location.map.Layers[0].LayerWidth;
+			int layerHeight = location.map.Layers[0].LayerHeight;
+			while (!openList.IsEmpty())
+			{
+				PathNode currentNode = openList.Dequeue();
+				if (currentNode.x == endPoint.X && currentNode.y == endPoint.Y)
+				{
+					return reconstructPath(currentNode);
+				}
+				closedList.Add(currentNode.id);
+				for (int i = 0; i < 4; i++)
+				{
+					int neighbor_tile_x = currentNode.x + Directions[i, 0];
+					int neighbor_tile_y = currentNode.y + Directions[i, 1];
+					int nid = PathNode.ComputeHash(neighbor_tile_x, neighbor_tile_y);
+					if (closedList.Contains(nid))
+					{
+						continue;
+					}
+					PathNode neighbor = new PathNode(neighbor_tile_x, neighbor_tile_y, currentNode);
+					neighbor.g = (byte)(currentNode.g + 1);
+					if ((neighbor.x == endPoint.X && neighbor.y == endPoint.Y) || (neighbor.x >= 0 && neighbor.y >= 0 && neighbor.x < layerWidth && neighbor.y < layerHeight && !IsPositionImpassableOnFarm(location, neighbor.x, neighbor.y)))
+					{
+						int f = neighbor.g + GetFarmTileWeight(location, neighbor.x, neighbor.y, weight_map) + (Math.Abs(endPoint.X - neighbor.x) + Math.Abs(endPoint.Y - neighbor.y));
+						if (previousNode.x - currentNode.x == currentNode.x - neighbor_tile_x && previousNode.y - currentNode.y == currentNode.y - neighbor_tile_y)
+						{
+							f -= 25;
+						}
+						if (!openList.Contains(neighbor, f))
+						{
+							openList.Enqueue(neighbor, f);
+						}
+					}
+				}
+				previousNode = currentNode;
+				iterations++;
+				if (iterations >= limit)
+				{
+					return null;
+				}
+			}
+			return null;
+		}
+
+		public static int GetFarmTileWeight(GameLocation location, int x, int y, Dictionary<Vector2, int> weight_map)
+		{
+			Vector2 tile_position = new Vector2(x, y);
+			if (weight_map.ContainsKey(tile_position))
+			{
+				return weight_map[tile_position];
+			}
+			int weight = 0;
+			Object tile_object = location.getObjectAtTile(x, y);
+			Fence fence;
+			if (tile_object != null && !tile_object.isPassable() && ((fence = (tile_object as Fence)) == null || !fence.isGate))
+			{
+				weight = 9999;
+			}
+			if (location.terrainFeatures.TryGetValue(tile_position, out TerrainFeature feature) && feature is Flooring)
+			{
+				weight -= 50;
+			}
+			weight_map[tile_position] = weight;
+			return weight;
+		}
+
+		public static int CheckClearance(GameLocation location, Rectangle rect)
+		{
+			int j = 0;
+			for (j = 0; j < 5; j++)
+			{
+				bool fail = false;
+				for (int x = rect.Left; x < rect.Right; x++)
+				{
+					for (int y = rect.Top; y < rect.Bottom; y++)
+					{
+						Object tile_object = location.getObjectAtTile(x, y);
+						if (tile_object != null && !tile_object.isPassable())
+						{
+							fail = true;
+							break;
+						}
+					}
+				}
+				if (fail)
+				{
+					return j;
+				}
+			}
+			return j;
 		}
 
 		public static Stack<Point> findPathForNPCSchedules(Point startPoint, Point endPoint, GameLocation location, int limit)
@@ -480,12 +638,27 @@ namespace StardewValley
 				if (property != null)
 				{
 					value2 = property.ToString();
+					if (value2.StartsWith("LockedDoorWarp"))
+					{
+						return true;
+					}
 					if (!value2.Contains("Door") && !value2.Contains("Passable"))
 					{
 						return true;
 					}
 				}
-				else if (loc.doesTileHaveProperty(x, y, "Passable", "Buildings") == null)
+				else if (loc.doesTileHaveProperty(x, y, "Passable", "Buildings") == null && loc.doesTileHaveProperty(x, y, "NPCPassable", "Buildings") == null)
+				{
+					return true;
+				}
+			}
+			if (loc.doesTileHaveProperty(x, y, "NoPath", "Back") != null)
+			{
+				return true;
+			}
+			foreach (Warp warp in loc.warps)
+			{
+				if (warp.X == x && warp.Y == y)
 				{
 					return true;
 				}

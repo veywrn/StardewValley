@@ -25,7 +25,11 @@ namespace StardewValley.Menus
 
 		public float delayBeforeShowArtifactTimer;
 
-		public Object geodeTreasure;
+		public Item geodeTreasure;
+
+		public Item geodeTreasureOverride;
+
+		public bool waitingForServerResponse;
 
 		private List<TemporaryAnimatedSprite> fluffSprites = new List<TemporaryAnimatedSprite>();
 
@@ -76,9 +80,9 @@ namespace StardewValley.Menus
 
 		public override bool readyToClose()
 		{
-			if (base.readyToClose() && geodeAnimationTimer <= 0)
+			if (base.readyToClose() && geodeAnimationTimer <= 0 && heldItem == null)
 			{
-				return heldItem == null;
+				return !waitingForServerResponse;
 			}
 			return false;
 		}
@@ -89,44 +93,69 @@ namespace StardewValley.Menus
 			{
 				return true;
 			}
-			int num = i.parentSheetIndex;
-			if (num == 275 || (uint)(num - 535) <= 2u || num == 749)
+			if (Utility.IsGeode(i))
 			{
 				return true;
 			}
 			return false;
 		}
 
+		public virtual void startGeodeCrack()
+		{
+			geodeSpot.item = heldItem.getOne();
+			heldItem.Stack--;
+			if (heldItem.Stack <= 0)
+			{
+				heldItem = null;
+			}
+			geodeAnimationTimer = 2700;
+			Game1.player.Money -= 25;
+			Game1.playSound("stoneStep");
+			clint.setCurrentAnimation(new List<FarmerSprite.AnimationFrame>
+			{
+				new FarmerSprite.AnimationFrame(8, 300),
+				new FarmerSprite.AnimationFrame(9, 200),
+				new FarmerSprite.AnimationFrame(10, 80),
+				new FarmerSprite.AnimationFrame(11, 200),
+				new FarmerSprite.AnimationFrame(12, 100),
+				new FarmerSprite.AnimationFrame(8, 300)
+			});
+			clint.loop = false;
+		}
+
 		public override void receiveLeftClick(int x, int y, bool playSound = true)
 		{
+			if (waitingForServerResponse)
+			{
+				return;
+			}
 			base.receiveLeftClick(x, y, playSound: true);
 			if (!geodeSpot.containsPoint(x, y))
 			{
 				return;
 			}
-			if (heldItem != null && (heldItem.Name.Contains("Geode") || heldItem.ParentSheetIndex == 275) && Game1.player.Money >= 25 && geodeAnimationTimer <= 0)
+			if (heldItem != null && Utility.IsGeode(heldItem) && Game1.player.Money >= 25 && geodeAnimationTimer <= 0)
 			{
 				if (Game1.player.freeSpotsInInventory() > 1 || (Game1.player.freeSpotsInInventory() == 1 && heldItem.Stack == 1))
 				{
-					geodeSpot.item = heldItem.getOne();
-					heldItem.Stack--;
-					if (heldItem.Stack <= 0)
+					if (heldItem.ParentSheetIndex == 791 && !Game1.netWorldState.Value.GoldenCoconutCracked.Value)
 					{
-						heldItem = null;
+						waitingForServerResponse = true;
+						Game1.player.team.goldenCoconutMutex.RequestLock(delegate
+						{
+							waitingForServerResponse = false;
+							geodeTreasureOverride = new Object(73, 1);
+							startGeodeCrack();
+						}, delegate
+						{
+							waitingForServerResponse = false;
+							startGeodeCrack();
+						});
 					}
-					geodeAnimationTimer = 2700;
-					Game1.player.Money -= 25;
-					Game1.playSound("stoneStep");
-					clint.setCurrentAnimation(new List<FarmerSprite.AnimationFrame>
+					else
 					{
-						new FarmerSprite.AnimationFrame(8, 300),
-						new FarmerSprite.AnimationFrame(9, 200),
-						new FarmerSprite.AnimationFrame(10, 80),
-						new FarmerSprite.AnimationFrame(11, 200),
-						new FarmerSprite.AnimationFrame(12, 100),
-						new FarmerSprite.AnimationFrame(8, 300)
-					});
-					clint.loop = false;
+						startGeodeCrack();
+					}
 				}
 				else
 				{
@@ -200,6 +229,10 @@ namespace StardewValley.Menus
 			{
 				geodeDestructionAnimation = null;
 				geodeSpot.item = null;
+				if (geodeTreasure != null && Utility.IsNormalObjectAtParentSheetIndex(geodeTreasure, 73))
+				{
+					Game1.netWorldState.Value.GoldenCoconutCracked.Value = true;
+				}
 				Game1.player.addItemToInventoryBool(geodeTreasure);
 				geodeTreasure = null;
 				yPositionOfGem = 0;
@@ -282,16 +315,24 @@ namespace StardewValley.Menus
 							delayBeforeShowArtifactTimer = 500f;
 						}
 					}
-					geodeTreasure = Utility.getTreasureFromGeode(geodeSpot.item);
+					if (geodeTreasureOverride != null)
+					{
+						geodeTreasure = geodeTreasureOverride;
+						geodeTreasureOverride = null;
+					}
+					else
+					{
+						geodeTreasure = Utility.getTreasureFromGeode(geodeSpot.item);
+					}
 					if ((int)geodeSpot.item.parentSheetIndex == 275)
 					{
 						Game1.player.foundArtifact(geodeTreasure.parentSheetIndex, 1);
 					}
-					else if (geodeTreasure.Type.Contains("Mineral"))
+					else if (geodeTreasure is Object && (geodeTreasure as Object).Type.Contains("Mineral"))
 					{
 						Game1.player.foundMineral(geodeTreasure.parentSheetIndex);
 					}
-					else if (geodeTreasure.Type.Contains("Arch") && !Game1.player.hasOrWillReceiveMail("artifactFound"))
+					else if (geodeTreasure is Object && (geodeTreasure as Object).Type.Contains("Arch") && !Game1.player.hasOrWillReceiveMail("artifactFound"))
 					{
 						geodeTreasure = new Object(390, 5);
 					}
@@ -323,12 +364,12 @@ namespace StardewValley.Menus
 						yPositionOfGem--;
 					}
 					yPositionOfGem--;
-					if ((geodeDestructionAnimation.currentParentTileIndex == 7 || (geodeDestructionAnimation.id == 777f && geodeDestructionAnimation.currentParentTileIndex == 5)) && (int)geodeTreasure.price > 75)
+					if ((geodeDestructionAnimation.currentParentTileIndex == 7 || (geodeDestructionAnimation.id == 777f && geodeDestructionAnimation.currentParentTileIndex == 5)) && (!(geodeTreasure is Object) || (int)(geodeTreasure as Object).price > 75))
 					{
 						sparkle = new TemporaryAnimatedSprite("TileSheets\\animations", new Rectangle(0, 640, 64, 64), 100f, 8, 0, new Vector2(geodeSpot.bounds.X + 392 - 32, geodeSpot.bounds.Y + 192 + yPositionOfGem - 32), flicker: false, flipped: false);
 						Game1.playSound("discoverMineral");
 					}
-					else if ((geodeDestructionAnimation.currentParentTileIndex == 7 || (geodeDestructionAnimation.id == 777f && geodeDestructionAnimation.currentParentTileIndex == 5)) && (int)geodeTreasure.price <= 75)
+					else if ((geodeDestructionAnimation.currentParentTileIndex == 7 || (geodeDestructionAnimation.id == 777f && geodeDestructionAnimation.currentParentTileIndex == 5)) && geodeTreasure is Object && (int)(geodeTreasure as Object).price <= 75)
 					{
 						Game1.playSound("newArtifact");
 					}

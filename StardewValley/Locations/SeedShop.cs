@@ -9,6 +9,8 @@ namespace StardewValley.Locations
 {
 	public class SeedShop : ShopLocation
 	{
+		protected bool _stockListGranted;
+
 		public SeedShop()
 		{
 		}
@@ -134,17 +136,47 @@ namespace StardewValley.Locations
 			return response;
 		}
 
-		private void addStock(Dictionary<ISalable, int[]> stock, int parentSheetIndex, int buyPrice = -1)
+		private void addStock(Dictionary<ISalable, int[]> stock, int parentSheetIndex, int buyPrice = -1, string item_season = null)
 		{
-			int price = buyPrice * 2;
+			float price_multiplier = 2f;
+			int price2 = buyPrice;
 			Object obj = new Object(Vector2.Zero, parentSheetIndex, 1);
 			if (buyPrice == -1)
 			{
-				price = obj.salePrice();
+				price2 = obj.salePrice();
+				price_multiplier = 1f;
+			}
+			if (item_season != null && item_season != Game1.currentSeason)
+			{
+				if (!Game1.MasterPlayer.hasOrWillReceiveMail("PierreStocklist"))
+				{
+					return;
+				}
+				price_multiplier *= 1.5f;
+			}
+			price2 = (int)((float)price2 * price_multiplier);
+			if (item_season != null)
+			{
+				foreach (KeyValuePair<ISalable, int[]> item in stock)
+				{
+					if (item.Key != null && item.Key is Object)
+					{
+						Object existing_item = item.Key as Object;
+						if (Utility.IsNormalObjectAtParentSheetIndex(existing_item, parentSheetIndex))
+						{
+							if (item.Value.Length != 0 && price2 < item.Value[0])
+							{
+								item.Value[0] = price2;
+								stock[existing_item] = item.Value;
+							}
+							return;
+						}
+					}
+				}
 			}
 			stock.Add(obj, new int[2]
 			{
-				price,
+				price2,
 				2147483647
 			});
 		}
@@ -152,56 +184,47 @@ namespace StardewValley.Locations
 		public Dictionary<ISalable, int[]> shopStock()
 		{
 			Dictionary<ISalable, int[]> stock = new Dictionary<ISalable, int[]>();
-			if (Game1.currentSeason.Equals("spring"))
+			addStock(stock, 472, -1, "spring");
+			addStock(stock, 473, -1, "spring");
+			addStock(stock, 474, -1, "spring");
+			addStock(stock, 475, -1, "spring");
+			addStock(stock, 427, -1, "spring");
+			addStock(stock, 477, -1, "spring");
+			addStock(stock, 429, -1, "spring");
+			if (Game1.year > 1)
 			{
-				addStock(stock, 472);
-				addStock(stock, 473);
-				addStock(stock, 474);
-				addStock(stock, 475);
-				addStock(stock, 427);
-				addStock(stock, 477);
-				addStock(stock, 429);
-				if (Game1.year > 1)
-				{
-					addStock(stock, 476);
-					addStock(stock, 273);
-				}
+				addStock(stock, 476, -1, "spring");
+				addStock(stock, 273, -1, "spring");
 			}
-			if (Game1.currentSeason.Equals("summer"))
+			addStock(stock, 479, -1, "summer");
+			addStock(stock, 480, -1, "summer");
+			addStock(stock, 481, -1, "summer");
+			addStock(stock, 482, -1, "summer");
+			addStock(stock, 483, -1, "summer");
+			addStock(stock, 484, -1, "summer");
+			addStock(stock, 453, -1, "summer");
+			addStock(stock, 455, -1, "summer");
+			addStock(stock, 302, -1, "summer");
+			addStock(stock, 487, -1, "summer");
+			addStock(stock, 431, 100, "summer");
+			if (Game1.year > 1)
 			{
-				addStock(stock, 479);
-				addStock(stock, 480);
-				addStock(stock, 481);
-				addStock(stock, 482);
-				addStock(stock, 483);
-				addStock(stock, 484);
-				addStock(stock, 453);
-				addStock(stock, 455);
-				addStock(stock, 302);
-				addStock(stock, 487);
-				addStock(stock, 431, 100);
-				if (Game1.year > 1)
-				{
-					addStock(stock, 485);
-				}
+				addStock(stock, 485, -1, "summer");
 			}
-			if (Game1.currentSeason.Equals("fall"))
+			addStock(stock, 490, -1, "fall");
+			addStock(stock, 487, -1, "fall");
+			addStock(stock, 488, -1, "fall");
+			addStock(stock, 491, -1, "fall");
+			addStock(stock, 492, -1, "fall");
+			addStock(stock, 493, -1, "fall");
+			addStock(stock, 483, -1, "fall");
+			addStock(stock, 431, 100, "fall");
+			addStock(stock, 425, -1, "fall");
+			addStock(stock, 299, -1, "fall");
+			addStock(stock, 301, -1, "fall");
+			if (Game1.year > 1)
 			{
-				addStock(stock, 490);
-				addStock(stock, 487);
-				addStock(stock, 488);
-				addStock(stock, 491);
-				addStock(stock, 492);
-				addStock(stock, 493);
-				addStock(stock, 483);
-				addStock(stock, 431, 100);
-				addStock(stock, 425);
-				addStock(stock, 299);
-				addStock(stock, 301);
-				if (Game1.year > 1)
-				{
-					addStock(stock, 489);
-				}
+				addStock(stock, 489, -1, "fall");
 			}
 			addStock(stock, 297);
 			if (!Game1.player.craftingRecipes.ContainsKey("Grass Starter"))

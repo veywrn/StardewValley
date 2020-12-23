@@ -27,7 +27,7 @@ namespace StardewValley.Menus
 		private bool doneSpinning;
 
 		public WheelSpinGame(int wager)
-			: base(Game1.viewport.Width / 2 - 320, Game1.viewport.Height / 2 - 224, 640, 448)
+			: base(Game1.uiViewport.Width / 2 - 320, Game1.uiViewport.Height / 2 - 224, 640, 448)
 		{
 			timerBeforeStart = 1000;
 			arrowRotationVelocity = Math.PI / 16.0;
@@ -137,7 +137,7 @@ namespace StardewValley.Menus
 
 		public override void draw(SpriteBatch b)
 		{
-			b.Draw(Game1.fadeToBlackRect, new Rectangle(0, 0, Game1.viewport.Width, Game1.viewport.Height), Color.Black * 0.5f);
+			b.Draw(Game1.fadeToBlackRect, new Rectangle(0, 0, Game1.uiViewport.Width, Game1.uiViewport.Height), Color.Black * 0.5f);
 			b.Draw(Game1.mouseCursors, new Vector2(xPositionOnScreen, yPositionOnScreen), new Rectangle(128, 1184, 160, 112), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.95f);
 			b.Draw(Game1.mouseCursors, new Vector2(xPositionOnScreen + 320, yPositionOnScreen + 224 + 4), new Rectangle(120, 1234, 8, 16), Color.White, (float)arrowRotation, new Vector2(4f, 15f), 4f, SpriteEffects.None, 0.96f);
 			if (resultText != null)

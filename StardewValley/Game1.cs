@@ -41,18 +41,36 @@ using xTile.Tiles;
 
 namespace StardewValley
 {
-	public class Game1 : Game
+	[InstanceStatics]
+	public class Game1 : InstanceGame
 	{
+		public enum BundleType
+		{
+			Default,
+			Remixed
+		}
+
+		public enum MineChestType
+		{
+			Default,
+			Remixed
+		}
+
 		public enum MusicContext
 		{
 			Default,
 			SubLocation,
 			Event,
 			MiniGame,
+			ImportantSplitScreenMusic,
 			MAX
 		}
 
 		public delegate void afterFadeFunction();
+
+		public bool ScreenshotBusy;
+
+		public bool takingMapScreenshot;
 
 		public const int defaultResolutionX = 1280;
 
@@ -146,7 +164,7 @@ namespace StardewValley
 
 		public const byte errorLogMode = 11;
 
-		public static readonly string version = "1.4.5";
+		public static readonly string version = "1.5";
 
 		public const float keyPollingThreshold = 650f;
 
@@ -160,8 +178,10 @@ namespace StardewValley
 
 		private static LocalizedContentManager _temporaryContent;
 
+		[NonInstancedStatic]
 		public static GraphicsDeviceManager graphics;
 
+		[NonInstancedStatic]
 		public static LocalizedContentManager content;
 
 		public static SpriteBatch spriteBatch;
@@ -176,9 +196,16 @@ namespace StardewValley
 
 		public static int emoteMenuShowTime = 250;
 
+		public static int nextFarmerWarpOffsetX = 0;
+
+		public static int nextFarmerWarpOffsetY = 0;
+
 		public static KeyboardState oldKBState;
 
 		public static MouseState oldMouseState;
+
+		[NonInstancedStatic]
+		public static Game1 keyboardFocusInstance = null;
 
 		private static Farmer _player;
 
@@ -186,25 +213,30 @@ namespace StardewValley
 
 		protected static bool _isWarping = false;
 
+		[NonInstancedStatic]
+		public static bool hasLocalClientsOnly = false;
+
 		public static bool isUsingBackToFrontSorting = false;
 
 		protected static StringBuilder _debugStringBuilder = new StringBuilder();
 
-		private DebugMetricsComponent _metrics;
+		public static Dictionary<string, GameLocation> _locationLookup = new Dictionary<string, GameLocation>(StringComparer.OrdinalIgnoreCase);
 
-		public static Dictionary<string, GameLocation> _locationLookup = new Dictionary<string, GameLocation>(StringComparer.InvariantCultureIgnoreCase);
+		public IList<GameLocation> _locations = new List<GameLocation>();
 
-		public static IList<GameLocation> locations = new List<GameLocation>();
+		public static Viewport defaultDeviceViewport;
 
 		public static LocationRequest locationRequest;
 
 		public static bool warpingForForcedRemoteEvent = false;
 
-		public static GameLocation currentLocation;
+		public GameLocation instanceGameLocation;
 
 		public static IDisplayDevice mapDisplayDevice;
 
 		public static xTile.Dimensions.Rectangle viewport;
+
+		public static xTile.Dimensions.Rectangle uiViewport;
 
 		public static Texture2D objectSpriteSheet;
 
@@ -278,9 +310,10 @@ namespace StardewValley
 
 		public static Queue<DelayedAction.delayedBehavior> morningQueue = new Queue<DelayedAction.delayedBehavior>();
 
+		[NonInstancedStatic]
 		protected internal static ModHooks hooks = new ModHooks();
 
-		protected internal static InputState input = new InputState();
+		public static InputState input = new InputState();
 
 		protected static IInputSimulator inputSimulator = null;
 
@@ -300,6 +333,10 @@ namespace StardewValley
 
 		public const string debrisSpriteSheetName = "TileSheets\\debris";
 
+		public const string parrotSheetName = "LooseSprites\\parrots";
+
+		public const string hatsSheetName = "Characters\\Farmer\\hats";
+
 		private static Texture2D _toolSpriteSheet = null;
 
 		public static Dictionary<Vector2, int> crabPotOverlayTiles = new Dictionary<Vector2, int>();
@@ -307,6 +344,8 @@ namespace StardewValley
 		protected static bool _setSaveName = false;
 
 		protected static string _currentSaveName = "";
+
+		public static string savePathOverride = "";
 
 		public static List<string> mailDeliveredFromMailForTomorrow = new List<string>();
 
@@ -344,6 +383,10 @@ namespace StardewValley
 
 		public static float noteBlockTimer;
 
+		public static int currentGemBirdIndex = 0;
+
+		public Dictionary<string, object> newGameSetupOptions = new Dictionary<string, object>();
+
 		public static bool dialogueUp = false;
 
 		public static bool dialogueTyping = false;
@@ -376,17 +419,11 @@ namespace StardewValley
 
 		public static bool progressBar = false;
 
-		public static bool isRaining = false;
-
-		public static bool isSnowing = false;
-
 		public static bool killScreen = false;
 
 		public static bool coopDwellerBorn;
 
 		public static bool messagePause;
-
-		public static bool isDebrisWeather;
 
 		public static bool boardingBus;
 
@@ -397,8 +434,6 @@ namespace StardewValley
 		public static bool exitToTitle;
 
 		public static bool debugMode;
-
-		public static bool isLightning;
 
 		public static bool displayHUD = true;
 
@@ -413,8 +448,6 @@ namespace StardewValley
 		public static bool jukeboxPlaying;
 
 		public static bool drawLighting;
-
-		public static bool bloomDay;
 
 		public static bool quit;
 
@@ -460,6 +493,26 @@ namespace StardewValley
 
 		private static Action postExitToTitleCallback = null;
 
+		public bool wasAskedLeoMemory;
+
+		public float controllerSlingshotSafeTime;
+
+		public static BundleType bundleType = BundleType.Default;
+
+		public static bool isRaining = false;
+
+		public static bool isSnowing = false;
+
+		public static bool bloomDay;
+
+		public static bool isLightning = false;
+
+		public static bool isDebrisWeather = false;
+
+		public static int weatherForTomorrow;
+
+		public float zoomModifier = 1f;
+
 		private static ScreenFade screenFade;
 
 		public static string currentSeason = "spring";
@@ -492,17 +545,23 @@ namespace StardewValley
 
 		public static string errorMessage = "";
 
-		protected static Dictionary<MusicContext, KeyValuePair<string, bool>> _requestedMusicTracks = new Dictionary<MusicContext, KeyValuePair<string, bool>>();
+		protected Dictionary<MusicContext, KeyValuePair<string, bool>> _instanceRequestedMusicTracks = new Dictionary<MusicContext, KeyValuePair<string, bool>>();
 
-		protected static MusicContext _activeMusicContext = MusicContext.Default;
+		protected MusicContext _instanceActiveMusicContext;
 
 		public static bool requestedMusicTrackOverrideable;
 
 		public static bool currentTrackOverrideable;
 
-		public static bool isOverridingTrack;
-
 		public static bool requestedMusicDirty = false;
+
+		protected bool _useUnscaledLighting;
+
+		protected bool _didInitiateItemStow;
+
+		public bool instanceIsOverridingTrack;
+
+		private static string[] _shortDayDisplayName = new string[7];
 
 		public static Queue<string> currentObjectDialogue = new Queue<string>();
 
@@ -574,8 +633,6 @@ namespace StardewValley
 
 		public static int pauseThenDoFunctionTimer;
 
-		public static int weatherForTomorrow;
-
 		public static int currentSongIndex = 3;
 
 		public static int cursorTileHintCheckTimer;
@@ -587,6 +644,8 @@ namespace StardewValley
 		public static int whichFarm;
 
 		public static int startingCabins;
+
+		public static ulong? startingGameSeed = null;
 
 		public static int elliottPiano = 0;
 
@@ -648,7 +707,7 @@ namespace StardewValley
 
 		public static float globalOutdoorLighting;
 
-		public static ICue currentSong;
+		public ICue instanceCurrentSong;
 
 		public static IAudioCategory musicCategory;
 
@@ -658,14 +717,18 @@ namespace StardewValley
 
 		public static IAudioCategory footstepCategory;
 
-		public static PlayerIndex playerOneIndex = PlayerIndex.One;
+		public PlayerIndex instancePlayerOneIndex;
 
+		[NonInstancedStatic]
 		public static IAudioEngine audioEngine;
 
+		[NonInstancedStatic]
 		public static WaveBank waveBank;
 
+		[NonInstancedStatic]
 		public static WaveBank waveBank1_4;
 
+		[NonInstancedStatic]
 		public static ISoundBank soundBank;
 
 		public static Vector2 shiny = Vector2.Zero;
@@ -677,6 +740,8 @@ namespace StardewValley
 		public static Vector2 lastCursorTile = Vector2.Zero;
 
 		public static Vector2 snowPos;
+
+		public Microsoft.Xna.Framework.Rectangle localMultiplayerWindow;
 
 		public static RainDrop[] rainDrops = new RainDrop[70];
 
@@ -691,6 +756,8 @@ namespace StardewValley
 		public static List<WeatherDebris> debrisWeather = new List<WeatherDebris>();
 
 		public static List<TemporaryAnimatedSprite> screenOverlayTempSprites = new List<TemporaryAnimatedSprite>();
+
+		public static List<TemporaryAnimatedSprite> uiOverlayTempSprites = new List<TemporaryAnimatedSprite>();
 
 		private static byte _gameMode;
 
@@ -744,8 +811,6 @@ namespace StardewValley
 
 		public static Dictionary<int, string> achievements;
 
-		public static Object dishOfTheDay;
-
 		public static BuffsDisplay buffsDisplay;
 
 		public static DayTimeMoneyBox dayTimeMoneyBox;
@@ -758,7 +823,7 @@ namespace StardewValley
 
 		public static Client client;
 
-		public static KeyboardDispatcher keyboardDispatcher;
+		public KeyboardDispatcher instanceKeyboardDispatcher;
 
 		public static Background background;
 
@@ -780,7 +845,10 @@ namespace StardewValley
 
 		public static Stack<IClickableMenu> endOfNightMenus = new Stack<IClickableMenu>();
 
-		public static Options options;
+		public Options instanceOptions;
+
+		[NonInstancedStatic]
+		public static SerializableDictionary<long, Options> splitscreenOptions = new SerializableDictionary<long, Options>();
 
 		public static Game1 game1;
 
@@ -790,13 +858,18 @@ namespace StardewValley
 
 		public static EmoteMenu emoteMenu;
 
+		[NonInstancedStatic]
 		public static SerializableDictionary<string, string> CustomData = new SerializableDictionary<string, string>();
 
 		public static NetRoot<IWorldState> netWorldState;
 
 		public static ChatBox chatBox;
 
-		public static TextEntryMenu textEntry = null;
+		public TextEntryMenu instanceTextEntry;
+
+		public static SpecialCurrencyDisplay specialCurrencyDisplay = null;
+
+		public LocalCoopJoinMenu localCoopJoinMenu;
 
 		public static bool drawbounds;
 
@@ -806,7 +879,13 @@ namespace StardewValley
 
 		public static List<long> weddingsToday = new List<long>();
 
+		public int instanceIndex;
+
+		public int instanceId;
+
 		public static bool overrideGameMenuReset;
+
+		protected bool _windowResizing;
 
 		protected Microsoft.Xna.Framework.Point _oldMousePosition;
 
@@ -848,11 +927,17 @@ namespace StardewValley
 
 		public const string BROADCAST_SEEN_MAIL_PREFIX = "%&SM&%";
 
+		public const string BROADCAST_MAILBOX_PREFIX = "%&MB&%";
+
+		public bool isLocalMultiplayerNewDayActive;
+
 		protected static Task _newDayTask;
 
 		private static Action _afterNewDayAction;
 
 		public static NewDaySynchronizer newDaySync;
+
+		public static bool forceSnapOnNextViewportUpdate = false;
 
 		public static Vector2 currentViewportTarget;
 
@@ -864,13 +949,19 @@ namespace StardewValley
 
 		public static bool haltAfterCheck = false;
 
+		public static bool uiMode = false;
+
+		public static RenderTarget2D nonUIRenderTarget = null;
+
+		public static int uiModeCount = 0;
+
+		protected static int _oldUIModeCount = 0;
+
 		private string panModeString;
 
 		public static bool conventionMode = false;
 
 		private EventTest eventTest;
-
-		public bool takingMapScreenshot;
 
 		private bool panFacingDirectionWait;
 
@@ -886,7 +977,9 @@ namespace StardewValley
 
 		private RenderTarget2D _screen;
 
-		protected static Microsoft.Xna.Framework.Color bgColor = new Microsoft.Xna.Framework.Color(5, 3, 4);
+		private RenderTarget2D _uiScreen;
+
+		public static Microsoft.Xna.Framework.Color bgColor = new Microsoft.Xna.Framework.Color(5, 3, 4);
 
 		protected readonly BlendState lightingBlend = new BlendState
 		{
@@ -894,6 +987,10 @@ namespace StardewValley
 			ColorDestinationBlend = Blend.One,
 			ColorSourceBlend = Blend.SourceColor
 		};
+
+		public bool isDrawing;
+
+		public bool isRenderingScreenBuffer;
 
 		protected bool _lastDrewMouseCursor;
 
@@ -906,6 +1003,22 @@ namespace StardewValley
 		public static bool wasMouseVisibleThisFrame = true;
 
 		public static NPC objectDialoguePortraitPerson;
+
+		public bool IsActiveNoOverlay
+		{
+			get
+			{
+				if (!base.IsActive)
+				{
+					return false;
+				}
+				if (Program.sdk.HasOverlay)
+				{
+					return false;
+				}
+				return true;
+			}
+		}
 
 		public static LocalizedContentManager temporaryContent
 		{
@@ -937,6 +1050,20 @@ namespace StardewValley
 		}
 
 		public static bool isWarping => _isWarping;
+
+		public static IList<GameLocation> locations => game1._locations;
+
+		public static GameLocation currentLocation
+		{
+			get
+			{
+				return game1.instanceGameLocation;
+			}
+			set
+			{
+				game1.instanceGameLocation = value;
+			}
+		}
 
 		public static Texture2D toolSpriteSheet
 		{
@@ -1079,7 +1206,83 @@ namespace StardewValley
 			}
 		}
 
+		protected static Dictionary<MusicContext, KeyValuePair<string, bool>> _requestedMusicTracks
+		{
+			get
+			{
+				return game1._instanceRequestedMusicTracks;
+			}
+			set
+			{
+				game1._instanceRequestedMusicTracks = value;
+			}
+		}
+
+		protected static MusicContext _activeMusicContext
+		{
+			get
+			{
+				return game1._instanceActiveMusicContext;
+			}
+			set
+			{
+				game1._instanceActiveMusicContext = value;
+			}
+		}
+
+		public static bool isOverridingTrack
+		{
+			get
+			{
+				return game1.instanceIsOverridingTrack;
+			}
+			set
+			{
+				game1.instanceIsOverridingTrack = value;
+			}
+		}
+
+		public bool useUnscaledLighting
+		{
+			get
+			{
+				return _useUnscaledLighting;
+			}
+			set
+			{
+				if (_useUnscaledLighting != value)
+				{
+					_useUnscaledLighting = value;
+					allocateLightmap(localMultiplayerWindow.Width, localMultiplayerWindow.Height);
+				}
+			}
+		}
+
 		public static IList<string> mailbox => player.mailbox;
+
+		public static ICue currentSong
+		{
+			get
+			{
+				return game1.instanceCurrentSong;
+			}
+			set
+			{
+				game1.instanceCurrentSong = value;
+			}
+		}
+
+		public static PlayerIndex playerOneIndex
+		{
+			get
+			{
+				return game1.instancePlayerOneIndex;
+			}
+			set
+			{
+				game1.instancePlayerOneIndex = value;
+			}
+		}
 
 		public static byte gameMode
 		{
@@ -1119,7 +1322,7 @@ namespace StardewValley
 			}
 			set
 			{
-				if (_activeClickableMenu is IDisposable)
+				if (_activeClickableMenu is IDisposable && !_activeClickableMenu.HasDependencies())
 				{
 					(_activeClickableMenu as IDisposable).Dispose();
 				}
@@ -1155,6 +1358,7 @@ namespace StardewValley
 						setRichPresence("location", currentLocation.Name);
 					}
 					randomizeDebrisWeatherPositions(debrisWeather);
+					randomizeRainPositions();
 				}
 				else if (value.minigameId() != null)
 				{
@@ -1163,7 +1367,57 @@ namespace StardewValley
 			}
 		}
 
+		public static Object dishOfTheDay
+		{
+			get
+			{
+				return netWorldState.Value.DishOfTheDay.Value;
+			}
+			set
+			{
+				netWorldState.Value.DishOfTheDay.Value = value;
+			}
+		}
+
+		public static KeyboardDispatcher keyboardDispatcher
+		{
+			get
+			{
+				return game1.instanceKeyboardDispatcher;
+			}
+			set
+			{
+				game1.instanceKeyboardDispatcher = value;
+			}
+		}
+
+		public static Options options
+		{
+			get
+			{
+				return game1.instanceOptions;
+			}
+			set
+			{
+				game1.instanceOptions = value;
+			}
+		}
+
+		public static TextEntryMenu textEntry
+		{
+			get
+			{
+				return game1.instanceTextEntry;
+			}
+			set
+			{
+				game1.instanceTextEntry = value;
+			}
+		}
+
 		public static WorldDate Date => netWorldState.Value.Date;
+
+		public static bool NetTimePaused => netWorldState.Get().IsTimePaused;
 
 		public static bool HostPaused => netWorldState.Get().IsPaused;
 
@@ -1312,7 +1566,7 @@ namespace StardewValley
 
 		public static bool IsWinter => currentSeason.Equals("winter");
 
-		protected RenderTarget2D screen
+		public RenderTarget2D screen
 		{
 			get
 			{
@@ -1329,6 +1583,23 @@ namespace StardewValley
 			}
 		}
 
+		public RenderTarget2D uiScreen
+		{
+			get
+			{
+				return _uiScreen;
+			}
+			set
+			{
+				if (_uiScreen != null)
+				{
+					_uiScreen.Dispose();
+					_uiScreen = null;
+				}
+				_uiScreen = value;
+			}
+		}
+
 		public static float mouseCursorTransparency
 		{
 			get
@@ -1341,12 +1612,240 @@ namespace StardewValley
 			}
 		}
 
+		public static bool GetHasRoomAnotherFarm()
+		{
+			return true;
+		}
+
+		public bool CanTakeScreenshots()
+		{
+			return true;
+		}
+
+		public bool CanBrowseScreenshots()
+		{
+			string screenshot_folder = "Screenshots";
+			if (Directory.Exists(Path.Combine(Path.Combine(Environment.GetFolderPath((Environment.OSVersion.Platform != PlatformID.Unix) ? Environment.SpecialFolder.ApplicationData : Environment.SpecialFolder.LocalApplicationData), "StardewValley"), screenshot_folder)))
+			{
+				return true;
+			}
+			return false;
+		}
+
+		public bool CanZoomScreenshots()
+		{
+			return true;
+		}
+
+		public void BrowseScreenshots()
+		{
+			string screenshot_folder = "Screenshots";
+			string main_folder = Path.Combine(Path.Combine(Environment.GetFolderPath((Environment.OSVersion.Platform != PlatformID.Unix) ? Environment.SpecialFolder.ApplicationData : Environment.SpecialFolder.LocalApplicationData), "StardewValley"), screenshot_folder);
+			if (Directory.Exists(main_folder))
+			{
+				try
+				{
+					Process.Start(new ProcessStartInfo
+					{
+						FileName = main_folder,
+						UseShellExecute = true,
+						Verb = "open"
+					});
+				}
+				catch (Exception)
+				{
+				}
+			}
+		}
+
+		public string takeMapScreenshot(float? in_scale, string screenshot_name, Action onDone)
+		{
+			float scale = in_scale.Value;
+			if (screenshot_name == null || screenshot_name.Trim() == "")
+			{
+				screenshot_name = SaveGame.FilterFileName(player.name) + "_" + DateTime.UtcNow.Month + "-" + DateTime.UtcNow.Day.ToString() + "-" + DateTime.UtcNow.Year.ToString() + "_" + (int)DateTime.UtcNow.TimeOfDay.TotalMilliseconds;
+			}
+			if (currentLocation == null)
+			{
+				return null;
+			}
+			string filename = screenshot_name + ".png";
+			int start_x = 0;
+			int start_y = 0;
+			int width = currentLocation.map.DisplayWidth;
+			int height = currentLocation.map.DisplayHeight;
+			try
+			{
+				PropertyValue screenshot_region_value = null;
+				if (currentLocation.map.Properties.TryGetValue("ScreenshotRegion", out screenshot_region_value))
+				{
+					string[] array = screenshot_region_value.ToString().Split(' ');
+					start_x = int.Parse(array[0]) * 64;
+					start_y = int.Parse(array[1]) * 64;
+					width = (int.Parse(array[2]) + 1) * 64 - start_x;
+					height = (int.Parse(array[3]) + 1) * 64 - start_y;
+				}
+			}
+			catch (Exception)
+			{
+				start_x = 0;
+				start_y = 0;
+				width = currentLocation.map.DisplayWidth;
+				height = currentLocation.map.DisplayHeight;
+			}
+			int scaled_width2 = (int)((float)width * scale);
+			int scaled_height2 = (int)((float)height * scale);
+			bool failed2 = false;
+			Bitmap map_bitmap = null;
+			do
+			{
+				failed2 = false;
+				scaled_width2 = (int)((float)width * scale);
+				scaled_height2 = (int)((float)height * scale);
+				try
+				{
+					map_bitmap = new Bitmap(scaled_width2, scaled_height2);
+				}
+				catch (Exception e2)
+				{
+					Console.WriteLine("Map Screenshot: Error trying to create Bitmap: " + e2.ToString());
+					failed2 = true;
+				}
+				if (failed2)
+				{
+					scale -= 0.25f;
+				}
+				if (scale <= 0f)
+				{
+					return null;
+				}
+			}
+			while (failed2);
+			int chunk_size = 2048;
+			int scaled_chunk_size = (int)((float)chunk_size * scale);
+			xTile.Dimensions.Rectangle old_viewport = viewport;
+			bool old_display_hud = displayHUD;
+			takingMapScreenshot = true;
+			float old_zoom_level = options.baseZoomLevel;
+			options.baseZoomLevel = 1f;
+			RenderTarget2D cached_lightmap = _lightmap;
+			_lightmap = null;
+			bool fail = false;
+			try
+			{
+				allocateLightmap(chunk_size, chunk_size);
+				int chunks_wide = (int)Math.Ceiling((float)scaled_width2 / (float)scaled_chunk_size);
+				int chunks_high = (int)Math.Ceiling((float)scaled_height2 / (float)scaled_chunk_size);
+				for (int y_offset = 0; y_offset < chunks_high; y_offset++)
+				{
+					for (int x_offset = 0; x_offset < chunks_wide; x_offset++)
+					{
+						int current_width = scaled_chunk_size;
+						int current_height = scaled_chunk_size;
+						int current_x = x_offset * scaled_chunk_size;
+						int current_y = y_offset * scaled_chunk_size;
+						if (current_x + scaled_chunk_size > scaled_width2)
+						{
+							current_width += scaled_width2 - (current_x + scaled_chunk_size);
+						}
+						if (current_y + scaled_chunk_size > scaled_height2)
+						{
+							current_height += scaled_height2 - (current_y + scaled_chunk_size);
+						}
+						if (current_height > 0 && current_width > 0)
+						{
+							System.Drawing.Rectangle rect = new System.Drawing.Rectangle(current_x, current_y, current_width, current_height);
+							RenderTarget2D render_target = new RenderTarget2D(graphics.GraphicsDevice, chunk_size, chunk_size, mipMap: false, SurfaceFormat.Color, DepthFormat.None, 0, RenderTargetUsage.DiscardContents);
+							viewport = new xTile.Dimensions.Rectangle(x_offset * chunk_size + start_x, y_offset * chunk_size + start_y, chunk_size, chunk_size);
+							_draw(currentGameTime, render_target);
+							RenderTarget2D scaled_render_target = new RenderTarget2D(graphics.GraphicsDevice, current_width, current_height, mipMap: false, SurfaceFormat.Color, DepthFormat.None, 0, RenderTargetUsage.DiscardContents);
+							base.GraphicsDevice.SetRenderTarget(scaled_render_target);
+							spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.Opaque, SamplerState.PointClamp, DepthStencilState.Default, RasterizerState.CullNone);
+							Microsoft.Xna.Framework.Color color = Microsoft.Xna.Framework.Color.White;
+							spriteBatch.Draw(render_target, Vector2.Zero, render_target.Bounds, color, 0f, Vector2.Zero, scale, SpriteEffects.None, 1f);
+							spriteBatch.End();
+							render_target.Dispose();
+							base.GraphicsDevice.SetRenderTarget(null);
+							BitmapData bitmap_data = map_bitmap.LockBits(rect, ImageLockMode.ReadWrite, PixelFormat.Format24bppRgb);
+							IntPtr ptr = bitmap_data.Scan0;
+							Microsoft.Xna.Framework.Color[] colors = new Microsoft.Xna.Framework.Color[current_width * current_height];
+							scaled_render_target.GetData(colors);
+							int bytes = current_width * current_height * 3;
+							byte[] rgb_values = new byte[bytes];
+							for (int i = 0; i < colors.Length; i++)
+							{
+								rgb_values[i * 3] = colors[i].B;
+								rgb_values[i * 3 + 1] = colors[i].G;
+								rgb_values[i * 3 + 2] = colors[i].R;
+							}
+							Marshal.Copy(rgb_values, 0, ptr, bytes);
+							map_bitmap.UnlockBits(bitmap_data);
+							scaled_render_target.Dispose();
+						}
+					}
+				}
+				string logDirectory = "Screenshots";
+				int folder = (Environment.OSVersion.Platform != PlatformID.Unix) ? 26 : 28;
+				string fullFilePath = Path.Combine(Path.Combine(Path.Combine(Environment.GetFolderPath((Environment.SpecialFolder)folder), "StardewValley"), logDirectory), filename);
+				FileInfo info2 = new FileInfo(Path.Combine(Path.Combine(Path.Combine(Environment.GetFolderPath((Environment.SpecialFolder)folder), "StardewValley"), logDirectory), "asdfasdf"));
+				if (!info2.Directory.Exists)
+				{
+					info2.Directory.Create();
+				}
+				info2 = null;
+				map_bitmap.Save(fullFilePath, ImageFormat.Png);
+				map_bitmap.Dispose();
+			}
+			catch (Exception e)
+			{
+				Console.WriteLine("Map Screenshot: Error taking screenshot: " + e.ToString());
+				base.GraphicsDevice.SetRenderTarget(null);
+				fail = true;
+			}
+			if (_lightmap != null)
+			{
+				_lightmap.Dispose();
+				_lightmap = null;
+			}
+			_lightmap = cached_lightmap;
+			options.baseZoomLevel = old_zoom_level;
+			takingMapScreenshot = false;
+			displayHUD = old_display_hud;
+			viewport = old_viewport;
+			if (fail)
+			{
+				return null;
+			}
+			return filename;
+		}
+
 		public void CleanupReturningToTitle()
 		{
+			if (!game1.IsMainInstance)
+			{
+				GameRunner.instance.RemoveGameInstance(this);
+			}
+			else
+			{
+				foreach (Game1 instance in GameRunner.instance.gameInstances)
+				{
+					if (instance != this)
+					{
+						GameRunner.instance.RemoveGameInstance(instance);
+					}
+				}
+			}
 			Console.WriteLine("CleanupReturningToTitle()");
+			LocalizedContentManager.localizedAssetNames.Clear();
+			Event.invalidFestivals.Clear();
+			NPC.invalidDialogueFiles.Clear();
 			SaveGame.CancelToTitle = false;
 			overlayMenu = null;
+			multiplayer.cachedMultiplayerMaps.Clear();
+			keyboardFocusInstance = null;
 			multiplayer.Disconnect(Multiplayer.DisconnectType.ExitedToMainMenu);
+			BuildingPaintMenu.savedColors = null;
+			startingGameSeed = null;
 			_afterNewDayAction = null;
 			_currentMinigame = null;
 			gameMode = 0;
@@ -1368,6 +1867,11 @@ namespace StardewValley
 			boardingBus = false;
 			chanceToRainTomorrow = 0.0;
 			chatBox = null;
+			if (specialCurrencyDisplay != null)
+			{
+				specialCurrencyDisplay.Cleanup();
+			}
+			specialCurrencyDisplay = null;
 			client = null;
 			cloud = null;
 			conventionMode = false;
@@ -1409,7 +1913,6 @@ namespace StardewValley
 			dialogueTypingInterval = 0;
 			dialogueUp = false;
 			dialogueWidth = 1024;
-			dishOfTheDay = null;
 			displayFarmer = true;
 			displayHUD = true;
 			downPolling = 0f;
@@ -1545,9 +2048,11 @@ namespace StardewValley
 			screenGlowRate = 0.005f;
 			screenGlowUp = false;
 			screenOverlayTempSprites.Clear();
+			uiOverlayTempSprites.Clear();
 			selectedItemsType = null;
 			server = null;
 			shiny = Vector2.Zero;
+			newGameSetupOptions.Clear();
 			shippingTax = false;
 			showingEndOfNightStuff = false;
 			showKeyHelp = false;
@@ -1600,6 +2105,7 @@ namespace StardewValley
 			year = 1;
 			yLocationAfterWarp = 0;
 			mailDeliveredFromMailForTomorrow.Clear();
+			bundleType = BundleType.Default;
 			JojaMart.Morris = null;
 			AmbientLocationSounds.onLocationLeave();
 			WeatherDebris.globalWind = -0.25f;
@@ -1616,6 +2122,8 @@ namespace StardewValley
 			MineShaft.numberOfCraftedStairsUsedThisRun = 0;
 			MineShaft.mushroomLevelsGeneratedToday.Clear();
 			Desert.boughtMagicRockCandy = false;
+			VolcanoDungeon.activeLevels.Clear();
+			Rumble.stopRumbling();
 			game1.refreshWindowSettings();
 			if (activeClickableMenu != null && activeClickableMenu is TitleMenu)
 			{
@@ -1624,56 +2132,22 @@ namespace StardewValley
 			}
 		}
 
-		public static void GetNumFarmsSavedAsync(ReportNumFarms callback)
+		public static void GetHasRoomAnotherFarmAsync(ReportHasRoomAnotherFarm callback)
 		{
-			new Task(delegate
+			if (LocalMultiplayer.IsLocalMultiplayer())
 			{
-				Thread.CurrentThread.CurrentCulture = CultureInfo.InvariantCulture;
-				int numFarmsSaved = GetNumFarmsSaved();
-				callback(numFarmsSaved);
-			}).Start();
-		}
-
-		public static int GetNumFarmsSaved()
-		{
-			Console.WriteLine("GetNumFarmsSaved(); begin");
-			int results = 0;
-			string pathToDirectory = Path.Combine(Path.Combine(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "StardewValley"), "Saves"));
-			if (!Directory.Exists(pathToDirectory))
-			{
-				Console.WriteLine("Directory.Exists returned false.");
+				bool yes = GetHasRoomAnotherFarm();
+				callback(yes);
 			}
 			else
 			{
-				Console.WriteLine("Directory.Exists returned true.");
-				string[] directories = Directory.GetDirectories(pathToDirectory);
-				Console.WriteLine("Directory.GetDirectories returned {0} results.", directories.Length);
-				string[] array = directories;
-				for (int i = 0; i < array.Length; i++)
+				new Task(delegate
 				{
-					string pathToFile = Path.Combine(array[i], "SaveGameInfo");
-					try
-					{
-						Console.WriteLine("File.Open('{0}')", pathToFile);
-						using (File.Open(pathToFile, FileMode.Open, FileAccess.Read))
-						{
-							results++;
-						}
-					}
-					catch (Exception ex)
-					{
-						Console.WriteLine("Exception in GetNumFarmsSaved() trying to open file '{0}'", pathToFile);
-						Console.WriteLine(ex.GetBaseException().ToString());
-					}
-				}
+					Thread.CurrentThread.CurrentCulture = CultureInfo.InvariantCulture;
+					bool hasRoomAnotherFarm = GetHasRoomAnotherFarm();
+					callback(hasRoomAnotherFarm);
+				}).Start();
 			}
-			Console.WriteLine("GetNumFarmsSaved(); end, results={0}", results);
-			return results;
-		}
-
-		public static int GetMaxNumFarmsSaved()
-		{
-			return int.MaxValue;
 		}
 
 		private static string GameModeToString(byte mode)
@@ -1735,11 +2209,19 @@ namespace StardewValley
 			_setSaveName = true;
 		}
 
-		public static string GetSaveGameName()
+		public static string GetSaveGameName(bool set_value = true)
 		{
-			if (!_setSaveName)
+			if (!_setSaveName && set_value)
 			{
-				SetSaveName(MasterPlayer.Name);
+				string base_name = MasterPlayer.farmName.Value;
+				string save_name = base_name;
+				int collision_index = 2;
+				while (SaveGame.IsNewGameSaveNameCollision(save_name))
+				{
+					save_name = base_name + collision_index;
+					collision_index++;
+				}
+				SetSaveName(save_name);
 			}
 			return _currentSaveName;
 		}
@@ -1751,7 +2233,7 @@ namespace StardewValley
 			if (options != null)
 			{
 				quality = options.lightingQuality;
-				zoom = options.zoomLevel;
+				zoom = ((!game1.useUnscaledLighting) ? options.zoomLevel : 1f);
 			}
 			int w = (int)((float)width * (1f / zoom) + 64f) / (quality / 2);
 			int h = (int)((float)height * (1f / zoom) + 64f) / (quality / 2);
@@ -1793,34 +2275,26 @@ namespace StardewValley
 			postExitToTitleCallback = postExitCallback;
 		}
 
-		public Game1()
+		public Game1(PlayerIndex player_index, int index)
+			: this()
 		{
-			Program.gamePtr = this;
-			game1 = this;
-			Program.sdk.EarlyInitialize();
-			if (!Program.releaseBuild)
-			{
-				base.InactiveSleepTime = new TimeSpan(0L);
-			}
-			graphics = new GraphicsDeviceManager(this);
-			graphics.PreferredBackBufferWidth = 1280;
-			graphics.PreferredBackBufferHeight = 720;
-			viewport = new xTile.Dimensions.Rectangle(new xTile.Dimensions.Size(graphics.PreferredBackBufferWidth, graphics.PreferredBackBufferHeight));
-			base.Window.AllowUserResizing = true;
-			base.Content.RootDirectory = "Content";
-			_temporaryContent = CreateContentManager(base.Content.ServiceProvider, base.Content.RootDirectory);
-			base.Window.ClientSizeChanged += Window_ClientSizeChanged;
-			base.Exiting += exitEvent;
-			Thread.CurrentThread.CurrentCulture = CultureInfo.InvariantCulture;
-			LocalizedContentManager.OnLanguageChange += delegate
-			{
-				TranslateFields();
-			};
-			screenFade = new ScreenFade(onFadeToBlackComplete, onFadedBackInComplete);
+			instancePlayerOneIndex = player_index;
+			instanceIndex = index;
 		}
 
-		private void TranslateFields()
+		public Game1()
 		{
+			instanceId = GameRunner.instance.GetNewInstanceID();
+			if (Program.gamePtr == null)
+			{
+				Program.gamePtr = this;
+			}
+			_temporaryContent = CreateContentManager(base.Content.ServiceProvider, base.Content.RootDirectory);
+		}
+
+		public void TranslateFields()
+		{
+			LocalizedContentManager.localizedAssetNames.Clear();
 			samBandName = content.LoadString("Strings\\StringsFromCSFiles:Game1.cs.2156");
 			elliottBookName = content.LoadString("Strings\\StringsFromCSFiles:Game1.cs.2157");
 			objectSpriteSheet = content.Load<Texture2D>("Maps\\springobjects");
@@ -1841,51 +2315,69 @@ namespace StardewValley
 			clothingInformation = content.Load<Dictionary<int, string>>("Data\\ClothingInformation");
 			bigCraftablesInformation = content.Load<Dictionary<int, string>>("Data\\BigCraftablesInformation");
 			achievements = content.Load<Dictionary<int, string>>("Data\\Achievements");
-			CraftingRecipe.craftingRecipes = content.Load<Dictionary<string, string>>("Data//CraftingRecipes");
-			CraftingRecipe.cookingRecipes = content.Load<Dictionary<string, string>>("Data//CookingRecipes");
+			CraftingRecipe.craftingRecipes = content.Load<Dictionary<string, string>>("Data\\CraftingRecipes");
+			CraftingRecipe.cookingRecipes = content.Load<Dictionary<string, string>>("Data\\CookingRecipes");
 			MovieTheater.ClearCachedLocalizedData();
 			mouseCursors = content.Load<Texture2D>("LooseSprites\\Cursors");
 			mouseCursors2 = content.Load<Texture2D>("LooseSprites\\Cursors2");
 			giftboxTexture = content.Load<Texture2D>("LooseSprites\\Giftbox");
 			controllerMaps = content.Load<Texture2D>("LooseSprites\\ControllerMaps");
 			NPCGiftTastes = content.Load<Dictionary<string, string>>("Data\\NPCGiftTastes");
+			_shortDayDisplayName[0] = content.LoadString("Strings\\StringsFromCSFiles:Game1.cs.3042");
+			_shortDayDisplayName[1] = content.LoadString("Strings\\StringsFromCSFiles:Game1.cs.3043");
+			_shortDayDisplayName[2] = content.LoadString("Strings\\StringsFromCSFiles:Game1.cs.3044");
+			_shortDayDisplayName[3] = content.LoadString("Strings\\StringsFromCSFiles:Game1.cs.3045");
+			_shortDayDisplayName[4] = content.LoadString("Strings\\StringsFromCSFiles:Game1.cs.3046");
+			_shortDayDisplayName[5] = content.LoadString("Strings\\StringsFromCSFiles:Game1.cs.3047");
+			_shortDayDisplayName[6] = content.LoadString("Strings\\StringsFromCSFiles:Game1.cs.3048");
 		}
 
 		public void exitEvent(object sender, EventArgs e)
 		{
 			multiplayer.Disconnect(Multiplayer.DisconnectType.ClosedGame);
-			Process.GetCurrentProcess().Kill();
+			keyboardDispatcher.Cleanup();
 		}
 
 		public void refreshWindowSettings()
 		{
-			Window_ClientSizeChanged(null, null);
+			GameRunner.instance.OnWindowSizeChange(null, null);
 		}
 
-		private void Window_ClientSizeChanged(object sender, EventArgs e)
+		public void Window_ClientSizeChanged(object sender, EventArgs e)
 		{
-			Console.WriteLine("Window_ClientSizeChanged(); Window.ClientBounds={0}", base.Window.ClientBounds);
-			if (options == null)
+			if (!_windowResizing)
 			{
-				Console.WriteLine("Window_ClientSizeChanged(); options is null, returning.");
-				return;
+				Console.WriteLine("Window_ClientSizeChanged(); Window.ClientBounds={0}", base.Window.ClientBounds);
+				if (options == null)
+				{
+					Console.WriteLine("Window_ClientSizeChanged(); options is null, returning.");
+					return;
+				}
+				_windowResizing = true;
+				int w = graphics.IsFullScreen ? graphics.PreferredBackBufferWidth : base.Window.ClientBounds.Width;
+				int h = graphics.IsFullScreen ? graphics.PreferredBackBufferHeight : base.Window.ClientBounds.Height;
+				GameRunner.instance.ExecuteForInstances(delegate(Game1 instance)
+				{
+					instance.SetWindowSize(w, h);
+				});
+				_windowResizing = false;
 			}
+		}
+
+		public virtual void SetWindowSize(int w, int h)
+		{
 			Microsoft.Xna.Framework.Rectangle oldWindow = new Microsoft.Xna.Framework.Rectangle(viewport.X, viewport.Y, viewport.Width, viewport.Height);
-			base.Window.ClientSizeChanged -= Window_ClientSizeChanged;
-			int w = graphics.IsFullScreen ? graphics.PreferredBackBufferWidth : base.Window.ClientBounds.Width;
-			int h = graphics.IsFullScreen ? graphics.PreferredBackBufferHeight : base.Window.ClientBounds.Height;
-			Microsoft.Xna.Framework.Rectangle clientBounds = base.Window.ClientBounds;
+			_ = base.Window.ClientBounds;
 			bool recalculateClientBounds = false;
 			try
 			{
-				_ = graphics.GraphicsDevice.Viewport;
-				if (w < 1280)
+				if (w < 1280 && !graphics.IsFullScreen)
 				{
 					graphics.PreferredBackBufferWidth = 1280;
 					w = 1280;
 					recalculateClientBounds = true;
 				}
-				if (h < 720)
+				if (h < 720 && !graphics.IsFullScreen)
 				{
 					graphics.PreferredBackBufferHeight = 720;
 					h = 720;
@@ -1896,44 +2388,98 @@ namespace StardewValley
 			{
 				graphics.PreferredBackBufferWidth = 1280;
 				graphics.PreferredBackBufferHeight = 720;
+				w = graphics.PreferredBackBufferWidth;
+				h = graphics.PreferredBackBufferHeight;
 			}
-			updateViewportForScreenSizeChange(fullscreenChange: false, w, h);
-			if (bloom != null)
+			if (recalculateClientBounds)
 			{
-				bloom.reload();
+				_ = base.Window.ClientBounds;
 			}
-			if (graphics.SynchronizeWithVerticalRetrace != options.vsyncEnabled)
+			if (base.IsMainInstance && graphics.SynchronizeWithVerticalRetrace != options.vsyncEnabled)
 			{
 				graphics.SynchronizeWithVerticalRetrace = options.vsyncEnabled;
 				Console.WriteLine("Vsync toggled: " + graphics.SynchronizeWithVerticalRetrace.ToString());
 			}
 			graphics.ApplyChanges();
-			if (recalculateClientBounds)
-			{
-				clientBounds = base.Window.ClientBounds;
-			}
-			try
-			{
-				int sw = Math.Min(4096, (int)((float)clientBounds.Width * (1f / options.zoomLevel)));
-				int sh = Math.Min(4096, (int)((float)clientBounds.Height * (1f / options.zoomLevel)));
-				screen = new RenderTarget2D(graphics.GraphicsDevice, sw, sh);
-			}
-			catch (Exception)
-			{
-			}
 			try
 			{
 				if (graphics.IsFullScreen)
 				{
-					graphics.GraphicsDevice.Viewport = new Viewport(new Microsoft.Xna.Framework.Rectangle(0, 0, graphics.PreferredBackBufferWidth, graphics.PreferredBackBufferHeight));
+					localMultiplayerWindow = new Microsoft.Xna.Framework.Rectangle(0, 0, graphics.PreferredBackBufferWidth, graphics.PreferredBackBufferHeight);
 				}
 				else
 				{
-					graphics.GraphicsDevice.Viewport = new Viewport(new Microsoft.Xna.Framework.Rectangle(0, 0, viewport.Width, viewport.Height));
+					localMultiplayerWindow = new Microsoft.Xna.Framework.Rectangle(0, 0, w, h);
 				}
 			}
 			catch (Exception)
 			{
+			}
+			defaultDeviceViewport = new Viewport(localMultiplayerWindow);
+			List<Vector4> screen_splits = new List<Vector4>();
+			if (GameRunner.instance.gameInstances.Count <= 1)
+			{
+				screen_splits.Add(new Vector4(0f, 0f, 1f, 1f));
+			}
+			else if (GameRunner.instance.gameInstances.Count == 2)
+			{
+				screen_splits.Add(new Vector4(0f, 0f, 0.5f, 1f));
+				screen_splits.Add(new Vector4(0.5f, 0f, 0.5f, 1f));
+			}
+			else if (GameRunner.instance.gameInstances.Count == 3)
+			{
+				screen_splits.Add(new Vector4(0f, 0f, 1f, 0.5f));
+				screen_splits.Add(new Vector4(0f, 0.5f, 0.5f, 0.5f));
+				screen_splits.Add(new Vector4(0.5f, 0.5f, 0.5f, 0.5f));
+			}
+			else if (GameRunner.instance.gameInstances.Count == 4)
+			{
+				screen_splits.Add(new Vector4(0f, 0f, 0.5f, 0.5f));
+				screen_splits.Add(new Vector4(0.5f, 0f, 0.5f, 0.5f));
+				screen_splits.Add(new Vector4(0f, 0.5f, 0.5f, 0.5f));
+				screen_splits.Add(new Vector4(0.5f, 0.5f, 0.5f, 0.5f));
+			}
+			if (GameRunner.instance.gameInstances.Count <= 1)
+			{
+				zoomModifier = 1f;
+			}
+			else
+			{
+				zoomModifier = 0.5f;
+			}
+			Vector4 current_screen_split = screen_splits[game1.instanceIndex];
+			Vector2? old_ui_dimensions = null;
+			if (uiScreen != null)
+			{
+				old_ui_dimensions = new Vector2(uiScreen.Width, uiScreen.Height);
+			}
+			localMultiplayerWindow.X = (int)((float)w * current_screen_split.X);
+			localMultiplayerWindow.Y = (int)((float)h * current_screen_split.Y);
+			localMultiplayerWindow.Width = (int)Math.Ceiling((float)w * current_screen_split.Z);
+			localMultiplayerWindow.Height = (int)Math.Ceiling((float)h * current_screen_split.W);
+			try
+			{
+				int sw = Math.Min(4096, (int)Math.Ceiling((float)localMultiplayerWindow.Width * (1f / options.zoomLevel)));
+				int sh = Math.Min(4096, (int)Math.Ceiling((float)localMultiplayerWindow.Height * (1f / options.zoomLevel)));
+				screen = new RenderTarget2D(graphics.GraphicsDevice, sw, sh, mipMap: false, SurfaceFormat.Color, DepthFormat.None, 0, RenderTargetUsage.PreserveContents);
+				screen.Name = "Screen";
+				int uw = Math.Min(4096, (int)Math.Ceiling((float)localMultiplayerWindow.Width / options.uiScale));
+				int uh = Math.Min(4096, (int)Math.Ceiling((float)localMultiplayerWindow.Height / options.uiScale));
+				uiScreen = new RenderTarget2D(graphics.GraphicsDevice, uw, uh, mipMap: false, SurfaceFormat.Color, DepthFormat.None, 0, RenderTargetUsage.PreserveContents);
+				uiScreen.Name = "UI Screen";
+			}
+			catch (Exception)
+			{
+			}
+			updateViewportForScreenSizeChange(fullscreenChange: false, localMultiplayerWindow.Width, localMultiplayerWindow.Height);
+			if (old_ui_dimensions.HasValue && old_ui_dimensions.Value.X == (float)uiScreen.Width && old_ui_dimensions.Value.Y == (float)uiScreen.Height)
+			{
+				return;
+			}
+			PushUIMode();
+			if (textEntry != null)
+			{
+				textEntry.gameWindowSizeChanged(oldWindow, new Microsoft.Xna.Framework.Rectangle(viewport.X, viewport.Y, viewport.Width, viewport.Height));
 			}
 			foreach (IClickableMenu onScreenMenu in onScreenMenus)
 			{
@@ -1959,7 +2505,7 @@ namespace StardewValley
 					((activeClickableMenu as GameMenu).GetCurrentPage() as OptionsPage).postWindowSizeChange();
 				}
 			}
-			base.Window.ClientSizeChanged += Window_ClientSizeChanged;
+			PopUIMode();
 		}
 
 		private void Game1_Exiting(object sender, EventArgs e)
@@ -1984,10 +2530,22 @@ namespace StardewValley
 				{
 					skip = true;
 				}
-				activeClickableMenu = new TitleMenu();
-				if (skip)
+				if (game1.instanceIndex > 0)
 				{
-					(activeClickableMenu as TitleMenu).skipToTitleButtons();
+					activeClickableMenu = new FarmhandMenu(multiplayer.InitClient(new LidgrenClient("localhost")));
+					activeClickableMenu.populateClickableComponentList();
+					if (options.SnappyMenus)
+					{
+						activeClickableMenu.snapToDefaultClickableComponent();
+					}
+				}
+				else
+				{
+					activeClickableMenu = new TitleMenu();
+					if (skip)
+					{
+						(activeClickableMenu as TitleMenu).skipToTitleButtons();
+					}
 				}
 				break;
 			}
@@ -2000,13 +2558,19 @@ namespace StardewValley
 
 		public static void updateViewportForScreenSizeChange(bool fullscreenChange, int width, int height)
 		{
+			forceSnapOnNextViewportUpdate = true;
 			if (graphics.GraphicsDevice != null)
 			{
 				allocateLightmap(width, height);
 			}
-			width = (int)((float)width / options.zoomLevel);
-			height = (int)((float)height / options.zoomLevel);
+			width = (int)Math.Ceiling((float)width / options.zoomLevel);
+			height = (int)Math.Ceiling((float)height / options.zoomLevel);
 			Microsoft.Xna.Framework.Point center2 = new Microsoft.Xna.Framework.Point(viewport.X + viewport.Width / 2, viewport.Y + viewport.Height / 2);
+			bool size_dirty = false;
+			if (viewport.Width != width || viewport.Height != height)
+			{
+				size_dirty = true;
+			}
 			viewport = new xTile.Dimensions.Rectangle(center2.X - width / 2, center2.Y - height / 2, width, height);
 			if (currentLocation == null)
 			{
@@ -2014,7 +2578,7 @@ namespace StardewValley
 			}
 			if (eventUp)
 			{
-				if (!((float)(int)Math.Floor((float)center2.X / 64f) <= -200f) && currentLocation.IsOutdoors)
+				if (!IsFakedBlackScreen() && currentLocation.IsOutdoors)
 				{
 					clampViewportToGameMap();
 				}
@@ -2026,27 +2590,76 @@ namespace StardewValley
 				viewport = new xTile.Dimensions.Rectangle(center2.X - width / 2, center2.Y - height / 2, width, height);
 				UpdateViewPort(overrideFreeze: true, center2);
 			}
-			randomizeDebrisWeatherPositions(debrisWeather);
+			if (size_dirty)
+			{
+				forceSnapOnNextViewportUpdate = true;
+				randomizeRainPositions();
+				randomizeDebrisWeatherPositions(debrisWeather);
+			}
+		}
+
+		public void Instance_Initialize()
+		{
+			Initialize();
+		}
+
+		public static bool IsFading()
+		{
+			if (!globalFade && (!fadeIn || !(fadeToBlackAlpha > 0f)))
+			{
+				if (fadeToBlack)
+				{
+					return fadeToBlackAlpha < 1f;
+				}
+				return false;
+			}
+			return true;
+		}
+
+		public static bool IsFakedBlackScreen()
+		{
+			if (currentMinigame != null)
+			{
+				return false;
+			}
+			if (CurrentEvent != null && CurrentEvent.currentCustomEventScript != null)
+			{
+				return false;
+			}
+			if (!eventUp)
+			{
+				return false;
+			}
+			return (float)(int)Math.Floor((float)new Microsoft.Xna.Framework.Point(viewport.X + viewport.Width / 2, viewport.Y + viewport.Height / 2).X / 64f) <= -200f;
 		}
 
 		protected override void Initialize()
 		{
-			viewport = new xTile.Dimensions.Rectangle(new xTile.Dimensions.Size(graphics.PreferredBackBufferWidth, graphics.PreferredBackBufferHeight));
 			keyboardDispatcher = new KeyboardDispatcher(base.Window);
-			base.IsFixedTimeStep = true;
+			screenFade = new ScreenFade(onFadeToBlackComplete, onFadedBackInComplete);
+			options = new Options();
+			options.musicVolumeLevel = 1f;
+			options.soundVolumeLevel = 1f;
+			otherFarmers = new NetRootDictionary<long, Farmer>();
+			otherFarmers.Serializer = SaveGame.farmerSerializer;
+			viewport = new xTile.Dimensions.Rectangle(new xTile.Dimensions.Size(graphics.PreferredBackBufferWidth, graphics.PreferredBackBufferHeight));
 			string rootpath = base.Content.RootDirectory;
 			File.Exists(Path.Combine(rootpath, "XACT", "FarmerSounds.xgs"));
-			try
+			if (base.IsMainInstance)
 			{
-				audioEngine = new AudioEngineWrapper(new AudioEngine(Path.Combine(rootpath, "XACT", "FarmerSounds.xgs")));
-				waveBank = new WaveBank(audioEngine.Engine, Path.Combine(rootpath, "XACT", "Wave Bank.xwb"));
-				waveBank1_4 = new WaveBank(audioEngine.Engine, Path.Combine(rootpath, "XACT", "Wave Bank(1.4).xwb"));
-				soundBank = new SoundBankWrapper(new SoundBank(audioEngine.Engine, Path.Combine(rootpath, "XACT", "Sound Bank.xsb")));
-			}
-			catch (Exception)
-			{
-				audioEngine = new DummyAudioEngine();
-				soundBank = new DummySoundBank();
+				try
+				{
+					audioEngine = new AudioEngineWrapper(new AudioEngine(Path.Combine(rootpath, "XACT", "FarmerSounds.xgs")));
+					waveBank = new WaveBank(audioEngine.Engine, Path.Combine(rootpath, "XACT", "Wave Bank.xwb"));
+					waveBank1_4 = new WaveBank(audioEngine.Engine, Path.Combine(rootpath, "XACT", "Wave Bank(1.4).xwb"));
+					soundBank = new SoundBankWrapper(new SoundBank(audioEngine.Engine, Path.Combine(rootpath, "XACT", "Sound Bank.xsb")));
+				}
+				catch (Exception e)
+				{
+					Console.WriteLine("Game.Initialize() caught exception initializing XACT:\n{0}", e);
+					audioEngine = new DummyAudioEngine();
+					soundBank = new DummySoundBank();
+				}
 			}
 			audioEngine.Update();
 			musicCategory = audioEngine.GetCategory("Music");
@@ -2059,14 +2672,12 @@ namespace StardewValley
 				wind = soundBank.GetCue("wind");
 				chargeUpSound = soundBank.GetCue("toolCharge");
 			}
-			base.Initialize();
-			graphics.SynchronizeWithVerticalRetrace = true;
-			screen = new RenderTarget2D(graphics.GraphicsDevice, graphics.GraphicsDevice.Viewport.Width, graphics.GraphicsDevice.Viewport.Height);
+			screen = new RenderTarget2D(graphics.GraphicsDevice, graphics.GraphicsDevice.Viewport.Width, graphics.GraphicsDevice.Viewport.Height, mipMap: false, SurfaceFormat.Color, DepthFormat.None, 0, RenderTargetUsage.PreserveContents);
 			allocateLightmap(graphics.GraphicsDevice.Viewport.Width, graphics.GraphicsDevice.Viewport.Height);
 			AmbientLocationSounds.InitShared();
-			setGameMode(0);
-			Program.sdk.Initialize();
 			previousViewportPosition = Vector2.Zero;
+			PushUIMode();
+			PopUIMode();
 			setRichPresence("menus");
 		}
 
@@ -2116,7 +2727,7 @@ namespace StardewValley
 						f.craftingRecipes.Add("Tree Fertilizer", 0);
 					}
 				}
-				foreach (KeyValuePair<string, string> v in content.Load<Dictionary<string, string>>("Data\\Bundles"))
+				foreach (KeyValuePair<string, string> v in netWorldState.Value.BundleData)
 				{
 					int key = Convert.ToInt32(v.Key.Split('/')[1]);
 					if (!netWorldState.Value.Bundles.ContainsKey(key))
@@ -2160,6 +2771,28 @@ namespace StardewValley
 			{
 			case SaveGame.SaveFixes.Level9PuddingFishingRecipe:
 				break;
+			case SaveGame.SaveFixes.AddTownBush:
+			{
+				Town town = getLocationFromName("Town") as Town;
+				if (town != null)
+				{
+					Vector2 tile = new Vector2(61f, 93f);
+					if (town.getLargeTerrainFeatureAt((int)tile.X, (int)tile.Y) == null)
+					{
+						town.largeTerrainFeatures.Add(new Bush(tile, 2, town));
+					}
+				}
+				break;
+			}
+			case SaveGame.SaveFixes.AddBirdie:
+				addBirdieIfNecessary();
+				break;
+			case SaveGame.SaveFixes.AddBugSteakRecipe:
+				if (player.combatLevel.Value >= 2 && !player.craftingRecipes.ContainsKey("Bug Steak"))
+				{
+					player.craftingRecipes.Add("Bug Steak", 0);
+				}
+				break;
 			case SaveGame.SaveFixes.StoredBigCraftablesStackFix:
 				Utility.iterateChestsAndStorage(delegate(Item item)
 				{
@@ -2202,41 +2835,41 @@ namespace StardewValley
 					}
 				});
 				List<DecoratableLocation> decoratable_locations = new List<DecoratableLocation>();
-				foreach (GameLocation location3 in locations)
+				foreach (GameLocation location4 in locations)
 				{
-					if (location3 is DecoratableLocation)
+					if (location4 is DecoratableLocation)
 					{
-						decoratable_locations.Add(location3 as DecoratableLocation);
+						decoratable_locations.Add(location4 as DecoratableLocation);
 					}
 				}
 				foreach (Building building3 in getFarm().buildings)
 				{
 					if (building3.indoors != null)
 					{
-						GameLocation location2 = building3.indoors;
-						if (location2 is DecoratableLocation)
+						GameLocation location3 = building3.indoors;
+						if (location3 is DecoratableLocation)
 						{
-							decoratable_locations.Add(location2 as DecoratableLocation);
+							decoratable_locations.Add(location3 as DecoratableLocation);
 						}
 					}
 				}
-				foreach (DecoratableLocation location in decoratable_locations)
+				foreach (DecoratableLocation location2 in decoratable_locations)
 				{
 					List<Furniture> furniture_to_add = new List<Furniture>();
-					for (int j = 0; j < location.furniture.Count; j++)
+					for (int j = 0; j < location2.furniture.Count; j++)
 					{
-						Furniture old_furniture = location.furniture[j];
+						Furniture old_furniture = location2.furniture[j];
 						if (old_furniture.ParentSheetIndex == 704 || old_furniture.ParentSheetIndex == 709 || old_furniture.ParentSheetIndex == 714 || old_furniture.ParentSheetIndex == 719)
 						{
 							StorageFurniture storage_furniture = new StorageFurniture(old_furniture.ParentSheetIndex, old_furniture.TileLocation, old_furniture.currentRotation);
 							furniture_to_add.Add(storage_furniture);
-							location.furniture.RemoveAt(j);
+							location2.furniture.RemoveAt(j);
 							j--;
 						}
 					}
 					for (int i = 0; i < furniture_to_add.Count; i++)
 					{
-						location.furniture.Add(furniture_to_add[i]);
+						location2.furniture.Add(furniture_to_add[i]);
 					}
 				}
 				break;
@@ -2274,9 +2907,9 @@ namespace StardewValley
 				{
 					if (item is Object && Utility.IsNormalObjectAtParentSheetIndex(item, item.ParentSheetIndex) && preserve_item_indices.Contains(item.ParentSheetIndex) && !(item as Object).preserve.Value.HasValue)
 					{
-						for (int m = 0; m < suffixes.Length; m++)
+						for (int n = 0; n < suffixes.Length; n++)
 						{
-							string text = suffixes[m];
+							string text = suffixes[n];
 							if (item.Name.EndsWith(text))
 							{
 								string value = item.Name.Substring(0, item.Name.Length - text.Length);
@@ -2292,7 +2925,7 @@ namespace StardewValley
 								if (num >= 0)
 								{
 									(item as Object).preservedParentSheetIndex.Value = num;
-									(item as Object).preserve.Value = suffix_preserve_types[m];
+									(item as Object).preserve.Value = suffix_preserve_types[n];
 									return;
 								}
 							}
@@ -2391,6 +3024,7 @@ namespace StardewValley
 				});
 				break;
 			case SaveGame.SaveFixes.Level9PuddingFishingRecipe2:
+			case SaveGame.SaveFixes.Level9PuddingFishingRecipe3:
 				if (player.cookingRecipes.ContainsKey("Ocean Mineral Pudding"))
 				{
 					player.cookingRecipes.Remove("Ocean Mineral Pudding");
@@ -2417,6 +3051,214 @@ namespace StardewValley
 					}
 				}
 				break;
+			case SaveGame.SaveFixes.BedsToFurniture:
+			{
+				List<GameLocation> house_locations = new List<GameLocation>();
+				house_locations.Add(getLocationFromName("FarmHouse"));
+				foreach (Building b in getFarm().buildings)
+				{
+					if ((b.indoors.Value != null) & (b.indoors.Value is FarmHouse))
+					{
+						house_locations.Add(b.indoors);
+					}
+				}
+				foreach (GameLocation item in house_locations)
+				{
+					FarmHouse house = item as FarmHouse;
+					if (house != null)
+					{
+						for (int x = 0; x < house.map.Layers[0].TileWidth; x++)
+						{
+							for (int y = 0; y < house.map.Layers[0].TileHeight; y++)
+							{
+								if (house.doesTileHaveProperty(x, y, "DefaultBedPosition", "Back") != null)
+								{
+									if (house.upgradeLevel == 0)
+									{
+										house.furniture.Add(new BedFurniture(BedFurniture.DEFAULT_BED_INDEX, new Vector2(x, y)));
+									}
+									else
+									{
+										int bed_index = BedFurniture.DOUBLE_BED_INDEX;
+										if (!house.owner.activeDialogueEvents.ContainsKey("pennyRedecorating"))
+										{
+											if (house.owner.mailReceived.Contains("pennyQuilt0"))
+											{
+												bed_index = 2058;
+											}
+											if (house.owner.mailReceived.Contains("pennyQuilt1"))
+											{
+												bed_index = 2064;
+											}
+											if (house.owner.mailReceived.Contains("pennyQuilt2"))
+											{
+												bed_index = 2070;
+											}
+										}
+										house.furniture.Add(new BedFurniture(bed_index, new Vector2(x, y)));
+									}
+								}
+							}
+						}
+					}
+				}
+				break;
+			}
+			case SaveGame.SaveFixes.ChildBedsToFurniture:
+			{
+				List<GameLocation> house_locations2 = new List<GameLocation>();
+				house_locations2.Add(getLocationFromName("FarmHouse"));
+				foreach (Building b2 in getFarm().buildings)
+				{
+					if ((b2.indoors.Value != null) & (b2.indoors.Value is FarmHouse))
+					{
+						house_locations2.Add(b2.indoors);
+					}
+				}
+				foreach (GameLocation item2 in house_locations2)
+				{
+					FarmHouse house2 = item2 as FarmHouse;
+					if (house2 != null)
+					{
+						for (int x2 = 0; x2 < house2.map.Layers[0].TileWidth; x2++)
+						{
+							for (int y2 = 0; y2 < house2.map.Layers[0].TileHeight; y2++)
+							{
+								if (house2.doesTileHaveProperty(x2, y2, "DefaultChildBedPosition", "Back") != null)
+								{
+									house2.furniture.Add(new BedFurniture(BedFurniture.CHILD_BED_INDEX, new Vector2(x2, y2)));
+								}
+							}
+						}
+					}
+				}
+				break;
+			}
+			case SaveGame.SaveFixes.ModularizeFarmStructures:
+				getFarm().AddModularShippingBin();
+				break;
+			case SaveGame.SaveFixes.FixFlooringFlags:
+				Utility.ForAllLocations(delegate(GameLocation location)
+				{
+					foreach (TerrainFeature current3 in location.terrainFeatures.Values)
+					{
+						if (current3 is Flooring)
+						{
+							(current3 as Flooring).ApplyFlooringFlags();
+						}
+					}
+				});
+				break;
+			case SaveGame.SaveFixes.AddNewRingRecipes1_5:
+				if (player.combatLevel.Value >= 7 && !player.craftingRecipes.ContainsKey("Thorns Ring"))
+				{
+					player.craftingRecipes.Add("Thorns Ring", 0);
+				}
+				if (player.miningLevel.Value >= 4 && !player.craftingRecipes.ContainsKey("Glowstone Ring"))
+				{
+					player.craftingRecipes.Add("Glowstone Ring", 0);
+				}
+				break;
+			case SaveGame.SaveFixes.ResetForges:
+				Utility.iterateAllItems(delegate(Item item)
+				{
+					if (item is MeleeWeapon)
+					{
+						(item as MeleeWeapon).RecalculateAppliedForges();
+					}
+				});
+				break;
+			case SaveGame.SaveFixes.AddSquidInkRavioli:
+				if (player.combatLevel.Value >= 9 && !player.cookingRecipes.ContainsKey("Squid Ink Ravioli"))
+				{
+					player.cookingRecipes.Add("Squid Ink Ravioli", 0);
+				}
+				break;
+			case SaveGame.SaveFixes.MakeDarkSwordVampiric:
+				Utility.iterateAllItems(delegate(Item item)
+				{
+					if (item is MeleeWeapon && (item as MeleeWeapon).InitialParentTileIndex == 2)
+					{
+						(item as MeleeWeapon).AddEnchantment(new VampiricEnchantment());
+					}
+				});
+				break;
+			case SaveGame.SaveFixes.FixRingSheetIndex:
+				Utility.iterateAllItems(delegate(Item item)
+				{
+					if (item is Ring && item.ParentSheetIndex == -1)
+					{
+						item.ParentSheetIndex = (item as Ring).indexInTileSheet.Value;
+					}
+				});
+				break;
+			case SaveGame.SaveFixes.FixBeachFarmBushes:
+				if (whichFarm == 6)
+				{
+					Farm farm = getFarm();
+					Vector2[] array = new Vector2[4]
+					{
+						new Vector2(77f, 4f),
+						new Vector2(78f, 3f),
+						new Vector2(83f, 4f),
+						new Vector2(83f, 3f)
+					};
+					foreach (Vector2 bush_location in array)
+					{
+						foreach (LargeTerrainFeature feature in farm.largeTerrainFeatures)
+						{
+							if (feature.tilePosition.Value == bush_location)
+							{
+								if (feature is Bush)
+								{
+									Bush bush = feature as Bush;
+									if (bush != null)
+									{
+										bush.tilePosition.Value = new Vector2(bush.tilePosition.X, bush.tilePosition.Y + 1f);
+									}
+								}
+								break;
+							}
+						}
+					}
+				}
+				break;
+			case SaveGame.SaveFixes.AddCampfireKit:
+				if (player.foragingLevel.Value >= 9 && !player.craftingRecipes.ContainsKey("Cookout Kit"))
+				{
+					player.craftingRecipes.Add("Cookout Kit", 0);
+				}
+				break;
+			case SaveGame.SaveFixes.OstrichIncubatorFragility:
+				Utility.iterateAllItems(delegate(Item item)
+				{
+					if (item is Object && (item as Object).Fragility == 2 && item.Name == "Ostrich Incubator")
+					{
+						(item as Object).Fragility = 0;
+					}
+				});
+				break;
+			case SaveGame.SaveFixes.FixBotchedBundleData:
+			{
+				Dictionary<string, string> new_dictionary = new Dictionary<string, string>();
+				foreach (string key in netWorldState.Value.BundleData.Keys)
+				{
+					List<string> split = new List<string>(netWorldState.Value.BundleData[key].Split('/'));
+					int temp = 0;
+					while (split.Count > 4 && !int.TryParse(split[split.Count - 1], out temp))
+					{
+						string last_value = split[split.Count - 1];
+						if (char.IsDigit(last_value[last_value.Length - 1]) && last_value.Contains(":") && last_value.Contains("\\"))
+						{
+							break;
+						}
+						split.RemoveAt(split.Count - 1);
+					}
+					new_dictionary[key] = string.Join("/", split);
+				}
+				netWorldState.Value.SetBundleData(new_dictionary);
+				break;
+			}
 			}
 		}
 
@@ -2468,19 +3310,19 @@ namespace StardewValley
 			return new LocalizedContentManager(serviceProvider, rootDirectory);
 		}
 
+		public void Instance_LoadContent()
+		{
+			LoadContent();
+		}
+
 		protected override void LoadContent()
 		{
-			options = new Options();
-			options.musicVolumeLevel = 1f;
-			options.soundVolumeLevel = 1f;
 			content = CreateContentManager(base.Content.ServiceProvider, base.Content.RootDirectory);
 			xTileContent = CreateContentManager(content.ServiceProvider, content.RootDirectory);
 			mapDisplayDevice = new XnaDisplayDevice(content, base.GraphicsDevice);
 			CraftingRecipe.InitShared();
 			Critter.InitShared();
 			spriteBatch = new SpriteBatch(base.GraphicsDevice);
-			otherFarmers = new NetRootDictionary<long, Farmer>();
-			otherFarmers.Serializer = SaveGame.farmerSerializer;
 			concessionsSpriteSheet = content.Load<Texture2D>("LooseSprites\\Concessions");
 			birdsSpriteSheet = content.Load<Texture2D>("LooseSprites\\birds");
 			daybg = content.Load<Texture2D>("LooseSprites\\daybg");
@@ -2570,12 +3412,22 @@ namespace StardewValley
 			FarmerRenderer.hatsTexture = content.Load<Texture2D>("Characters\\Farmer\\hats");
 			FarmerRenderer.accessoriesTexture = content.Load<Texture2D>("Characters\\Farmer\\accessories");
 			Furniture.furnitureTexture = content.Load<Texture2D>("TileSheets\\furniture");
+			Furniture.furnitureFrontTexture = content.Load<Texture2D>("TileSheets\\furnitureFront");
+			MapSeat.mapChairTexture = content.Load<Texture2D>("TileSheets\\ChairTiles");
 			SpriteText.spriteTexture = content.Load<Texture2D>("LooseSprites\\font_bold");
 			SpriteText.coloredTexture = content.Load<Texture2D>("LooseSprites\\font_colored");
 			Tool.weaponsTexture = content.Load<Texture2D>("TileSheets\\weapons");
 			Projectile.projectileSheet = content.Load<Texture2D>("TileSheets\\Projectiles");
+			_shortDayDisplayName[0] = content.LoadString("Strings\\StringsFromCSFiles:Game1.cs.3042");
+			_shortDayDisplayName[1] = content.LoadString("Strings\\StringsFromCSFiles:Game1.cs.3043");
+			_shortDayDisplayName[2] = content.LoadString("Strings\\StringsFromCSFiles:Game1.cs.3044");
+			_shortDayDisplayName[3] = content.LoadString("Strings\\StringsFromCSFiles:Game1.cs.3045");
+			_shortDayDisplayName[4] = content.LoadString("Strings\\StringsFromCSFiles:Game1.cs.3046");
+			_shortDayDisplayName[5] = content.LoadString("Strings\\StringsFromCSFiles:Game1.cs.3047");
+			_shortDayDisplayName[6] = content.LoadString("Strings\\StringsFromCSFiles:Game1.cs.3048");
 			netWorldState = new NetRoot<IWorldState>(new NetWorldState());
 			resetPlayer();
+			setGameMode(0);
 		}
 
 		public static void resetPlayer()
@@ -2686,8 +3538,42 @@ namespace StardewValley
 			}
 		}
 
+		public static void GenerateBundles(BundleType bundle_type, bool use_seed = true)
+		{
+			Random r2 = null;
+			r2 = ((!use_seed) ? new Random() : new Random((int)uniqueIDForThisGame * 9));
+			if (bundle_type == BundleType.Remixed)
+			{
+				Dictionary<string, string> bundle_data = new BundleGenerator().Generate("Data\\RandomBundles", r2);
+				netWorldState.Value.SetBundleData(bundle_data);
+			}
+			else
+			{
+				netWorldState.Value.SetBundleData(content.LoadBase<Dictionary<string, string>>("Data\\Bundles"));
+			}
+		}
+
+		public void SetNewGameOption<T>(string key, T val)
+		{
+			newGameSetupOptions[key] = val;
+		}
+
+		public T GetNewGameOption<T>(string key)
+		{
+			if (!newGameSetupOptions.ContainsKey(key))
+			{
+				return default(T);
+			}
+			return (T)newGameSetupOptions[key];
+		}
+
 		public static void loadForNewGame(bool loadedGame = false)
 		{
+			if (startingGameSeed.HasValue)
+			{
+				uniqueIDForThisGame = startingGameSeed.Value;
+			}
+			specialCurrencyDisplay = new SpecialCurrencyDisplay();
 			flushLocationLookup();
 			locations.Clear();
 			mailbox.Clear();
@@ -2743,7 +3629,7 @@ namespace StardewValley
 			currentCursorTile = Vector2.Zero;
 			if (!loadedGame)
 			{
-				lastAppliedSaveFix = SaveGame.SaveFixes.MissingQisChallenge;
+				lastAppliedSaveFix = SaveGame.SaveFixes.FixBotchedBundleData;
 			}
 			resetVariables();
 			chanceToRainTomorrow = 0.0;
@@ -2762,22 +3648,24 @@ namespace StardewValley
 			{
 				dishOfTheDayIndex = random.Next(194, 240);
 			}
-			dishOfTheDay = new Object(Vector2.Zero, dishOfTheDayIndex, random.Next(1, 4 + ((random.NextDouble() < 0.08) ? 10 : 0)));
+			int dish_of_the_day_count = random.Next(1, 4 + ((random.NextDouble() < 0.08) ? 10 : 0));
+			netWorldState.Value.DishOfTheDay.Value = new Object(Vector2.Zero, dishOfTheDayIndex, dish_of_the_day_count);
 			locations.Clear();
 			currentLocation = new FarmHouse("Maps\\FarmHouse", "FarmHouse");
 			currentLocation.map.LoadTileSheets(mapDisplayDevice);
+			forceSnapOnNextViewportUpdate = true;
 			locations.Add(currentLocation);
 			locations.Add(new Farm("Maps\\" + Farm.getMapNameFromTypeInt(whichFarm), "Farm"));
 			if (whichFarm == 3)
 			{
-				for (int k = 0; k < 28; k++)
+				for (int l = 0; l < 28; l++)
 				{
 					getFarm().doDailyMountainFarmUpdate();
 				}
 			}
 			else if (whichFarm == 5)
 			{
-				for (int j = 0; j < 10; j++)
+				for (int k = 0; k < 10; k++)
 				{
 					getFarm().doDailyMountainFarmUpdate();
 				}
@@ -2823,8 +3711,8 @@ namespace StardewValley
 			locations.Add(new GameLocation("Maps\\SebastianRoom", "SebastianRoom"));
 			locations[locations.Count - 1].addCharacter(new NPC(new AnimatedSprite("Characters\\Sebastian", 0, 16, 32), new Vector2(640f, 576f), "SebastianRoom", 1, "Sebastian", datable: true, null, content.Load<Texture2D>("Portraits\\Sebastian")));
 			GameLocation tent = new GameLocation("Maps\\Tent", "Tent");
-			tent.addCharacter(new NPC(new AnimatedSprite("Characters\\Linus", 0, 16, 32), new Vector2(2f, 2f) * 64f, "Tent", 2, "Linus", datable: false, null, content.Load<Texture2D>("Portraits\\Linus")));
 			locations.Add(tent);
+			tent.addCharacter(new NPC(new AnimatedSprite("Characters\\Linus", 0, 16, 32), new Vector2(2f, 2f) * 64f, "Tent", 2, "Linus", datable: false, null, content.Load<Texture2D>("Portraits\\Linus")));
 			locations.Add(new Forest("Maps\\Forest", "Forest"));
 			locations.Add(new WizardHouse("Maps\\WizardHouse", "WizardHouse"));
 			locations[locations.Count - 1].addCharacter(new NPC(new AnimatedSprite("Characters\\Wizard", 0, 16, 32), new Vector2(192f, 1088f), "WizardHouse", 2, "Wizard", datable: false, null, content.Load<Texture2D>("Portraits\\Wizard")));
@@ -2843,7 +3731,7 @@ namespace StardewValley
 			});
 			locations.Add(new Sewer("Maps\\Sewer", "Sewer"));
 			locations[locations.Count - 1].addCharacter(new NPC(new AnimatedSprite("Characters\\Krobus", 0, 16, 24), new Vector2(31f, 17f) * 64f, "Sewer", 2, "Krobus", datable: false, null, content.Load<Texture2D>("Portraits\\Krobus")));
-			locations.Add(new GameLocation("Maps\\BugLand", "BugLand"));
+			locations.Add(new BugLand("Maps\\BugLand", "BugLand"));
 			locations.Add(new Desert("Maps\\Desert", "Desert"));
 			locations.Add(new Club("Maps\\Club", "Club"));
 			locations[locations.Count - 1].addCharacter(new NPC(new AnimatedSprite("Characters\\MrQi", 0, 16, 32), new Vector2(512f, 256f), "Club", 0, "Mister Qi", datable: false, null, content.Load<Texture2D>("Portraits\\MrQi")));
@@ -2876,9 +3764,9 @@ namespace StardewValley
 			locations.Add(new GameLocation("Maps\\Tunnel", "Tunnel"));
 			locations.Add(new GameLocation("Maps\\Trailer_big", "Trailer_Big"));
 			locations.Add(new Cellar("Maps\\Cellar", "Cellar"));
-			for (int i = 1; i < (int)netWorldState.Value.HighestPlayerLimit; i++)
+			for (int j = 1; j < (int)netWorldState.Value.HighestPlayerLimit; j++)
 			{
-				locations.Add(new Cellar("Maps\\Cellar", "Cellar" + (i + 1)));
+				locations.Add(new Cellar("Maps\\Cellar", "Cellar" + (j + 1)));
 			}
 			locations.Add(new BeachNightMarket("Maps\\Beach-NightMarket", "BeachNightMarket"));
 			locations.Add(new MermaidHouse("Maps\\MermaidHouse", "MermaidHouse"));
@@ -2886,7 +3774,60 @@ namespace StardewValley
 			locations.Add(new AbandonedJojaMart("Maps\\AbandonedJojaMart", "AbandonedJojaMart"));
 			locations.Add(new MovieTheater("Maps\\MovieTheater", "MovieTheater"));
 			locations.Add(new GameLocation("Maps\\Sunroom", "Sunroom"));
+			locations.Add(new BoatTunnel("Maps\\BoatTunnel", "BoatTunnel"));
+			locations.Add(new IslandSouth("Maps\\Island_S", "IslandSouth"));
+			locations.Add(new IslandSouthEast("Maps\\Island_SE", "IslandSouthEast"));
+			locations.Add(new IslandSouthEastCave("Maps\\IslandSouthEastCave", "IslandSouthEastCave"));
+			locations.Add(new IslandEast("Maps\\Island_E", "IslandEast"));
+			locations.Add(new IslandWest("Maps\\Island_W", "IslandWest"));
+			addBirdieIfNecessary();
+			locations.Add(new IslandNorth("Maps\\Island_N", "IslandNorth"));
+			locations.Add(new IslandHut("Maps\\Island_Hut", "IslandHut"));
+			locations.Add(new IslandWestCave1("Maps\\IslandWestCave1", "IslandWestCave1"));
+			locations.Add(new IslandLocation("Maps\\IslandNorthCave1", "IslandNorthCave1"));
+			locations.Add(new IslandFieldOffice("Maps\\Island_FieldOffice", "IslandFieldOffice"));
+			locations.Add(new IslandFarmHouse("Maps\\IslandFarmHouse", "IslandFarmHouse"));
+			locations.Add(new IslandLocation("Maps\\Island_CaptainRoom", "CaptainRoom"));
+			locations.Add(new IslandShrine("Maps\\Island_Shrine", "IslandShrine"));
+			locations.Add(new IslandFarmCave("Maps\\Island_FarmCave", "IslandFarmCave"));
+			locations.Add(new Caldera("Maps\\Caldera", "Caldera"));
+			locations.Add(new GameLocation("Maps\\LeoTreeHouse", "LeoTreeHouse"));
+			locations.Add(new IslandLocation("Maps\\QiNutRoom", "QiNutRoom"));
+			locations[locations.Count - 1].addCharacter(new NPC(new AnimatedSprite("Characters\\MrQi", 0, 16, 32), new Vector2(448f, 256f), "QiNutRoom", 0, "Mister Qi", datable: false, null, content.Load<Texture2D>("Portraits\\MrQi")));
+			if (!loadedGame)
+			{
+				foreach (GameLocation location in locations)
+				{
+					if (location is IslandLocation)
+					{
+						(location as IslandLocation).AddAdditionalWalnutBushes();
+					}
+				}
+			}
+			AddModNPCs();
 			NPC.populateRoutesFromLocationToLocationList();
+			if (!loadedGame)
+			{
+				GenerateBundles(bundleType);
+				foreach (string value in netWorldState.Value.BundleData.Values)
+				{
+					string[] item_split = value.Split('/')[2].Split(' ');
+					if (game1.GetNewGameOption<bool>("YearOneCompletable"))
+					{
+						for (int i = 0; i < item_split.Length; i += 3)
+						{
+							if (item_split[i] == "266")
+							{
+								int visits2 = (16 - 2) * 2;
+								visits2 += 3;
+								Random r = new Random((int)uniqueIDForThisGame * 12);
+								netWorldState.Value.VisitsUntilY1Guarantee = r.Next(2, visits2);
+							}
+						}
+					}
+				}
+				netWorldState.Value.ShuffleMineChests = game1.GetNewGameOption<MineChestType>("MineChests");
+			}
 			player.ConvertClothingOverrideToClothesItems();
 			player.addQuest(9);
 			player.currentLocation = getLocationFromName("FarmHouse");
@@ -2898,21 +3839,96 @@ namespace StardewValley
 			{
 				_setSaveName = false;
 			}
+			game1.newGameSetupOptions.Clear();
+			updateCellarAssignments();
+			if (!loadedGame && netWorldState != null && netWorldState.Value != null)
+			{
+				netWorldState.Value.RegisterSpecialCurrencies();
+			}
+		}
+
+		public bool IsFirstInstanceAtThisLocation(GameLocation location, Func<Game1, bool> additional_check = null)
+		{
+			if (GameRunner.instance.GetFirstInstanceAtThisLocation(location, additional_check) == this)
+			{
+				return true;
+			}
+			return false;
+		}
+
+		public bool IsLocalCoopJoinable()
+		{
+			if (GameRunner.instance.gameInstances.Count >= GameRunner.instance.GetMaxSimultaneousPlayers())
+			{
+				return false;
+			}
+			if (IsClient)
+			{
+				return false;
+			}
+			return true;
+		}
+
+		public static void StartLocalMultiplayerIfNecessary()
+		{
+			if (multiplayerMode == 0)
+			{
+				Console.WriteLine("Starting multiplayer server for local multiplayer...");
+				multiplayerMode = 2;
+				if (server == null)
+				{
+					multiplayer.StartLocalMultiplayerServer();
+				}
+			}
+		}
+
+		public static void EndLocalMultiplayer()
+		{
+		}
+
+		public static void addParrotBoyIfNecessary()
+		{
+			if (MasterPlayer.hasOrWillReceiveMail("addedParrotBoy"))
+			{
+				if (getCharacterFromName("Leo", mustBeVillager: true, useLocationsListOnly: true) == null)
+				{
+					NPC i = new NPC(new AnimatedSprite("Characters\\ParrotBoy", 0, 16, 32), new Vector2(320f, 384f), "IslandHut", 2, "Leo", datable: false, null, content.Load<Texture2D>("Portraits\\ParrotBoy"));
+					i.Breather = false;
+					getLocationFromNameInLocationsList("IslandHut").addCharacter(i);
+				}
+				if (!player.friendshipData.ContainsKey("Leo"))
+				{
+					player.friendshipData.Add("Leo", new Friendship());
+				}
+			}
+		}
+
+		public static void addBirdieIfNecessary()
+		{
+			if (getCharacterFromName("Birdie", mustBeVillager: true, useLocationsListOnly: true) == null)
+			{
+				getLocationFromNameInLocationsList("IslandWest").addCharacter(new NPC(new AnimatedSprite("Characters\\Birdie", 0, 16, 32), new Vector2(1088f, 3712f), "IslandWest", 3, "Birdie", datable: false, null, content.Load<Texture2D>("Portraits\\Birdie")));
+			}
 		}
 
 		public static void addKentIfNecessary()
 		{
 			if (year > 1)
 			{
-				if (getCharacterFromName("Kent") == null)
+				if (getCharacterFromName("Kent", mustBeVillager: true, useLocationsListOnly: true) == null)
 				{
-					getLocationFromName("SamHouse").addCharacter(new NPC(new AnimatedSprite("Characters\\Kent", 0, 16, 32), new Vector2(512f, 832f), "SamHouse", 2, "Kent", datable: false, null, content.Load<Texture2D>("Portraits\\Kent")));
+					getLocationFromNameInLocationsList("SamHouse").addCharacter(new NPC(new AnimatedSprite("Characters\\Kent", 0, 16, 32), new Vector2(512f, 832f), "SamHouse", 2, "Kent", datable: false, null, content.Load<Texture2D>("Portraits\\Kent")));
 				}
 				if (!player.friendshipData.ContainsKey("Kent"))
 				{
 					player.friendshipData.Add("Kent", new Friendship());
 				}
 			}
+		}
+
+		public void Instance_UnloadContent()
+		{
+			UnloadContent();
 		}
 
 		protected override void UnloadContent()
@@ -2929,12 +3945,12 @@ namespace StardewValley
 
 		public void errorUpdateLoop()
 		{
-			if (Keyboard.GetState().IsKeyDown(Microsoft.Xna.Framework.Input.Keys.B))
+			if (GetKeyboardState().IsKeyDown(Microsoft.Xna.Framework.Input.Keys.B))
 			{
 				Program.GameTesterMode = false;
 				gameMode = 3;
 			}
-			if (Keyboard.GetState().IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Escape))
+			if (GetKeyboardState().IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Escape))
 			{
 				Program.gamePtr.Exit();
 				Environment.Exit(1);
@@ -3059,10 +4075,13 @@ namespace StardewValley
 				else
 				{
 					options.gamepadControls = false;
-					showGlobalMessage(content.LoadString("Strings\\StringsFromCSFiles:Game1.cs.2575"));
-					if (CanShowPauseMenu() && activeClickableMenu == null)
+					if (instancePlayerOneIndex != (PlayerIndex)(-1))
 					{
-						activeClickableMenu = new GameMenu();
+						showGlobalMessage(content.LoadString("Strings\\StringsFromCSFiles:Game1.cs.2575"));
+						if (CanShowPauseMenu() && activeClickableMenu == null)
+						{
+							activeClickableMenu = new GameMenu();
+						}
 					}
 				}
 			}
@@ -3078,7 +4097,7 @@ namespace StardewValley
 			{
 				return;
 			}
-			lastMousePositionBeforeFade = new Microsoft.Xna.Framework.Point(graphics.GraphicsDevice.Viewport.Width / 2, graphics.GraphicsDevice.Viewport.Height / 2);
+			lastMousePositionBeforeFade = new Microsoft.Xna.Framework.Point(localMultiplayerWindow.Width / 2, localMultiplayerWindow.Height / 2);
 			if (activeClickableMenu != null)
 			{
 				activeClickableMenu.setUpForGamePadMode();
@@ -3091,13 +4110,43 @@ namespace StardewValley
 			timerUntilMouseFade = 0;
 		}
 
+		public void Instance_Update(GameTime gameTime)
+		{
+			Update(gameTime);
+		}
+
 		protected override void Update(GameTime gameTime)
 		{
+			GameTime time = gameTime;
+			DebugTools.BeforeGameUpdate(this, ref time);
+			input.UpdateStates();
 			if (input.GetGamePadState().IsButtonDown(Buttons.RightStick))
 			{
 				rightStickHoldTime += gameTime.ElapsedGameTime.Milliseconds;
 			}
-			_update(gameTime);
+			GameMenu.bundleItemHovered = false;
+			_update(time);
+			if (IsMultiplayer && player != null)
+			{
+				player.requestingTimePause.Value = !shouldTimePass(LocalMultiplayer.IsLocalMultiplayer(is_local_only: true));
+				if (IsMasterGame)
+				{
+					bool should_time_pause = false;
+					if (LocalMultiplayer.IsLocalMultiplayer(is_local_only: true))
+					{
+						should_time_pause = true;
+						foreach (Farmer onlineFarmer in getOnlineFarmers())
+						{
+							if (!onlineFarmer.requestingTimePause.Value)
+							{
+								should_time_pause = false;
+								break;
+							}
+						}
+					}
+					netWorldState.Value.IsTimePaused = should_time_pause;
+				}
+			}
 			Rumble.update(gameTime.ElapsedGameTime.Milliseconds);
 			if (options.gamepadControls && thumbstickMotionMargin > 0)
 			{
@@ -3110,10 +4159,25 @@ namespace StardewValley
 			base.Update(gameTime);
 		}
 
+		public void Instance_OnActivated(object sender, EventArgs args)
+		{
+			OnActivated(sender, args);
+		}
+
 		protected override void OnActivated(object sender, EventArgs args)
 		{
 			base.OnActivated(sender, args);
 			_activatedTick = ticks + 1;
+			input.IgnoreKeys(GetKeyboardState().GetPressedKeys());
+		}
+
+		public bool HasKeyboardFocus()
+		{
+			if (keyboardFocusInstance == null)
+			{
+				return base.IsMainInstance;
+			}
+			return keyboardFocusInstance == this;
 		}
 
 		private void _update(GameTime gameTime)
@@ -3121,6 +4185,29 @@ namespace StardewValley
 			if (graphics.GraphicsDevice == null)
 			{
 				return;
+			}
+			bool zoom_dirty = false;
+			if (options != null && !takingMapScreenshot)
+			{
+				if (options.baseUIScale != options.desiredUIScale)
+				{
+					if (options.desiredUIScale < 0f)
+					{
+						options.desiredUIScale = options.desiredBaseZoomLevel;
+					}
+					options.baseUIScale = options.desiredUIScale;
+					zoom_dirty = true;
+				}
+				if (options.desiredBaseZoomLevel != options.baseZoomLevel)
+				{
+					options.baseZoomLevel = options.desiredBaseZoomLevel;
+					forceSnapOnNextViewportUpdate = true;
+					zoom_dirty = true;
+				}
+			}
+			if (zoom_dirty)
+			{
+				refreshWindowSettings();
 			}
 			CheckGamepadMode();
 			FarmAnimal.NumPathfindingThisTick = 0;
@@ -3162,10 +4249,10 @@ namespace StardewValley
 				{
 					if (_newDayTask.IsFaulted)
 					{
-						Exception baseException = _newDayTask.Exception.GetBaseException();
+						Exception e = _newDayTask.Exception.GetBaseException();
 						Console.WriteLine("_newDayTask failed with an exception");
-						Console.WriteLine(baseException);
-						throw baseException;
+						Console.WriteLine(e);
+						throw new Exception("Error on new day: \n---------------\n" + e.Message + "\n" + e.StackTrace + "\n---------------\n");
 					}
 					_newDayTask = null;
 					Utility.CollectGarbage();
@@ -3173,17 +4260,25 @@ namespace StardewValley
 				UpdateChatBox();
 				return;
 			}
+			if (isLocalMultiplayerNewDayActive)
+			{
+				UpdateChatBox();
+				return;
+			}
 			if (IsSaving)
 			{
+				PushUIMode();
 				activeClickableMenu?.update(gameTime);
 				if (overlayMenu != null)
 				{
 					overlayMenu.update(gameTime);
 					if (overlayMenu == null)
 					{
+						PopUIMode();
 						return;
 					}
 				}
+				PopUIMode();
 				UpdateChatBox();
 				return;
 			}
@@ -3199,6 +4294,26 @@ namespace StardewValley
 			}
 			SetFreeCursorElapsed((float)gameTime.ElapsedGameTime.TotalSeconds);
 			Program.sdk.Update();
+			if (game1.IsMainInstance)
+			{
+				keyboardFocusInstance = game1;
+				foreach (Game1 instance in GameRunner.instance.gameInstances)
+				{
+					if (instance.instanceKeyboardDispatcher.Subscriber != null && instance.instanceTextEntry != null)
+					{
+						keyboardFocusInstance = instance;
+						break;
+					}
+				}
+			}
+			if (HasKeyboardFocus())
+			{
+				keyboardDispatcher.Poll();
+			}
+			else
+			{
+				keyboardDispatcher.Discard();
+			}
 			if (gameMode == 6)
 			{
 				multiplayer.UpdateLoading();
@@ -3211,7 +4326,7 @@ namespace StardewValley
 					player.team.Update();
 				}
 			}
-			if ((paused || (!base.IsActive && Program.releaseBuild)) && (options == null || options.pauseWhenOutOfFocus || paused) && multiplayerMode == 0)
+			if ((paused || (!IsActiveNoOverlay && Program.releaseBuild)) && (options == null || options.pauseWhenOutOfFocus || paused) && multiplayerMode == 0)
 			{
 				UpdateChatBox();
 				return;
@@ -3226,7 +4341,7 @@ namespace StardewValley
 				return;
 			}
 			ticks++;
-			if (base.IsActive)
+			if (IsActiveNoOverlay)
 			{
 				checkForEscapeKeys();
 			}
@@ -3238,14 +4353,7 @@ namespace StardewValley
 			}
 			if (globalFade)
 			{
-				if (!dialogueUp)
-				{
-					screenFade.UpdateGlobalFade();
-				}
-				else if (farmEvent == null)
-				{
-					UpdateControlInput(gameTime);
-				}
+				screenFade.UpdateGlobalFade();
 			}
 			else if (pauseThenDoFunctionTimer > 0)
 			{
@@ -3259,6 +4367,33 @@ namespace StardewValley
 						afterPause();
 					}
 				}
+			}
+			bool should_clamp_cursor = false;
+			if (options.gamepadControls && activeClickableMenu != null && activeClickableMenu.shouldClampGamePadCursor())
+			{
+				should_clamp_cursor = true;
+			}
+			if (should_clamp_cursor)
+			{
+				Microsoft.Xna.Framework.Point pos = getMousePositionRaw();
+				Microsoft.Xna.Framework.Rectangle rect = new Microsoft.Xna.Framework.Rectangle(0, 0, localMultiplayerWindow.Width, localMultiplayerWindow.Height);
+				if (pos.X < rect.X)
+				{
+					pos.X = rect.X;
+				}
+				else if (pos.X > rect.Right)
+				{
+					pos.X = rect.Right;
+				}
+				if (pos.Y < rect.Y)
+				{
+					pos.Y = rect.Y;
+				}
+				else if (pos.Y > rect.Bottom)
+				{
+					pos.Y = rect.Bottom;
+				}
+				setMousePositionRaw(pos.X, pos.Y);
 			}
 			if (gameMode == 3 || gameMode == 2)
 			{
@@ -3302,11 +4437,14 @@ namespace StardewValley
 						{
 							thumbstickMotionMargin -= gameTime.ElapsedGameTime.Milliseconds;
 						}
+						KeyboardState currentKBState = default(KeyboardState);
+						MouseState currentMouseState = default(MouseState);
+						GamePadState currentPadState = default(GamePadState);
 						if (base.IsActive)
 						{
-							KeyboardState currentKBState = GetKeyboardState();
-							MouseState currentMouseState = input.GetMouseState();
-							GamePadState currentPadState = input.GetGamePadState();
+							currentKBState = GetKeyboardState();
+							currentMouseState = input.GetMouseState();
+							currentPadState = input.GetGamePadState();
 							bool ignore_controls = false;
 							if (chatBox != null && chatBox.isActive())
 							{
@@ -3335,16 +4473,16 @@ namespace StardewValley
 								{
 									if (currentMinigame == null)
 									{
-										oldMouseState = input.GetMouseState();
+										oldMouseState = currentMouseState;
 										oldKBState = currentKBState;
 										oldPadState = currentPadState;
 										UpdateChatBox();
 										return;
 									}
-									ButtonCollection.ButtonEnumerator enumerator = Utility.getPressedButtons(currentPadState, oldPadState).GetEnumerator();
-									while (enumerator.MoveNext())
+									ButtonCollection.ButtonEnumerator enumerator2 = Utility.getPressedButtons(currentPadState, oldPadState).GetEnumerator();
+									while (enumerator2.MoveNext())
 									{
-										Buttons b2 = enumerator.Current;
+										Buttons b2 = enumerator2.Current;
 										if (currentMinigame != null)
 										{
 											currentMinigame.receiveKeyPress(Utility.mapGamePadButtonToKey(b2));
@@ -3352,7 +4490,7 @@ namespace StardewValley
 									}
 									if (currentMinigame == null)
 									{
-										oldMouseState = input.GetMouseState();
+										oldMouseState = currentMouseState;
 										oldKBState = currentKBState;
 										oldPadState = currentPadState;
 										UpdateChatBox();
@@ -3411,12 +4549,13 @@ namespace StardewValley
 								{
 									if (currentMinigame == null)
 									{
-										oldMouseState = input.GetMouseState();
+										oldMouseState = currentMouseState;
 										oldKBState = currentKBState;
 										oldPadState = currentPadState;
 										UpdateChatBox();
 										return;
 									}
+									PushUIMode();
 									if (currentPadState.IsConnected && currentPadState.IsButtonDown(Buttons.X) && !oldPadState.IsButtonDown(Buttons.X))
 									{
 										currentMinigame.receiveRightClick(getMouseX(), getMouseY());
@@ -3433,10 +4572,10 @@ namespace StardewValley
 									{
 										currentMinigame.releaseLeftClick(getMouseX(), getMouseY());
 									}
-									ButtonCollection.ButtonEnumerator enumerator = Utility.getPressedButtons(oldPadState, currentPadState).GetEnumerator();
-									while (enumerator.MoveNext())
+									ButtonCollection.ButtonEnumerator enumerator2 = Utility.getPressedButtons(oldPadState, currentPadState).GetEnumerator();
+									while (enumerator2.MoveNext())
 									{
-										Buttons b = enumerator.Current;
+										Buttons b = enumerator2.Current;
 										if (currentMinigame != null)
 										{
 											currentMinigame.receiveKeyRelease(Utility.mapGamePadButtonToKey(b));
@@ -3446,10 +4585,11 @@ namespace StardewValley
 									{
 										currentMinigame.leftClickHeld(0, 0);
 									}
+									PopUIMode();
 								}
 								if (currentMinigame == null)
 								{
-									oldMouseState = input.GetMouseState();
+									oldMouseState = currentMouseState;
 									oldKBState = currentKBState;
 									oldPadState = currentPadState;
 									UpdateChatBox();
@@ -3475,14 +4615,17 @@ namespace StardewValley
 								{
 									currentMinigame.leftClickHeld(getMouseX(), getMouseY());
 								}
-								oldMouseState = input.GetMouseState();
-								oldKBState = currentKBState;
-								oldPadState = currentPadState;
 							}
 						}
 						if (currentMinigame != null && currentMinigame.tick(gameTime))
 						{
-							currentMinigame.unload();
+							oldMouseState = currentMouseState;
+							oldKBState = currentKBState;
+							oldPadState = currentPadState;
+							if (currentMinigame != null)
+							{
+								currentMinigame.unload();
+							}
 							currentMinigame = null;
 							fadeIn = true;
 							fadeToBlackAlpha = 1f;
@@ -3493,6 +4636,9 @@ namespace StardewValley
 						{
 							stopMusicTrack(MusicContext.MiniGame);
 						}
+						oldMouseState = currentMouseState;
+						oldKBState = currentKBState;
+						oldPadState = currentPadState;
 					}
 					doMainGameUpdates = (IsMultiplayer || currentMinigame == null || currentMinigame.doMainGameUpdates());
 				}
@@ -3508,11 +4654,19 @@ namespace StardewValley
 					FarmHouse farmHouse = currentLocation as FarmHouse;
 					if (farmHouse != null)
 					{
-						player.Position = Utility.PointToVector2(farmHouse.getBedSpot()) * 64f;
-						player.position.X -= 64f;
+						player.Position = Utility.PointToVector2(farmHouse.GetPlayerBedSpot()) * 64f;
+						BedFurniture.ShiftPositionForBed(player);
+					}
+					else
+					{
+						BedFurniture.ApplyWakeUpPosition(player);
 					}
 					changeMusicTrack("none");
 					currentLocation.resetForPlayerEntry();
+					if (player.IsSitting())
+					{
+						player.StopSitting(animate: false);
+					}
 					player.forceCanMove();
 					freezeControls = false;
 					displayFarmer = true;
@@ -3535,6 +4689,10 @@ namespace StardewValley
 							activeClickableMenu.snapToDefaultClickableComponent();
 						}
 					}
+					if (specialCurrencyDisplay != null)
+					{
+						specialCurrencyDisplay.Update(gameTime);
+					}
 					if (currentLocation != null && currentMinigame == null)
 					{
 						if (emoteMenu != null)
@@ -3542,8 +4700,9 @@ namespace StardewValley
 							emoteMenu.update(gameTime);
 							if (emoteMenu != null)
 							{
+								PushUIMode();
 								emoteMenu.performHoverAction(getMouseX(), getMouseY());
-								KeyboardState currentState = Keyboard.GetState();
+								KeyboardState currentState = GetKeyboardState();
 								if (input.GetMouseState().LeftButton == Microsoft.Xna.Framework.Input.ButtonState.Pressed && oldMouseState.LeftButton == Microsoft.Xna.Framework.Input.ButtonState.Released)
 								{
 									emoteMenu.receiveLeftClick(getMouseX(), getMouseY());
@@ -3556,17 +4715,22 @@ namespace StardewValley
 								{
 									emoteMenu.exitThisMenu(playSound: false);
 								}
+								PopUIMode();
 								oldKBState = currentState;
 								oldMouseState = input.GetMouseState();
 							}
 						}
 						else if (textEntry != null)
 						{
+							PushUIMode();
 							updateTextEntry(gameTime);
+							PopUIMode();
 						}
 						else if (activeClickableMenu != null)
 						{
+							PushUIMode();
 							updateActiveMenu(gameTime);
+							PopUIMode();
 						}
 						else
 						{
@@ -3574,7 +4738,7 @@ namespace StardewValley
 							{
 								updatePause(gameTime);
 							}
-							if (!globalFade && !freezeControls && activeClickableMenu == null && (base.IsActive || inputSimulator != null))
+							if (!globalFade && !freezeControls && activeClickableMenu == null && (IsActiveNoOverlay || inputSimulator != null))
 							{
 								UpdateControlInput(gameTime);
 							}
@@ -3594,6 +4758,7 @@ namespace StardewValley
 							_afterNewDayAction = null;
 							afterAction();
 						}
+						player.ReequipEnchantments();
 						globalFadeToClear(doMorningStuff);
 					}
 					if (currentLocation != null)
@@ -3633,7 +4798,9 @@ namespace StardewValley
 				}
 				else if (textEntry != null)
 				{
+					PushUIMode();
 					updateTextEntry(gameTime);
+					PopUIMode();
 				}
 			}
 			else
@@ -3641,11 +4808,15 @@ namespace StardewValley
 				UpdateTitleScreen(gameTime);
 				if (textEntry != null)
 				{
+					PushUIMode();
 					updateTextEntry(gameTime);
+					PopUIMode();
 				}
 				else if (activeClickableMenu != null)
 				{
+					PushUIMode();
 					updateActiveMenu(gameTime);
+					PopUIMode();
 				}
 				if (gameMode == 10)
 				{
@@ -3666,7 +4837,9 @@ namespace StardewValley
 		public static void showTextEntry(StardewValley.Menus.TextBox text_box)
 		{
 			timerUntilMouseFade = 0;
+			PushUIMode();
 			textEntry = new TextEntryMenu(text_box);
+			PopUIMode();
 		}
 
 		public static void closeTextEntry()
@@ -3757,7 +4930,18 @@ namespace StardewValley
 
 		public static void playMorningSong()
 		{
-			if (!isRaining && !isLightning && !eventUp && dayOfMonth > 0 && !currentLocation.Name.Equals("Desert"))
+			if (IsRainingHere() || IsLightningHere() || eventUp || dayOfMonth <= 0 || currentLocation.Name.Equals("Desert"))
+			{
+				return;
+			}
+			if (currentLocation.GetLocationContext() == GameLocation.LocationContext.Island)
+			{
+				if (MasterPlayer.hasOrWillReceiveMail("Island_FirstParrot"))
+				{
+					morningSongPlayAction = DelayedAction.playMusicAfterDelay("IslandMusic", 500);
+				}
+			}
+			else
 			{
 				morningSongPlayAction = DelayedAction.playMusicAfterDelay(currentSeason + Math.Max(1, currentSongIndex), 500);
 			}
@@ -3773,6 +4957,10 @@ namespace StardewValley
 					morningQueue.Dequeue()();
 				}
 			}, 1000);
+			if (player.hasPendingCompletedQuests)
+			{
+				dayTimeMoneyBox.PingQuestLog();
+			}
 		}
 
 		public static void addMorningFluffFunction(DelayedAction.delayedBehavior func)
@@ -3844,23 +5032,58 @@ namespace StardewValley
 			return getLocationFromName("Farm") as Farm;
 		}
 
+		public static void setMousePosition(int x, int y, bool ui_scale)
+		{
+			if (ui_scale)
+			{
+				setMousePositionRaw((int)((float)x * options.uiScale), (int)((float)y * options.uiScale));
+			}
+			else
+			{
+				setMousePositionRaw((int)((float)x * options.zoomLevel), (int)((float)y * options.zoomLevel));
+			}
+		}
+
 		public static void setMousePosition(int x, int y)
 		{
-			Mouse.SetPosition((int)((float)x * options.zoomLevel), (int)((float)y * options.zoomLevel));
-			InvalidateOldMouseMovement();
-			lastCursorMotionWasMouse = false;
+			setMousePosition(x, y, uiMode);
+		}
+
+		public static void setMousePosition(Microsoft.Xna.Framework.Point position, bool ui_scale)
+		{
+			setMousePosition(position.X, position.Y, ui_scale);
 		}
 
 		public static void setMousePosition(Microsoft.Xna.Framework.Point position)
 		{
-			Mouse.SetPosition((int)((float)position.X * options.zoomLevel), (int)((float)position.Y * options.zoomLevel));
+			setMousePosition(position, uiMode);
+		}
+
+		public static void setMousePositionRaw(Microsoft.Xna.Framework.Point position)
+		{
+			setMousePositionRaw(position.X, position.Y);
+		}
+
+		public static void setMousePositionRaw(int x, int y)
+		{
+			input.SetMousePosition(x, y);
 			InvalidateOldMouseMovement();
 			lastCursorMotionWasMouse = false;
 		}
 
+		public static Microsoft.Xna.Framework.Point getMousePositionRaw()
+		{
+			return new Microsoft.Xna.Framework.Point(getMouseXRaw(), getMouseYRaw());
+		}
+
+		public static Microsoft.Xna.Framework.Point getMousePosition(bool ui_scale)
+		{
+			return new Microsoft.Xna.Framework.Point(getMouseX(ui_scale), getMouseY(ui_scale));
+		}
+
 		public static Microsoft.Xna.Framework.Point getMousePosition()
 		{
-			return new Microsoft.Xna.Framework.Point(getMouseX(), getMouseY());
+			return getMousePosition(uiMode);
 		}
 
 		private static void ComputeCursorSpeed()
@@ -3934,20 +5157,34 @@ namespace StardewValley
 
 		public static void updateActiveMenu(GameTime gameTime)
 		{
-			if (!Program.gamePtr.IsActive && Program.releaseBuild)
+			IClickableMenu active_menu = activeClickableMenu;
+			while (active_menu.GetChildMenu() != null)
 			{
-				if (activeClickableMenu != null)
+				active_menu = active_menu.GetChildMenu();
+			}
+			if (!Program.gamePtr.IsActiveNoOverlay && Program.releaseBuild)
+			{
+				if (active_menu != null && active_menu.IsActive())
 				{
-					activeClickableMenu.update(gameTime);
+					active_menu.update(gameTime);
 				}
 				return;
 			}
 			MouseState mouseState = input.GetMouseState();
 			KeyboardState keyState = GetKeyboardState();
 			GamePadState padState = input.GetGamePadState();
-			if (CurrentEvent != null && ((mouseState.LeftButton == Microsoft.Xna.Framework.Input.ButtonState.Pressed && oldMouseState.LeftButton == Microsoft.Xna.Framework.Input.ButtonState.Released) || (options.gamepadControls && padState.IsButtonDown(Buttons.A) && oldPadState.IsButtonUp(Buttons.A))))
+			if (CurrentEvent != null)
 			{
-				CurrentEvent.receiveMouseClick(getMouseX(), getMouseY());
+				if ((mouseState.LeftButton == Microsoft.Xna.Framework.Input.ButtonState.Pressed && oldMouseState.LeftButton == Microsoft.Xna.Framework.Input.ButtonState.Released) || (options.gamepadControls && padState.IsButtonDown(Buttons.A) && oldPadState.IsButtonUp(Buttons.A)))
+				{
+					CurrentEvent.receiveMouseClick(getMouseX(), getMouseY());
+				}
+				else if (options.gamepadControls && padState.IsButtonDown(Buttons.Back) && oldPadState.IsButtonUp(Buttons.Back) && !CurrentEvent.skipped && CurrentEvent.skippable)
+				{
+					CurrentEvent.skipped = true;
+					CurrentEvent.skipEvent();
+					freezeControls = false;
+				}
 				if (CurrentEvent != null && CurrentEvent.skipped)
 				{
 					oldMouseState = input.GetMouseState();
@@ -3956,22 +5193,20 @@ namespace StardewValley
 					return;
 				}
 			}
-			if (options.gamepadControls && activeClickableMenu != null)
+			if (options.gamepadControls && active_menu != null && active_menu.IsActive())
 			{
-				if (isGamePadThumbstickInMotion() && (!options.snappyMenus || activeClickableMenu.overrideSnappyMenuCursorMovementBan()))
+				if (isGamePadThumbstickInMotion() && (!options.snappyMenus || active_menu.overrideSnappyMenuCursorMovementBan()))
 				{
-					Mouse.SetPosition((int)((float)mouseState.X + padState.ThumbSticks.Left.X * thumbstickToMouseModifier), (int)((float)mouseState.Y - padState.ThumbSticks.Left.Y * thumbstickToMouseModifier));
-					InvalidateOldMouseMovement();
-					lastCursorMotionWasMouse = false;
+					setMousePositionRaw((int)((float)mouseState.X + padState.ThumbSticks.Left.X * thumbstickToMouseModifier), (int)((float)mouseState.Y - padState.ThumbSticks.Left.Y * thumbstickToMouseModifier));
 				}
-				if (activeClickableMenu != null && (chatBox == null || !chatBox.isActive()))
+				if (active_menu != null && active_menu.IsActive() && (chatBox == null || !chatBox.isActive()))
 				{
 					ButtonCollection.ButtonEnumerator enumerator = Utility.getPressedButtons(padState, oldPadState).GetEnumerator();
 					while (enumerator.MoveNext())
 					{
 						Buttons b2 = enumerator.Current;
-						activeClickableMenu.receiveGamePadButton(b2);
-						if (activeClickableMenu == null)
+						active_menu.receiveGamePadButton(b2);
+						if (active_menu == null || !active_menu.IsActive())
 						{
 							break;
 						}
@@ -3980,11 +5215,11 @@ namespace StardewValley
 					while (enumerator.MoveNext())
 					{
 						Buttons b3 = enumerator.Current;
-						if (activeClickableMenu != null)
+						if (active_menu != null && active_menu.IsActive())
 						{
-							activeClickableMenu.gamePadButtonHeld(b3);
+							active_menu.gamePadButtonHeld(b3);
 						}
-						if (activeClickableMenu == null)
+						if (active_menu == null || !active_menu.IsActive())
 						{
 							break;
 						}
@@ -3996,15 +5231,15 @@ namespace StardewValley
 				lastCursorMotionWasMouse = true;
 			}
 			ResetFreeCursorDrag();
-			if (activeClickableMenu != null)
+			if (active_menu != null && active_menu.IsActive())
 			{
-				activeClickableMenu.performHoverAction(getMouseX(), getMouseY());
+				active_menu.performHoverAction(getMouseX(), getMouseY());
 			}
-			if (activeClickableMenu != null)
+			if (active_menu != null && active_menu.IsActive())
 			{
-				activeClickableMenu.update(gameTime);
+				active_menu.update(gameTime);
 			}
-			if (activeClickableMenu != null && mouseState.LeftButton == Microsoft.Xna.Framework.Input.ButtonState.Pressed && oldMouseState.LeftButton == Microsoft.Xna.Framework.Input.ButtonState.Released)
+			if (active_menu != null && active_menu.IsActive() && mouseState.LeftButton == Microsoft.Xna.Framework.Input.ButtonState.Pressed && oldMouseState.LeftButton == Microsoft.Xna.Framework.Input.ButtonState.Released)
 			{
 				if (chatBox != null && chatBox.isActive() && chatBox.isWithinBounds(getMouseX(), getMouseY()))
 				{
@@ -4012,22 +5247,23 @@ namespace StardewValley
 				}
 				else
 				{
-					activeClickableMenu.receiveLeftClick(getMouseX(), getMouseY());
+					active_menu.receiveLeftClick(getMouseX(), getMouseY());
 				}
 			}
-			else if (activeClickableMenu != null && mouseState.RightButton == Microsoft.Xna.Framework.Input.ButtonState.Pressed && (oldMouseState.RightButton == Microsoft.Xna.Framework.Input.ButtonState.Released || ((float)mouseClickPolling > 650f && !(activeClickableMenu is DialogueBox))))
+			else if (active_menu != null && active_menu.IsActive() && mouseState.RightButton == Microsoft.Xna.Framework.Input.ButtonState.Pressed && (oldMouseState.RightButton == Microsoft.Xna.Framework.Input.ButtonState.Released || ((float)mouseClickPolling > 650f && !(active_menu is DialogueBox))))
 			{
-				activeClickableMenu.receiveRightClick(getMouseX(), getMouseY());
+				active_menu.receiveRightClick(getMouseX(), getMouseY());
 				if ((float)mouseClickPolling > 650f)
 				{
 					mouseClickPolling = 600;
 				}
-				if (activeClickableMenu == null)
+				if ((active_menu == null || !active_menu.IsActive()) && activeClickableMenu == null)
 				{
 					rightClickPolling = 500;
+					mouseClickPolling = 0;
 				}
 			}
-			if (mouseState.ScrollWheelValue != oldMouseState.ScrollWheelValue && activeClickableMenu != null)
+			if (mouseState.ScrollWheelValue != oldMouseState.ScrollWheelValue && active_menu != null && active_menu.IsActive())
 			{
 				if (chatBox != null && chatBox.choosingEmoji && chatBox.emojiMenu.isWithinBounds(getOldMouseX(), getOldMouseY()))
 				{
@@ -4035,21 +5271,21 @@ namespace StardewValley
 				}
 				else
 				{
-					activeClickableMenu.receiveScrollWheelAction(mouseState.ScrollWheelValue - oldMouseState.ScrollWheelValue);
+					active_menu.receiveScrollWheelAction(mouseState.ScrollWheelValue - oldMouseState.ScrollWheelValue);
 				}
 			}
-			if (options.gamepadControls && activeClickableMenu != null)
+			if (options.gamepadControls && active_menu != null && active_menu.IsActive())
 			{
 				thumbstickPollingTimer -= currentGameTime.ElapsedGameTime.Milliseconds;
 				if (thumbstickPollingTimer <= 0)
 				{
 					if (padState.ThumbSticks.Right.Y > 0.2f)
 					{
-						activeClickableMenu.receiveScrollWheelAction(1);
+						active_menu.receiveScrollWheelAction(1);
 					}
 					else if (padState.ThumbSticks.Right.Y < -0.2f)
 					{
-						activeClickableMenu.receiveScrollWheelAction(-1);
+						active_menu.receiveScrollWheelAction(-1);
 					}
 				}
 				if (thumbstickPollingTimer <= 0)
@@ -4061,20 +5297,20 @@ namespace StardewValley
 					thumbstickPollingTimer = 0;
 				}
 			}
-			if (activeClickableMenu != null && mouseState.LeftButton == Microsoft.Xna.Framework.Input.ButtonState.Released && oldMouseState.LeftButton == Microsoft.Xna.Framework.Input.ButtonState.Pressed)
+			if (active_menu != null && active_menu.IsActive() && mouseState.LeftButton == Microsoft.Xna.Framework.Input.ButtonState.Released && oldMouseState.LeftButton == Microsoft.Xna.Framework.Input.ButtonState.Pressed)
 			{
-				activeClickableMenu.releaseLeftClick(getMouseX(), getMouseY());
+				active_menu.releaseLeftClick(getMouseX(), getMouseY());
 			}
-			else if (activeClickableMenu != null && mouseState.LeftButton == Microsoft.Xna.Framework.Input.ButtonState.Pressed && oldMouseState.LeftButton == Microsoft.Xna.Framework.Input.ButtonState.Pressed)
+			else if (active_menu != null && active_menu.IsActive() && mouseState.LeftButton == Microsoft.Xna.Framework.Input.ButtonState.Pressed && oldMouseState.LeftButton == Microsoft.Xna.Framework.Input.ButtonState.Pressed)
 			{
-				activeClickableMenu.leftClickHeld(getMouseX(), getMouseY());
+				active_menu.leftClickHeld(getMouseX(), getMouseY());
 			}
 			Microsoft.Xna.Framework.Input.Keys[] pressedKeys = keyState.GetPressedKeys();
 			foreach (Microsoft.Xna.Framework.Input.Keys i in pressedKeys)
 			{
-				if (activeClickableMenu != null && !oldKBState.GetPressedKeys().Contains(i))
+				if (active_menu != null && active_menu.IsActive() && !oldKBState.GetPressedKeys().Contains(i))
 				{
-					activeClickableMenu.receiveKeyPress(i);
+					active_menu.receiveKeyPress(i);
 				}
 			}
 			if (chatBox == null || !chatBox.isActive())
@@ -4111,43 +5347,43 @@ namespace StardewValley
 				{
 					directionKeyPolling[3] = 250;
 				}
-				if (directionKeyPolling[0] <= 0 && activeClickableMenu != null)
+				if (directionKeyPolling[0] <= 0 && active_menu != null && active_menu.IsActive())
 				{
-					activeClickableMenu.receiveKeyPress(options.getFirstKeyboardKeyFromInputButtonList(options.moveUpButton));
+					active_menu.receiveKeyPress(options.getFirstKeyboardKeyFromInputButtonList(options.moveUpButton));
 					directionKeyPolling[0] = 70;
 				}
-				if (directionKeyPolling[1] <= 0 && activeClickableMenu != null)
+				if (directionKeyPolling[1] <= 0 && active_menu != null && active_menu.IsActive())
 				{
-					activeClickableMenu.receiveKeyPress(options.getFirstKeyboardKeyFromInputButtonList(options.moveRightButton));
+					active_menu.receiveKeyPress(options.getFirstKeyboardKeyFromInputButtonList(options.moveRightButton));
 					directionKeyPolling[1] = 70;
 				}
-				if (directionKeyPolling[2] <= 0 && activeClickableMenu != null)
+				if (directionKeyPolling[2] <= 0 && active_menu != null && active_menu.IsActive())
 				{
-					activeClickableMenu.receiveKeyPress(options.getFirstKeyboardKeyFromInputButtonList(options.moveDownButton));
+					active_menu.receiveKeyPress(options.getFirstKeyboardKeyFromInputButtonList(options.moveDownButton));
 					directionKeyPolling[2] = 70;
 				}
-				if (directionKeyPolling[3] <= 0 && activeClickableMenu != null)
+				if (directionKeyPolling[3] <= 0 && active_menu != null && active_menu.IsActive())
 				{
-					activeClickableMenu.receiveKeyPress(options.getFirstKeyboardKeyFromInputButtonList(options.moveLeftButton));
+					active_menu.receiveKeyPress(options.getFirstKeyboardKeyFromInputButtonList(options.moveLeftButton));
 					directionKeyPolling[3] = 70;
 				}
-				if (options.gamepadControls && activeClickableMenu != null)
+				if (options.gamepadControls && active_menu != null && active_menu.IsActive())
 				{
-					if (!activeClickableMenu.areGamePadControlsImplemented() && padState.IsButtonDown(Buttons.A) && (!oldPadState.IsButtonDown(Buttons.A) || ((float)gamePadAButtonPolling > 650f && !(activeClickableMenu is DialogueBox))))
+					if (!active_menu.areGamePadControlsImplemented() && padState.IsButtonDown(Buttons.A) && (!oldPadState.IsButtonDown(Buttons.A) || ((float)gamePadAButtonPolling > 650f && !(active_menu is DialogueBox))))
 					{
-						activeClickableMenu.receiveLeftClick(getMousePosition().X, getMousePosition().Y);
+						active_menu.receiveLeftClick(getMousePosition().X, getMousePosition().Y);
 						if ((float)gamePadAButtonPolling > 650f)
 						{
 							gamePadAButtonPolling = 600;
 						}
 					}
-					else if (!activeClickableMenu.areGamePadControlsImplemented() && !padState.IsButtonDown(Buttons.A) && oldPadState.IsButtonDown(Buttons.A))
+					else if (!active_menu.areGamePadControlsImplemented() && !padState.IsButtonDown(Buttons.A) && oldPadState.IsButtonDown(Buttons.A))
 					{
-						activeClickableMenu.releaseLeftClick(getMousePosition().X, getMousePosition().Y);
+						active_menu.releaseLeftClick(getMousePosition().X, getMousePosition().Y);
 					}
-					else if (!activeClickableMenu.areGamePadControlsImplemented() && padState.IsButtonDown(Buttons.X) && (!oldPadState.IsButtonDown(Buttons.X) || ((float)gamePadXButtonPolling > 650f && !(activeClickableMenu is DialogueBox))))
+					else if (!active_menu.areGamePadControlsImplemented() && padState.IsButtonDown(Buttons.X) && (!oldPadState.IsButtonDown(Buttons.X) || ((float)gamePadXButtonPolling > 650f && !(active_menu is DialogueBox))))
 					{
-						activeClickableMenu.receiveRightClick(getMousePosition().X, getMousePosition().Y);
+						active_menu.receiveRightClick(getMousePosition().X, getMousePosition().Y);
 						if ((float)gamePadXButtonPolling > 650f)
 						{
 							gamePadXButtonPolling = 600;
@@ -4157,15 +5393,19 @@ namespace StardewValley
 					while (enumerator.MoveNext())
 					{
 						Buttons b = enumerator.Current;
-						if (activeClickableMenu == null)
+						if (active_menu == null || !active_menu.IsActive())
 						{
 							break;
 						}
-						activeClickableMenu.receiveKeyPress(Utility.mapGamePadButtonToKey(b));
+						Microsoft.Xna.Framework.Input.Keys key = Utility.mapGamePadButtonToKey(b);
+						if (!(active_menu is FarmhandMenu) || game1.IsMainInstance || !options.doesInputListContain(options.menuButton, key))
+						{
+							active_menu.receiveKeyPress(key);
+						}
 					}
-					if (activeClickableMenu != null && !activeClickableMenu.areGamePadControlsImplemented() && padState.IsButtonDown(Buttons.A) && oldPadState.IsButtonDown(Buttons.A))
+					if (active_menu != null && active_menu.IsActive() && !active_menu.areGamePadControlsImplemented() && padState.IsButtonDown(Buttons.A) && oldPadState.IsButtonDown(Buttons.A))
 					{
-						activeClickableMenu.leftClickHeld(getMousePosition().X, getMousePosition().Y);
+						active_menu.leftClickHeld(getMousePosition().X, getMousePosition().Y);
 					}
 					if (padState.IsButtonDown(Buttons.X))
 					{
@@ -4181,6 +5421,12 @@ namespace StardewValley
 					}
 					else
 					{
+						gamePadAButtonPolling = 0;
+					}
+					if (!active_menu.IsActive() && activeClickableMenu == null)
+					{
+						rightClickPolling = 500;
+						gamePadXButtonPolling = 0;
 						gamePadAButtonPolling = 0;
 					}
 				}
@@ -4200,6 +5446,54 @@ namespace StardewValley
 			oldMouseState = input.GetMouseState();
 			oldKBState = keyState;
 			oldPadState = padState;
+		}
+
+		public bool ShowLocalCoopJoinMenu()
+		{
+			if (!base.IsMainInstance)
+			{
+				return false;
+			}
+			if (gameMode != 3)
+			{
+				return false;
+			}
+			int free_farmhands = 0;
+			foreach (Building building in getFarm().buildings)
+			{
+				if (building.indoors.Value is Cabin)
+				{
+					Farmer farmhand = (building.indoors.Value as Cabin).farmhand.Value;
+					if (farmhand == null)
+					{
+						free_farmhands++;
+					}
+					else if (!farmhand.isActive())
+					{
+						free_farmhands++;
+					}
+				}
+			}
+			if (free_farmhands == 0)
+			{
+				showRedMessage(content.LoadString("Strings\\UI:CoopMenu_NoSlots"));
+				return false;
+			}
+			if (currentMinigame != null)
+			{
+				return false;
+			}
+			if (activeClickableMenu != null)
+			{
+				return false;
+			}
+			if (!IsLocalCoopJoinable())
+			{
+				return false;
+			}
+			playSound("bigSelect");
+			activeClickableMenu = new LocalCoopJoinMenu();
+			return true;
 		}
 
 		public static void updateTextEntry(GameTime gameTime)
@@ -4255,6 +5549,7 @@ namespace StardewValley
 				if (textEntry == null)
 				{
 					rightClickPolling = 500;
+					mouseClickPolling = 0;
 				}
 			}
 			if (mouseState.ScrollWheelValue != oldMouseState.ScrollWheelValue && textEntry != null)
@@ -4411,6 +5706,12 @@ namespace StardewValley
 				{
 					gamePadAButtonPolling = 0;
 				}
+				if (textEntry == null)
+				{
+					rightClickPolling = 500;
+					gamePadAButtonPolling = 0;
+					gamePadXButtonPolling = 0;
+				}
 			}
 			if (mouseState.RightButton == Microsoft.Xna.Framework.Input.ButtonState.Pressed)
 			{
@@ -4470,6 +5771,10 @@ namespace StardewValley
 				{
 					warpFarmer("Mine", 22, 9, flip: false);
 				}
+				else if (currentLocation is IslandLocation)
+				{
+					warpFarmer("IslandSouth", 13, 33, flip: false);
+				}
 				else
 				{
 					warpFarmer("Hospital", 20, 12, flip: false);
@@ -4494,7 +5799,7 @@ namespace StardewValley
 			Form form = Control.FromHandle(Program.gamePtr.Window.Handle).FindForm();
 			form.FormBorderStyle = ((!isFullscreen) ? FormBorderStyle.Sizable : FormBorderStyle.None);
 			form.WindowState = FormWindowState.Normal;
-			Program.gamePtr.Window_ClientSizeChanged(null, null);
+			GameRunner.instance.OnWindowSizeChange(null, null);
 		}
 
 		public static void toggleFullscreen()
@@ -4513,7 +5818,7 @@ namespace StardewValley
 					form.WindowState = FormWindowState.Normal;
 					if (options.fullscreen && !options.windowedBorderlessFullscreen)
 					{
-						Program.gamePtr.Window_ClientSizeChanged(null, null);
+						GameRunner.instance.OnWindowSizeChange(null, null);
 						if (options.preferredResolutionX != 0 && options.preferredResolutionY != 0)
 						{
 							graphics.PreferredBackBufferWidth = options.preferredResolutionX;
@@ -4528,12 +5833,16 @@ namespace StardewValley
 			{
 				toggleNonBorderlessWindowedFullscreen();
 			}
-			Program.gamePtr.Window_ClientSizeChanged(null, null);
+			GameRunner.instance.OnWindowSizeChange(null, null);
 		}
 
 		private void checkForEscapeKeys()
 		{
 			KeyboardState kbState = input.GetKeyboardState();
+			if (!base.IsMainInstance)
+			{
+				return;
+			}
 			if (kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.LeftAlt) && kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Enter) && (oldKBState.IsKeyUp(Microsoft.Xna.Framework.Input.Keys.LeftAlt) || oldKBState.IsKeyUp(Microsoft.Xna.Framework.Input.Keys.Enter)))
 			{
 				if (options.isCurrentlyFullscreen() || options.isCurrentlyWindowedBorderless())
@@ -4543,10 +5852,6 @@ namespace StardewValley
 				else
 				{
 					options.setWindowedOption(0);
-				}
-				if (activeClickableMenu != null)
-				{
-					_ = (activeClickableMenu is GameMenu);
 				}
 			}
 			if ((player.UsingTool || freezeControls) && kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.RightShift) && kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.R) && kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Delete))
@@ -4679,7 +5984,7 @@ namespace StardewValley
 					fadeToBlack = true;
 					fadeToBlackAlpha = 2.5f;
 				}
-				else if (gameMode == 0 && currentSong == null && soundBank != null && pauseTime <= 0f && soundBank != null)
+				else if (gameMode == 0 && currentSong == null && soundBank != null && pauseTime <= 0f && base.IsMainInstance && soundBank != null)
 				{
 					currentSong = soundBank.GetCue("spring_day_ambient");
 					currentSong.Play();
@@ -4736,7 +6041,7 @@ namespace StardewValley
 			}
 			foreach (GameLocation location in locations)
 			{
-				bool shouldUpdate = location.farmers.Count > 0;
+				bool shouldUpdate = location.farmers.Any();
 				if (!shouldUpdate && location.CanBeRemotedlyViewed())
 				{
 					if (player.currentLocation == location)
@@ -4760,6 +6065,14 @@ namespace StardewValley
 					location.UpdateWhenCurrentLocation(time);
 				}
 				location.updateEvenIfFarmerIsntHere(time);
+				if (location.wasInhabited != shouldUpdate)
+				{
+					location.wasInhabited = shouldUpdate;
+					if (IsMasterGame)
+					{
+						location.cleanupForVacancy();
+					}
+				}
 				if (location is BuildableGameLocation)
 				{
 					foreach (Building building2 in (location as BuildableGameLocation).buildings)
@@ -4767,7 +6080,7 @@ namespace StardewValley
 						GameLocation interior = building2.indoors.Value;
 						if (interior != null)
 						{
-							if (interior.farmers.Count > 0)
+							if (interior.farmers.Any())
 							{
 								interior.UpdateWhenCurrentLocation(time);
 							}
@@ -4782,6 +6095,7 @@ namespace StardewValley
 				currentLocation.updateEvenIfFarmerIsntHere(time);
 			}
 			MineShaft.UpdateMines(time);
+			VolcanoDungeon.UpdateLevels(time);
 		}
 
 		public static void performTenMinuteClockUpdate()
@@ -4801,7 +6115,7 @@ namespace StardewValley
 				timeOfDay = Math.Min(timeOfDay, 2600);
 				if (isLightning && timeOfDay < 2400 && IsMasterGame)
 				{
-					Utility.performLightningUpdate();
+					Utility.performLightningUpdate(timeOfDay);
 				}
 				if (timeOfDay == trulyDarkTime)
 				{
@@ -4809,11 +6123,11 @@ namespace StardewValley
 				}
 				else if (timeOfDay == getModeratelyDarkTime())
 				{
-					if (currentLocation.IsOutdoors && !isRaining)
+					if (currentLocation.IsOutdoors && !IsRainingHere())
 					{
 						ambientLight = Microsoft.Xna.Framework.Color.White;
 					}
-					if (!isRaining && !(currentLocation is MineShaft) && currentSong != null && !currentSong.Name.Contains("ambient") && currentLocation is Town)
+					if (!IsRainingHere() && !(currentLocation is MineShaft) && currentSong != null && !currentSong.Name.Contains("ambient") && currentLocation is Town)
 					{
 						changeMusicTrack("none");
 					}
@@ -4822,7 +6136,7 @@ namespace StardewValley
 				{
 					changeMusicTrack("none", track_interruptable: true);
 				}
-				if ((bool)currentLocation.isOutdoors && !isRaining && !eventUp && getMusicTrackName().Contains("day") && isDarkOut())
+				if ((bool)currentLocation.isOutdoors && !IsRainingHere() && !eventUp && getMusicTrackName().Contains("day") && isDarkOut())
 				{
 					changeMusicTrack("none", track_interruptable: true);
 				}
@@ -4855,13 +6169,13 @@ namespace StardewValley
 				switch (timeOfDay)
 				{
 				case 1200:
-					if ((bool)currentLocation.isOutdoors && !isRaining && (currentSong == null || currentSong.IsStopped || currentSong.Name.ToLower().Contains("ambient")))
+					if ((bool)currentLocation.isOutdoors && !IsRainingHere() && (currentSong == null || currentSong.IsStopped || currentSong.Name.ToLower().Contains("ambient")))
 					{
 						playMorningSong();
 					}
 					break;
 				case 2000:
-					if (!isRaining && currentLocation is Town)
+					if (!IsRainingHere() && currentLocation is Town)
 					{
 						changeMusicTrack("none");
 					}
@@ -4881,6 +6195,10 @@ namespace StardewValley
 					if (player.mount != null)
 					{
 						player.mount.dismount();
+					}
+					if (player.IsSitting())
+					{
+						player.StopSitting(animate: false);
 					}
 					FishingRod fishingRod;
 					if (player.UsingTool && (player.CurrentTool == null || (fishingRod = (player.CurrentTool as FishingRod)) == null || (!fishingRod.isReeling && !fishingRod.pullingOutOfWater)))
@@ -4902,15 +6220,21 @@ namespace StardewValley
 					}
 					break;
 				}
-				foreach (GameLocation current in locations)
+				foreach (GameLocation location in locations)
 				{
-					current.performTenMinuteUpdate(timeOfDay);
-					if (current is Farm)
+					GameLocation gameLocation = location;
+					if (gameLocation.NameOrUniqueName == currentLocation.NameOrUniqueName)
 					{
-						((Farm)current).timeUpdate(10);
+						gameLocation = currentLocation;
+					}
+					gameLocation.performTenMinuteUpdate(timeOfDay);
+					if (gameLocation is Farm)
+					{
+						((Farm)gameLocation).timeUpdate(10);
 					}
 				}
 				MineShaft.UpdateMines10Minutes(timeOfDay);
+				VolcanoDungeon.UpdateLevels10Minutes(timeOfDay);
 				if (IsMasterGame && farmEvent == null)
 				{
 					netWorldState.Value.UpdateFromGame1();
@@ -4949,19 +6273,19 @@ namespace StardewValley
 			{
 				int adjustedTime2 = (int)((float)(timeOfDay - timeOfDay % 100) + (float)(timeOfDay % 100 / 10) * 16.66f);
 				float transparency2 = Math.Min(0.93f, 0.75f + ((float)(adjustedTime2 - getTrulyDarkTime()) + (float)gameTimeInterval / 7000f * 16.6f) * 0.000625f);
-				outdoorLight = (isRaining ? ambientLight : eveningColor) * transparency2;
+				outdoorLight = (IsRainingHere() ? ambientLight : eveningColor) * transparency2;
 			}
 			else if (timeOfDay >= getStartingToGetDarkTime())
 			{
 				int adjustedTime = (int)((float)(timeOfDay - timeOfDay % 100) + (float)(timeOfDay % 100 / 10) * 16.66f);
 				float transparency = Math.Min(0.93f, 0.3f + ((float)(adjustedTime - getStartingToGetDarkTime()) + (float)gameTimeInterval / 7000f * 16.6f) * 0.00225f);
-				outdoorLight = (isRaining ? ambientLight : eveningColor) * transparency;
+				outdoorLight = (IsRainingHere() ? ambientLight : eveningColor) * transparency;
 			}
 			else if (bloom != null && timeOfDay >= getStartingToGetDarkTime() - 100 && bloom.Visible)
 			{
 				bloom.Settings.BloomThreshold = Math.Min(1f, bloom.Settings.BloomThreshold + 0.0004f);
 			}
-			else if (isRaining)
+			else if (IsRainingHere())
 			{
 				outdoorLight = ambientLight * 0.3f;
 			}
@@ -5202,6 +6526,10 @@ namespace StardewValley
 				{
 					emoteMenu.exitThisMenuNoSound();
 				}
+				if (client != null && currentLocation != null)
+				{
+					currentLocation.StoreCachedMultiplayerMap(multiplayer.cachedMultiplayerMaps);
+				}
 				currentLocation.cleanupBeforePlayerExit();
 				multiplayer.broadcastLocationDelta(currentLocation);
 				bool hasResetLocation = false;
@@ -5234,6 +6562,10 @@ namespace StardewValley
 							changeMusicTrack("none");
 						}
 						MineShaft mine = locationRequest.Location as MineShaft;
+						if (player.IsSitting())
+						{
+							player.StopSitting(animate: false);
+						}
 						player.Halt();
 						player.forceCanMove();
 						if (!IsClient || (locationRequest.Location != null && locationRequest.Location.Root != null))
@@ -5242,7 +6574,6 @@ namespace StardewValley
 							hasResetLocation = true;
 						}
 						currentLocation = mine;
-						player.ridingMineElevator = false;
 						currentLocation.Map.LoadTileSheets(mapDisplayDevice);
 						checkForRunButton(GetKeyboardState());
 					}
@@ -5275,6 +6606,7 @@ namespace StardewValley
 						viewportFreeze = false;
 					}
 				}
+				forceSnapOnNextViewportUpdate = true;
 				player.FarmerSprite.PauseForSingleAnimation = false;
 				player.faceDirection(facingDirectionAfterWarp);
 				_isWarping = false;
@@ -5314,7 +6646,7 @@ namespace StardewValley
 						player.currentLocation = currentLocation;
 						locationRequest.Warped(currentLocation);
 						currentLocation.updateSeasonalTileSheets();
-						if (isDebrisWeather)
+						if (IsDebrisWeatherHere())
 						{
 							populateDebrisWeatherArray();
 						}
@@ -5383,7 +6715,7 @@ namespace StardewValley
 				messagePause = true;
 				viewportFreeze = false;
 			}
-			if (isRaining && currentSong != null && currentSong != null && currentSong.Name.Equals("rain"))
+			if (IsRainingHere() && currentSong != null && currentSong != null && currentSong.Name.Equals("rain"))
 			{
 				if (currentLocation.IsOutdoors)
 				{
@@ -5445,6 +6777,13 @@ namespace StardewValley
 				if (screenOverlayTempSprites[j].update(time))
 				{
 					screenOverlayTempSprites.RemoveAt(j);
+				}
+			}
+			for (int k = uiOverlayTempSprites.Count - 1; k >= 0; k--)
+			{
+				if (uiOverlayTempSprites[k].update(time))
+				{
+					uiOverlayTempSprites.RemoveAt(k);
 				}
 			}
 			if (pickingTool)
@@ -5546,11 +6885,11 @@ namespace StardewValley
 					}
 				}
 			}
-			for (int l = hudMessages.Count - 1; l >= 0; l--)
+			for (int m = hudMessages.Count - 1; m >= 0; m--)
 			{
-				if (hudMessages.ElementAt(l).update(time))
+				if (hudMessages.ElementAt(m).update(time))
 				{
-					hudMessages.RemoveAt(l);
+					hudMessages.RemoveAt(m);
 				}
 			}
 			updateWeather(time);
@@ -5574,15 +6913,15 @@ namespace StardewValley
 						hitShakeTimer = 500;
 						if (showingHealthBar && fadeToBlackAlpha <= 0f)
 						{
-							for (int k = 0; k < 3; k++)
+							for (int l = 0; l < 3; l++)
 							{
-								screenOverlayTempSprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(366, 412, 5, 6), new Vector2(random.Next(32) + viewport.Width - 112, viewport.Height - 224 - (player.maxHealth - 100) - 16 + 4), flipped: false, 0.017f, Microsoft.Xna.Framework.Color.Red)
+								uiOverlayTempSprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(366, 412, 5, 6), new Vector2(random.Next(32) + uiViewport.Width - 112, uiViewport.Height - 224 - (player.maxHealth - 100) - 16 + 4), flipped: false, 0.017f, Microsoft.Xna.Framework.Color.Red)
 								{
 									motion = new Vector2(-1.5f, -8 + random.Next(-1, 2)),
 									acceleration = new Vector2(0f, 0.5f),
 									local = true,
 									scale = 4f,
-									delayBeforeAnimationStart = k * 150
+									delayBeforeAnimationStart = l * 150
 								});
 							}
 						}
@@ -5632,6 +6971,10 @@ namespace StardewValley
 				}
 			}
 			drawLighting = ((currentLocation.IsOutdoors && !outdoorLight.Equals(Microsoft.Xna.Framework.Color.White)) || !ambientLight.Equals(Microsoft.Xna.Framework.Color.White) || (currentLocation is MineShaft && !((MineShaft)currentLocation).getLightingColor(time).Equals(Microsoft.Xna.Framework.Color.White)));
+			if (player.hasBuff(26))
+			{
+				drawLighting = true;
+			}
 			if (hitShakeTimer > 0)
 			{
 				hitShakeTimer -= time.ElapsedGameTime.Milliseconds;
@@ -5668,29 +7011,39 @@ namespace StardewValley
 
 		public static void updateWeather(GameTime time)
 		{
-			if (isSnowing && (bool)currentLocation.isOutdoors && !(currentLocation is Desert))
+			if (IsSnowingHere() && (bool)currentLocation.isOutdoors && !(currentLocation is Desert))
 			{
 				snowPos = updateFloatingObjectPositionForMovement(current: new Vector2(viewport.X, viewport.Y), w: snowPos, previous: previousViewportPosition, speed: -1f);
 			}
-			if (isRaining && currentLocation.IsOutdoors)
+			if (IsRainingHere() && currentLocation.IsOutdoors)
 			{
 				for (int i = 0; i < rainDrops.Length; i++)
 				{
 					if (rainDrops[i].frame == 0)
 					{
 						rainDrops[i].accumulator += time.ElapsedGameTime.Milliseconds;
-						if (rainDrops[i].accumulator >= 70)
+						if (rainDrops[i].accumulator < 70)
 						{
-							rainDrops[i].position += new Vector2(-16 + i * 8 / rainDrops.Length, 32 - i * 8 / rainDrops.Length);
-							rainDrops[i].accumulator = 0;
-							if (random.NextDouble() < 0.1)
+							continue;
+						}
+						rainDrops[i].position += new Vector2(-16 + i * 8 / rainDrops.Length, 32 - i * 8 / rainDrops.Length);
+						rainDrops[i].accumulator = 0;
+						if (random.NextDouble() < 0.1)
+						{
+							rainDrops[i].frame++;
+						}
+						if (currentLocation is IslandNorth || currentLocation is Caldera)
+						{
+							Microsoft.Xna.Framework.Point p = new Microsoft.Xna.Framework.Point((int)(rainDrops[i].position.X + (float)viewport.X) / 64, (int)(rainDrops[i].position.Y + (float)viewport.Y) / 64);
+							p.Y--;
+							if (currentLocation.isTileOnMap(p.X, p.Y) && currentLocation.getTileIndexAt(p, "Back") == -1 && currentLocation.getTileIndexAt(p, "Buildings") == -1)
 							{
-								rainDrops[i].frame++;
+								rainDrops[i].frame = 0;
 							}
-							if (rainDrops[i].position.Y > (float)(viewport.Height + 64))
-							{
-								rainDrops[i].position.Y = -64f;
-							}
+						}
+						if (rainDrops[i].position.Y > (float)(viewport.Height + 64))
+						{
+							rainDrops[i].position.Y = -64f;
 						}
 						continue;
 					}
@@ -5706,7 +7059,7 @@ namespace StardewValley
 					}
 				}
 			}
-			else if (isDebrisWeather && currentLocation.IsOutdoors && !currentLocation.ignoreDebrisWeather)
+			else if (IsDebrisWeatherHere() && currentLocation.IsOutdoors && !currentLocation.ignoreDebrisWeather)
 			{
 				if (currentSeason.Equals("fall") && random.NextDouble() < 0.001 && windGust == 0f && WeatherDebris.globalWind >= -0.5f)
 				{
@@ -5772,6 +7125,96 @@ namespace StardewValley
 			{
 				return;
 			}
+			if (game1.IsMainInstance)
+			{
+				Game1 important_music_instance = null;
+				string important_instance_music = null;
+				int sub_location_priority = 1;
+				int non_ambient_world_priority = 2;
+				int minigame_priority = 5;
+				int event_priority = 6;
+				int mermaid_show = 7;
+				int priority = 0;
+				float default_context_priority = GetDefaultSongPriority(getMusicTrackName(), game1.instanceIsOverridingTrack);
+				MusicContext primary_music_context = MusicContext.Default;
+				foreach (Game1 instance in GameRunner.instance.gameInstances)
+				{
+					MusicContext active_context = instance._instanceActiveMusicContext;
+					if (instance.IsMainInstance)
+					{
+						primary_music_context = active_context;
+					}
+					string track_name = null;
+					string actual_track_name = null;
+					if (instance._instanceRequestedMusicTracks.ContainsKey(active_context))
+					{
+						track_name = instance._instanceRequestedMusicTracks[active_context].Key;
+					}
+					if (instance.instanceIsOverridingTrack && instance.instanceCurrentSong != null)
+					{
+						actual_track_name = instance.instanceCurrentSong.Name;
+					}
+					if (active_context == MusicContext.Event && priority < event_priority)
+					{
+						if (track_name != null)
+						{
+							priority = event_priority;
+							important_music_instance = instance;
+							important_instance_music = track_name;
+						}
+					}
+					else if (active_context == MusicContext.MiniGame && priority < minigame_priority)
+					{
+						if (track_name != null)
+						{
+							priority = minigame_priority;
+							important_music_instance = instance;
+							important_instance_music = track_name;
+						}
+					}
+					else if (active_context == MusicContext.SubLocation && priority < sub_location_priority)
+					{
+						if (track_name != null)
+						{
+							priority = sub_location_priority;
+							important_music_instance = instance;
+							important_instance_music = ((actual_track_name == null) ? track_name : actual_track_name);
+						}
+					}
+					else if (track_name == "mermaidSong")
+					{
+						priority = mermaid_show;
+						important_music_instance = instance;
+						important_instance_music = track_name;
+					}
+					if (active_context == MusicContext.Default && primary_music_context <= active_context && track_name != null)
+					{
+						float instance_default_context_priority = GetDefaultSongPriority(track_name, instance.instanceIsOverridingTrack);
+						if (default_context_priority < instance_default_context_priority)
+						{
+							default_context_priority = instance_default_context_priority;
+							priority = non_ambient_world_priority;
+							important_music_instance = instance;
+							important_instance_music = ((actual_track_name == null) ? track_name : actual_track_name);
+						}
+					}
+				}
+				if (important_music_instance == null || important_music_instance == game1)
+				{
+					if (doesMusicContextHaveTrack(MusicContext.ImportantSplitScreenMusic))
+					{
+						stopMusicTrack(MusicContext.ImportantSplitScreenMusic);
+					}
+				}
+				else if (important_instance_music == null && doesMusicContextHaveTrack(MusicContext.ImportantSplitScreenMusic))
+				{
+					stopMusicTrack(MusicContext.ImportantSplitScreenMusic);
+				}
+				else if (important_instance_music != null && getMusicTrackName(MusicContext.ImportantSplitScreenMusic) != important_instance_music)
+				{
+					changeMusicTrack(important_instance_music, track_interruptable: false, MusicContext.ImportantSplitScreenMusic);
+				}
+			}
 			string song_to_play = "";
 			bool track_overrideable = false;
 			bool song_overridden = false;
@@ -5779,9 +7222,14 @@ namespace StardewValley
 			{
 				song_to_play = "";
 				song_overridden = true;
-				if (currentSong == null || !currentSong.IsPlaying || currentSong.Name != currentLocation.miniJukeboxTrack.Value)
+				string mini_jukebox_track = currentLocation.miniJukeboxTrack.Value;
+				if (mini_jukebox_track == "random")
 				{
-					song_to_play = currentLocation.miniJukeboxTrack.Value;
+					mini_jukebox_track = ((currentLocation.randomMiniJukeboxTrack.Value != null) ? currentLocation.randomMiniJukeboxTrack.Value : "");
+				}
+				if (currentSong == null || !currentSong.IsPlaying || currentSong.Name != mini_jukebox_track)
+				{
+					song_to_play = mini_jukebox_track;
 					requestedMusicDirty = false;
 					track_overrideable = true;
 				}
@@ -5803,8 +7251,11 @@ namespace StardewValley
 			{
 				musicPlayerVolume = Math.Max(0f, Math.Min(options.musicVolumeLevel, musicPlayerVolume - 0.01f));
 				ambientPlayerVolume = Math.Max(0f, Math.Min(options.musicVolumeLevel, ambientPlayerVolume - 0.01f));
-				musicCategory.SetVolume(musicPlayerVolume);
-				ambientCategory.SetVolume(ambientPlayerVolume);
+				if (game1.IsMainInstance)
+				{
+					musicCategory.SetVolume(musicPlayerVolume);
+					ambientCategory.SetVolume(ambientPlayerVolume);
+				}
 				if (musicPlayerVolume != 0f || ambientPlayerVolume != 0f || currentSong == null)
 				{
 					return;
@@ -5816,13 +7267,19 @@ namespace StardewValley
 				}
 				else if ((options.musicVolumeLevel != 0f || options.ambientVolumeLevel != 0f) && (!song_to_play.Equals("rain") || endOfNightMenus.Count == 0))
 				{
-					currentSong.Stop(AudioStopOptions.Immediate);
-					currentSong.Dispose();
-					currentSong = soundBank.GetCue(song_to_play);
-					currentSong.Play();
-					if (currentSong != null && currentSong.Name.Equals("rain") && currentLocation != null)
+					if (game1.IsMainInstance)
 					{
-						if (isRaining)
+						currentSong.Stop(AudioStopOptions.Immediate);
+						currentSong.Dispose();
+					}
+					currentSong = soundBank.GetCue(song_to_play);
+					if (game1.IsMainInstance)
+					{
+						currentSong.Play();
+					}
+					if (game1.IsMainInstance && currentSong != null && currentSong.Name.Equals("rain") && currentLocation != null)
+					{
+						if (IsRainingHere())
 						{
 							if (currentLocation.IsOutdoors)
 							{
@@ -5851,19 +7308,65 @@ namespace StardewValley
 				if (musicPlayerVolume < options.musicVolumeLevel)
 				{
 					musicPlayerVolume = Math.Min(1f, musicPlayerVolume += 0.01f);
-					musicCategory.SetVolume(options.musicVolumeLevel);
+					if (game1.IsMainInstance)
+					{
+						musicCategory.SetVolume(options.musicVolumeLevel);
+					}
 				}
 				if (ambientPlayerVolume < options.ambientVolumeLevel)
 				{
 					ambientPlayerVolume = Math.Min(1f, ambientPlayerVolume += 0.015f);
-					ambientCategory.SetVolume(ambientPlayerVolume);
+					if (game1.IsMainInstance)
+					{
+						ambientCategory.SetVolume(ambientPlayerVolume);
+					}
 				}
 			}
 			else if (currentSong != null && !currentSong.IsPlaying && !currentSong.IsStopped)
 			{
 				currentSong = soundBank.GetCue(currentSong.Name);
-				currentSong.Play();
+				if (game1.IsMainInstance)
+				{
+					currentSong.Play();
+				}
 			}
+		}
+
+		public static int GetDefaultSongPriority(string song_name, bool is_playing_override)
+		{
+			if (is_playing_override)
+			{
+				return 9;
+			}
+			if (song_name.Equals("none"))
+			{
+				return 0;
+			}
+			if (song_name.EndsWith("_day_ambient") || song_name.EndsWith("_night_ambient") || song_name.Equals("rain"))
+			{
+				return 1;
+			}
+			if (song_name.StartsWith(currentSeason))
+			{
+				return 2;
+			}
+			if (song_name.Contains("town"))
+			{
+				return 3;
+			}
+			if (song_name.Equals("jungle_ambience") || song_name.Contains("Ambient"))
+			{
+				return 7;
+			}
+			if (song_name.Equals("IslandMusic"))
+			{
+				return 8;
+			}
+			if (song_name.EndsWith("Mine"))
+			{
+				return 20;
+			}
+			return 10;
 		}
 
 		public static void updateRainDropPositionForPlayerMovement(int direction)
@@ -5878,11 +7381,11 @@ namespace StardewValley
 
 		public static void updateRainDropPositionForPlayerMovement(int direction, bool overrideConstraints, float speed)
 		{
-			if (!overrideConstraints && ((!isRaining && !isDebrisWeather) || !currentLocation.IsOutdoors || (direction != 0 && direction != 2 && (player.getStandingX() < viewport.Width / 2 || player.getStandingX() > currentLocation.Map.DisplayWidth - viewport.Width / 2)) || (direction != 1 && direction != 3 && (player.getStandingY() < viewport.Height / 2 || player.getStandingY() > currentLocation.Map.DisplayHeight - viewport.Height / 2))))
+			if (!overrideConstraints && ((!IsRainingHere() && !IsDebrisWeatherHere()) || !currentLocation.IsOutdoors || (direction != 0 && direction != 2 && (player.getStandingX() < viewport.Width / 2 || player.getStandingX() > currentLocation.Map.DisplayWidth - viewport.Width / 2)) || (direction != 1 && direction != 3 && (player.getStandingY() < viewport.Height / 2 || player.getStandingY() > currentLocation.Map.DisplayHeight - viewport.Height / 2))))
 			{
 				return;
 			}
-			if (isRaining)
+			if (IsRainingHere())
 			{
 				for (int i = 0; i < rainDrops.Length; i++)
 				{
@@ -5927,10 +7430,13 @@ namespace StardewValley
 
 		public static void initializeVolumeLevels()
 		{
-			soundCategory.SetVolume(options.soundVolumeLevel);
-			musicCategory.SetVolume(options.musicVolumeLevel);
-			ambientCategory.SetVolume(options.ambientVolumeLevel);
-			footstepCategory.SetVolume(options.footstepVolumeLevel);
+			if (!LocalMultiplayer.IsLocalMultiplayer() || game1.IsMainInstance)
+			{
+				soundCategory.SetVolume(options.soundVolumeLevel);
+				musicCategory.SetVolume(options.musicVolumeLevel);
+				ambientCategory.SetVolume(options.ambientVolumeLevel);
+				footstepCategory.SetVolume(options.footstepVolumeLevel);
+			}
 		}
 
 		public static void updateDebrisWeatherForMovement(List<WeatherDebris> debris, int direction, bool overrideConstraints, float speed)
@@ -5997,7 +7503,7 @@ namespace StardewValley
 
 		public static void updateRaindropPosition()
 		{
-			if (isRaining)
+			if (IsRainingHere())
 			{
 				int xOffset = viewport.X - (int)previousViewportPosition.X;
 				int yOffset = viewport.Y - (int)previousViewportPosition.Y;
@@ -6031,7 +7537,7 @@ namespace StardewValley
 
 		public static void updateDebrisWeatherForMovement(List<WeatherDebris> debris)
 		{
-			if (!fadeToBlack && fadeToBlackAlpha <= 0f && debris != null)
+			if (debris != null && fadeToBlackAlpha < 1f)
 			{
 				int xOffset = viewport.X - (int)previousViewportPosition.X;
 				int yOffset = viewport.Y - (int)previousViewportPosition.Y;
@@ -6060,6 +7566,14 @@ namespace StardewValley
 			}
 		}
 
+		public static void randomizeRainPositions()
+		{
+			for (int i = 0; i < 70; i++)
+			{
+				rainDrops[i] = new RainDrop(random.Next(viewport.Width), random.Next(viewport.Height), random.Next(4), random.Next(70));
+			}
+		}
+
 		public static void randomizeDebrisWeatherPositions(List<WeatherDebris> debris)
 		{
 			if (debris != null)
@@ -6074,6 +7588,10 @@ namespace StardewValley
 		public static void eventFinished()
 		{
 			player.canOnlyWalk = false;
+			if (player.bathingClothes.Value)
+			{
+				player.canOnlyWalk = true;
+			}
 			eventOver = false;
 			eventUp = false;
 			player.CanMove = true;
@@ -6098,11 +7616,11 @@ namespace StardewValley
 			{
 				player.showCarrying();
 			}
-			if (isRaining && (currentSong == null || !currentSong.Name.Equals("rain")) && !currentLocation.Name.StartsWith("UndergroundMine"))
+			if (IsRainingHere() && (currentSong == null || !currentSong.Name.Equals("rain")) && !currentLocation.Name.StartsWith("UndergroundMine"))
 			{
 				changeMusicTrack("rain", track_interruptable: true);
 			}
-			else if (!isRaining && (currentSong == null || currentSong.Name == null || !currentSong.Name.Contains(currentSeason)))
+			else if (!IsRainingHere() && (currentSong == null || currentSong.Name == null || !currentSong.Name.Contains(currentSeason)))
 			{
 				changeMusicTrack("none", track_interruptable: true);
 			}
@@ -6110,17 +7628,26 @@ namespace StardewValley
 			{
 				currentLightSources.Clear();
 			}
+			if (exitLocation == null && currentLocation != null && locationRequest == null)
+			{
+				exitLocation = new LocationRequest(currentLocation.NameOrUniqueName, currentLocation.isStructure, currentLocation);
+			}
 			if (exitLocation != null)
 			{
 				if (exitLocation.Location is Farm && player.positionBeforeEvent.Y == 64f)
 				{
 					player.positionBeforeEvent.X += 1f;
 				}
+				exitLocation.OnWarp += delegate
+				{
+					player.locationBeforeForcedEvent.Value = null;
+				};
 				warpFarmer(exitLocation, (int)player.positionBeforeEvent.X, (int)player.positionBeforeEvent.Y, player.orientationBeforeEvent);
 			}
 			else
 			{
 				player.setTileLocation(player.positionBeforeEvent);
+				player.locationBeforeForcedEvent.Value = null;
 			}
 			nonWarpFade = false;
 			fadeToBlackAlpha = 1f;
@@ -6160,7 +7687,7 @@ namespace StardewValley
 			dayOfMonth = 1;
 			foreach (GameLocation location in locations)
 			{
-				location.seasonUpdate(currentSeason);
+				location.seasonUpdate(GetSeasonForLocation(location));
 			}
 		}
 
@@ -6218,6 +7745,31 @@ namespace StardewValley
 			characterFromName.DefaultFacingDirection = 2;
 		}
 
+		public static void AddModNPCs()
+		{
+			LocalizedContentManager vanilla_content_manager = new LocalizedContentManager(game1.Content.ServiceProvider, game1.Content.RootDirectory);
+			Dictionary<string, string> vanilla_dispositions_data = vanilla_content_manager.Load<Dictionary<string, string>>("Data\\NPCDispositions");
+			Dictionary<string, string> dispositions_data = content.Load<Dictionary<string, string>>("Data\\NPCDispositions");
+			foreach (string character_name in dispositions_data.Keys)
+			{
+				if (!vanilla_dispositions_data.ContainsKey(character_name))
+				{
+					try
+					{
+						if (getCharacterFromName(character_name, mustBeVillager: true, useLocationsListOnly: true) == null)
+						{
+							string character_data = dispositions_data[character_name];
+							getLocationFromNameInLocationsList(character_data.Split('/')[10].Split(' ')[0])?.addCharacter(new NPC(new AnimatedSprite("Characters\\" + NPC.getTextureNameForCharacter(character_name), 0, 16, 32), new Vector2(Convert.ToInt32(character_data.Split('/')[10].Split(' ')[1]) * 64, Convert.ToInt32(character_data.Split('/')[10].Split(' ')[2]) * 64), character_data.Split('/')[10].Split(' ')[0], 0, character_name, null, content.Load<Texture2D>("Portraits\\" + NPC.getTextureNameForCharacter(character_name)), eventActor: false));
+						}
+					}
+					catch (Exception)
+					{
+					}
+				}
+			}
+			vanilla_content_manager.Unload();
+		}
+
 		public static void fixProblems()
 		{
 			if (!IsMasterGame)
@@ -6232,7 +7784,7 @@ namespace StardewValley
 				foreach (string s in NPCDispositions.Keys)
 				{
 					bool found = false;
-					if (!(s == "Kent") || player.friendshipData.ContainsKey(s))
+					if ((!(s == "Kent") || player.friendshipData.ContainsKey(s)) && (!(s == "Leo") || player.friendshipData.ContainsKey(s)))
 					{
 						foreach (NPC n2 in allCharacters2)
 						{
@@ -6255,7 +7807,7 @@ namespace StardewValley
 						{
 							try
 							{
-								getLocationFromName(NPCDispositions[s].Split('/')[10].Split(' ')[0]).addCharacter(new NPC(new AnimatedSprite("Characters\\" + s, 0, 16, 32), new Vector2(Convert.ToInt32(NPCDispositions[s].Split('/')[10].Split(' ')[1]) * 64, Convert.ToInt32(NPCDispositions[s].Split('/')[10].Split(' ')[2]) * 64), NPCDispositions[s].Split('/')[10].Split(' ')[0], 0, s, null, content.Load<Texture2D>("Portraits\\" + s), eventActor: false));
+								getLocationFromName(NPCDispositions[s].Split('/')[10].Split(' ')[0]).addCharacter(new NPC(new AnimatedSprite("Characters\\" + NPC.getTextureNameForCharacter(s), 0, 16, 32), new Vector2(Convert.ToInt32(NPCDispositions[s].Split('/')[10].Split(' ')[1]) * 64, Convert.ToInt32(NPCDispositions[s].Split('/')[10].Split(' ')[2]) * 64), NPCDispositions[s].Split('/')[10].Split(' ')[0], 0, s, null, content.Load<Texture2D>("Portraits\\" + NPC.getTextureNameForCharacter(s)), eventActor: false));
 							}
 							catch (Exception)
 							{
@@ -6390,7 +7942,11 @@ namespace StardewValley
 				}
 				if (tool != null)
 				{
-					Utility.getHomeOfFarmer(player).debris.Add(new Debris(tool, player.Position + new Vector2(-64f, 0f)));
+					if (newDaySync != null)
+					{
+						player.team.newLostAndFoundItems.Value = true;
+					}
+					player.team.returnedDonations.Add(tool);
 				}
 			}
 		}
@@ -6412,24 +7968,51 @@ namespace StardewValley
 
 		public static void newDayAfterFade(Action after)
 		{
-			hooks.OnGame1_NewDayAfterFade(delegate
+			if (player.currentLocation != null)
 			{
-				_afterNewDayAction = after;
-				if (_newDayTask != null)
+				if (player.rightRing.Value != null)
 				{
-					Console.WriteLine("Warning: There is already a _newDayTask; unusual code path.");
-					Console.WriteLine(Environment.StackTrace);
-					Console.WriteLine();
+					player.rightRing.Value.onLeaveLocation(player, player.currentLocation);
 				}
-				else
+				if (player.leftRing.Value != null)
 				{
-					_newDayTask = new Task(delegate
+					player.leftRing.Value.onLeaveLocation(player, player.currentLocation);
+				}
+			}
+			if (LocalMultiplayer.IsLocalMultiplayer())
+			{
+				_ = game1;
+				hooks.OnGame1_NewDayAfterFade(delegate
+				{
+					game1.isLocalMultiplayerNewDayActive = true;
+					_afterNewDayAction = after;
+					GameRunner.instance.activeNewDayProcesses.Add(new KeyValuePair<Game1, IEnumerator<int>>(game1, _newDayAfterFade()));
+				});
+			}
+			else
+			{
+				hooks.OnGame1_NewDayAfterFade(delegate
+				{
+					_afterNewDayAction = after;
+					if (_newDayTask != null)
 					{
-						Thread.CurrentThread.CurrentCulture = CultureInfo.InvariantCulture;
-						_newDayAfterFade();
-					});
-				}
-			});
+						Console.WriteLine("Warning: There is already a _newDayTask; unusual code path.");
+						Console.WriteLine(Environment.StackTrace);
+						Console.WriteLine();
+					}
+					else
+					{
+						_newDayTask = new Task(delegate
+						{
+							Thread.CurrentThread.CurrentCulture = CultureInfo.InvariantCulture;
+							IEnumerator<int> enumerator = _newDayAfterFade();
+							while (enumerator.MoveNext())
+							{
+							}
+						});
+					}
+				});
+			}
 		}
 
 		public static bool CanAcceptDailyQuest()
@@ -6449,555 +8032,1029 @@ namespace StardewValley
 			return true;
 		}
 
-		private static void _newDayAfterFade()
+		private static IEnumerator<int> _newDayAfterFade()
 		{
+			newDaySync.start();
+			flushLocationLookup();
 			try
 			{
-				newDaySync.start();
-				flushLocationLookup();
-				try
+				fixProblems();
+			}
+			catch (Exception)
+			{
+			}
+			foreach (Farmer allFarmer in getAllFarmers())
+			{
+				allFarmer.FarmerSprite.PauseForSingleAnimation = false;
+			}
+			whereIsTodaysFest = null;
+			if (wind != null)
+			{
+				wind.Stop(AudioStopOptions.Immediate);
+				wind = null;
+			}
+			foreach (int key in new List<int>(player.chestConsumedMineLevels.Keys))
+			{
+				if (key > 120)
 				{
-					fixProblems();
+					player.chestConsumedMineLevels.Remove(key);
 				}
-				catch (Exception)
+			}
+			player.currentEyes = 0;
+			int seed;
+			if (IsMasterGame)
+			{
+				player.team.announcedSleepingFarmers.Clear();
+				seed = (int)uniqueIDForThisGame / 100 + (int)(stats.DaysPlayed * 10) + 1 + (int)stats.StepsTaken;
+				newDaySync.sendVar<NetInt, int>("seed", seed);
+			}
+			else
+			{
+				while (!newDaySync.isVarReady("seed"))
 				{
+					yield return 0;
 				}
-				whereIsTodaysFest = null;
-				if (wind != null)
-				{
-					wind.Stop(AudioStopOptions.Immediate);
-					wind = null;
-				}
-				foreach (int key in new List<int>(player.chestConsumedMineLevels.Keys))
-				{
-					if (key > 120)
-					{
-						player.chestConsumedMineLevels.Remove(key);
-					}
-				}
-				player.currentEyes = 0;
-				int seed;
+				seed = newDaySync.waitForVar<NetInt, int>("seed");
+			}
+			random = new Random(seed);
+			for (int k = 0; k < dayOfMonth; k++)
+			{
+				random.Next();
+			}
+			player.team.endOfNightStatus.UpdateState("sleep");
+			newDaySync.barrier("sleep");
+			while (!newDaySync.isBarrierReady("sleep"))
+			{
+				yield return 0;
+			}
+			gameTimeInterval = 0;
+			game1.wasAskedLeoMemory = false;
+			player.team.Update();
+			player.team.NewDay();
+			player.passedOut = false;
+			player.CanMove = true;
+			player.FarmerSprite.PauseForSingleAnimation = false;
+			player.FarmerSprite.StopAnimation();
+			player.completelyStopAnimatingOrDoingAction();
+			changeMusicTrack("none");
+			int dishOfTheDayIndex = random.Next(194, 240);
+			while (Utility.getForbiddenDishesOfTheDay().Contains(dishOfTheDayIndex))
+			{
+				dishOfTheDayIndex = random.Next(194, 240);
+			}
+			int dish_of_the_day_count = random.Next(1, 4 + ((random.NextDouble() < 0.08) ? 10 : 0));
+			if (IsMasterGame)
+			{
+				dishOfTheDay = new Object(Vector2.Zero, dishOfTheDayIndex, dish_of_the_day_count);
+			}
+			newDaySync.barrier("dishOfTheDay");
+			while (!newDaySync.isBarrierReady("dishOfTheDay"))
+			{
+				yield return 0;
+			}
+			npcDialogues = null;
+			foreach (NPC allCharacter in Utility.getAllCharacters())
+			{
+				allCharacter.updatedDialogueYet = false;
+			}
+			int overnightMinutesElapsed = Utility.CalculateMinutesUntilMorning(timeOfDay);
+			foreach (GameLocation n in locations)
+			{
+				n.currentEvent = null;
 				if (IsMasterGame)
 				{
-					player.team.announcedSleepingFarmers.Clear();
-					seed = (int)uniqueIDForThisGame / 100 + (int)(stats.DaysPlayed * 10) + 1 + (int)stats.StepsTaken;
-					newDaySync.sendVar<NetInt, int>("seed", seed);
+					n.passTimeForObjects(overnightMinutesElapsed);
 				}
-				else
+			}
+			if (IsMasterGame)
+			{
+				foreach (Building b in getFarm().buildings)
 				{
-					seed = newDaySync.waitForVar<NetInt, int>("seed");
-				}
-				random = new Random(seed);
-				for (int j = 0; j < dayOfMonth; j++)
-				{
-					random.Next();
-				}
-				player.team.endOfNightStatus.UpdateState("sleep");
-				newDaySync.barrier("sleep");
-				gameTimeInterval = 0;
-				player.team.Update();
-				player.team.NewDay();
-				player.passedOut = false;
-				player.CanMove = true;
-				player.FarmerSprite.PauseForSingleAnimation = false;
-				player.FarmerSprite.StopAnimation();
-				player.completelyStopAnimatingOrDoingAction();
-				changeMusicTrack("none");
-				int dishOfTheDayIndex = random.Next(194, 240);
-				while (Utility.getForbiddenDishesOfTheDay().Contains(dishOfTheDayIndex))
-				{
-					dishOfTheDayIndex = random.Next(194, 240);
-				}
-				dishOfTheDay = new Object(Vector2.Zero, dishOfTheDayIndex, random.Next(1, 4 + ((random.NextDouble() < 0.08) ? 10 : 0)));
-				npcDialogues = null;
-				foreach (NPC allCharacter in Utility.getAllCharacters())
-				{
-					allCharacter.updatedDialogueYet = false;
-				}
-				int overnightMinutesElapsed = Utility.CalculateMinutesUntilMorning(timeOfDay);
-				foreach (GameLocation l in locations)
-				{
-					l.currentEvent = null;
-					if (IsMasterGame)
+					if (b.indoors.Value != null)
 					{
-						l.passTimeForObjects(overnightMinutesElapsed);
+						b.indoors.Value.passTimeForObjects(overnightMinutesElapsed);
 					}
 				}
-				if (IsMasterGame)
+			}
+			globalOutdoorLighting = 0f;
+			outdoorLight = Microsoft.Xna.Framework.Color.White;
+			ambientLight = Microsoft.Xna.Framework.Color.White;
+			if (isLightning && IsMasterGame)
+			{
+				Utility.overnightLightning();
+			}
+			tmpTimeOfDay = timeOfDay;
+			if (MasterPlayer.hasOrWillReceiveMail("ccBulletinThankYou") && !player.hasOrWillReceiveMail("ccBulletinThankYou"))
+			{
+				addMailForTomorrow("ccBulletinThankYou");
+			}
+			ReceiveMailForTomorrow();
+			if (player.friendshipData.Count() > 0)
+			{
+				string whichFriend = player.friendshipData.Keys.ElementAt(random.Next(player.friendshipData.Keys.Count()));
+				if (random.NextDouble() < (double)(player.friendshipData[whichFriend].Points / 250) * 0.1 && (player.spouse == null || !player.spouse.Equals(whichFriend)) && content.Load<Dictionary<string, string>>("Data\\mail").ContainsKey(whichFriend))
 				{
-					foreach (Building b in getFarm().buildings)
+					mailbox.Add(whichFriend);
+				}
+			}
+			MineShaft.clearActiveMines();
+			VolcanoDungeon.ClearAllLevels();
+			for (int i2 = player.enchantments.Count - 1; i2 >= 0; i2--)
+			{
+				player.enchantments[i2].OnUnequip(player);
+			}
+			player.dayupdate();
+			if (IsMasterGame)
+			{
+				player.team.sharedDailyLuck.Value = Math.Min(0.10000000149011612, (double)random.Next(-100, 101) / 1000.0);
+			}
+			dayOfMonth++;
+			stats.DaysPlayed++;
+			startedJukeboxMusic = false;
+			player.dayOfMonthForSaveGame = dayOfMonth;
+			player.seasonForSaveGame = Utility.getSeasonNumber(currentSeason);
+			player.yearForSaveGame = year;
+			player.showToolUpgradeAvailability();
+			if (IsMasterGame)
+			{
+				queueWeddingsForToday();
+				newDaySync.sendVar<NetRef<NetLongList>, NetLongList>("weddingsToday", new NetLongList(weddingsToday));
+			}
+			else
+			{
+				while (!newDaySync.isVarReady("weddingsToday"))
+				{
+					yield return 0;
+				}
+				weddingsToday = new List<long>(newDaySync.waitForVar<NetRef<NetLongList>, NetLongList>("weddingsToday"));
+			}
+			weddingToday = false;
+			foreach (long item4 in weddingsToday)
+			{
+				Farmer spouse_farmer = getFarmer(item4);
+				if (spouse_farmer != null && !spouse_farmer.hasCurrentOrPendingRoommate())
+				{
+					weddingToday = true;
+					break;
+				}
+			}
+			if (player.spouse != null && player.isEngaged() && weddingsToday.Contains(player.UniqueMultiplayerID))
+			{
+				Friendship friendship = player.friendshipData[player.spouse];
+				if (friendship.CountdownToWedding <= 1)
+				{
+					friendship.Status = FriendshipStatus.Married;
+					friendship.WeddingDate = new WorldDate(Date);
+					prepareSpouseForWedding(player);
+				}
+			}
+			NetLongDictionary<NetList<Item, NetRef<Item>>, NetRef<NetList<Item, NetRef<Item>>>> additional_shipped_items = new NetLongDictionary<NetList<Item, NetRef<Item>>, NetRef<NetList<Item, NetRef<Item>>>>();
+			if (IsMasterGame)
+			{
+				Utility.ForAllLocations(delegate(GameLocation location)
+				{
+					foreach (Object current3 in location.objects.Values)
 					{
-						if (b.indoors.Value != null)
+						if (current3 is Chest)
 						{
-							b.indoors.Value.passTimeForObjects(overnightMinutesElapsed);
-						}
-					}
-				}
-				globalOutdoorLighting = 0f;
-				outdoorLight = Microsoft.Xna.Framework.Color.White;
-				ambientLight = Microsoft.Xna.Framework.Color.White;
-				if (isLightning && IsMasterGame)
-				{
-					Utility.overnightLightning();
-				}
-				tmpTimeOfDay = timeOfDay;
-				if (MasterPlayer.hasOrWillReceiveMail("ccBulletinThankYou") && !player.hasOrWillReceiveMail("ccBulletinThankYou"))
-				{
-					addMailForTomorrow("ccBulletinThankYou");
-				}
-				ReceiveMailForTomorrow();
-				if (player.friendshipData.Count() > 0)
-				{
-					string whichFriend = player.friendshipData.Keys.ElementAt(random.Next(player.friendshipData.Keys.Count()));
-					if (random.NextDouble() < (double)(player.friendshipData[whichFriend].Points / 250) * 0.1 && (player.spouse == null || !player.spouse.Equals(whichFriend)) && content.Load<Dictionary<string, string>>("Data\\mail").ContainsKey(whichFriend))
-					{
-						mailbox.Add(whichFriend);
-					}
-				}
-				MineShaft.clearActiveMines();
-				player.dayupdate();
-				if (IsMasterGame)
-				{
-					player.team.sharedDailyLuck.Value = Math.Min(0.10000000149011612, (double)random.Next(-100, 101) / 1000.0);
-				}
-				dayOfMonth++;
-				stats.DaysPlayed++;
-				startedJukeboxMusic = false;
-				player.dayOfMonthForSaveGame = dayOfMonth;
-				player.seasonForSaveGame = Utility.getSeasonNumber(currentSeason);
-				player.yearForSaveGame = year;
-				if (IsMasterGame)
-				{
-					queueWeddingsForToday();
-					newDaySync.sendVar<NetRef<NetLongList>, NetLongList>("weddingsToday", new NetLongList(weddingsToday));
-				}
-				else
-				{
-					weddingsToday = new List<long>(newDaySync.waitForVar<NetRef<NetLongList>, NetLongList>("weddingsToday"));
-				}
-				weddingToday = false;
-				foreach (long item3 in weddingsToday)
-				{
-					Farmer spouse_farmer = getFarmer(item3);
-					if (spouse_farmer != null && !spouse_farmer.hasCurrentOrPendingRoommate())
-					{
-						weddingToday = true;
-						break;
-					}
-				}
-				if (player.spouse != null && player.isEngaged() && weddingsToday.Contains(player.UniqueMultiplayerID))
-				{
-					Friendship friendship = player.friendshipData[player.spouse];
-					if (friendship.CountdownToWedding <= 1)
-					{
-						friendship.Status = FriendshipStatus.Married;
-						friendship.WeddingDate = new WorldDate(Date);
-						prepareSpouseForWedding(player);
-					}
-				}
-				NetCollection<Item> shippingBin = getFarm().getShippingBin(player);
-				foreach (Item k in shippingBin)
-				{
-					player.displayedShippedItems.Add(k);
-				}
-				if (player.useSeparateWallets || (!player.useSeparateWallets && player.IsMainPlayer))
-				{
-					int total2 = 0;
-					foreach (Item item2 in shippingBin)
-					{
-						if (item2 is Object)
-						{
-							total2 += (item2 as Object).sellToStorePrice(-1L) * item2.Stack;
-						}
-					}
-					player.Money += total2;
-				}
-				if (IsMasterGame)
-				{
-					if (currentSeason.Equals("winter") && dayOfMonth == 18)
-					{
-						GameLocation source4 = getLocationFromName("Submarine");
-						if (source4.objects.Count() >= 0)
-						{
-							Utility.transferPlacedObjectsFromOneLocationToAnother(source4, null, new Vector2(20f, 20f), getLocationFromName("Beach"));
-						}
-						source4 = getLocationFromName("MermaidHouse");
-						if (source4.objects.Count() >= 0)
-						{
-							Utility.transferPlacedObjectsFromOneLocationToAnother(source4, null, new Vector2(21f, 20f), getLocationFromName("Beach"));
-						}
-					}
-					if (player.hasOrWillReceiveMail("pamHouseUpgrade") && !player.hasOrWillReceiveMail("transferredObjectsPamHouse"))
-					{
-						addMailForTomorrow("transferredObjectsPamHouse", noLetter: true);
-						GameLocation source2 = getLocationFromName("Trailer");
-						GameLocation destination = getLocationFromName("Trailer_Big");
-						if (source2.objects.Count() >= 0)
-						{
-							Utility.transferPlacedObjectsFromOneLocationToAnother(source2, destination, new Vector2(14f, 23f));
-						}
-					}
-					if (Utility.HasAnyPlayerSeenEvent(191393) && !player.hasOrWillReceiveMail("transferredObjectsJojaMart"))
-					{
-						addMailForTomorrow("transferredObjectsJojaMart", noLetter: true);
-						GameLocation source = getLocationFromName("JojaMart");
-						if (source.objects.Count() >= 0)
-						{
-							Utility.transferPlacedObjectsFromOneLocationToAnother(source, null, new Vector2(89f, 51f), getLocationFromName("Town"));
-						}
-					}
-				}
-				if (player.useSeparateWallets && player.IsMainPlayer)
-				{
-					foreach (Farmer who2 in getAllFarmhands())
-					{
-						if (!who2.isActive() && !who2.isUnclaimedFarmhand)
-						{
-							int total = 0;
-							foreach (Item item in getFarm().getShippingBin(who2))
+							Chest chest = current3 as Chest;
+							if (chest != null && chest.SpecialChestType == Chest.SpecialChestTypes.MiniShippingBin)
 							{
-								if (item is Object)
+								if ((bool)player.team.useSeparateWallets)
 								{
-									total += (item as Object).sellToStorePrice(who2.UniqueMultiplayerID) * item.Stack;
+									foreach (long current4 in chest.separateWalletItems.Keys)
+									{
+										if (!additional_shipped_items.ContainsKey(current4))
+										{
+											additional_shipped_items[current4] = new NetList<Item, NetRef<Item>>();
+										}
+										List<Item> list = new List<Item>(chest.separateWalletItems[current4]);
+										chest.separateWalletItems[current4].Clear();
+										foreach (Item current5 in list)
+										{
+											additional_shipped_items[current4].Add(current5);
+										}
+									}
+								}
+								else
+								{
+									NetCollection<Item> shippingBin2 = getFarm().getShippingBin(player);
+									List<Item> list2 = new List<Item>(chest.items);
+									chest.items.Clear();
+									foreach (Item current6 in list2)
+									{
+										shippingBin2.Add(current6);
+									}
+								}
+								chest.items.Clear();
+								chest.separateWalletItems.Clear();
+							}
+						}
+					}
+				});
+			}
+			if (IsMasterGame)
+			{
+				newDaySync.sendVar<NetRef<NetLongDictionary<NetList<Item, NetRef<Item>>, NetRef<NetList<Item, NetRef<Item>>>>>, NetLongDictionary<NetList<Item, NetRef<Item>>, NetRef<NetList<Item, NetRef<Item>>>>>("additional_shipped_items", additional_shipped_items);
+			}
+			else
+			{
+				while (!newDaySync.isVarReady("additional_shipped_items"))
+				{
+					yield return 0;
+				}
+				additional_shipped_items = newDaySync.waitForVar<NetRef<NetLongDictionary<NetList<Item, NetRef<Item>>, NetRef<NetList<Item, NetRef<Item>>>>>, NetLongDictionary<NetList<Item, NetRef<Item>>, NetRef<NetList<Item, NetRef<Item>>>>>("additional_shipped_items");
+			}
+			if (player.team.useSeparateWallets.Value)
+			{
+				NetCollection<Item> shipping_bin = getFarm().getShippingBin(player);
+				if (additional_shipped_items.ContainsKey(player.UniqueMultiplayerID))
+				{
+					foreach (Item item3 in additional_shipped_items[player.UniqueMultiplayerID])
+					{
+						shipping_bin.Add(item3);
+					}
+				}
+			}
+			newDaySync.barrier("handleMiniShippingBins");
+			while (!newDaySync.isBarrierReady("handleMiniShippingBins"))
+			{
+				yield return 0;
+			}
+			NetCollection<Item> shippingBin = getFarm().getShippingBin(player);
+			foreach (Item m in shippingBin)
+			{
+				player.displayedShippedItems.Add(m);
+			}
+			if (player.useSeparateWallets || (!player.useSeparateWallets && player.IsMainPlayer))
+			{
+				int total2 = 0;
+				foreach (Item item2 in shippingBin)
+				{
+					int item_value2 = 0;
+					if (item2 is Object)
+					{
+						item_value2 = (item2 as Object).sellToStorePrice(-1L) * item2.Stack;
+						total2 += item_value2;
+					}
+					if (player.team.specialOrders != null)
+					{
+						foreach (SpecialOrder order4 in player.team.specialOrders)
+						{
+							if (order4.onItemShipped != null)
+							{
+								order4.onItemShipped(player, item2, item_value2);
+							}
+						}
+					}
+				}
+				player.Money += total2;
+			}
+			if (IsMasterGame)
+			{
+				if (currentSeason.Equals("winter") && dayOfMonth == 18)
+				{
+					GameLocation source4 = getLocationFromName("Submarine");
+					if (source4.objects.Count() >= 0)
+					{
+						Utility.transferPlacedObjectsFromOneLocationToAnother(source4, null, new Vector2(20f, 20f), getLocationFromName("Beach"));
+					}
+					source4 = getLocationFromName("MermaidHouse");
+					if (source4.objects.Count() >= 0)
+					{
+						Utility.transferPlacedObjectsFromOneLocationToAnother(source4, null, new Vector2(21f, 20f), getLocationFromName("Beach"));
+					}
+				}
+				if (player.hasOrWillReceiveMail("pamHouseUpgrade") && !player.hasOrWillReceiveMail("transferredObjectsPamHouse"))
+				{
+					addMailForTomorrow("transferredObjectsPamHouse", noLetter: true);
+					GameLocation source2 = getLocationFromName("Trailer");
+					GameLocation destination = getLocationFromName("Trailer_Big");
+					if (source2.objects.Count() >= 0)
+					{
+						Utility.transferPlacedObjectsFromOneLocationToAnother(source2, destination, new Vector2(14f, 23f));
+					}
+				}
+				if (Utility.HasAnyPlayerSeenEvent(191393) && !player.hasOrWillReceiveMail("transferredObjectsJojaMart"))
+				{
+					addMailForTomorrow("transferredObjectsJojaMart", noLetter: true);
+					GameLocation source = getLocationFromName("JojaMart");
+					if (source.objects.Count() >= 0)
+					{
+						Utility.transferPlacedObjectsFromOneLocationToAnother(source, null, new Vector2(89f, 51f), getLocationFromName("Town"));
+					}
+				}
+			}
+			if (player.useSeparateWallets && player.IsMainPlayer)
+			{
+				foreach (Farmer who2 in getAllFarmhands())
+				{
+					if (!who2.isActive() && !who2.isUnclaimedFarmhand)
+					{
+						int total = 0;
+						foreach (Item item in getFarm().getShippingBin(who2))
+						{
+							int item_value = 0;
+							if (item is Object)
+							{
+								item_value = (item as Object).sellToStorePrice(who2.UniqueMultiplayerID) * item.Stack;
+								total += item_value;
+							}
+							if (player.team.specialOrders != null)
+							{
+								foreach (SpecialOrder order3 in player.team.specialOrders)
+								{
+									if (order3.onItemShipped != null)
+									{
+										order3.onItemShipped(player, item, item_value);
+									}
 								}
 							}
-							player.team.AddIndividualMoney(who2, total);
-							getFarm().getShippingBin(who2).Clear();
 						}
+						player.team.AddIndividualMoney(who2, total);
+						getFarm().getShippingBin(who2).Clear();
 					}
 				}
-				List<NPC> divorceNPCs = new List<NPC>();
-				if (IsMasterGame)
+			}
+			List<NPC> divorceNPCs = new List<NPC>();
+			if (IsMasterGame)
+			{
+				foreach (Farmer who in getAllFarmers())
 				{
-					foreach (Farmer who in getAllFarmers())
+					if (who.isActive() && (bool)who.divorceTonight && who.getSpouse() != null)
 					{
-						if (who.isActive() && (bool)who.divorceTonight && who.getSpouse() != null)
-						{
-							divorceNPCs.Add(who.getSpouse());
-						}
+						divorceNPCs.Add(who.getSpouse());
 					}
 				}
-				newDaySync.barrier("player.dayupdate");
-				if ((bool)player.divorceTonight)
+			}
+			newDaySync.barrier("player.dayupdate");
+			while (!newDaySync.isBarrierReady("player.dayupdate"))
+			{
+				yield return 0;
+			}
+			if ((bool)player.divorceTonight)
+			{
+				player.doDivorce();
+			}
+			newDaySync.barrier("player.divorce");
+			while (!newDaySync.isBarrierReady("player.divorce"))
+			{
+				yield return 0;
+			}
+			if (IsMasterGame)
+			{
+				foreach (NPC npc in divorceNPCs)
 				{
-					player.doDivorce();
-				}
-				newDaySync.barrier("player.divorce");
-				if (IsMasterGame)
-				{
-					foreach (NPC npc in divorceNPCs)
+					if (npc.getSpouse() == null)
 					{
-						if (npc.getSpouse() == null)
-						{
-							npc.PerformDivorce();
-						}
+						npc.PerformDivorce();
 					}
 				}
-				newDaySync.barrier("player.finishDivorce");
-				if (IsMasterGame && (bool)player.changeWalletTypeTonight)
+			}
+			newDaySync.barrier("player.finishDivorce");
+			while (!newDaySync.isBarrierReady("player.finishDivorce"))
+			{
+				yield return 0;
+			}
+			if (IsMasterGame && (bool)player.changeWalletTypeTonight)
+			{
+				if (player.useSeparateWallets)
 				{
-					if (player.useSeparateWallets)
-					{
-						ManorHouse.MergeWallets();
-					}
-					else
-					{
-						ManorHouse.SeparateWallets();
-					}
-				}
-				newDaySync.barrier("player.wallets");
-				getFarm().lastItemShipped = null;
-				getFarm().getShippingBin(player).Clear();
-				newDaySync.barrier("clearShipping");
-				if (IsClient)
-				{
-					multiplayer.sendFarmhand();
-					newDaySync.processMessages();
-				}
-				newDaySync.barrier("sendFarmhands");
-				if (IsMasterGame)
-				{
-					multiplayer.saveFarmhands();
-				}
-				newDaySync.barrier("saveFarmhands");
-				if (dayOfMonth == 27 && currentSeason.Equals("spring"))
-				{
-					_ = year;
-					_ = 1;
-				}
-				if (dayOfMonth == 29)
-				{
-					newSeason();
-					if (!currentSeason.Equals("winter"))
-					{
-						cropsOfTheWeek = Utility.cropsOfTheWeek();
-					}
-					if (currentSeason.Equals("spring"))
-					{
-						year++;
-						if (year == 2)
-						{
-							addKentIfNecessary();
-						}
-					}
-					_ = year;
-					_ = 3;
-				}
-				if (IsMasterGame)
-				{
-					netWorldState.Value.UpdateFromGame1();
-				}
-				newDaySync.barrier("date");
-				if (content.Load<Dictionary<string, string>>("Data\\mail").ContainsKey(currentSeason + "_" + dayOfMonth + "_" + year))
-				{
-					mailbox.Add(currentSeason + "_" + dayOfMonth + "_" + year);
-				}
-				else if (content.Load<Dictionary<string, string>>("Data\\mail").ContainsKey(currentSeason + "_" + dayOfMonth))
-				{
-					mailbox.Add(currentSeason + "_" + dayOfMonth);
-				}
-				RefreshQuestOfTheDay();
-				weatherForTomorrow = getWeatherModificationsForDate(Date, weatherForTomorrow);
-				if (bloom != null)
-				{
-					bloomDay = false;
-				}
-				if (weddingToday)
-				{
-					weatherForTomorrow = 6;
-				}
-				wasRainingYesterday = (isRaining || isLightning);
-				if (weatherForTomorrow == 1 || weatherForTomorrow == 3)
-				{
-					isRaining = true;
-				}
-				if (weatherForTomorrow == 3)
-				{
-					isLightning = true;
-				}
-				if (weatherForTomorrow == 0 || weatherForTomorrow == 2 || weatherForTomorrow == 4 || weatherForTomorrow == 5 || weatherForTomorrow == 6)
-				{
-					isRaining = false;
-					isLightning = false;
-					isSnowing = false;
-					changeMusicTrack("none");
-					if (weatherForTomorrow == 5)
-					{
-						isSnowing = true;
-					}
-				}
-				if (!isRaining && !isLightning)
-				{
-					currentSongIndex++;
-					if (currentSongIndex > 3 || dayOfMonth == 1)
-					{
-						currentSongIndex = 1;
-					}
-				}
-				debrisWeather.Clear();
-				isDebrisWeather = false;
-				if (bloom != null)
-				{
-					bloom.Visible = false;
-				}
-				if (weatherForTomorrow == 2)
-				{
-					populateDebrisWeatherArray();
-				}
-				else if (!isRaining && chanceToRainTomorrow <= 0.1 && bloom != null)
-				{
-					bloomDay = true;
-					bloom.Settings = BloomSettings.PresetSettings[5];
-				}
-				if (currentSeason.Equals("summer"))
-				{
-					chanceToRainTomorrow = ((dayOfMonth > 1) ? (0.12 + (double)((float)dayOfMonth * 0.003f)) : 0.0);
-				}
-				else if (currentSeason.Equals("winter"))
-				{
-					chanceToRainTomorrow = 0.63;
+					ManorHouse.MergeWallets();
 				}
 				else
 				{
-					chanceToRainTomorrow = 0.183;
+					ManorHouse.SeparateWallets();
 				}
-				if (random.NextDouble() < chanceToRainTomorrow)
+			}
+			newDaySync.barrier("player.wallets");
+			while (!newDaySync.isBarrierReady("player.wallets"))
+			{
+				yield return 0;
+			}
+			getFarm().lastItemShipped = null;
+			getFarm().getShippingBin(player).Clear();
+			newDaySync.barrier("clearShipping");
+			while (!newDaySync.isBarrierReady("clearShipping"))
+			{
+				yield return 0;
+			}
+			if (IsClient)
+			{
+				multiplayer.sendFarmhand();
+				newDaySync.processMessages();
+			}
+			newDaySync.barrier("sendFarmhands");
+			while (!newDaySync.isBarrierReady("sendFarmhands"))
+			{
+				yield return 0;
+			}
+			if (IsMasterGame)
+			{
+				multiplayer.saveFarmhands();
+			}
+			newDaySync.barrier("saveFarmhands");
+			while (!newDaySync.isBarrierReady("saveFarmhands"))
+			{
+				yield return 0;
+			}
+			if (IsMasterGame && dayOfMonth >= 15 && dayOfMonth <= 17 && currentSeason.Equals("winter") && IsMasterGame && netWorldState.Value.VisitsUntilY1Guarantee >= 0)
+			{
+				netWorldState.Value.VisitsUntilY1Guarantee--;
+			}
+			if (dayOfMonth == 27 && currentSeason.Equals("spring"))
+			{
+				_ = year;
+				_ = 1;
+			}
+			if (dayOfMonth == 29)
+			{
+				newSeason();
+				if (!currentSeason.Equals("winter"))
 				{
-					weatherForTomorrow = 1;
-					if ((currentSeason.Equals("summer") && random.NextDouble() < 0.85) || (!currentSeason.Equals("winter") && random.NextDouble() < 0.25 && dayOfMonth > 2 && stats.DaysPlayed > 27))
+					cropsOfTheWeek = Utility.cropsOfTheWeek();
+				}
+				if (currentSeason.Equals("spring"))
+				{
+					year++;
+					if (year == 2)
 					{
-						weatherForTomorrow = 3;
-					}
-					if (currentSeason.Equals("winter"))
-					{
-						weatherForTomorrow = 5;
+						addKentIfNecessary();
 					}
 				}
-				else if (stats.DaysPlayed > 2 && ((currentSeason.Equals("spring") && random.NextDouble() < 0.2) || (currentSeason.Equals("fall") && random.NextDouble() < 0.6)) && !weddingToday)
+				_ = year;
+				_ = 3;
+			}
+			if (IsMasterGame && (dayOfMonth == 1 || dayOfMonth == 8 || dayOfMonth == 15 || dayOfMonth == 22))
+			{
+				SpecialOrder.UpdateAvailableSpecialOrders(force_refresh: true);
+			}
+			if (IsMasterGame)
+			{
+				netWorldState.Value.UpdateFromGame1();
+			}
+			newDaySync.barrier("date");
+			while (!newDaySync.isBarrierReady("date"))
+			{
+				yield return 0;
+			}
+			if (IsMasterGame)
+			{
+				for (int l = 0; l < player.team.specialOrders.Count; l++)
 				{
-					weatherForTomorrow = 2;
+					SpecialOrder order2 = player.team.specialOrders[l];
+					if ((SpecialOrder.QuestState)order2.questState != SpecialOrder.QuestState.Complete && order2.GetDaysLeft() <= 0)
+					{
+						order2.OnFail();
+						player.team.specialOrders.RemoveAt(l);
+						l--;
+					}
+				}
+			}
+			newDaySync.barrier("processOrders");
+			while (!newDaySync.isBarrierReady("processOrders"))
+			{
+				yield return 0;
+			}
+			List<string> mail_to_remove_overnight = new List<string>(player.team.mailToRemoveOvernight);
+			List<int> items_to_remove_from_world = new List<int>(player.team.itemsToRemoveOvernight);
+			if (IsMasterGame)
+			{
+				foreach (string item5 in player.team.specialRulesRemovedToday)
+				{
+					SpecialOrder.RemoveSpecialRuleAtEndOfDay(item5);
+				}
+			}
+			player.team.specialRulesRemovedToday.Clear();
+			foreach (int index in items_to_remove_from_world)
+			{
+				if (IsMasterGame)
+				{
+					game1._PerformRemoveNormalItemFromWorldOvernight(index);
+					foreach (Farmer farmer2 in getAllFarmers())
+					{
+						game1._PerformRemoveNormalItemFromFarmerOvernight(farmer2, index);
+					}
 				}
 				else
 				{
-					weatherForTomorrow = 0;
+					game1._PerformRemoveNormalItemFromFarmerOvernight(player, index);
 				}
-				if (Utility.isFestivalDay(dayOfMonth + 1, currentSeason))
-				{
-					weatherForTomorrow = 4;
-				}
-				if (stats.DaysPlayed == 2)
-				{
-					weatherForTomorrow = 1;
-				}
-				foreach (NPC i in Utility.getAllCharacters())
-				{
-					player.mailReceived.Remove(i.Name);
-					player.mailReceived.Remove(i.Name + "Cooking");
-					i.drawOffset.Value = Vector2.Zero;
-				}
+			}
+			foreach (string mail_key in mail_to_remove_overnight)
+			{
 				if (IsMasterGame)
 				{
-					NPC.hasSomeoneWateredCrops = (NPC.hasSomeoneFedThePet = (NPC.hasSomeoneFedTheAnimals = (NPC.hasSomeoneRepairedTheFences = false)));
-					foreach (GameLocation location in locations)
+					foreach (Farmer farmer in getAllFarmers())
 					{
-						location.ResetCharacterDialogues();
-						location.DayUpdate(dayOfMonth);
+						farmer.RemoveMail(mail_key, farmer == MasterPlayer);
 					}
-					UpdateHorseOwnership();
-					foreach (NPC allCharacter2 in Utility.getAllCharacters())
-					{
-						allCharacter2.dayUpdate(dayOfMonth);
-					}
-					HashSet<NPC> purchased_item_npcs = new HashSet<NPC>();
-					UpdateShopPlayerItemInventory("SeedShop", purchased_item_npcs);
-					UpdateShopPlayerItemInventory("FishShop", purchased_item_npcs);
 				}
-				if (isRaining && IsMasterGame)
+				else
 				{
-					GameLocation farm = getLocationFromName("Farm");
-					foreach (KeyValuePair<Vector2, TerrainFeature> kvp in farm.terrainFeatures.Pairs)
+					player.RemoveMail(mail_key);
+				}
+			}
+			newDaySync.barrier("removeItemsFromWorld");
+			while (!newDaySync.isBarrierReady("removeItemsFromWorld"))
+			{
+				yield return 0;
+			}
+			if (IsMasterGame)
+			{
+				player.team.itemsToRemoveOvernight.Clear();
+				player.team.mailToRemoveOvernight.Clear();
+			}
+			if (content.Load<Dictionary<string, string>>("Data\\mail").ContainsKey(currentSeason + "_" + dayOfMonth + "_" + year))
+			{
+				mailbox.Add(currentSeason + "_" + dayOfMonth + "_" + year);
+			}
+			else if (content.Load<Dictionary<string, string>>("Data\\mail").ContainsKey(currentSeason + "_" + dayOfMonth))
+			{
+				mailbox.Add(currentSeason + "_" + dayOfMonth);
+			}
+			if (IsMasterGame && player.team.toggleMineShrineOvernight.Value)
+			{
+				player.team.toggleMineShrineOvernight.Value = false;
+				player.team.mineShrineActivated.Value = !player.team.mineShrineActivated.Value;
+				if (player.team.mineShrineActivated.Value)
+				{
+					netWorldState.Value.MinesDifficulty++;
+				}
+				else
+				{
+					netWorldState.Value.MinesDifficulty--;
+				}
+			}
+			RefreshQuestOfTheDay();
+			weatherForTomorrow = getWeatherModificationsForDate(Date, weatherForTomorrow);
+			if (bloom != null)
+			{
+				bloomDay = false;
+			}
+			if (weddingToday)
+			{
+				weatherForTomorrow = 6;
+			}
+			wasRainingYesterday = (isRaining || isLightning);
+			if (weatherForTomorrow == 1 || weatherForTomorrow == 3)
+			{
+				isRaining = true;
+			}
+			if (weatherForTomorrow == 3)
+			{
+				isLightning = true;
+			}
+			if (weatherForTomorrow == 0 || weatherForTomorrow == 2 || weatherForTomorrow == 4 || weatherForTomorrow == 5 || weatherForTomorrow == 6)
+			{
+				isRaining = false;
+				isLightning = false;
+				isSnowing = false;
+				if (weatherForTomorrow == 5)
+				{
+					isSnowing = true;
+				}
+			}
+			if (!isRaining && !isLightning)
+			{
+				currentSongIndex++;
+				if (currentSongIndex > 3 || dayOfMonth == 1)
+				{
+					currentSongIndex = 1;
+				}
+			}
+			if (IsMasterGame)
+			{
+				game1.SetOtherLocationWeatherForTomorrow(random);
+			}
+			if ((isRaining || isSnowing || isLightning) && currentLocation.GetLocationContext() == GameLocation.LocationContext.Default)
+			{
+				changeMusicTrack("none");
+			}
+			else if (weatherForTomorrow == 4 && weatherForTomorrow == 6)
+			{
+				changeMusicTrack("none");
+			}
+			debrisWeather.Clear();
+			isDebrisWeather = false;
+			if (bloom != null)
+			{
+				bloom.Visible = false;
+			}
+			if (weatherForTomorrow == 2)
+			{
+				populateDebrisWeatherArray();
+			}
+			else if (!isRaining && chanceToRainTomorrow <= 0.1 && bloom != null)
+			{
+				bloomDay = true;
+				bloom.Settings = BloomSettings.PresetSettings[5];
+			}
+			if (currentSeason.Equals("summer"))
+			{
+				chanceToRainTomorrow = ((dayOfMonth > 1) ? (0.12 + (double)((float)dayOfMonth * 0.003f)) : 0.0);
+			}
+			else if (currentSeason.Equals("winter"))
+			{
+				chanceToRainTomorrow = 0.63;
+			}
+			else
+			{
+				chanceToRainTomorrow = 0.183;
+			}
+			if (random.NextDouble() < chanceToRainTomorrow)
+			{
+				weatherForTomorrow = 1;
+				if ((currentSeason.Equals("summer") && random.NextDouble() < 0.85) || (!currentSeason.Equals("winter") && random.NextDouble() < 0.25 && dayOfMonth > 2 && stats.DaysPlayed > 27))
+				{
+					weatherForTomorrow = 3;
+				}
+				if (currentSeason.Equals("winter"))
+				{
+					weatherForTomorrow = 5;
+				}
+			}
+			else if (stats.DaysPlayed > 2 && ((currentSeason.Equals("spring") && random.NextDouble() < 0.2) || (currentSeason.Equals("fall") && random.NextDouble() < 0.6)) && !weddingToday)
+			{
+				weatherForTomorrow = 2;
+			}
+			else
+			{
+				weatherForTomorrow = 0;
+			}
+			if (Utility.isFestivalDay(dayOfMonth + 1, currentSeason))
+			{
+				weatherForTomorrow = 4;
+			}
+			if (stats.DaysPlayed == 2)
+			{
+				weatherForTomorrow = 1;
+			}
+			if (IsMasterGame)
+			{
+				netWorldState.Value.GetWeatherForLocation(GameLocation.LocationContext.Default).weatherForTomorrow.Value = weatherForTomorrow;
+				netWorldState.Value.GetWeatherForLocation(GameLocation.LocationContext.Default).isRaining.Value = isRaining;
+				netWorldState.Value.GetWeatherForLocation(GameLocation.LocationContext.Default).isSnowing.Value = isSnowing;
+				netWorldState.Value.GetWeatherForLocation(GameLocation.LocationContext.Default).isLightning.Value = isLightning;
+				netWorldState.Value.GetWeatherForLocation(GameLocation.LocationContext.Default).isDebrisWeather.Value = isDebrisWeather;
+				netWorldState.Value.GetWeatherForLocation(GameLocation.LocationContext.Default).bloomDay.Value = bloomDay;
+			}
+			foreach (NPC j in Utility.getAllCharacters())
+			{
+				player.mailReceived.Remove(j.Name);
+				player.mailReceived.Remove(j.Name + "Cooking");
+				j.drawOffset.Value = Vector2.Zero;
+			}
+			FarmAnimal.reservedGrass.Clear();
+			if (IsMasterGame)
+			{
+				NPC.hasSomeoneWateredCrops = (NPC.hasSomeoneFedThePet = (NPC.hasSomeoneFedTheAnimals = (NPC.hasSomeoneRepairedTheFences = false)));
+				foreach (GameLocation location in locations)
+				{
+					location.ResetCharacterDialogues();
+					location.DayUpdate(dayOfMonth);
+				}
+				UpdateHorseOwnership();
+				foreach (NPC allCharacter2 in Utility.getAllCharacters())
+				{
+					allCharacter2.islandScheduleName.Value = null;
+					allCharacter2.currentScheduleDelay = 0f;
+				}
+				foreach (NPC allCharacter3 in Utility.getAllCharacters())
+				{
+					allCharacter3.dayUpdate(dayOfMonth);
+				}
+				IslandSouth.SetupIslandSchedules();
+				HashSet<NPC> purchased_item_npcs = new HashSet<NPC>();
+				UpdateShopPlayerItemInventory("SeedShop", purchased_item_npcs);
+				UpdateShopPlayerItemInventory("FishShop", purchased_item_npcs);
+			}
+			if (IsMasterGame && (bool)netWorldState.Value.GetWeatherForLocation(GameLocation.LocationContext.Island).isRaining)
+			{
+				Vector2 tile_location = new Vector2(0f, 0f);
+				IslandLocation island_location = null;
+				List<int> order = new List<int>();
+				for (int i = 0; i < 4; i++)
+				{
+					order.Add(i);
+				}
+				Utility.Shuffle(new Random((int)uniqueIDForThisGame), order);
+				switch (order[currentGemBirdIndex])
+				{
+				case 0:
+					island_location = (getLocationFromName("IslandSouth") as IslandLocation);
+					tile_location = new Vector2(10f, 30f);
+					break;
+				case 1:
+					island_location = (getLocationFromName("IslandNorth") as IslandLocation);
+					tile_location = new Vector2(56f, 56f);
+					break;
+				case 2:
+					island_location = (getLocationFromName("Islandwest") as IslandLocation);
+					tile_location = new Vector2(53f, 51f);
+					break;
+				case 3:
+					island_location = (getLocationFromName("IslandEast") as IslandLocation);
+					tile_location = new Vector2(21f, 35f);
+					break;
+				}
+				currentGemBirdIndex = (currentGemBirdIndex + 1) % 4;
+				if (island_location != null)
+				{
+					island_location.locationGemBird.Value = new IslandGemBird(tile_location, IslandGemBird.GetBirdTypeForLocation(island_location.Name));
+				}
+			}
+			if (IsMasterGame)
+			{
+				GameLocation farm = getLocationFromName("Farm");
+				if (IsRainingHere(farm))
+				{
+					foreach (KeyValuePair<Vector2, TerrainFeature> kvp2 in farm.terrainFeatures.Pairs)
 					{
-						if (kvp.Value is HoeDirt)
+						if (kvp2.Value is HoeDirt && (int)((HoeDirt)kvp2.Value).state != 2)
 						{
-							((HoeDirt)kvp.Value).state.Value = 1;
+							((HoeDirt)kvp2.Value).state.Value = 1;
 						}
 					}
 					(farm as Farm).petBowlWatered.Value = true;
 				}
-				if (player.currentUpgrade != null)
+				GameLocation island_farm = getLocationFromName("IslandWest");
+				if (island_farm != null && IsRainingHere(island_farm))
 				{
-					player.currentUpgrade.daysLeftTillUpgradeDone--;
-					if (getLocationFromName("Farm").objects.ContainsKey(new Vector2(player.currentUpgrade.positionOfCarpenter.X / 64f, player.currentUpgrade.positionOfCarpenter.Y / 64f)))
+					foreach (KeyValuePair<Vector2, TerrainFeature> kvp in island_farm.terrainFeatures.Pairs)
 					{
-						getLocationFromName("Farm").objects.Remove(new Vector2(player.currentUpgrade.positionOfCarpenter.X / 64f, player.currentUpgrade.positionOfCarpenter.Y / 64f));
-					}
-					if (player.currentUpgrade.daysLeftTillUpgradeDone == 0)
-					{
-						switch (player.currentUpgrade.whichBuilding)
+						if (kvp.Value is HoeDirt && (int)((HoeDirt)kvp.Value).state != 2)
 						{
-						case "House":
-							player.HouseUpgradeLevel++;
-							currentHouseTexture = content.Load<Texture2D>("Buildings\\House" + player.HouseUpgradeLevel);
-							break;
-						case "Coop":
-							player.CoopUpgradeLevel++;
-							currentCoopTexture = content.Load<Texture2D>("BuildingUpgrades\\Coop" + player.CoopUpgradeLevel);
-							break;
-						case "Barn":
-							player.BarnUpgradeLevel++;
-							currentBarnTexture = content.Load<Texture2D>("BuildingUpgrades\\Barn" + player.BarnUpgradeLevel);
-							break;
-						case "Greenhouse":
-							player.hasGreenhouse = true;
-							greenhouseTexture = content.Load<Texture2D>("BuildingUpgrades\\Greenhouse");
-							break;
+							((HoeDirt)kvp.Value).state.Value = 1;
 						}
-						stats.checkForBuildingUpgradeAchievements();
-						removeFrontLayerForFarmBuildings();
-						addNewFarmBuildingMaps();
-						player.currentUpgrade = null;
-						changeInvisibility("Robin", invisibility: false);
-					}
-					else if (player.currentUpgrade.daysLeftTillUpgradeDone == 3)
-					{
-						changeInvisibility("Robin", invisibility: true);
 					}
 				}
-				newDaySync.barrier("buildingUpgrades");
-				stats.AverageBedtime = (uint)timeOfDay;
-				timeOfDay = 600;
-				newDay = false;
-				if (IsMasterGame)
+			}
+			if (player.currentUpgrade != null)
+			{
+				player.currentUpgrade.daysLeftTillUpgradeDone--;
+				if (getLocationFromName("Farm").objects.ContainsKey(new Vector2(player.currentUpgrade.positionOfCarpenter.X / 64f, player.currentUpgrade.positionOfCarpenter.Y / 64f)))
 				{
-					netWorldState.Value.UpdateFromGame1();
+					getLocationFromName("Farm").objects.Remove(new Vector2(player.currentUpgrade.positionOfCarpenter.X / 64f, player.currentUpgrade.positionOfCarpenter.Y / 64f));
 				}
-				if (player.currentLocation != null)
+				if (player.currentUpgrade.daysLeftTillUpgradeDone == 0)
 				{
-					player.currentLocation.resetForPlayerEntry();
-					if (player.currentLocation is FarmHouse)
+					switch (player.currentUpgrade.whichBuilding)
 					{
-						_ = (player.currentLocation as FarmHouse).upgradeLevel;
-						Microsoft.Xna.Framework.Point bed = (player.currentLocation as FarmHouse).getBedSpot();
-						player.Position = Utility.PointToVector2(bed) * 64f;
-						player.position.X -= 64f;
-						player.position.Y += 32f;
-					}
-				}
-				_ = currentWallpaper;
-				wallpaperPrice = random.Next(75, 500) + player.HouseUpgradeLevel * 100;
-				wallpaperPrice -= wallpaperPrice % 5;
-				_ = currentFloor;
-				floorPrice = random.Next(75, 500) + player.HouseUpgradeLevel * 100;
-				floorPrice -= floorPrice % 5;
-				updateWeatherIcon();
-				freezeControls = false;
-				if (stats.DaysPlayed > 1 || !IsMasterGame)
-				{
-					farmEvent = null;
-					if (IsMasterGame)
-					{
-						farmEvent = Utility.pickFarmEvent();
-						newDaySync.sendVar<NetRef<FarmEvent>, FarmEvent>("farmEvent", farmEvent);
-					}
-					else
-					{
-						farmEvent = newDaySync.waitForVar<NetRef<FarmEvent>, FarmEvent>("farmEvent");
-					}
-					if (farmEvent == null)
-					{
-						farmEvent = Utility.pickPersonalFarmEvent();
-					}
-					if (farmEvent != null && farmEvent.setUp())
-					{
-						farmEvent = null;
-					}
-				}
-				if (farmEvent == null)
-				{
-					RemoveDeliveredMailForTomorrow();
-				}
-				newDaySync.barrier("mail");
-				foreach (Building building in getFarm().buildings)
-				{
-					if ((int)building.daysOfConstructionLeft <= 0 && building.indoors.Value is Cabin)
-					{
-						player.slotCanHost = true;
+					case "House":
+						player.HouseUpgradeLevel++;
+						currentHouseTexture = content.Load<Texture2D>("Buildings\\House" + player.HouseUpgradeLevel);
+						break;
+					case "Coop":
+						player.CoopUpgradeLevel++;
+						currentCoopTexture = content.Load<Texture2D>("BuildingUpgrades\\Coop" + player.CoopUpgradeLevel);
+						break;
+					case "Barn":
+						player.BarnUpgradeLevel++;
+						currentBarnTexture = content.Load<Texture2D>("BuildingUpgrades\\Barn" + player.BarnUpgradeLevel);
+						break;
+					case "Greenhouse":
+						player.hasGreenhouse = true;
+						greenhouseTexture = content.Load<Texture2D>("BuildingUpgrades\\Greenhouse");
 						break;
 					}
+					stats.checkForBuildingUpgradeAchievements();
+					removeFrontLayerForFarmBuildings();
+					addNewFarmBuildingMaps();
+					player.currentUpgrade = null;
+					changeInvisibility("Robin", invisibility: false);
+				}
+				else if (player.currentUpgrade.daysLeftTillUpgradeDone == 3)
+				{
+					changeInvisibility("Robin", invisibility: true);
+				}
+			}
+			newDaySync.barrier("buildingUpgrades");
+			while (!newDaySync.isBarrierReady("buildingUpgrades"))
+			{
+				yield return 0;
+			}
+			stats.AverageBedtime = (uint)timeOfDay;
+			timeOfDay = 600;
+			newDay = false;
+			if (IsMasterGame)
+			{
+				netWorldState.Value.UpdateFromGame1();
+			}
+			if (player.currentLocation != null)
+			{
+				player.currentLocation.resetForPlayerEntry();
+				BedFurniture.ApplyWakeUpPosition(player);
+				forceSnapOnNextViewportUpdate = true;
+				UpdateViewPort(overrideFreeze: false, new Microsoft.Xna.Framework.Point(player.getStandingX(), player.getStandingY()));
+				previousViewportPosition = new Vector2(viewport.X, viewport.Y);
+			}
+			player.sleptInTemporaryBed.Value = false;
+			_ = currentWallpaper;
+			wallpaperPrice = random.Next(75, 500) + player.HouseUpgradeLevel * 100;
+			wallpaperPrice -= wallpaperPrice % 5;
+			_ = currentFloor;
+			floorPrice = random.Next(75, 500) + player.HouseUpgradeLevel * 100;
+			floorPrice -= floorPrice % 5;
+			updateWeatherIcon();
+			freezeControls = false;
+			if (stats.DaysPlayed > 1 || !IsMasterGame)
+			{
+				farmEvent = null;
+				if (IsMasterGame)
+				{
+					farmEvent = Utility.pickFarmEvent();
+					newDaySync.sendVar<NetRef<FarmEvent>, FarmEvent>("farmEvent", farmEvent);
+				}
+				else
+				{
+					while (!newDaySync.isVarReady("farmEvent"))
+					{
+						yield return 0;
+					}
+					farmEvent = newDaySync.waitForVar<NetRef<FarmEvent>, FarmEvent>("farmEvent");
 				}
 				if (farmEvent == null)
 				{
-					handlePostFarmEventActions();
-					showEndOfNightStuff();
+					farmEvent = Utility.pickPersonalFarmEvent();
 				}
-				if (server != null)
+				if (farmEvent != null && farmEvent.setUp())
 				{
-					server.updateLobbyData();
+					farmEvent = null;
 				}
 			}
-			catch (AbortNetSynchronizerException)
+			if (farmEvent == null)
 			{
+				RemoveDeliveredMailForTomorrow();
 			}
+			if (player.team.newLostAndFoundItems.Value)
+			{
+				morningQueue.Enqueue(delegate
+				{
+					showGlobalMessage(content.LoadString("Strings\\StringsFromCSFiles:NewLostAndFoundItems"));
+				});
+			}
+			newDaySync.barrier("mail");
+			while (!newDaySync.isBarrierReady("mail"))
+			{
+				yield return 0;
+			}
+			if (IsMasterGame)
+			{
+				player.team.newLostAndFoundItems.Value = false;
+			}
+			foreach (Building building in getFarm().buildings)
+			{
+				if ((int)building.daysOfConstructionLeft <= 0 && building.indoors.Value is Cabin)
+				{
+					player.slotCanHost = true;
+					break;
+				}
+			}
+			if (Utility.percentGameComplete() >= 1f)
+			{
+				player.team.farmPerfect.Value = true;
+			}
+			newDaySync.barrier("checkcompletion");
+			while (!newDaySync.isBarrierReady("checkcompletion"))
+			{
+				yield return 0;
+			}
+			UpdateFarmPerfection();
+			if (farmEvent == null)
+			{
+				handlePostFarmEventActions();
+				showEndOfNightStuff();
+			}
+			if (server != null)
+			{
+				server.updateLobbyData();
+			}
+		}
+
+		public virtual void SetOtherLocationWeatherForTomorrow(Random random)
+		{
+			netWorldState.Value.GetWeatherForLocation(GameLocation.LocationContext.Island).InitializeDayWeather();
+			if (netWorldState.Value.GetWeatherForLocation(GameLocation.LocationContext.Island).weatherForTomorrow.Value == 1)
+			{
+				netWorldState.Value.GetWeatherForLocation(GameLocation.LocationContext.Island).isRaining.Value = true;
+			}
+			netWorldState.Value.GetWeatherForLocation(GameLocation.LocationContext.Island).weatherForTomorrow.Value = 0;
+			if (random.NextDouble() < 0.24)
+			{
+				netWorldState.Value.GetWeatherForLocation(GameLocation.LocationContext.Island).weatherForTomorrow.Value = 1;
+			}
+			if (!Utility.doesAnyFarmerHaveOrWillReceiveMail("Visited_Island"))
+			{
+				netWorldState.Value.GetWeatherForLocation(GameLocation.LocationContext.Island).weatherForTomorrow.Value = 0;
+			}
+		}
+
+		public static void UpdateFarmPerfection()
+		{
+			if (!MasterPlayer.mailReceived.Contains("Farm_Eternal") && MasterPlayer.hasCompletedCommunityCenter() && player.team.farmPerfect.Value)
+			{
+				addMorningFluffFunction(delegate
+				{
+					changeMusicTrack("none");
+					if (IsMasterGame)
+					{
+						multiplayer.globalChatInfoMessageEvenInSinglePlayer("Eternal1");
+					}
+					playSound("discoverMineral");
+					if (IsMasterGame)
+					{
+						DelayedAction.functionAfterDelay(delegate
+						{
+							multiplayer.globalChatInfoMessageEvenInSinglePlayer("Eternal2", MasterPlayer.farmName);
+						}, 4000);
+					}
+					player.mailReceived.Add("Farm_Eternal");
+					DelayedAction.functionAfterDelay(delegate
+					{
+						playSound("thunder_small");
+						if (IsMultiplayer)
+						{
+							if (IsMasterGame)
+							{
+								multiplayer.globalChatInfoMessage("Eternal3");
+							}
+						}
+						else
+						{
+							showGlobalMessage(content.LoadString("Strings\\UI:Chat_Eternal3"));
+						}
+					}, 12000);
+				});
+			}
+		}
+
+		public static bool IsRainingHere(GameLocation location = null)
+		{
+			if (netWorldState == null)
+			{
+				return false;
+			}
+			if (location == null)
+			{
+				location = currentLocation;
+			}
+			if (location == null)
+			{
+				return false;
+			}
+			return netWorldState.Value.GetWeatherForLocation(location.GetLocationContext()).isRaining;
+		}
+
+		public static bool IsLightningHere(GameLocation location = null)
+		{
+			if (netWorldState == null)
+			{
+				return false;
+			}
+			if (location == null)
+			{
+				location = currentLocation;
+			}
+			if (location == null)
+			{
+				return false;
+			}
+			return netWorldState.Value.GetWeatherForLocation(location.GetLocationContext()).isLightning;
+		}
+
+		public static bool IsSnowingHere(GameLocation location = null)
+		{
+			if (netWorldState == null)
+			{
+				return false;
+			}
+			if (location == null)
+			{
+				location = currentLocation;
+			}
+			if (location == null)
+			{
+				return false;
+			}
+			return netWorldState.Value.GetWeatherForLocation(location.GetLocationContext()).isSnowing;
+		}
+
+		public static bool IsDebrisWeatherHere(GameLocation location = null)
+		{
+			if (netWorldState == null)
+			{
+				return false;
+			}
+			if (location == null)
+			{
+				location = currentLocation;
+			}
+			if (location == null)
+			{
+				return false;
+			}
+			return netWorldState.Value.GetWeatherForLocation(location.GetLocationContext()).isDebrisWeather;
 		}
 
 		public static int getWeatherModificationsForDate(WorldDate date, int default_weather)
@@ -7069,11 +9126,35 @@ namespace StardewValley
 		{
 			foreach (GameLocation i in locations)
 			{
-				foreach (Action postFarmEventOvernightAction in i.postFarmEventOvernightActions)
+				if (i is BuildableGameLocation)
 				{
-					postFarmEventOvernightAction();
+					foreach (Building building in (i as BuildableGameLocation).buildings)
+					{
+						if (building.indoors.Value != null)
+						{
+							foreach (Action postFarmEventOvernightAction in building.indoors.Value.postFarmEventOvernightActions)
+							{
+								postFarmEventOvernightAction();
+							}
+							building.indoors.Value.postFarmEventOvernightActions.Clear();
+						}
+					}
+				}
+				foreach (Action postFarmEventOvernightAction2 in i.postFarmEventOvernightActions)
+				{
+					postFarmEventOvernightAction2();
 				}
 				i.postFarmEventOvernightActions.Clear();
+			}
+			if (IsMasterGame)
+			{
+				Mountain mountain = getLocationFromName("Mountain") as Mountain;
+				mountain.ApplyTreehouseIfNecessary();
+				if (mountain.treehouseDoorDirty)
+				{
+					mountain.treehouseDoorDirty = false;
+					NPC.populateRoutesFromLocationToLocationList();
+				}
 			}
 		}
 
@@ -7150,6 +9231,8 @@ namespace StardewValley
 		{
 			if (!IsMultiplayer)
 			{
+				newDaySync = null;
+				currentLocation.resetForPlayerEntry();
 				return true;
 			}
 			if (newDaySync.readyForFinish())
@@ -7160,8 +9243,8 @@ namespace StardewValley
 				}
 				if (newDaySync != null && newDaySync.hasFinished())
 				{
-					currentLocation.resetForPlayerEntry();
 					newDaySync = null;
+					currentLocation.resetForPlayerEntry();
 					return true;
 				}
 			}
@@ -7179,23 +9262,23 @@ namespace StardewValley
 
 		public static void updateWeatherIcon()
 		{
-			if (isSnowing)
+			if (IsSnowingHere())
 			{
 				weatherIcon = 7;
 			}
-			else if (isRaining)
+			else if (IsRainingHere())
 			{
 				weatherIcon = 4;
 			}
-			else if (isDebrisWeather && currentSeason.Equals("spring"))
+			else if (IsDebrisWeatherHere() && currentSeason.Equals("spring"))
 			{
 				weatherIcon = 3;
 			}
-			else if (isDebrisWeather && currentSeason.Equals("fall"))
+			else if (IsDebrisWeatherHere() && currentSeason.Equals("fall"))
 			{
 				weatherIcon = 6;
 			}
-			else if (isDebrisWeather && currentSeason.Equals("winter"))
+			else if (IsDebrisWeatherHere() && currentSeason.Equals("winter"))
 			{
 				weatherIcon = 7;
 			}
@@ -7207,7 +9290,7 @@ namespace StardewValley
 			{
 				weatherIcon = 2;
 			}
-			if (isLightning)
+			if (IsLightningHere())
 			{
 				weatherIcon = 5;
 			}
@@ -7273,11 +9356,12 @@ namespace StardewValley
 		{
 			foreach (GameLocation j in locations)
 			{
-				j.seasonUpdate(currentSeason, onLoad: true);
+				string season = GetSeasonForLocation(j);
+				j.seasonUpdate(season, onLoad: true);
 				j.updateSeasonalTileSheets();
 				if (j.IsOutdoors)
 				{
-					if (currentSeason.Equals("spring"))
+					if (season.Equals("spring"))
 					{
 						foreach (KeyValuePair<Vector2, Object> o4 in j.Objects.Pairs)
 						{
@@ -7288,11 +9372,11 @@ namespace StardewValley
 						}
 						eveningColor = new Microsoft.Xna.Framework.Color(255, 255, 0);
 					}
-					else if (currentSeason.Equals("summer"))
+					else if (season.Equals("summer"))
 					{
 						foreach (KeyValuePair<Vector2, Object> o3 in j.Objects.Pairs)
 						{
-							if (o3.Value.Name.Contains("Weed"))
+							if (o3.Value.Name.Contains("Weed") && o3.Value.ParentSheetIndex != 882 && o3.Value.ParentSheetIndex != 883 && o3.Value.ParentSheetIndex != 884)
 							{
 								if ((int)o3.Value.parentSheetIndex == 792)
 								{
@@ -7310,11 +9394,11 @@ namespace StardewValley
 						}
 						eveningColor = new Microsoft.Xna.Framework.Color(255, 255, 0);
 					}
-					else if (currentSeason.Equals("fall"))
+					else if (season.Equals("fall"))
 					{
 						foreach (KeyValuePair<Vector2, Object> o2 in j.Objects.Pairs)
 						{
-							if (o2.Value.Name.Contains("Weed"))
+							if (o2.Value.Name.Contains("Weed") && o2.Value.ParentSheetIndex != 882 && o2.Value.ParentSheetIndex != 883 && o2.Value.ParentSheetIndex != 884)
 							{
 								if ((int)o2.Value.parentSheetIndex == 793)
 								{
@@ -7336,14 +9420,17 @@ namespace StardewValley
 							item.which = 2;
 						}
 					}
-					else if (currentSeason.Equals("winter"))
+					else if (season.Equals("winter"))
 					{
 						for (int i = j.Objects.Count() - 1; i >= 0; i--)
 						{
 							Object o = j.Objects[j.Objects.Keys.ElementAt(i)];
 							if (o.Name.Contains("Weed"))
 							{
-								j.Objects.Remove(j.Objects.Keys.ElementAt(i));
+								if (o.ParentSheetIndex != 882 && o.ParentSheetIndex != 883 && o.ParentSheetIndex != 884)
+								{
+									j.Objects.Remove(j.Objects.Keys.ElementAt(i));
+								}
 							}
 							else if (((!o.Name.Contains("Stump") && !o.Name.Contains("Boulder") && !o.Name.Equals("Stick") && !o.Name.Equals("Stone")) || o.ParentSheetIndex > 100) && j.IsOutdoors && !o.isHoedirt)
 							{
@@ -7427,7 +9514,12 @@ namespace StardewValley
 			}
 		}
 
-		public static bool shouldTimePass()
+		public static bool IsVisitingIslandToday(string npc_name)
+		{
+			return netWorldState.Value.IslandVisitors.ContainsKey(npc_name);
+		}
+
+		public static bool shouldTimePass(bool ignore_multiplayer = false)
 		{
 			if (isFestival())
 			{
@@ -7441,9 +9533,9 @@ namespace StardewValley
 			{
 				return false;
 			}
-			if (IsMultiplayer)
+			if (IsMultiplayer && !ignore_multiplayer)
 			{
-				return true;
+				return !netWorldState.Value.IsTimePaused;
 			}
 			if (paused || freezeControls || overlayMenu != null || isTimePaused)
 			{
@@ -7478,9 +9570,17 @@ namespace StardewValley
 			previousViewportPosition.X = viewport.X;
 			previousViewportPosition.Y = viewport.Y;
 			Farmer farmer = getPlayerOrEventFarmer();
+			if (currentLocation == null)
+			{
+				return;
+			}
 			if (!viewportFreeze | overrideFreeze)
 			{
 				bool snapBack = Math.Abs(currentViewportTarget.X + (float)(viewport.Width / 2) - (float)farmer.getStandingX()) > 64f || Math.Abs(currentViewportTarget.Y + (float)(viewport.Height / 2) - (float)farmer.getStandingY()) > 64f;
+				if (forceSnapOnNextViewportUpdate)
+				{
+					snapBack = true;
+				}
 				if (centerPoint.X >= viewport.Width / 2 && centerPoint.X <= currentLocation.Map.DisplayWidth - viewport.Width / 2)
 				{
 					if (farmer.isRafting | snapBack)
@@ -7576,6 +9676,12 @@ namespace StardewValley
 				currentViewportTarget.X = farmer.Position.X - (float)(viewport.Width / 2);
 				currentViewportTarget.Y = farmer.Position.Y - (float)(viewport.Height / 2);
 			}
+			bool force_snap = false;
+			if (forceSnapOnNextViewportUpdate)
+			{
+				force_snap = true;
+				forceSnapOnNextViewportUpdate = false;
+			}
 			if (currentViewportTarget.X != -2.14748365E+09f && (!viewportFreeze || overrideFreeze))
 			{
 				int difference2 = (int)(currentViewportTarget.X - (float)viewport.X);
@@ -7596,6 +9702,11 @@ namespace StardewValley
 				{
 					viewportPositionLerp.Y += (float)difference2 * farmer.getMovementSpeed() * 0.03f;
 				}
+				if (force_snap)
+				{
+					viewportPositionLerp.X = (int)currentViewportTarget.X;
+					viewportPositionLerp.Y = (int)currentViewportTarget.Y;
+				}
 				viewport.X = (int)viewportPositionLerp.X;
 				viewport.Y = (int)viewportPositionLerp.Y;
 			}
@@ -7613,6 +9724,28 @@ namespace StardewValley
 				if (v.Key != player.UniqueMultiplayerID)
 				{
 					v.Value.UpdateIfOtherPlayer(time);
+				}
+			}
+		}
+
+		public static void addMail(string mailName, bool noLetter = false, bool sendToEveryone = false)
+		{
+			if (sendToEveryone)
+			{
+				multiplayer.broadcastPartyWideMail(mailName, Multiplayer.PartyWideMessageQueue.SeenMail, noLetter);
+				return;
+			}
+			mailName = mailName.Trim();
+			mailName = mailName.Replace(Environment.NewLine, "");
+			if (!player.hasOrWillReceiveMail(mailName))
+			{
+				if (noLetter)
+				{
+					player.mailReceived.Add(mailName);
+				}
+				else
+				{
+					player.mailbox.Add(mailName);
 				}
 			}
 		}
@@ -7702,6 +9835,15 @@ namespace StardewValley
 		public static void drawDialogue(NPC speaker, string dialogue)
 		{
 			speaker.CurrentDialogue.Push(new Dialogue(dialogue, speaker));
+			drawDialogue(speaker);
+		}
+
+		public static void drawDialogue(NPC speaker, string dialogue, Texture2D overridePortrait)
+		{
+			speaker.CurrentDialogue.Push(new Dialogue(dialogue, speaker)
+			{
+				overridePortrait = overridePortrait
+			});
 			drawDialogue(speaker);
 		}
 
@@ -7863,7 +10005,7 @@ namespace StardewValley
 			character.isCharging = false;
 			character.speed = 2;
 			character.blockedInterval = 0;
-			string textureFileName = character.Name;
+			string textureFileName = NPC.getTextureNameForCharacter(character.Name);
 			bool load = false;
 			if (character.isVillager())
 			{
@@ -7933,7 +10075,7 @@ namespace StardewValley
 			LocationRequest obj = getLocationRequest(player.homeLocation.Value);
 			obj.OnWarp += delegate
 			{
-				player.position.Set(Utility.PointToVector2((currentLocation as FarmHouse).getBedSpot()) * 64f);
+				player.position.Set(Utility.PointToVector2((currentLocation as FarmHouse).GetPlayerBedSpot()) * 64f);
 			};
 			warpFarmer(obj, 5, 9, player.FacingDirection);
 		}
@@ -7953,11 +10095,71 @@ namespace StardewValley
 			warpFarmer(getLocationRequest(locationName, isStructure), tileX, tileY, facingDirectionAfterWarp);
 		}
 
+		public virtual bool ShouldDismountOnWarp(Horse mount, GameLocation old_location, GameLocation new_location)
+		{
+			if (mount == null)
+			{
+				return false;
+			}
+			if (currentLocation != null && currentLocation.IsOutdoors && new_location != null)
+			{
+				return !new_location.IsOutdoors;
+			}
+			return false;
+		}
+
 		public static void warpFarmer(LocationRequest locationRequest, int tileX, int tileY, int facingDirectionAfterWarp)
 		{
-			if (locationRequest.Name.Equals("Beach") && currentSeason.Equals("winter") && dayOfMonth >= 15 && dayOfMonth <= 17)
+			int warp_offset_x = nextFarmerWarpOffsetX;
+			int warp_offset_y = nextFarmerWarpOffsetY;
+			nextFarmerWarpOffsetX = 0;
+			nextFarmerWarpOffsetY = 0;
+			if (locationRequest.Name.Equals("Beach") && currentSeason.Equals("winter") && dayOfMonth >= 15 && dayOfMonth <= 17 && !eventUp)
 			{
 				locationRequest = getLocationRequest("BeachNightMarket");
+			}
+			if (locationRequest.Name.Equals("Farm") && currentLocation.NameOrUniqueName == "Greenhouse")
+			{
+				bool was_map_exit = false;
+				foreach (Warp warp in currentLocation.warps)
+				{
+					if (warp.TargetX == tileX && warp.TargetY == tileY)
+					{
+						was_map_exit = true;
+						break;
+					}
+				}
+				if (was_map_exit)
+				{
+					Building target_building = null;
+					foreach (Building building in getFarm().buildings)
+					{
+						if (building is GreenhouseBuilding)
+						{
+							target_building = building;
+							break;
+						}
+					}
+					if (target_building != null)
+					{
+						tileX = target_building.getPointForHumanDoor().X;
+						tileY = target_building.getPointForHumanDoor().Y + 1;
+					}
+				}
+			}
+			if (player.isRidingHorse() && currentLocation != null)
+			{
+				GameLocation next_location = locationRequest.Location;
+				if (next_location == null)
+				{
+					next_location = getLocationFromName(locationRequest.Name);
+				}
+				if (game1.ShouldDismountOnWarp(player.mount, currentLocation, next_location))
+				{
+					player.mount.dismount();
+					warp_offset_x = 0;
+					warp_offset_y = 0;
+				}
 			}
 			if (locationRequest.Name.Equals("Trailer") && MasterPlayer.mailReceived.Contains("pamHouseUpgrade"))
 			{
@@ -7965,22 +10167,58 @@ namespace StardewValley
 				tileX = 13;
 				tileY = 24;
 			}
-			if (whichFarm == 5 && locationRequest.Name.Equals("Farm"))
+			if (locationRequest.Name.Equals("Farm"))
 			{
-				if (tileX == 34 && tileY == 6)
+				Farm farm = getFarm();
+				if (currentLocation.NameOrUniqueName == "FarmCave" && tileX == 34 && tileY == 6)
 				{
-					tileX = 30;
-					tileY = 36;
+					if (whichFarm == 6)
+					{
+						tileX = 34;
+						tileY = 16;
+					}
+					else if (whichFarm == 5)
+					{
+						tileX = 30;
+						tileY = 36;
+					}
+					Microsoft.Xna.Framework.Point exit_location5 = farm.GetMapPropertyPosition("FarmCaveEntry", tileX, tileY);
+					tileX = exit_location5.X;
+					tileY = exit_location5.Y;
 				}
-				else if (tileX == 28 && tileY == 16)
+				else if (currentLocation.NameOrUniqueName == "Forest" && tileX == 41 && tileY == 64)
 				{
-					tileX = 39;
-					tileY = 35;
+					if (whichFarm == 6)
+					{
+						tileX = 82;
+						tileY = 103;
+					}
+					else if (whichFarm == 5)
+					{
+						tileX = 40;
+						tileY = 64;
+					}
+					Microsoft.Xna.Framework.Point exit_location4 = farm.GetMapPropertyPosition("ForestEntry", tileX, tileY);
+					tileX = exit_location4.X;
+					tileY = exit_location4.Y;
 				}
-				else if (tileX == 41 && tileY == 64)
+				else if (currentLocation.NameOrUniqueName == "BusStop" && tileX == 79 && tileY == 17)
 				{
-					tileX = 40;
-					tileY = 64;
+					Microsoft.Xna.Framework.Point exit_location3 = farm.GetMapPropertyPosition("BusStopEntry", tileX, tileY);
+					tileX = exit_location3.X;
+					tileY = exit_location3.Y;
+				}
+				else if (currentLocation.NameOrUniqueName == "Backwoods" && tileX == 40 && tileY == 0)
+				{
+					Microsoft.Xna.Framework.Point exit_location2 = farm.GetMapPropertyPosition("BackwoodsEntry", tileX, tileY);
+					tileX = exit_location2.X;
+					tileY = exit_location2.Y;
+				}
+				else if (currentLocation.NameOrUniqueName == "FarmHouse" && tileX == 64 && tileY == 15)
+				{
+					Microsoft.Xna.Framework.Point exit_location = farm.GetMainFarmHouseEntry();
+					tileX = exit_location.X;
+					tileY = exit_location.Y;
 				}
 			}
 			if (locationRequest.Name.Equals("Club") && !player.hasClubCard)
@@ -8044,6 +10282,8 @@ namespace StardewValley
 							if (player.mount != null)
 							{
 								player.mount.dismount();
+								warp_offset_x = 0;
+								warp_offset_y = 0;
 							}
 							performWarpFarmer(locationRequest, tileX, tileY, facingDirectionAfterWarp);
 						});
@@ -8052,9 +10292,13 @@ namespace StardewValley
 					if (player.mount != null)
 					{
 						player.mount.dismount();
+						warp_offset_x = 0;
+						warp_offset_y = 0;
 					}
 				}
 			}
+			tileX += warp_offset_x;
+			tileY += warp_offset_y;
 			performWarpFarmer(locationRequest, tileX, tileY, facingDirectionAfterWarp);
 		}
 
@@ -8076,6 +10320,10 @@ namespace StardewValley
 				}
 			}
 			Console.WriteLine("Warping to " + locationRequest.Name);
+			if (player.IsSitting())
+			{
+				player.StopSitting(animate: false);
+			}
 			player.previousLocationName = ((player.currentLocation != null) ? ((string)player.currentLocation.name) : "");
 			Game1.locationRequest = locationRequest;
 			xLocationAfterWarp = tileX;
@@ -8143,9 +10391,9 @@ namespace StardewValley
 			return null;
 		}
 
-		public static NPC getCharacterFromName(string name, bool mustBeVillager = true)
+		public static NPC getCharacterFromName(string name, bool mustBeVillager = true, bool useLocationsListOnly = false)
 		{
-			if (currentLocation != null && !(currentLocation is MovieTheater))
+			if (!useLocationsListOnly && currentLocation != null && !(currentLocation is MovieTheater))
 			{
 				foreach (NPC ch2 in currentLocation.getCharacters())
 				{
@@ -8219,17 +10467,17 @@ namespace StardewValley
 
 		public static GameLocation getLocationFromName(string name, bool isStructure)
 		{
-			if (name == null || name == "")
+			if (string.IsNullOrEmpty(name))
 			{
 				return null;
 			}
 			if (currentLocation != null)
 			{
-				if (!isStructure && (string)currentLocation.name == name)
+				if (!isStructure && string.Equals(currentLocation.name, name, StringComparison.OrdinalIgnoreCase))
 				{
 					return currentLocation;
 				}
-				if (!isStructure && (bool)currentLocation.isStructure && currentLocation.Root != null && (string)currentLocation.Root.Value.name == name)
+				if (!isStructure && (bool)currentLocation.isStructure && currentLocation.Root != null && string.Equals(currentLocation.Root.Value.name, name, StringComparison.OrdinalIgnoreCase))
 				{
 					return currentLocation.Root.Value;
 				}
@@ -8242,6 +10490,11 @@ namespace StardewValley
 			{
 				return cached_location;
 			}
+			return getLocationFromNameInLocationsList(name, isStructure);
+		}
+
+		public static GameLocation getLocationFromNameInLocationsList(string name, bool isStructure = false)
+		{
 			for (int i = 0; i < locations.Count; i++)
 			{
 				if (!isStructure)
@@ -8263,6 +10516,10 @@ namespace StardewValley
 			if (name.StartsWith("UndergroundMine", StringComparison.OrdinalIgnoreCase))
 			{
 				return MineShaft.GetMine(name);
+			}
+			if (name.StartsWith("VolcanoDungeon", StringComparison.OrdinalIgnoreCase))
+			{
+				return VolcanoDungeon.GetLevel(name);
 			}
 			if (!isStructure)
 			{
@@ -8380,6 +10637,8 @@ namespace StardewValley
 
 		public static void PassOutNewDay()
 		{
+			player.lastSleepLocation.Value = currentLocation.NameOrUniqueName;
+			player.lastSleepPoint.Value = player.getTileLocationPoint();
 			if (!IsMultiplayer)
 			{
 				NewDay(0f);
@@ -8446,32 +10705,6 @@ namespace StardewValley
 
 		public static void removeFrontLayerForFarmBuildings()
 		{
-			GameLocation farm = getLocationFromName("Farm");
-			if (player.CoopUpgradeLevel > 0)
-			{
-				removeTilesFromLayer(farm, "Front", new Microsoft.Xna.Framework.Rectangle(20, 5, 4, 6));
-			}
-			switch (player.BarnUpgradeLevel)
-			{
-			case 1:
-				removeTilesFromLayer(farm, "Front", new Microsoft.Xna.Framework.Rectangle(12, 5, 5, 6));
-				break;
-			case 2:
-				removeTilesFromLayer(farm, "Front", new Microsoft.Xna.Framework.Rectangle(9, 4, 8, 7));
-				break;
-			}
-			switch (player.HouseUpgradeLevel)
-			{
-			case 1:
-				removeTilesFromLayer(farm, "Front", new Microsoft.Xna.Framework.Rectangle(31, 6, 5, 5));
-				break;
-			case 2:
-				removeTilesFromLayer(farm, "Front", new Microsoft.Xna.Framework.Rectangle(31, 5, 5, 6));
-				break;
-			case 3:
-				removeTilesFromLayer(farm, "Front", new Microsoft.Xna.Framework.Rectangle(31, 5, 5, 6));
-				break;
-			}
 		}
 
 		public static string shortDayNameFromDayOfSeason(int dayOfSeason)
@@ -8499,25 +10732,11 @@ namespace StardewValley
 
 		public static string shortDayDisplayNameFromDayOfSeason(int dayOfSeason)
 		{
-			switch (dayOfSeason % 7)
+			if (dayOfSeason < 0)
 			{
-			case 0:
-				return content.LoadString("Strings\\StringsFromCSFiles:Game1.cs.3042");
-			case 1:
-				return content.LoadString("Strings\\StringsFromCSFiles:Game1.cs.3043");
-			case 2:
-				return content.LoadString("Strings\\StringsFromCSFiles:Game1.cs.3044");
-			case 3:
-				return content.LoadString("Strings\\StringsFromCSFiles:Game1.cs.3045");
-			case 4:
-				return content.LoadString("Strings\\StringsFromCSFiles:Game1.cs.3046");
-			case 5:
-				return content.LoadString("Strings\\StringsFromCSFiles:Game1.cs.3047");
-			case 6:
-				return content.LoadString("Strings\\StringsFromCSFiles:Game1.cs.3048");
-			default:
-				return "";
+				return string.Empty;
 			}
+			return _shortDayDisplayName[dayOfSeason % 7];
 		}
 
 		public static void showNameSelectScreen(string type)
@@ -8610,6 +10829,25 @@ namespace StardewValley
 			playSound("throwDownITem");
 		}
 
+		public static void runTestEvent()
+		{
+			StreamReader file = new StreamReader("test_event.txt");
+			string text = file.ReadLine();
+			string event_string = file.ReadToEnd();
+			event_string = event_string.Replace("\r\n", "/");
+			Console.WriteLine(event_string);
+			LocationRequest location_request = getLocationRequest(text);
+			location_request.OnWarp += delegate
+			{
+				currentLocation.currentEvent = new Event(event_string);
+				currentLocation.checkForEvents();
+			};
+			int x = 8;
+			int y = 8;
+			Utility.getDefaultWarpLocation(text, ref x, ref y);
+			warpFarmer(location_request, x, y, player.FacingDirection);
+		}
+
 		public static bool isMusicContextActiveButNotPlaying(MusicContext music_context = MusicContext.Default)
 		{
 			if (_activeMusicContext != music_context)
@@ -8669,7 +10907,7 @@ namespace StardewValley
 				}
 				morningSongPlayAction = null;
 			}
-			if (!player.songsHeard.Contains(newTrackName))
+			if (music_context != MusicContext.ImportantSplitScreenMusic && !player.songsHeard.Contains(newTrackName))
 			{
 				Utility.farmerHeardSong(newTrackName);
 			}
@@ -8681,11 +10919,14 @@ namespace StardewValley
 		{
 			_activeMusicContext = MusicContext.Default;
 			KeyValuePair<string, bool> requested_track_data = new KeyValuePair<string, bool>("none", value: true);
-			for (int i = 0; i < 4; i++)
+			for (int i = 0; i < 5; i++)
 			{
 				if (_requestedMusicTracks.ContainsKey((MusicContext)i))
 				{
-					_activeMusicContext = (MusicContext)i;
+					if (i != 4)
+					{
+						_activeMusicContext = (MusicContext)i;
+					}
 					requested_track_data = _requestedMusicTracks[(MusicContext)i];
 				}
 			}
@@ -8701,6 +10942,19 @@ namespace StardewValley
 		{
 			inMine = true;
 			warpFarmer("UndergroundMine" + whatLevel, 6, 6, 2);
+		}
+
+		public static string GetSeasonForLocation(GameLocation location)
+		{
+			if (location != null)
+			{
+				if (location.Name == "Greenhouse")
+				{
+					return "spring";
+				}
+				return location.GetSeasonForLocation();
+			}
+			return currentSeason;
 		}
 
 		public static void getSteamAchievement(string which)
@@ -8941,7 +11195,7 @@ namespace StardewValley
 				{
 					Debris d4 = new Debris(texture, sourcerectangle, 1, debrisOrigin, debrisOrigin + new Vector2(-64f, 0f), groundLevelTile * 64, sizeOfSourceRectSquares);
 					d4.nonSpriteChunkColor.Value = color;
-					location.debris.Add(d4);
+					location?.debris.Add(d4);
 					d4.Chunks[0].scale = scale;
 					break;
 				}
@@ -8949,7 +11203,7 @@ namespace StardewValley
 				{
 					Debris d4 = new Debris(texture, sourcerectangle, 1, debrisOrigin, debrisOrigin + new Vector2(64f, 0f), groundLevelTile * 64, sizeOfSourceRectSquares);
 					d4.nonSpriteChunkColor.Value = color;
-					location.debris.Add(d4);
+					location?.debris.Add(d4);
 					d4.Chunks[0].scale = scale;
 					break;
 				}
@@ -8957,7 +11211,7 @@ namespace StardewValley
 				{
 					Debris d4 = new Debris(texture, sourcerectangle, 1, debrisOrigin, debrisOrigin + new Vector2(random.Next(-64, 64), -64f), groundLevelTile * 64, sizeOfSourceRectSquares);
 					d4.nonSpriteChunkColor.Value = color;
-					location.debris.Add(d4);
+					location?.debris.Add(d4);
 					d4.Chunks[0].scale = scale;
 					break;
 				}
@@ -8965,7 +11219,7 @@ namespace StardewValley
 				{
 					Debris d4 = new Debris(texture, sourcerectangle, 1, debrisOrigin, debrisOrigin + new Vector2(random.Next(-64, 64), 64f), groundLevelTile * 64, sizeOfSourceRectSquares);
 					d4.nonSpriteChunkColor.Value = color;
-					location.debris.Add(d4);
+					location?.debris.Add(d4);
 					d4.Chunks[0].scale = scale;
 					break;
 				}
@@ -9234,23 +11488,9 @@ namespace StardewValley
 			{
 				who.setRunning(options.autoRun);
 			}
-			if (!who.UsingTool)
+			if (!who.UsingTool && who.FarmerSprite.PauseForSingleAnimation)
 			{
-				switch (who.FacingDirection)
-				{
-				case 0:
-					((FarmerSprite)who.Sprite).CurrentFrame = 16;
-					break;
-				case 1:
-					((FarmerSprite)who.Sprite).CurrentFrame = 8;
-					break;
-				case 2:
-					((FarmerSprite)who.Sprite).CurrentFrame = 0;
-					break;
-				case 3:
-					((FarmerSprite)who.Sprite).CurrentFrame = 24;
-					break;
-				}
+				who.FarmerSprite.StopAnimation();
 			}
 			if (player.Stamina <= 0f && oldStamina > 0f)
 			{
@@ -9447,6 +11687,7 @@ namespace StardewValley
 				{
 					grabTile = player.GetGrabTile();
 				}
+				bool was_character_at_grab_tile = false;
 				if (eventUp && !isFestival())
 				{
 					if (CurrentEvent != null)
@@ -9470,6 +11711,14 @@ namespace StardewValley
 				if (!player.canMove)
 				{
 					return false;
+				}
+				if (!was_character_at_grab_tile)
+				{
+					NPC grab_tile_character = player.currentLocation.isCharacterAtTile(grabTile);
+					if (grab_tile_character != null && grab_tile_character != null)
+					{
+						was_character_at_grab_tile = true;
+					}
 				}
 				bool isPlacingObject = false;
 				if (player.ActiveObject != null && !(player.ActiveObject is Furniture))
@@ -9505,10 +11754,32 @@ namespace StardewValley
 					}
 					isCheckingNonMousePlacement = false;
 				}
-				if (!isPlacingObject)
+				if (!isPlacingObject && !was_character_at_grab_tile)
 				{
 					grabTile.Y += 1f;
 					if (player.FacingDirection >= 0 && player.FacingDirection <= 3)
+					{
+						Vector2 normalized_offset2 = grabTile - player.getTileLocation();
+						if (normalized_offset2.X > 0f || normalized_offset2.Y > 0f)
+						{
+							normalized_offset2.Normalize();
+						}
+						if (Vector2.Dot(Utility.DirectionsTileVectors[player.FacingDirection], normalized_offset2) >= 0f && tryToCheckAt(grabTile, player))
+						{
+							return false;
+						}
+					}
+					if (player.ActiveObject != null && player.ActiveObject is Furniture && !eventUp)
+					{
+						(player.ActiveObject as Furniture).rotate();
+						playSound("dwoop");
+						oldKBState = currentKBState;
+						oldMouseState = input.GetMouseState();
+						oldPadState = currentPadState;
+						return false;
+					}
+					grabTile.Y -= 2f;
+					if (player.FacingDirection >= 0 && player.FacingDirection <= 3 && !was_character_at_grab_tile)
 					{
 						Vector2 normalized_offset = grabTile - player.getTileLocation();
 						if (normalized_offset.X > 0f || normalized_offset.Y > 0f)
@@ -9520,7 +11791,7 @@ namespace StardewValley
 							return false;
 						}
 					}
-					if (player.ActiveObject != null && player.ActiveObject is Furniture)
+					if (player.ActiveObject != null && player.ActiveObject is Furniture && !eventUp)
 					{
 						(player.ActiveObject as Furniture).rotate();
 						playSound("dwoop");
@@ -9534,7 +11805,7 @@ namespace StardewValley
 					{
 						return false;
 					}
-					if (player.ActiveObject != null && player.ActiveObject is Furniture)
+					if (player.ActiveObject != null && player.ActiveObject is Furniture && !eventUp)
 					{
 						(player.ActiveObject as Furniture).rotate();
 						playSound("dwoop");
@@ -9546,6 +11817,16 @@ namespace StardewValley
 				}
 				if (!player.isEating && player.ActiveObject != null && !dialogueUp && !eventUp && !player.canOnlyWalk && !player.FarmerSprite.PauseForSingleAnimation && !fadeToBlack && player.ActiveObject.Edibility != -300 && didPlayerJustRightClick(ignoreNonMouseHeldInput: true))
 				{
+					if (player.team.SpecialOrderRuleActive("SC_NO_FOOD") && player.currentLocation is MineShaft && (player.currentLocation as MineShaft).getMineArea() == 121)
+					{
+						addHUDMessage(new HUDMessage(content.LoadString("Strings\\StringsFromCSFiles:Object.cs.13053"), 3));
+						return false;
+					}
+					if (buffsDisplay.hasBuff(25) && player.ActiveObject != null && !player.ActiveObject.HasContextTag("ginger_item"))
+					{
+						addHUDMessage(new HUDMessage(content.LoadString("Strings\\StringsFromCSFiles:Nauseous_CantEat"), 3));
+						return false;
+					}
 					player.faceDirection(2);
 					player.itemToEat = player.ActiveObject;
 					player.FarmerSprite.setCurrentSingleAnimation(304);
@@ -9565,7 +11846,7 @@ namespace StardewValley
 				oldPadState = currentPadState;
 				return false;
 			}
-			if (player.CurrentTool != null && player.CurrentTool is MeleeWeapon && player.CanMove && !player.canOnlyWalk && !eventUp)
+			if (player.CurrentTool != null && player.CurrentTool is MeleeWeapon && player.CanMove && !player.canOnlyWalk && !eventUp && !player.onBridge && didPlayerJustRightClick(ignoreNonMouseHeldInput: true))
 			{
 				((MeleeWeapon)player.CurrentTool).animateSpecialMove(player);
 				return false;
@@ -9593,6 +11874,10 @@ namespace StardewValley
 
 		public static bool tryToCheckAt(Vector2 grabTile, Farmer who)
 		{
+			if (player.onBridge.Value)
+			{
+				return false;
+			}
 			haltAfterCheck = true;
 			if (Utility.tileWithinRadiusOfPlayer((int)grabTile.X, (int)grabTile.Y, 1, player) && currentLocation.checkAction(new Location((int)grabTile.X, (int)grabTile.Y), viewport, who))
 			{
@@ -9621,11 +11906,22 @@ namespace StardewValley
 			int whichWay = (input.GetMouseState().ScrollWheelValue > oldMouseState.ScrollWheelValue) ? (-1) : ((input.GetMouseState().ScrollWheelValue < oldMouseState.ScrollWheelValue) ? 1 : 0);
 			if (options.gamepadControls && whichWay == 0)
 			{
-				whichWay = ((!input.GetGamePadState().IsButtonDown(Buttons.LeftTrigger)) ? 1 : (-1));
+				if (input.GetGamePadState().IsButtonDown(Buttons.LeftTrigger))
+				{
+					whichWay = -1;
+				}
+				else if (input.GetGamePadState().IsButtonDown(Buttons.RightTrigger))
+				{
+					whichWay = 1;
+				}
 			}
 			if (options.invertScrollDirection)
 			{
 				whichWay *= -1;
+			}
+			if (whichWay == 0)
+			{
+				return;
 			}
 			player.CurrentToolIndex = (player.CurrentToolIndex + whichWay) % 12;
 			if (player.CurrentToolIndex < 0)
@@ -9692,6 +11988,8 @@ namespace StardewValley
 
 		public static bool pressUseToolButton()
 		{
+			bool stow_was_initialized = game1._didInitiateItemStow;
+			game1._didInitiateItemStow = false;
 			if (fadeToBlack)
 			{
 				return false;
@@ -9735,7 +12033,7 @@ namespace StardewValley
 					}
 				}
 			}
-			if (currentMinigame == null && !player.UsingTool && (player.isRidingHorse() || dialogueUp || (eventUp && !CurrentEvent.canPlayerUseTool() && (!currentLocation.currentEvent.playerControlSequence || (activeClickableMenu == null && currentMinigame == null))) || (player.CurrentTool != null && currentLocation.doesPositionCollideWithCharacter(Utility.getRectangleCenteredAt(player.GetToolLocation(), 64), ignoreMonsters: true) != null && currentLocation.doesPositionCollideWithCharacter(Utility.getRectangleCenteredAt(player.GetToolLocation(), 64), ignoreMonsters: true).isVillager())))
+			if (currentMinigame == null && !player.UsingTool && (player.IsSitting() || player.isRidingHorse() || player.onBridge.Value || dialogueUp || (eventUp && !CurrentEvent.canPlayerUseTool() && (!currentLocation.currentEvent.playerControlSequence || (activeClickableMenu == null && currentMinigame == null))) || (player.CurrentTool != null && currentLocation.doesPositionCollideWithCharacter(Utility.getRectangleCenteredAt(player.GetToolLocation(), 64), ignoreMonsters: true) != null && currentLocation.doesPositionCollideWithCharacter(Utility.getRectangleCenteredAt(player.GetToolLocation(), 64), ignoreMonsters: true).isVillager())))
 			{
 				pressActionButton(GetKeyboardState(), input.GetMouseState(), input.GetGamePadState());
 				return false;
@@ -9769,8 +12067,9 @@ namespace StardewValley
 			{
 				if (options.allowStowing && CanPlayerStowItem(GetPlacementGrabTile()))
 				{
-					if (didPlayerJustLeftClick())
+					if (didPlayerJustLeftClick() | stow_was_initialized)
 					{
+						game1._didInitiateItemStow = true;
 						playSound("stoneStep");
 						player.netItemStowed.Set(newValue: true);
 						return true;
@@ -9794,8 +12093,9 @@ namespace StardewValley
 			{
 				return true;
 			}
-			if (options.allowStowing && player.netItemStowed.Value && !did_attempt_object_removal)
+			if (options.allowStowing && player.netItemStowed.Value && !did_attempt_object_removal && (stow_was_initialized || didPlayerJustLeftClick(ignoreNonMouseHeldInput: true)))
 			{
+				game1._didInitiateItemStow = true;
 				playSound("toolSwap");
 				player.netItemStowed.Set(newValue: false);
 				return true;
@@ -9808,12 +12108,12 @@ namespace StardewValley
 			}
 			if (player.ActiveObject == null && !player.isEating && player.CurrentTool != null)
 			{
-				if (player.Stamina <= 20f && player.CurrentTool != null && !(player.CurrentTool is MeleeWeapon))
+				if (player.Stamina <= 20f && player.CurrentTool != null && !(player.CurrentTool is MeleeWeapon) && !eventUp)
 				{
 					staminaShakeTimer = 1000;
 					for (int i = 0; i < 4; i++)
 					{
-						screenOverlayTempSprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(366, 412, 5, 6), new Vector2(random.Next(32) + viewport.Width - 56, viewport.Height - 224 - 16 - (int)((double)(player.MaxStamina - 270) * 0.715)), flipped: false, 0.012f, Microsoft.Xna.Framework.Color.SkyBlue)
+						uiOverlayTempSprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(366, 412, 5, 6), new Vector2(random.Next(32) + uiViewport.Width - 56, uiViewport.Height - 224 - 16 - (int)((double)(player.MaxStamina - 270) * 0.715)), flipped: false, 0.012f, Microsoft.Xna.Framework.Color.SkyBlue)
 						{
 							motion = new Vector2(-2f, -10f),
 							acceleration = new Vector2(0f, 0.5f),
@@ -9825,16 +12125,19 @@ namespace StardewValley
 				}
 				if (player.CurrentTool == null || !(player.CurrentTool is MeleeWeapon) || didPlayerJustLeftClick(ignoreNonMouseHeldInput: true))
 				{
-					if (Utility.withinRadiusOfPlayer((int)position.X, (int)position.Y, 1, player) && (player.CurrentTool is WateringCan || Math.Abs(position.X - (float)player.getStandingX()) >= 32f || Math.Abs(position.Y - (float)player.getStandingY()) >= 32f))
-					{
-						player.Halt();
-						if (mouseCursorTransparency != 0f && !isAnyGamePadButtonBeingHeld())
-						{
-							player.faceGeneralDirection(new Vector2((int)position.X, (int)position.Y));
-						}
-						player.lastClick = new Vector2((int)position.X, (int)position.Y);
-					}
+					int old_direction = player.FacingDirection;
+					Vector2 tool_location = player.GetToolLocation(position);
+					player.FacingDirection = player.getGeneralDirectionTowards(new Vector2((int)tool_location.X, (int)tool_location.Y));
+					player.lastClick = new Vector2((int)position.X, (int)position.Y);
 					player.BeginUsingTool();
+					if (!player.usingTool)
+					{
+						player.FacingDirection = old_direction;
+					}
+					else if (player.FarmerSprite.IsPlayingBasicAnimation(old_direction, carrying: true) || player.FarmerSprite.IsPlayingBasicAnimation(old_direction, carrying: false))
+					{
+						player.FarmerSprite.StopAnimation();
+					}
 				}
 			}
 			return false;
@@ -9857,7 +12160,7 @@ namespace StardewValley
 			if (player.ActiveObject != null && (player.ActiveObject.Category == -74 || player.ActiveObject.Category == -19))
 			{
 				Vector2 valid_position = Utility.GetNearbyValidPlacementPosition(player, currentLocation, player.ActiveObject, (int)position.X * 64, (int)position.Y * 64);
-				if (Utility.playerCanPlaceItemHere(player.currentLocation, player.ActiveObject, (int)valid_position.X, (int)valid_position.Y, player) && ((!player.ActiveObject.isWildTreeSeed() && !player.ActiveObject.isSapling()) || IsPerformingMousePlacement()))
+				if (Utility.playerCanPlaceItemHere(player.currentLocation, player.ActiveObject, (int)valid_position.X, (int)valid_position.Y, player) && ((!Object.isWildTreeSeed(player.ActiveObject.ParentSheetIndex) && !player.ActiveObject.isSapling()) || IsPerformingMousePlacement()))
 				{
 					return false;
 				}
@@ -9865,23 +12168,174 @@ namespace StardewValley
 			return true;
 		}
 
+		public static int getMouseXRaw()
+		{
+			return input.GetMouseState().X;
+		}
+
+		public static int getMouseYRaw()
+		{
+			return input.GetMouseState().Y;
+		}
+
+		public static void PushUIMode()
+		{
+			uiModeCount++;
+			if (uiModeCount <= 0 || uiMode)
+			{
+				return;
+			}
+			uiMode = true;
+			if (game1.isDrawing)
+			{
+				if (game1.uiScreen != null && !game1.uiScreen.IsDisposed)
+				{
+					RenderTargetBinding[] render_targets = graphics.GraphicsDevice.GetRenderTargets();
+					if (render_targets.Length != 0)
+					{
+						nonUIRenderTarget = (render_targets[0].RenderTarget as RenderTarget2D);
+					}
+					else
+					{
+						nonUIRenderTarget = null;
+					}
+					graphics.GraphicsDevice.SetRenderTarget(game1.uiScreen);
+				}
+				if (game1.isRenderingScreenBuffer)
+				{
+					graphics.GraphicsDevice.SetRenderTarget(null);
+				}
+			}
+			xTile.Dimensions.Rectangle ui_viewport_rect = new xTile.Dimensions.Rectangle(0, 0, (int)Math.Ceiling((float)viewport.Width * options.zoomLevel / options.uiScale), (int)Math.Ceiling((float)viewport.Height * options.zoomLevel / options.uiScale));
+			ui_viewport_rect.X = viewport.X;
+			ui_viewport_rect.Y = viewport.Y;
+			uiViewport = ui_viewport_rect;
+		}
+
+		public static void PopUIMode()
+		{
+			uiModeCount--;
+			if (uiModeCount > 0 || !uiMode)
+			{
+				return;
+			}
+			if (game1.isDrawing)
+			{
+				if (graphics.GraphicsDevice.GetRenderTargets().Length != 0 && graphics.GraphicsDevice.GetRenderTargets()[0].RenderTarget == game1.uiScreen)
+				{
+					if (nonUIRenderTarget != null && !nonUIRenderTarget.IsDisposed)
+					{
+						graphics.GraphicsDevice.SetRenderTarget(nonUIRenderTarget);
+					}
+					else
+					{
+						graphics.GraphicsDevice.SetRenderTarget(null);
+					}
+				}
+				if (game1.isRenderingScreenBuffer)
+				{
+					graphics.GraphicsDevice.SetRenderTarget(null);
+				}
+			}
+			nonUIRenderTarget = null;
+			uiMode = false;
+		}
+
+		public static void InUIMode(Action action)
+		{
+			PushUIMode();
+			try
+			{
+				action();
+			}
+			finally
+			{
+				PopUIMode();
+			}
+		}
+
+		public static void StartWorldDrawInUI(SpriteBatch b)
+		{
+			_oldUIModeCount = 0;
+			if (uiMode)
+			{
+				_oldUIModeCount = uiModeCount;
+				b?.End();
+				while (uiModeCount > 0)
+				{
+					PopUIMode();
+				}
+				b?.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, null);
+			}
+		}
+
+		public static void EndWorldDrawInUI(SpriteBatch b)
+		{
+			if (_oldUIModeCount > 0)
+			{
+				b?.End();
+				for (int i = 0; i < _oldUIModeCount; i++)
+				{
+					PushUIMode();
+				}
+				b?.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, null);
+			}
+			_oldUIModeCount = 0;
+		}
+
 		public static int getMouseX()
 		{
+			return getMouseX(uiMode);
+		}
+
+		public static int getMouseX(bool ui_scale)
+		{
+			if (ui_scale)
+			{
+				return (int)((float)input.GetMouseState().X / options.uiScale);
+			}
 			return (int)((float)input.GetMouseState().X * (1f / options.zoomLevel));
 		}
 
 		public static int getOldMouseX()
 		{
+			return getOldMouseX(uiMode);
+		}
+
+		public static int getOldMouseX(bool ui_scale)
+		{
+			if (ui_scale)
+			{
+				return (int)((float)oldMouseState.X / options.uiScale);
+			}
 			return (int)((float)oldMouseState.X * (1f / options.zoomLevel));
 		}
 
 		public static int getMouseY()
 		{
+			return getMouseY(uiMode);
+		}
+
+		public static int getMouseY(bool ui_scale)
+		{
+			if (ui_scale)
+			{
+				return (int)((float)input.GetMouseState().Y / options.uiScale);
+			}
 			return (int)((float)input.GetMouseState().Y * (1f / options.zoomLevel));
 		}
 
 		public static int getOldMouseY()
 		{
+			return getOldMouseY(uiMode);
+		}
+
+		public static int getOldMouseY(bool ui_scale)
+		{
+			if (ui_scale)
+			{
+				return (int)((float)oldMouseState.Y / options.uiScale);
+			}
 			return (int)((float)oldMouseState.Y * (1f / options.zoomLevel));
 		}
 
@@ -10000,7 +12454,6 @@ namespace StardewValley
 					});
 					npcIndex2 = (npcIndex2 + 1) % 25;
 					int number = random.Next(3);
-					uniqueIDForThisGame++;
 					for (int k = 0; k < number; k++)
 					{
 						if (random.NextDouble() < 0.8)
@@ -10072,11 +12525,11 @@ namespace StardewValley
 						0,
 						2147483647
 					});
-					foreach (KeyValuePair<int, string> v5 in objectInformation)
+					foreach (KeyValuePair<int, string> v6 in objectInformation)
 					{
 						try
 						{
-							items.Add(new Object(v5.Key, 1), new int[2]
+							items.Add(new Object(v6.Key, 1), new int[2]
 							{
 								0,
 								2147483647
@@ -10086,11 +12539,11 @@ namespace StardewValley
 						{
 						}
 					}
-					foreach (KeyValuePair<int, string> v4 in bigCraftablesInformation)
+					foreach (KeyValuePair<int, string> v5 in bigCraftablesInformation)
 					{
 						try
 						{
-							items.Add(new Object(Vector2.Zero, v4.Key), new int[2]
+							items.Add(new Object(Vector2.Zero, v5.Key), new int[2]
 							{
 								0,
 								2147483647
@@ -10100,11 +12553,25 @@ namespace StardewValley
 						{
 						}
 					}
-					foreach (KeyValuePair<int, string> v3 in content.Load<Dictionary<int, string>>("Data\\weapons"))
+					foreach (KeyValuePair<int, string> v4 in content.Load<Dictionary<int, string>>("Data\\weapons"))
 					{
 						try
 						{
-							items.Add(new MeleeWeapon(v3.Key), new int[2]
+							items.Add(new MeleeWeapon(v4.Key), new int[2]
+							{
+								0,
+								2147483647
+							});
+						}
+						catch (Exception)
+						{
+						}
+					}
+					foreach (KeyValuePair<int, string> v3 in content.Load<Dictionary<int, string>>("Data\\furniture"))
+					{
+						try
+						{
+							items.Add(new Furniture(v3.Key, Vector2.Zero), new int[2]
 							{
 								0,
 								2147483647
@@ -10274,7 +12741,7 @@ namespace StardewValley
 					break;
 				}
 				case "removefurniture":
-					(currentLocation as DecoratableLocation).furniture.Clear();
+					currentLocation.furniture.Clear();
 					break;
 				case "makeex":
 					player.friendshipData[debugSplit[1]].RoommateMarriage = false;
@@ -10325,8 +12792,11 @@ namespace StardewValley
 					break;
 				case "zl":
 				case "zoomlevel":
-					options.zoomLevel = (float)Convert.ToInt32(debugSplit[1]) / 100f;
-					Window_ClientSizeChanged(null, null);
+					options.desiredBaseZoomLevel = (float)Convert.ToInt32(debugSplit[1]) / 100f;
+					break;
+				case "us":
+				case "uiscale":
+					options.desiredUIScale = (float)Convert.ToInt32(debugSplit[1]) / 100f;
 					break;
 				case "deletearch":
 					player.archaeologyFound.Clear();
@@ -10674,6 +13144,9 @@ namespace StardewValley
 				case "skullkey":
 					player.hasSkullKey = true;
 					break;
+				case "townkey":
+					player.HasTownKey = true;
+					break;
 				case "specials":
 					player.hasRustyKey = true;
 					player.hasSkullKey = true;
@@ -10685,6 +13158,7 @@ namespace StardewValley
 					player.hasMagnifyingGlass = true;
 					player.eventsSeen.Add(2120303);
 					player.eventsSeen.Add(3910979);
+					player.HasTownKey = true;
 					break;
 				case "skullgear":
 				{
@@ -10811,10 +13285,10 @@ namespace StardewValley
 					{
 						if (farmer2 != player && (bool)farmer2.isCustomized)
 						{
-							Friendship friendship2 = player.team.GetFriendship(player.UniqueMultiplayerID, farmer2.UniqueMultiplayerID);
-							friendship2.Status = FriendshipStatus.Engaged;
-							friendship2.WeddingDate = Date;
-							friendship2.WeddingDate.TotalDays++;
+							Friendship friendship = player.team.GetFriendship(player.UniqueMultiplayerID, farmer2.UniqueMultiplayerID);
+							friendship.Status = FriendshipStatus.Engaged;
+							friendship.WeddingDate = Date;
+							friendship.WeddingDate.TotalDays++;
 							break;
 						}
 					}
@@ -10824,9 +13298,9 @@ namespace StardewValley
 					{
 						if (farmer3 != player && (bool)farmer3.isCustomized)
 						{
-							Friendship friendship = player.team.GetFriendship(player.UniqueMultiplayerID, farmer3.UniqueMultiplayerID);
-							friendship.Status = FriendshipStatus.Married;
-							friendship.WeddingDate = Date;
+							Friendship friendship2 = player.team.GetFriendship(player.UniqueMultiplayerID, farmer3.UniqueMultiplayerID);
+							friendship2.Status = FriendshipStatus.Married;
+							friendship2.WeddingDate = Date;
 							break;
 						}
 					}
@@ -10834,6 +13308,10 @@ namespace StardewValley
 				case "marry":
 				{
 					NPC married_character = Utility.fuzzyCharacterSearch(debugSplit[1]);
+					if (married_character != null && !player.friendshipData.ContainsKey(married_character.Name))
+					{
+						player.friendshipData.Add(married_character.Name, new Friendship());
+					}
 					player.changeFriendship(2500, married_character);
 					player.spouse = married_character.Name;
 					player.friendshipData[married_character.Name].WeddingDate = new WorldDate(Date);
@@ -11105,6 +13583,7 @@ namespace StardewValley
 					player.HouseUpgradeLevel = Convert.ToInt32(debugSplit[1]);
 					removeFrontLayerForFarmBuildings();
 					addNewFarmBuildingMaps();
+					Utility.getHomeOfFarmer(player).RefreshFloorObjectNeighbors();
 					break;
 				case "ci":
 				case "clear":
@@ -11122,6 +13601,9 @@ namespace StardewValley
 					break;
 				case "clearmail":
 					player.mailReceived.Clear();
+					break;
+				case "broadcastmailbox":
+					addMail(debugSplit[1], noLetter: false, sendToEveryone: true);
 					break;
 				case "mft":
 				case "mailfortomorrow":
@@ -11321,9 +13803,9 @@ namespace StardewValley
 					break;
 				case "bundle":
 				{
-					CommunityCenter obj = getLocationFromName("CommunityCenter") as CommunityCenter;
+					CommunityCenter obj2 = getLocationFromName("CommunityCenter") as CommunityCenter;
 					int key3 = Convert.ToInt32(debugSplit[1]);
-					foreach (KeyValuePair<int, NetArray<bool, NetBool>> b4 in obj.bundles.FieldDict)
+					foreach (KeyValuePair<int, NetArray<bool, NetBool>> b4 in obj2.bundles.FieldDict)
 					{
 						if (b4.Key == key3)
 						{
@@ -11455,6 +13937,45 @@ namespace StardewValley
 					fadeScreenToBlack();
 					viewportFreeze = false;
 					break;
+				case "language":
+					activeClickableMenu = new LanguageSelectionMenu();
+					break;
+				case "runtestevent":
+				case "rte":
+					runTestEvent();
+					break;
+				case "qb":
+				case "qiboard":
+					activeClickableMenu = new SpecialOrdersBoard("Qi");
+					break;
+				case "ordersboard":
+					activeClickableMenu = new SpecialOrdersBoard();
+					break;
+				case "returneddonations":
+					player.team.CheckReturnedDonations();
+					break;
+				case "completespecialorders":
+				case "cso":
+					foreach (SpecialOrder specialOrder in player.team.specialOrders)
+					{
+						foreach (OrderObjective objective in specialOrder.objectives)
+						{
+							objective.SetCount(objective.maxCount.Value);
+						}
+					}
+					break;
+				case "specialorder":
+				{
+					SpecialOrder order = SpecialOrder.GetSpecialOrder(debugSplit[1], null);
+					if (order != null)
+					{
+						player.team.specialOrders.Add(order);
+					}
+					break;
+				}
+				case "boatjourney":
+					currentMinigame = new BoatJourney();
+					break;
 				case "minigame":
 					switch (debugSplit[1])
 					{
@@ -11486,6 +14007,9 @@ namespace StardewValley
 					case "target":
 						currentMinigame = new TargetGame();
 						break;
+					case "fishing":
+						currentMinigame = new FishingGame();
+						break;
 					}
 					break;
 				case "event":
@@ -11509,12 +14033,12 @@ namespace StardewValley
 						}
 						if (content.Load<Dictionary<string, string>>("Data\\Events\\" + locationName).ElementAt(Convert.ToInt32(debugSplit[2])).Key.Contains('/'))
 						{
-							LocationRequest obj3 = getLocationRequest(locationName);
-							obj3.OnLoad += delegate
+							LocationRequest obj = getLocationRequest(locationName);
+							obj.OnLoad += delegate
 							{
 								currentLocation.currentEvent = new Event(content.Load<Dictionary<string, string>>("Data\\Events\\" + locationName).ElementAt(Convert.ToInt32(debugSplit[2])).Value, Convert.ToInt32(content.Load<Dictionary<string, string>>("Data\\Events\\" + locationName).ElementAt(Convert.ToInt32(debugSplit[2])).Key.Split('/')[0]));
 							};
-							warpFarmer(obj3, 8, 8, player.FacingDirection);
+							warpFarmer(obj, 8, 8, player.FacingDirection);
 						}
 					}
 					break;
@@ -11549,17 +14073,23 @@ namespace StardewValley
 								string[] key_data = key.Split('/');
 								if (key_data[0] == debugSplit[1])
 								{
-									int event_id = Convert.ToInt32(key_data[0]);
-									while (player.eventsSeen.Contains(event_id))
+									int event_id = -1;
+									if (int.TryParse(key_data[0], out event_id))
 									{
-										player.eventsSeen.Remove(event_id);
+										while (player.eventsSeen.Contains(event_id))
+										{
+											player.eventsSeen.Remove(event_id);
+										}
 									}
-									LocationRequest obj2 = getLocationRequest(locationName2);
-									obj2.OnLoad += delegate
+									LocationRequest obj3 = getLocationRequest(locationName2);
+									obj3.OnLoad += delegate
 									{
 										currentLocation.currentEvent = new Event(location_events[key], event_id);
 									};
-									warpFarmer(obj2, 8, 8, player.FacingDirection);
+									int x17 = 8;
+									int y17 = 8;
+									Utility.getDefaultWarpLocation(obj3.Name, ref x17, ref y17);
+									warpFarmer(obj3, x17, y17, player.FacingDirection);
 									debugOutput = "Starting event " + key;
 									return true;
 								}
@@ -11607,8 +14137,36 @@ namespace StardewValley
 					}
 					break;
 				case "experience":
-					player.gainExperience(Convert.ToInt32(debugSplit[1]), Convert.ToInt32(debugSplit[2]));
+				{
+					int which = 0;
+					if (debugSplit[1].Count() > 1)
+					{
+						switch (debugSplit[1].ToLower())
+						{
+						case "farming":
+							which = 0;
+							break;
+						case "fishing":
+							which = 1;
+							break;
+						case "mining":
+							which = 3;
+							break;
+						case "foraging":
+							which = 2;
+							break;
+						case "combat":
+							which = 4;
+							break;
+						}
+					}
+					else
+					{
+						which = Convert.ToInt32(debugSplit[1]);
+					}
+					player.gainExperience(which, Convert.ToInt32(debugSplit[2]));
 					break;
+				}
 				case "showexperience":
 					debugOutput = Convert.ToString(player.experiencePoints[Convert.ToInt32(debugSplit[1])]);
 					break;
@@ -11756,18 +14314,18 @@ namespace StardewValley
 					}
 					break;
 				case "museumloot":
-					foreach (KeyValuePair<int, string> v6 in objectInformation)
+					foreach (KeyValuePair<int, string> v7 in objectInformation)
 					{
-						string type = v6.Value.Split('/')[3];
-						if ((type.Contains("Arch") || type.Contains("Minerals")) && !player.mineralsFound.ContainsKey(v6.Key) && !player.archaeologyFound.ContainsKey(v6.Key))
+						string type = v7.Value.Split('/')[3];
+						if ((type.Contains("Arch") || type.Contains("Minerals")) && !player.mineralsFound.ContainsKey(v7.Key) && !player.archaeologyFound.ContainsKey(v7.Key))
 						{
 							if (type.Contains("Arch"))
 							{
-								player.foundArtifact(v6.Key, 1);
+								player.foundArtifact(v7.Key, 1);
 							}
 							else
 							{
-								player.addItemToInventoryBool(new Object(v6.Key, 1));
+								player.addItemToInventoryBool(new Object(v7.Key, 1));
 							}
 						}
 						if (player.freeSpotsInInventory() == 0)
@@ -11777,12 +14335,12 @@ namespace StardewValley
 					}
 					break;
 				case "newmuseumloot":
-					foreach (KeyValuePair<int, string> v7 in objectInformation)
+					foreach (KeyValuePair<int, string> v8 in objectInformation)
 					{
-						string type2 = v7.Value.Split('/')[3];
-						if ((type2.Contains("Arch") || type2.Contains("Minerals")) && !netWorldState.Value.MuseumPieces.Values.Contains(v7.Key))
+						string type2 = v8.Value.Split('/')[3];
+						if ((type2.Contains("Arch") || type2.Contains("Minerals")) && !netWorldState.Value.MuseumPieces.Values.Contains(v8.Key))
 						{
-							player.addItemToInventoryBool(new Object(v7.Key, 1));
+							player.addItemToInventoryBool(new Object(v8.Key, 1));
 						}
 						if (player.freeSpotsInInventory() == 0)
 						{
@@ -11886,6 +14444,9 @@ namespace StardewValley
 					break;
 				case "tailor":
 					activeClickableMenu = new TailoringMenu();
+					break;
+				case "forge":
+					activeClickableMenu = new ForgeMenu();
 					break;
 				case "listtags":
 					if (player.CurrentItem != null)
@@ -12000,12 +14561,12 @@ namespace StardewValley
 				}
 				case "in":
 				case "itemnamed":
-					foreach (int i19 in objectInformation.Keys)
+					foreach (int i17 in objectInformation.Keys)
 					{
-						if (objectInformation[i19].Substring(0, objectInformation[i19].IndexOf('/')).ToLower().Replace(" ", "")
+						if (objectInformation[i17].Substring(0, objectInformation[i17].IndexOf('/')).ToLower().Replace(" ", "")
 							.Equals(debugSplit[1].ToLower()))
 						{
-							player.addItemToInventory(new Object(i19, (debugSplit.Length < 3) ? 1 : Convert.ToInt32(debugSplit[2]), isRecipe: false, -1, (debugSplit.Length >= 4) ? Convert.ToInt32(debugSplit[3]) : 0));
+							player.addItemToInventory(new Object(i17, (debugSplit.Length < 3) ? 1 : Convert.ToInt32(debugSplit[2]), isRecipe: false, -1, (debugSplit.Length >= 4) ? Convert.ToInt32(debugSplit[3]) : 0));
 							playSound("coin");
 						}
 					}
@@ -12034,19 +14595,19 @@ namespace StardewValley
 					GameLocation location2 = Utility.fuzzyLocationSearch(debugSplit[1]);
 					if (location2 != null)
 					{
-						int x17 = 0;
-						int y17 = 0;
+						int x18 = 0;
+						int y18 = 0;
 						if (debugSplit.Length >= 4)
 						{
-							x17 = Convert.ToInt32(debugSplit[2]);
-							y17 = Convert.ToInt32(debugSplit[3]);
+							x18 = Convert.ToInt32(debugSplit[2]);
+							y18 = Convert.ToInt32(debugSplit[3]);
 						}
 						else
 						{
-							Utility.getDefaultWarpLocation(location2.Name, ref x17, ref y17);
+							Utility.getDefaultWarpLocation(location2.Name, ref x18, ref y18);
 						}
-						warpFarmer(new LocationRequest(location2.NameOrUniqueName, location2.uniqueName.Value != null, location2), x17, y17, 2);
-						debugOutput = "Warping player to " + location2.NameOrUniqueName + " at " + x17 + ", " + y17;
+						warpFarmer(new LocationRequest(location2.NameOrUniqueName, location2.uniqueName.Value != null, location2), x18, y18, 2);
+						debugOutput = "Warping player to " + location2.NameOrUniqueName + " at " + x18 + ", " + y18;
 					}
 					else
 					{
@@ -12061,15 +14622,71 @@ namespace StardewValley
 				case "money":
 					player.Money = Convert.ToInt32(debugSplit[1]);
 					break;
+				case "perfection":
+				{
+					parseDebugInput("friendAll");
+					parseDebugInput("cooking");
+					parseDebugInput("crafting");
+					for (int i19 = player.craftingRecipes.Count() - 1; i19 >= 0; i19--)
+					{
+						player.craftingRecipes[player.craftingRecipes.Pairs.ElementAt(i19).Key] = 1;
+					}
+					foreach (KeyValuePair<int, string> v10 in objectInformation)
+					{
+						if (v10.Value.Split('/')[3].Contains("Fish"))
+						{
+							player.fishCaught.Add(v10.Key, new int[3]);
+						}
+						string typeString = v10.Value.Split('/')[3];
+						if (Object.isPotentialBasicShippedCategory(v10.Key, typeString.Substring(typeString.Length - 3)))
+						{
+							player.basicShipped.Add(v10.Key, 1);
+						}
+						player.recipesCooked.Add(v10.Key, 1);
+					}
+					parseDebugInput("walnut 130");
+					player.mailReceived.Add("CF_Fair");
+					player.mailReceived.Add("CF_Fish");
+					player.mailReceived.Add("CF_Sewer");
+					player.mailReceived.Add("CF_Mines");
+					player.mailReceived.Add("CF_Spouse");
+					player.mailReceived.Add("CF_Statue");
+					player.mailReceived.Add("museumComplete");
+					player.miningLevel.Value = 10;
+					player.fishingLevel.Value = 10;
+					player.foragingLevel.Value = 10;
+					player.combatLevel.Value = 10;
+					player.farmingLevel.Value = 10;
+					getFarm().buildStructure(new BluePrint("Water Obelisk"), new Vector2(0f, 0f), player, magicalConstruction: true, skipSafetyChecks: true);
+					getFarm().buildStructure(new BluePrint("Earth Obelisk"), new Vector2(4f, 0f), player, magicalConstruction: true, skipSafetyChecks: true);
+					getFarm().buildStructure(new BluePrint("Desert Obelisk"), new Vector2(8f, 0f), player, magicalConstruction: true, skipSafetyChecks: true);
+					getFarm().buildStructure(new BluePrint("Island Obelisk"), new Vector2(12f, 0f), player, magicalConstruction: true, skipSafetyChecks: true);
+					getFarm().buildStructure(new BluePrint("Gold Clock"), new Vector2(16f, 0f), player, magicalConstruction: true, skipSafetyChecks: true);
+					foreach (KeyValuePair<string, string> v9 in content.Load<Dictionary<string, string>>("Data\\Monsters"))
+					{
+						for (int i18 = 0; i18 < 500; i18++)
+						{
+							stats.monsterKilled(v9.Key);
+						}
+					}
+					break;
+				}
+				case "walnut":
+					netWorldState.Value.GoldenWalnuts.Value += Convert.ToInt32(debugSplit[1]);
+					netWorldState.Value.GoldenWalnutsFound.Value += Convert.ToInt32(debugSplit[1]);
+					break;
+				case "gem":
+					player.QiGems += Convert.ToInt32(debugSplit[1]);
+					break;
 				case "killnpc":
 				{
-					for (int i18 = locations.Count - 1; i18 >= 0; i18--)
+					for (int i20 = locations.Count - 1; i20 >= 0; i20--)
 					{
-						for (int j5 = 0; j5 < locations[i18].characters.Count; j5++)
+						for (int j5 = 0; j5 < locations[i20].characters.Count; j5++)
 						{
-							if (locations[i18].characters[j5].Name.Equals(debugSplit[1]))
+							if (locations[i20].characters[j5].Name.Equals(debugSplit[1]))
 							{
-								locations[i18].characters.RemoveAt(j5);
+								locations[i20].characters.RemoveAt(j5);
 								break;
 							}
 						}
@@ -12161,24 +14778,24 @@ namespace StardewValley
 					addHour();
 					break;
 				case "water":
-					foreach (TerrainFeature t5 in currentLocation.terrainFeatures.Values)
+					foreach (TerrainFeature t4 in currentLocation.terrainFeatures.Values)
 					{
-						if (t5 is HoeDirt)
+						if (t4 is HoeDirt)
 						{
-							(t5 as HoeDirt).state.Value = 1;
+							(t4 as HoeDirt).state.Value = 1;
 						}
 					}
 					break;
 				case "growcrops":
-					foreach (KeyValuePair<Vector2, TerrainFeature> t4 in currentLocation.terrainFeatures.Pairs)
+					foreach (KeyValuePair<Vector2, TerrainFeature> t5 in currentLocation.terrainFeatures.Pairs)
 					{
-						if (t4.Value is HoeDirt && (t4.Value as HoeDirt).crop != null)
+						if (t5.Value is HoeDirt && (t5.Value as HoeDirt).crop != null)
 						{
-							for (int i17 = 0; i17 < Convert.ToInt32(debugSplit[1]); i17++)
+							for (int i21 = 0; i21 < Convert.ToInt32(debugSplit[1]); i21++)
 							{
-								if ((t4.Value as HoeDirt).crop != null)
+								if ((t5.Value as HoeDirt).crop != null)
 								{
-									(t4.Value as HoeDirt).crop.newDay(1, -1, (int)t4.Key.X, (int)t4.Key.Y, getLocationFromName("Farm"));
+									(t5.Value as HoeDirt).crop.newDay(1, -1, (int)t5.Key.X, (int)t5.Key.Y, currentLocation);
 								}
 							}
 						}
@@ -12265,6 +14882,9 @@ namespace StardewValley
 				case "gamemode":
 					setGameMode(Convert.ToByte(debugSplit[1]));
 					break;
+				case "volcano":
+					warpFarmer("VolcanoDungeon" + Convert.ToInt32(debugSplit[1]), 0, 1, 2);
+					break;
 				case "minelevel":
 					enterMine(Convert.ToInt32(debugSplit[1]));
 					break;
@@ -12284,10 +14904,51 @@ namespace StardewValley
 						player.ActiveObject.edibility.Value = -300;
 					}
 					break;
+				case "watm":
+				case "warpanimaltome":
+					if (!(currentLocation is IAnimalLocation))
+					{
+						debugOutput = "Animals not allowed in current location.";
+					}
+					else
+					{
+						IAnimalLocation current_animal_location = currentLocation as IAnimalLocation;
+						FarmAnimal target_character5 = Utility.fuzzyAnimalSearch(debugSplit[1]);
+						if (target_character5 != null)
+						{
+							debugOutput = "Warping " + target_character5.displayName;
+							(target_character5.currentLocation as IAnimalLocation).Animals.Remove(target_character5.myID);
+							current_animal_location.Animals.Add(target_character5.myID, target_character5);
+							target_character5.Position = player.Position;
+							target_character5.controller = null;
+						}
+						else
+						{
+							debugOutput = "Couldn't find character named " + debugSplit[1];
+						}
+					}
+					break;
+				case "wctm":
+				case "warpcharactertome":
+				{
+					NPC target_character4 = Utility.fuzzyCharacterSearch(debugSplit[1], must_be_villager: false);
+					if (target_character4 != null)
+					{
+						debugOutput = "Warping " + target_character4.displayName;
+						warpCharacter(target_character4, currentLocation.Name, new Vector2(player.getTileX(), player.getTileY()));
+						target_character4.controller = null;
+						target_character4.Halt();
+					}
+					else
+					{
+						debugOutput = "Couldn't find character named " + debugSplit[1];
+					}
+					break;
+				}
 				case "wc":
 				case "warpcharacter":
 				{
-					NPC target_character3 = Utility.fuzzyCharacterSearch(debugSplit[1]);
+					NPC target_character3 = Utility.fuzzyCharacterSearch(debugSplit[1], must_be_villager: false);
 					if (target_character3 != null)
 					{
 						if (debugSplit.Length < 4)
@@ -12302,8 +14963,8 @@ namespace StardewValley
 								facingDirection2 = Convert.ToInt32(debugSplit[4]);
 							}
 							warpCharacter(target_character3, currentLocation.Name, new Vector2(Convert.ToInt32(debugSplit[2]), Convert.ToInt32(debugSplit[3])));
-							Utility.fuzzyCharacterSearch(debugSplit[1]).faceDirection(facingDirection2);
-							Utility.fuzzyCharacterSearch(debugSplit[1]).controller = null;
+							target_character3.faceDirection(facingDirection2);
+							target_character3.controller = null;
 							target_character3.Halt();
 						}
 					}
@@ -12477,7 +15138,7 @@ namespace StardewValley
 				case "bloom":
 					if (bloom == null)
 					{
-						bloom = new BloomComponent(this);
+						bloom = new BloomComponent(GameRunner.instance);
 						base.Components.Add(bloom);
 					}
 					bloomDay = true;
@@ -12565,6 +15226,9 @@ namespace StardewValley
 				case "drawbounds":
 					drawbounds = !drawbounds;
 					break;
+				case "darts":
+					currentMinigame = new Darts();
+					break;
 				case "minegame":
 				{
 					int game_mode = 3;
@@ -12598,6 +15262,112 @@ namespace StardewValley
 						addMailForTomorrow(string.Join(" ", debugSplit.Skip(1)), noLetter: false, sendToEveryone: true);
 					}
 					break;
+				case "phone":
+					ShowTelephoneMenu();
+					break;
+				case "renovate":
+					HouseRenovation.ShowRenovationMenu();
+					break;
+				case "crib":
+				{
+					FarmHouse house;
+					if ((house = (getLocationFromName(player.homeLocation.Value) as FarmHouse)) != null)
+					{
+						int style = Convert.ToInt32(debugSplit[1]);
+						house.cribStyle.Value = style;
+					}
+					break;
+				}
+				case "testnut":
+					createItemDebris(new Object(73, 1), Vector2.Zero, 2);
+					break;
+				case "pstm":
+				case "pathspousetome":
+					if (player.getSpouse() != null)
+					{
+						NPC spouse = player.getSpouse();
+						if (spouse.currentLocation != currentLocation)
+						{
+							warpCharacter(spouse, currentLocation.NameOrUniqueName, player.getTileLocationPoint());
+						}
+						spouse.exploreFarm.Value = true;
+						player.getSpouse().PathToOnFarm(player.getTileLocationPoint());
+					}
+					break;
+				case "shufflebundles":
+					GenerateBundles(BundleType.Remixed, use_seed: false);
+					break;
+				case "split":
+					if (debugSplit.Length >= 2)
+					{
+						int player_index = int.Parse(debugSplit[1]);
+						GameRunner.instance.AddGameInstance((PlayerIndex)player_index);
+					}
+					else
+					{
+						ShowLocalCoopJoinMenu();
+					}
+					break;
+				case "bpm":
+				{
+					Building building4 = getFarm().getBuildingAt(player.getTileLocation() + new Vector2(0f, -1f));
+					if (building4 != null)
+					{
+						activeClickableMenu = new BuildingPaintMenu(building4);
+					}
+					else
+					{
+						Farm farm_location = getFarm();
+						activeClickableMenu = new BuildingPaintMenu("House", () => (farm_location.paintedHouseTexture != null) ? farm_location.paintedHouseTexture : Farm.houseTextures, farm_location.houseSource.Value, farm_location.housePaintColor.Value);
+					}
+					break;
+				}
+				case "minedifficulty":
+				case "md":
+					if (debugSplit.Length > 1)
+					{
+						netWorldState.Value.MinesDifficulty = Convert.ToInt32(debugSplit[1]);
+					}
+					debugOutput = "Mine difficulty: " + netWorldState.Value.MinesDifficulty;
+					break;
+				case "skullcavedifficulty":
+				case "scd":
+					netWorldState.Value.SkullCavesDifficulty = Convert.ToInt32(debugSplit[1]);
+					debugOutput = "Skull Cave difficulty: " + netWorldState.Value.SkullCavesDifficulty;
+					break;
+				case "tls":
+					useUnscaledLighting = !useUnscaledLighting;
+					debugOutput = "Toggled Lighting Scale: useUnscaledLighting: " + useUnscaledLighting.ToString();
+					break;
+				case "fixweapons":
+					applySaveFix(SaveGame.SaveFixes.ResetForges);
+					debugOutput = "Reset forged weapon attributes.";
+					break;
+				case "pgb":
+					debugOutput = "Gem birds: North " + IslandGemBird.GetBirdTypeForLocation("IslandNorth") + " South " + IslandGemBird.GetBirdTypeForLocation("IslandSouth") + " East " + IslandGemBird.GetBirdTypeForLocation("IslandEast") + " West " + IslandGemBird.GetBirdTypeForLocation("IslandWest");
+					break;
+				case "ppp":
+				case "printplayerpos":
+					debugOutput = "Player tile position is " + player.getTileLocation() + " (World position: " + player.Position + ")";
+					break;
+				case "showplurals":
+				{
+					List<string> item_names = new List<string>();
+					foreach (string data in objectInformation.Values)
+					{
+						item_names.Add(data.Split('/')[0]);
+					}
+					foreach (string data2 in bigCraftablesInformation.Values)
+					{
+						item_names.Add(data2.Split('/')[0]);
+					}
+					item_names.Sort();
+					foreach (string item4 in item_names)
+					{
+						Console.WriteLine(Lexicon.makePlural(item4));
+					}
+					break;
+				}
 				case "rm":
 				case "runmacro":
 					if (isRunningMacro)
@@ -12652,14 +15422,28 @@ namespace StardewValley
 				{
 					Type monsterType = Type.GetType("StardewValley.Monsters." + debugSplit[1]);
 					Vector2 pos = new Vector2(Convert.ToSingle(debugSplit[2]), Convert.ToSingle(debugSplit[3])) * 64f;
-					object[] args = (debugSplit.Length <= 4) ? new object[1]
+					object[] args;
+					if (debugSplit.Length > 4)
 					{
-						pos
-					} : new object[2]
+						string monster_name = string.Join(" ", debugSplit.Skip(4));
+						int number_arg = -1;
+						args = ((!int.TryParse(monster_name, out number_arg)) ? new object[2]
+						{
+							pos,
+							monster_name
+						} : new object[2]
+						{
+							pos,
+							number_arg
+						});
+					}
+					else
 					{
-						pos,
-						Convert.ToInt32(debugSplit[4])
-					};
+						args = new object[1]
+						{
+							pos
+						};
+					}
 					Monster mon = Activator.CreateInstance(monsterType, args) as Monster;
 					currentLocation.characters.Add(mon);
 					break;
@@ -12723,8 +15507,11 @@ namespace StardewValley
 				case "newday":
 				case "sleep":
 					player.isInBed.Value = true;
+					player.sleptInTemporaryBed.Value = true;
 					currentLocation.answerDialogueAction("Sleep_Yes", null);
 					break;
+				case "gm":
+				case "inv":
 				case "invincible":
 					if (player.temporarilyInvincible)
 					{
@@ -12745,171 +15532,180 @@ namespace StardewValley
 				}
 				return true;
 			}
-			catch (Exception ex6)
+			catch (Exception ex7)
 			{
-				debugOutput = ex6.Message;
+				debugOutput = ex7.Message;
 				return false;
 			}
 		}
 
-		public string takeMapScreenshot(float scale = 1f, string screenshot_name = null)
+		public void RecountWalnuts()
 		{
-			if (screenshot_name == null || screenshot_name.Trim() == "")
+			if (!IsMasterGame)
 			{
-				screenshot_name = SaveGame.FilterFileName(player.name) + "_" + DateTime.UtcNow.Month + "-" + DateTime.UtcNow.Day.ToString() + "-" + DateTime.UtcNow.Year.ToString() + "_" + (int)DateTime.UtcNow.TimeOfDay.TotalMilliseconds;
+				return;
 			}
-			if (currentLocation == null)
+			IslandHut hut = getLocationFromName("IslandHut") as IslandHut;
+			if (hut != null)
 			{
-				return null;
-			}
-			string filename = screenshot_name + ".png";
-			int start_x = 0;
-			int start_y = 0;
-			int width = currentLocation.map.DisplayWidth;
-			int height = currentLocation.map.DisplayHeight;
-			try
-			{
-				PropertyValue screenshot_region_value = null;
-				if (currentLocation.map.Properties.TryGetValue("ScreenshotRegion", out screenshot_region_value))
+				int missing_nuts = hut.ShowNutHint();
+				int current_nut_count = 130 - missing_nuts;
+				netWorldState.Value.GoldenWalnutsFound.Value = current_nut_count;
+				foreach (GameLocation location in locations)
 				{
-					string[] array = screenshot_region_value.ToString().Split(' ');
-					start_x = int.Parse(array[0]) * 64;
-					start_y = int.Parse(array[1]) * 64;
-					width = (int.Parse(array[2]) + 1) * 64 - start_x;
-					height = (int.Parse(array[3]) + 1) * 64 - start_y;
-				}
-			}
-			catch (Exception)
-			{
-				start_x = 0;
-				start_y = 0;
-				width = currentLocation.map.DisplayWidth;
-				height = currentLocation.map.DisplayHeight;
-			}
-			int scaled_width2 = (int)((float)width * scale);
-			int scaled_height2 = (int)((float)height * scale);
-			bool failed2 = false;
-			Bitmap map_bitmap = null;
-			do
-			{
-				failed2 = false;
-				scaled_width2 = (int)((float)width * scale);
-				scaled_height2 = (int)((float)height * scale);
-				try
-				{
-					map_bitmap = new Bitmap(scaled_width2, scaled_height2);
-				}
-				catch (Exception e2)
-				{
-					Console.WriteLine("Map Screenshot: Error trying to create Bitmap: " + e2.ToString());
-					failed2 = true;
-				}
-				if (failed2)
-				{
-					scale -= 0.25f;
-				}
-				if (scale <= 0f)
-				{
-					return null;
-				}
-			}
-			while (failed2);
-			int chunk_size = 2048;
-			int scaled_chunk_size = (int)((float)chunk_size * scale);
-			xTile.Dimensions.Rectangle old_viewport = viewport;
-			bool old_display_hud = displayHUD;
-			takingMapScreenshot = true;
-			float old_zoom_level = options.zoomLevel;
-			options.zoomLevel = 1f;
-			RenderTarget2D cached_lightmap = _lightmap;
-			_lightmap = null;
-			bool fail = false;
-			try
-			{
-				allocateLightmap(chunk_size, chunk_size);
-				int chunks_wide = (int)Math.Ceiling((float)scaled_width2 / (float)scaled_chunk_size);
-				int chunks_high = (int)Math.Ceiling((float)scaled_height2 / (float)scaled_chunk_size);
-				for (int y_offset = 0; y_offset < chunks_high; y_offset++)
-				{
-					for (int x_offset = 0; x_offset < chunks_wide; x_offset++)
+					if (location is IslandLocation)
 					{
-						int current_width = scaled_chunk_size;
-						int current_height = scaled_chunk_size;
-						int current_x = x_offset * scaled_chunk_size;
-						int current_y = y_offset * scaled_chunk_size;
-						if (current_x + scaled_chunk_size > scaled_width2)
+						foreach (ParrotUpgradePerch perch in (location as IslandLocation).parrotUpgradePerches)
 						{
-							current_width += scaled_width2 - (current_x + scaled_chunk_size);
-						}
-						if (current_y + scaled_chunk_size > scaled_height2)
-						{
-							current_height += scaled_height2 - (current_y + scaled_chunk_size);
-						}
-						if (current_height > 0 && current_width > 0)
-						{
-							System.Drawing.Rectangle rect = new System.Drawing.Rectangle(current_x, current_y, current_width, current_height);
-							RenderTarget2D render_target = new RenderTarget2D(graphics.GraphicsDevice, chunk_size, chunk_size, mipMap: false, SurfaceFormat.Color, DepthFormat.None, 0, RenderTargetUsage.DiscardContents);
-							viewport = new xTile.Dimensions.Rectangle(x_offset * chunk_size + start_x, y_offset * chunk_size + start_y, chunk_size, chunk_size);
-							_draw(currentGameTime, render_target);
-							RenderTarget2D scaled_render_target = new RenderTarget2D(graphics.GraphicsDevice, current_width, current_height, mipMap: false, SurfaceFormat.Color, DepthFormat.None, 0, RenderTargetUsage.DiscardContents);
-							base.GraphicsDevice.SetRenderTarget(scaled_render_target);
-							spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.Opaque, SamplerState.PointClamp, DepthStencilState.Default, RasterizerState.CullNone);
-							Microsoft.Xna.Framework.Color color = Microsoft.Xna.Framework.Color.White;
-							spriteBatch.Draw(render_target, Vector2.Zero, render_target.Bounds, color, 0f, Vector2.Zero, scale, SpriteEffects.None, 1f);
-							spriteBatch.End();
-							render_target.Dispose();
-							base.GraphicsDevice.SetRenderTarget(null);
-							BitmapData bitmap_data = map_bitmap.LockBits(rect, ImageLockMode.ReadWrite, PixelFormat.Format24bppRgb);
-							IntPtr ptr = bitmap_data.Scan0;
-							Microsoft.Xna.Framework.Color[] colors = new Microsoft.Xna.Framework.Color[current_width * current_height];
-							scaled_render_target.GetData(colors);
-							int bytes = current_width * current_height * 3;
-							byte[] rgb_values = new byte[bytes];
-							for (int i = 0; i < colors.Length; i++)
+							if (perch.currentState.Value == ParrotUpgradePerch.UpgradeState.Complete)
 							{
-								rgb_values[i * 3] = colors[i].B;
-								rgb_values[i * 3 + 1] = colors[i].G;
-								rgb_values[i * 3 + 2] = colors[i].R;
+								current_nut_count -= (int)perch.requiredNuts;
 							}
-							Marshal.Copy(rgb_values, 0, ptr, bytes);
-							map_bitmap.UnlockBits(bitmap_data);
-							scaled_render_target.Dispose();
 						}
 					}
 				}
-				string logDirectory = "Screenshots";
-				int folder = (Environment.OSVersion.Platform != PlatformID.Unix) ? 26 : 28;
-				string fullFilePath = Path.Combine(Path.Combine(Path.Combine(Environment.GetFolderPath((Environment.SpecialFolder)folder), "StardewValley"), logDirectory), filename);
-				FileInfo info2 = new FileInfo(Path.Combine(Path.Combine(Path.Combine(Environment.GetFolderPath((Environment.SpecialFolder)folder), "StardewValley"), logDirectory), "asdfasdf"));
-				if (!info2.Directory.Exists)
+				if (MasterPlayer.hasOrWillReceiveMail("Island_VolcanoShortcutOut"))
 				{
-					info2.Directory.Create();
+					current_nut_count -= 5;
 				}
-				info2 = null;
-				map_bitmap.Save(fullFilePath, ImageFormat.Png);
-				map_bitmap.Dispose();
+				if (MasterPlayer.hasOrWillReceiveMail("Island_VolcanoBridge"))
+				{
+					current_nut_count -= 5;
+				}
+				netWorldState.Value.GoldenWalnuts.Value = current_nut_count;
 			}
-			catch (Exception e)
+		}
+
+		public void ResetIslandLocations()
+		{
+			netWorldState.Value.GoldenWalnutsFound.Value = 0;
+			string[] other_mails_to_remove = new string[14]
 			{
-				Console.WriteLine("Map Screenshot: Error taking screenshot: " + e.ToString());
-				base.GraphicsDevice.SetRenderTarget(null);
-				fail = true;
-			}
-			if (_lightmap != null)
+				"birdieQuestBegun",
+				"birdieQuestFinished",
+				"tigerSlimeNut",
+				"Island_W_BuriedTreasureNut",
+				"Island_W_BuriedTreasure",
+				"islandNorthCaveOpened",
+				"Saw_Flame_Sprite_North_North",
+				"Saw_Flame_Sprite_North_South",
+				"Island_N_BuriedTreasureNut",
+				"Island_W_BuriedTreasure",
+				"Saw_Flame_Sprite_South",
+				"Visited_Island",
+				"Island_FirstParrot",
+				"gotBirdieReward"
+			};
+			player.team.collectedNutTracker.Clear();
+			for (int i3 = 0; i3 < player.mailReceived.Count; i3++)
 			{
-				_lightmap.Dispose();
-				_lightmap = null;
+				if (player.mailReceived[i3].StartsWith("Island_Upgrade"))
+				{
+					player.mailReceived.RemoveAt(i3);
+					i3--;
+					continue;
+				}
+				for (int i = 0; i < other_mails_to_remove.Length; i++)
+				{
+					if (player.mailReceived[i3].Contains(other_mails_to_remove[i]))
+					{
+						player.mailReceived.RemoveAt(i3);
+						i3--;
+						break;
+					}
+				}
 			}
-			_lightmap = cached_lightmap;
-			options.zoomLevel = old_zoom_level;
-			takingMapScreenshot = false;
-			displayHUD = old_display_hud;
-			viewport = old_viewport;
-			if (fail)
+			for (int i2 = 0; i2 < player.mailForTomorrow.Count; i2++)
 			{
-				return null;
+				if (player.mailForTomorrow[i2].StartsWith("Island_Upgrade"))
+				{
+					player.mailForTomorrow.RemoveAt(i2);
+					i2--;
+				}
+				for (int j = 0; j < other_mails_to_remove.Length; j++)
+				{
+					if (player.mailForTomorrow[i2].Contains(other_mails_to_remove[j]))
+					{
+						player.mailForTomorrow.RemoveAt(i2);
+						i2--;
+						break;
+					}
+				}
 			}
-			return filename;
+			for (int n = 0; n < player.team.broadcastedMail.Count; n++)
+			{
+				if (player.team.broadcastedMail[n].StartsWith("Island_Upgrade"))
+				{
+					player.team.broadcastedMail.RemoveAt(n);
+					n--;
+				}
+				for (int k = 0; k < other_mails_to_remove.Length; k++)
+				{
+					if (player.team.broadcastedMail[n].Contains(other_mails_to_remove[k]))
+					{
+						player.team.broadcastedMail.RemoveAt(n);
+						n--;
+						break;
+					}
+				}
+			}
+			for (int m = 0; m < player.secretNotesSeen.Count; m++)
+			{
+				if (player.secretNotesSeen[m] >= 1000)
+				{
+					player.secretNotesSeen.RemoveAt(m);
+					m--;
+				}
+			}
+			player.team.limitedNutDrops.Clear();
+			netWorldState.Value.GoldenCoconutCracked.Value = false;
+			netWorldState.Value.GoldenWalnuts.Set(0);
+			netWorldState.Value.ParrotPlatformsUnlocked.Value = false;
+			netWorldState.Value.FoundBuriedNuts.Clear();
+			for (int l = 0; l < locations.Count; l++)
+			{
+				GameLocation location = locations[l];
+				if (location.GetLocationContext() == GameLocation.LocationContext.Island)
+				{
+					_locationLookup.Clear();
+					string map_path = location.mapPath.Value;
+					string location_name = location.name.Value;
+					object[] args = new object[2]
+					{
+						map_path,
+						location_name
+					};
+					GameLocation new_instance2 = null;
+					try
+					{
+						new_instance2 = (Activator.CreateInstance(location.GetType(), args) as GameLocation);
+					}
+					catch (Exception)
+					{
+						new_instance2 = (Activator.CreateInstance(location.GetType()) as GameLocation);
+					}
+					locations[l] = new_instance2;
+					_locationLookup.Clear();
+				}
+			}
+			addBirdieIfNecessary();
+		}
+
+		public void ShowTelephoneMenu()
+		{
+			playSound("openBox");
+			List<Response> responses = new List<Response>();
+			responses.Add(new Response("Carpenter", getCharacterFromName("Robin").displayName));
+			responses.Add(new Response("Blacksmith", getCharacterFromName("Clint").displayName));
+			responses.Add(new Response("SeedShop", getCharacterFromName("Pierre").displayName));
+			responses.Add(new Response("AnimalShop", getCharacterFromName("Marnie").displayName));
+			responses.Add(new Response("Saloon", getCharacterFromName("Gus").displayName));
+			if (player.mailReceived.Contains("Gil_Telephone"))
+			{
+				responses.Add(new Response("AdventureGuild", getCharacterFromName("Marlon").displayName));
+			}
+			responses.Add(new Response("HangUp", content.LoadString("Strings\\StringsFromCSFiles:TV.cs.13118")));
+			currentLocation.createQuestionDialogue(content.LoadString("Strings\\Characters:Phone_SelectNumber"), responses.ToArray(), "telephone");
 		}
 
 		public void requestDebugInput()
@@ -12997,22 +15793,22 @@ namespace StardewValley
 					panModeSuccess(currentKBState);
 				}
 			}
-			if (getMouseX() < 192)
+			if (getMouseX(ui_scale: false) < 192)
 			{
 				viewport.X -= 8;
 				viewport.X -= (192 - getMouseX()) / 8;
 			}
-			if (getMouseX() > viewport.Width - 192)
+			if (getMouseX(ui_scale: false) > viewport.Width - 192)
 			{
 				viewport.X += 8;
 				viewport.X += (getMouseX() - viewport.Width + 192) / 8;
 			}
-			if (getMouseY() < 192)
+			if (getMouseY(ui_scale: false) < 192)
 			{
 				viewport.Y -= 8;
 				viewport.Y -= (192 - getMouseY()) / 8;
 			}
-			if (getMouseY() > viewport.Height - 192)
+			if (getMouseY(ui_scale: false) > viewport.Height - 192)
 			{
 				viewport.Y += 8;
 				viewport.Y += (getMouseY() - viewport.Height + 192) / 8;
@@ -13075,7 +15871,11 @@ namespace StardewValley
 			{
 				if (!(locationName == "JojaMart"))
 				{
-					if (locationName == "Railroad" && stats.DaysPlayed > 31)
+					if (!(locationName == "Railroad"))
+					{
+						return true;
+					}
+					if (stats.DaysPlayed > 31)
 					{
 						return true;
 					}
@@ -13169,22 +15969,27 @@ namespace StardewValley
 			GamePadState padState = input.GetGamePadState();
 			if (IsChatting)
 			{
-				if (textEntry == null)
+				if (textEntry != null)
 				{
-					if (padState.IsButtonDown(Buttons.A) && chatBox != null && chatBox.isActive() && !chatBox.isHoveringOverEmojiUI(input.GetMouseState().X, input.GetMouseState().Y))
+					return;
+				}
+				if (padState.IsButtonDown(Buttons.A))
+				{
+					MouseState mouse = input.GetMouseState();
+					if (chatBox != null && chatBox.isActive() && !chatBox.isHoveringOverClickable(mouse.X, mouse.Y))
 					{
 						oldPadState = padState;
 						oldKBState = keyState;
 						showTextEntry(chatBox.chatBox);
 					}
-					if (keyState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Escape) || padState.IsButtonDown(Buttons.B) || padState.IsButtonDown(Buttons.Back))
-					{
-						chatBox.clickAway();
-						oldKBState = keyState;
-					}
+				}
+				if (keyState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Escape) || padState.IsButtonDown(Buttons.B) || padState.IsButtonDown(Buttons.Back))
+				{
+					chatBox.clickAway();
+					oldKBState = keyState;
 				}
 			}
-			else if (keyboardDispatcher.Subscriber == null && (isOneOfTheseKeysDown(keyState, options.chatButton) || (!padState.IsButtonDown(Buttons.RightStick) && rightStickHoldTime > 0 && rightStickHoldTime < emoteMenuShowTime)))
+			else if (keyboardDispatcher.Subscriber == null && ((isOneOfTheseKeysDown(keyState, options.chatButton) && game1.HasKeyboardFocus()) || (!padState.IsButtonDown(Buttons.RightStick) && rightStickHoldTime > 0 && rightStickHoldTime < emoteMenuShowTime)))
 			{
 				chatBox.activate();
 				if (keyState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.OemQuestion))
@@ -13203,7 +16008,7 @@ namespace StardewValley
 				{
 					return default(KeyboardState);
 				}
-				if (keyboardDispatcher.Subscriber == null && isOneOfTheseKeysDown(keyState, options.chatButton))
+				if (keyboardDispatcher.Subscriber == null && isOneOfTheseKeysDown(keyState, options.chatButton) && game1.HasKeyboardFocus())
 				{
 					return default(KeyboardState);
 				}
@@ -13236,9 +16041,11 @@ namespace StardewValley
 					bool flag = false;
 					if (Math.Abs(currentPadState.ThumbSticks.Right.X) > 0f || Math.Abs(currentPadState.ThumbSticks.Right.Y) > 0f)
 					{
-						Mouse.SetPosition((int)((float)currentMouseState.X + currentPadState.ThumbSticks.Right.X * thumbstickToMouseModifier), (int)((float)currentMouseState.Y - currentPadState.ThumbSticks.Right.Y * thumbstickToMouseModifier));
-						InvalidateOldMouseMovement();
-						lastCursorMotionWasMouse = false;
+						setMousePositionRaw((int)((float)currentMouseState.X + currentPadState.ThumbSticks.Right.X * thumbstickToMouseModifier), (int)((float)currentMouseState.Y - currentPadState.ThumbSticks.Right.Y * thumbstickToMouseModifier));
+						flag = true;
+					}
+					if (IsChatting)
+					{
 						flag = true;
 					}
 					if (((getMouseX() != getOldMouseX() || getMouseY() != getOldMouseY()) && getMouseX() != 0 && getMouseY() != 0) | flag)
@@ -13247,7 +16054,7 @@ namespace StardewValley
 						{
 							if (timerUntilMouseFade <= 0)
 							{
-								lastMousePositionBeforeFade = new Microsoft.Xna.Framework.Point(graphics.GraphicsDevice.Viewport.Width / 2, graphics.GraphicsDevice.Viewport.Height / 2);
+								lastMousePositionBeforeFade = new Microsoft.Xna.Framework.Point(localMultiplayerWindow.Width / 2, localMultiplayerWindow.Height / 2);
 							}
 						}
 						else
@@ -13256,9 +16063,7 @@ namespace StardewValley
 						}
 						if (timerUntilMouseFade <= 0 && !lastCursorMotionWasMouse)
 						{
-							Mouse.SetPosition(lastMousePositionBeforeFade.X, lastMousePositionBeforeFade.Y);
-							InvalidateOldMouseMovement();
-							lastCursorMotionWasMouse = false;
+							setMousePositionRaw(lastMousePositionBeforeFade.X, lastMousePositionBeforeFade.Y);
 						}
 						timerUntilMouseFade = 4000;
 					}
@@ -13513,6 +16318,33 @@ namespace StardewValley
 					{
 						moveUpReleased = true;
 					}
+					if (controllerSlingshotSafeTime > 0f)
+					{
+						if (!currentPadState.IsButtonDown(Buttons.DPadUp) && !currentPadState.IsButtonDown(Buttons.DPadDown) && !currentPadState.IsButtonDown(Buttons.DPadLeft) && !currentPadState.IsButtonDown(Buttons.DPadRight) && (double)Math.Abs(currentPadState.ThumbSticks.Left.X) < 0.04 && (double)Math.Abs(currentPadState.ThumbSticks.Left.Y) < 0.04)
+						{
+							controllerSlingshotSafeTime = 0f;
+						}
+						if (controllerSlingshotSafeTime <= 0f)
+						{
+							controllerSlingshotSafeTime = 0f;
+						}
+						else
+						{
+							controllerSlingshotSafeTime -= (float)time.ElapsedGameTime.TotalSeconds;
+							moveUpPressed = false;
+							moveDownPressed = false;
+							moveLeftPressed = false;
+							moveRightPressed = false;
+							moveUpHeld = false;
+							moveDownHeld = false;
+							moveLeftHeld = false;
+							moveRightHeld = false;
+						}
+					}
+				}
+				else
+				{
+					controllerSlingshotSafeTime = 0f;
 				}
 				ResetFreeCursorDrag();
 				if (flag2)
@@ -13532,6 +16364,7 @@ namespace StardewValley
 					useToolButtonPressed = true;
 					mouseClickPolling = 100;
 				}
+				PushUIMode();
 				foreach (IClickableMenu current in onScreenMenus)
 				{
 					if ((displayHUD || current == chatBox) && wasMouseVisibleThisFrame && current.isWithinBounds(getMouseX(), getMouseY()))
@@ -13539,6 +16372,7 @@ namespace StardewValley
 						current.performHoverAction(getMouseX(), getMouseY());
 					}
 				}
+				PopUIMode();
 				if (chatBox != null && chatBox.chatBox.Selected && oldMouseState.ScrollWheelValue != currentMouseState.ScrollWheelValue)
 				{
 					chatBox.receiveScrollWheelAction(currentMouseState.ScrollWheelValue - oldMouseState.ScrollWheelValue);
@@ -13574,6 +16408,7 @@ namespace StardewValley
 					{
 						if (((useToolButtonPressed && !isAnyGamePadButtonBeingPressed()) || (actionButtonPressed && isAnyGamePadButtonBeingPressed())) && pauseTime <= 0f && wasMouseVisibleThisFrame)
 						{
+							PushUIMode();
 							foreach (IClickableMenu current2 in onScreenMenus)
 							{
 								if (displayHUD || current2 == chatBox)
@@ -13581,6 +16416,7 @@ namespace StardewValley
 									if ((!IsChatting || current2 == chatBox) && (!(current2 is LevelUpMenu) || (current2 as LevelUpMenu).informationUp) && current2.isWithinBounds(getMouseX(), getMouseY()))
 									{
 										current2.receiveLeftClick(getMouseX(), getMouseY());
+										PopUIMode();
 										oldMouseState = input.GetMouseState();
 										oldKBState = currentKBState;
 										oldPadState = currentPadState;
@@ -13591,14 +16427,25 @@ namespace StardewValley
 										oldMouseState = input.GetMouseState();
 										oldKBState = currentKBState;
 										oldPadState = currentPadState;
+										PopUIMode();
 										return;
 									}
 									current2.clickAway();
 								}
 							}
+							PopUIMode();
 						}
 						if (IsChatting || player.freezePause > 0)
 						{
+							if (IsChatting)
+							{
+								ButtonCollection.ButtonEnumerator enumerator2 = Utility.getPressedButtons(currentPadState, oldPadState).GetEnumerator();
+								while (enumerator2.MoveNext())
+								{
+									Buttons current3 = enumerator2.Current;
+									chatBox.receiveGamePadButton(current3);
+								}
+							}
 							oldMouseState = input.GetMouseState();
 							oldKBState = currentKBState;
 							oldPadState = currentPadState;
@@ -13632,18 +16479,23 @@ namespace StardewValley
 							bool flag3 = eventUp || farmEvent != null;
 							if (actionButtonPressed || (dialogueUp && useToolButtonPressed))
 							{
-								foreach (IClickableMenu current3 in onScreenMenus)
+								PushUIMode();
+								foreach (IClickableMenu current4 in onScreenMenus)
 								{
-									if (wasMouseVisibleThisFrame && (displayHUD || current3 == chatBox) && current3.isWithinBounds(getMouseX(), getMouseY()) && (!(current3 is LevelUpMenu) || (current3 as LevelUpMenu).informationUp))
+									if (wasMouseVisibleThisFrame && (displayHUD || current4 == chatBox) && current4.isWithinBounds(getMouseX(), getMouseY()) && (!(current4 is LevelUpMenu) || (current4 as LevelUpMenu).informationUp))
 									{
-										current3.receiveRightClick(getMouseX(), getMouseY());
+										current4.receiveRightClick(getMouseX(), getMouseY());
 										oldMouseState = input.GetMouseState();
 										if (!isAnyGamePadButtonBeingPressed())
 										{
+											PopUIMode();
+											oldKBState = currentKBState;
+											oldPadState = currentPadState;
 											return;
 										}
 									}
 								}
+								PopUIMode();
 								if (!pressActionButton(currentKBState, currentMouseState, currentPadState))
 								{
 									oldKBState = currentKBState;
@@ -13652,38 +16504,35 @@ namespace StardewValley
 									return;
 								}
 							}
-							else
+							if (useToolButtonPressed && (!player.UsingTool || (player.CurrentTool != null && player.CurrentTool is MeleeWeapon)) && !player.isEating && !pickingTool && !dialogueUp && !menuUp && farmEvent == null && (player.CanMove || (player.CurrentTool != null && (player.CurrentTool.Name.Equals("Fishing Rod") || player.CurrentTool is MeleeWeapon))))
 							{
-								if (useToolButtonPressed && (!player.UsingTool || (player.CurrentTool != null && player.CurrentTool is MeleeWeapon)) && !player.isEating && !pickingTool && !dialogueUp && !menuUp && farmEvent == null && (player.CanMove || (player.CurrentTool != null && (player.CurrentTool.Name.Equals("Fishing Rod") || player.CurrentTool is MeleeWeapon))))
+								if (player.CurrentTool != null && (!(player.CurrentTool is MeleeWeapon) || didPlayerJustLeftClick(ignoreNonMouseHeldInput: true)))
 								{
-									if (player.CurrentTool != null && (!(player.CurrentTool is MeleeWeapon) || didPlayerJustLeftClick(ignoreNonMouseHeldInput: true)))
-									{
-										player.FireTool();
-									}
-									if (!pressUseToolButton() && player.canReleaseTool && player.UsingTool)
-									{
-										_ = player.CurrentTool;
-									}
+									player.FireTool();
+								}
+								if (!pressUseToolButton() && player.canReleaseTool && player.UsingTool)
+								{
+									_ = player.CurrentTool;
+								}
+								if (player.UsingTool)
+								{
 									oldMouseState = input.GetMouseState();
-									if (mouseClickPolling < 100)
-									{
-										oldKBState = currentKBState;
-									}
+									oldKBState = currentKBState;
 									oldPadState = currentPadState;
 									return;
 								}
-								if (useToolButtonReleased && player.canReleaseTool && player.UsingTool && player.CurrentTool != null)
-								{
-									player.EndUsingTool();
-								}
-								else if (switchToolButtonPressed && !player.UsingTool && !dialogueUp && (pickingTool || player.CanMove) && !player.areAllItemsNull() && !flag3)
-								{
-									pressSwitchToolButton();
-								}
-								else if ((!switchToolButtonPressed || player.ActiveObject == null || dialogueUp || flag3) && addItemToInventoryButtonPressed && !pickingTool && !flag3 && !player.UsingTool && player.CanMove)
-								{
-									pressAddItemToInventoryButton();
-								}
+							}
+							if (useToolButtonReleased && _didInitiateItemStow)
+							{
+								_didInitiateItemStow = false;
+							}
+							if (useToolButtonReleased && player.canReleaseTool && player.UsingTool && player.CurrentTool != null)
+							{
+								player.EndUsingTool();
+							}
+							if (switchToolButtonPressed && !player.UsingTool && !dialogueUp && (pickingTool || player.CanMove) && !player.areAllItemsNull() && !flag3)
+							{
+								pressSwitchToolButton();
 							}
 							if (cancelButtonPressed)
 							{
@@ -13701,11 +16550,17 @@ namespace StardewValley
 							}
 							if (player.CurrentTool != null && flag2 && player.canReleaseTool && !flag3 && !dialogueUp && !menuUp && player.Stamina >= 1f && !(player.CurrentTool is FishingRod))
 							{
-								if (player.toolHold <= 0 && (int)player.CurrentTool.upgradeLevel > player.toolPower)
+								int num = player.CurrentTool.hasEnchantmentOfType<ReachingToolEnchantment>() ? 1 : 0;
+								if (player.toolHold <= 0 && (int)player.CurrentTool.upgradeLevel + num > player.toolPower)
 								{
-									player.toolHold = 600;
+									float num2 = 1f;
+									if (player.CurrentTool != null)
+									{
+										num2 = player.CurrentTool.AnimationSpeedModifier;
+									}
+									player.toolHold = (int)(600f * num2);
 								}
-								else if ((int)player.CurrentTool.upgradeLevel > player.toolPower)
+								else if ((int)player.CurrentTool.upgradeLevel + num > player.toolPower)
 								{
 									player.toolHold -= time.ElapsedGameTime.Milliseconds;
 									if (player.toolHold <= 0)
@@ -13738,7 +16593,7 @@ namespace StardewValley
 							{
 								if (player.movementDirections.Count < 2)
 								{
-									int count = player.movementDirections.Count;
+									_ = player.movementDirections.Count;
 									if (moveUpHeld)
 									{
 										player.setMoving(1);
@@ -13754,10 +16609,6 @@ namespace StardewValley
 									if (moveLeftHeld)
 									{
 										player.setMoving(8);
-									}
-									if (count == 0 && player.movementDirections.Count > 0 && player.running)
-									{
-										player.FarmerSprite.nextOffset = 1;
 									}
 								}
 								if (moveUpReleased || (player.movementDirections.Contains(0) && !moveUpHeld))
@@ -14071,14 +16922,6 @@ namespace StardewValley
 							}
 							if (!Program.releaseBuild)
 							{
-								if ((currentKBState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.LeftShift) || currentPadState.IsButtonDown(Buttons.LeftTrigger)) && (IsPressEvent(ref currentKBState, Microsoft.Xna.Framework.Input.Keys.F3) || IsPressEvent(ref currentPadState, Buttons.LeftStick)))
-								{
-									if (_metrics != null)
-									{
-										_metrics.Visible = !_metrics.Visible;
-									}
-									Console.WriteLine("Toggling Metrics ({0})", (_metrics == null) ? "[null]" : _metrics.Visible.ToString());
-								}
 								if (IsPressEvent(ref currentKBState, Microsoft.Xna.Framework.Input.Keys.F3) || IsPressEvent(ref currentPadState, Buttons.LeftStick))
 								{
 									debugMode = !debugMode;
@@ -14120,7 +16963,9 @@ namespace StardewValley
 							{
 								if (activeClickableMenu == null)
 								{
+									PushUIMode();
 									activeClickableMenu = new GameMenu();
+									PopUIMode();
 								}
 								else if (activeClickableMenu.readyToClose())
 								{
@@ -14144,12 +16989,16 @@ namespace StardewValley
 							{
 								if (activeClickableMenu == null)
 								{
+									PushUIMode();
 									activeClickableMenu = new GameMenu(4);
+									PopUIMode();
 								}
 							}
 							else if (((dayOfMonth > 0 && player.CanMove) & flag6) && !dialogueUp && !flag3 && activeClickableMenu == null)
 							{
+								PushUIMode();
 								activeClickableMenu = new GameMenu(3);
+								PopUIMode();
 							}
 							checkForRunButton(currentKBState);
 							oldKBState = currentKBState;
@@ -14193,7 +17042,7 @@ namespace StardewValley
 				break;
 			case 2000:
 				globalOutdoorLighting = 0.7f;
-				if (!isRaining)
+				if (!IsRainingHere())
 				{
 					changeMusicTrack("none");
 				}
@@ -14235,7 +17084,7 @@ namespace StardewValley
 			}
 			if (isLightning && IsMasterGame)
 			{
-				Utility.performLightningUpdate();
+				Utility.performLightningUpdate(timeOfDay);
 			}
 			switch (timeOfDay)
 			{
@@ -14249,7 +17098,7 @@ namespace StardewValley
 				break;
 			case 2000:
 				globalOutdoorLighting = 0.7f;
-				if (!isRaining)
+				if (!IsRainingHere())
 				{
 					changeMusicTrack("none");
 				}
@@ -14322,7 +17171,7 @@ namespace StardewValley
 				{
 					textEntry.draw(spriteBatch);
 				}
-				if ((displayHUD || eventUp) && currentBillboard == 0 && gameMode == 3 && !freezeControls && !panMode)
+				if ((displayHUD || eventUp || currentLocation is Summit) && currentBillboard == 0 && gameMode == 3 && !freezeControls && !panMode)
 				{
 					drawMouseCursor();
 				}
@@ -14337,21 +17186,89 @@ namespace StardewValley
 			bgColor.B = b;
 		}
 
+		public void Instance_Draw(GameTime gameTime)
+		{
+			Draw(gameTime);
+		}
+
 		protected override void Draw(GameTime gameTime)
 		{
+			isDrawing = true;
 			RenderTarget2D target_screen = null;
-			if (options.zoomLevel != 1f)
+			if (ShouldDrawOnBuffer())
 			{
 				target_screen = screen;
 			}
-			_draw(gameTime, target_screen);
+			if (uiScreen != null)
+			{
+				base.GraphicsDevice.SetRenderTarget(uiScreen);
+				base.GraphicsDevice.Clear(Microsoft.Xna.Framework.Color.Transparent);
+				base.GraphicsDevice.SetRenderTarget(target_screen);
+			}
+			GameTime time = gameTime;
+			DebugTools.BeforeGameDraw(this, ref time);
+			_draw(time, target_screen);
+			isRenderingScreenBuffer = true;
+			renderScreenBuffer(target_screen);
+			isRenderingScreenBuffer = false;
+			if (uiModeCount != 0)
+			{
+				Console.WriteLine("WARNING: Mismatched UI Mode Push/Pop counts. Correcting.");
+				while (uiModeCount < 0)
+				{
+					PushUIMode();
+				}
+				while (uiModeCount > 0)
+				{
+					PopUIMode();
+				}
+			}
 			base.Draw(gameTime);
+			isDrawing = false;
+		}
+
+		public virtual bool ShouldDrawOnBuffer()
+		{
+			if (LocalMultiplayer.IsLocalMultiplayer())
+			{
+				return true;
+			}
+			if (options.zoomLevel != 1f)
+			{
+				return true;
+			}
+			return false;
+		}
+
+		public virtual bool checkCharacterTilesForShadowDrawFlag(Character character)
+		{
+			if (character is Farmer && (character as Farmer).onBridge.Value)
+			{
+				return true;
+			}
+			Microsoft.Xna.Framework.Rectangle bounding_box = character.GetBoundingBox();
+			bounding_box.Height += 8;
+			int right = bounding_box.Right / 64;
+			int bottom = bounding_box.Bottom / 64;
+			int num = bounding_box.Left / 64;
+			int top = bounding_box.Top / 64;
+			for (int x = num; x <= right; x++)
+			{
+				for (int y = top; y <= bottom; y++)
+				{
+					if (currentLocation.shouldShadowBeDrawnAboveBuildingsLayer(new Vector2(x, y)))
+					{
+						return true;
+					}
+				}
+			}
+			return false;
 		}
 
 		protected virtual void _draw(GameTime gameTime, RenderTarget2D target_screen)
 		{
 			showingHealthBar = false;
-			if (_newDayTask != null)
+			if (_newDayTask != null || isLocalMultiplayerNewDayActive)
 			{
 				base.GraphicsDevice.Clear(bgColor);
 				return;
@@ -14363,6 +17280,7 @@ namespace StardewValley
 			if (IsSaving)
 			{
 				base.GraphicsDevice.Clear(bgColor);
+				PushUIMode();
 				IClickableMenu menu = activeClickableMenu;
 				if (menu != null)
 				{
@@ -14376,31 +17294,26 @@ namespace StardewValley
 					overlayMenu.draw(spriteBatch);
 					spriteBatch.End();
 				}
-				renderScreenBuffer(target_screen);
+				PopUIMode();
 				return;
 			}
 			base.GraphicsDevice.Clear(bgColor);
 			if (activeClickableMenu != null && options.showMenuBackground && activeClickableMenu.showWithoutTransparencyIfOptionIsSet() && !takingMapScreenshot)
 			{
+				PushUIMode();
 				spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, null);
 				activeClickableMenu.drawBackground(spriteBatch);
-				activeClickableMenu.draw(spriteBatch);
+				for (IClickableMenu menu3 = activeClickableMenu; menu3 != null; menu3 = menu3.GetChildMenu())
+				{
+					menu3.draw(spriteBatch);
+				}
+				if (specialCurrencyDisplay != null)
+				{
+					specialCurrencyDisplay.Draw(spriteBatch);
+				}
 				spriteBatch.End();
 				drawOverlays(spriteBatch);
-				if (target_screen != null)
-				{
-					base.GraphicsDevice.SetRenderTarget(null);
-					base.GraphicsDevice.Clear(bgColor);
-					spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.Default, RasterizerState.CullNone);
-					spriteBatch.Draw(target_screen, Vector2.Zero, target_screen.Bounds, Microsoft.Xna.Framework.Color.White, 0f, Vector2.Zero, options.zoomLevel, SpriteEffects.None, 1f);
-					spriteBatch.End();
-				}
-				if (overlayMenu != null)
-				{
-					spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, null);
-					overlayMenu.draw(spriteBatch);
-					spriteBatch.End();
-				}
+				PopUIMode();
 				return;
 			}
 			if (gameMode == 11)
@@ -14417,42 +17330,38 @@ namespace StardewValley
 				currentMinigame.draw(spriteBatch);
 				if (globalFade && !menuUp && (!nameSelectUp || messagePause))
 				{
+					PushUIMode();
 					spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, null);
 					spriteBatch.Draw(fadeToBlackRect, graphics.GraphicsDevice.Viewport.Bounds, Microsoft.Xna.Framework.Color.Black * ((gameMode == 0) ? (1f - fadeToBlackAlpha) : fadeToBlackAlpha));
 					spriteBatch.End();
+					PopUIMode();
 				}
+				PushUIMode();
 				drawOverlays(spriteBatch);
-				if (target_screen != null)
-				{
-					base.GraphicsDevice.SetRenderTarget(null);
-					base.GraphicsDevice.Clear(bgColor);
-					spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.Default, RasterizerState.CullNone);
-					spriteBatch.Draw(target_screen, Vector2.Zero, target_screen.Bounds, Microsoft.Xna.Framework.Color.White, 0f, Vector2.Zero, options.zoomLevel, SpriteEffects.None, 1f);
-					spriteBatch.End();
-				}
+				PopUIMode();
+				base.GraphicsDevice.SetRenderTarget(target_screen);
 				return;
 			}
 			if (showingEndOfNightStuff)
 			{
+				PushUIMode();
 				spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, null);
 				if (activeClickableMenu != null)
 				{
-					activeClickableMenu.draw(spriteBatch);
+					for (IClickableMenu menu4 = activeClickableMenu; menu4 != null; menu4 = menu4.GetChildMenu())
+					{
+						menu4.draw(spriteBatch);
+					}
 				}
 				spriteBatch.End();
 				drawOverlays(spriteBatch);
-				if (target_screen != null)
-				{
-					base.GraphicsDevice.SetRenderTarget(null);
-					base.GraphicsDevice.Clear(bgColor);
-					spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.Default, RasterizerState.CullNone);
-					spriteBatch.Draw(target_screen, Vector2.Zero, target_screen.Bounds, Microsoft.Xna.Framework.Color.White, 0f, Vector2.Zero, options.zoomLevel, SpriteEffects.None, 1f);
-					spriteBatch.End();
-				}
+				PopUIMode();
 				return;
 			}
 			if (gameMode == 6 || (gameMode == 3 && currentLocation == null))
 			{
+				PushUIMode();
+				base.GraphicsDevice.Clear(bgColor);
 				spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, null);
 				string addOn = "";
 				for (int i = 0; (double)i < gameTime.TotalGameTime.TotalMilliseconds % 999.0 / 333.0; i++)
@@ -14469,21 +17378,7 @@ namespace StardewValley
 				SpriteText.drawString(spriteBatch, msg, msgx, msgy, 999999, msgw, msgh, 1f, 0.88f, junimoText: false, 0, largestMessage);
 				spriteBatch.End();
 				drawOverlays(spriteBatch);
-				if (target_screen != null)
-				{
-					base.GraphicsDevice.SetRenderTarget(null);
-					base.GraphicsDevice.Clear(bgColor);
-					spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.Default, RasterizerState.CullNone);
-					spriteBatch.Draw(target_screen, Vector2.Zero, target_screen.Bounds, Microsoft.Xna.Framework.Color.White, 0f, Vector2.Zero, options.zoomLevel, SpriteEffects.None, 1f);
-					spriteBatch.End();
-				}
-				if (overlayMenu != null)
-				{
-					spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, null);
-					overlayMenu.draw(spriteBatch);
-					spriteBatch.End();
-				}
-				base.Draw(gameTime);
+				PopUIMode();
 				return;
 			}
 			if (gameMode == 0)
@@ -14492,16 +17387,41 @@ namespace StardewValley
 			}
 			else
 			{
+				if (gameMode == 3 && dayOfMonth == 0 && newDay)
+				{
+					base.Draw(gameTime);
+					return;
+				}
 				if (drawLighting)
 				{
 					base.GraphicsDevice.SetRenderTarget(lightmap);
 					base.GraphicsDevice.Clear(Microsoft.Xna.Framework.Color.White * 0f);
-					spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.NonPremultiplied, SamplerState.PointClamp, null, null);
-					Microsoft.Xna.Framework.Color lighting = (currentLocation.Name.StartsWith("UndergroundMine") && currentLocation is MineShaft) ? (currentLocation as MineShaft).getLightingColor(gameTime) : ((ambientLight.Equals(Microsoft.Xna.Framework.Color.White) || (isRaining && (bool)currentLocation.isOutdoors)) ? outdoorLight : ambientLight);
+					Matrix lighting_matrix = Matrix.Identity;
+					if (useUnscaledLighting)
+					{
+						lighting_matrix = Matrix.CreateScale(options.zoomLevel);
+					}
+					spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.NonPremultiplied, SamplerState.PointClamp, null, null, null, lighting_matrix);
+					Microsoft.Xna.Framework.Color lighting = (currentLocation.Name.StartsWith("UndergroundMine") && currentLocation is MineShaft) ? (currentLocation as MineShaft).getLightingColor(gameTime) : ((ambientLight.Equals(Microsoft.Xna.Framework.Color.White) || (IsRainingHere() && (bool)currentLocation.isOutdoors)) ? outdoorLight : ambientLight);
+					float light_multiplier = 1f;
+					if (player.hasBuff(26))
+					{
+						if (lighting == Microsoft.Xna.Framework.Color.White)
+						{
+							lighting = new Microsoft.Xna.Framework.Color(0.75f, 0.75f, 0.75f);
+						}
+						else
+						{
+							lighting.R = (byte)Utility.Lerp((int)lighting.R, 255f, 0.5f);
+							lighting.G = (byte)Utility.Lerp((int)lighting.G, 255f, 0.5f);
+							lighting.B = (byte)Utility.Lerp((int)lighting.B, 255f, 0.5f);
+						}
+						light_multiplier = 0.33f;
+					}
 					spriteBatch.Draw(staminaRect, lightmap.Bounds, lighting);
 					foreach (LightSource lightSource in currentLightSources)
 					{
-						if ((!isRaining && !isDarkOut()) || lightSource.lightContext.Value != LightSource.LightContext.WindowLight)
+						if ((!IsRainingHere() && !isDarkOut()) || lightSource.lightContext.Value != LightSource.LightContext.WindowLight)
 						{
 							if (lightSource.PlayerID != 0L && lightSource.PlayerID != player.UniqueMultiplayerID)
 							{
@@ -14513,7 +17433,7 @@ namespace StardewValley
 							}
 							if (Utility.isOnScreen(lightSource.position, (int)((float)lightSource.radius * 64f * 4f)))
 							{
-								spriteBatch.Draw(lightSource.lightTexture, GlobalToLocal(viewport, lightSource.position) / (options.lightingQuality / 2), lightSource.lightTexture.Bounds, lightSource.color, 0f, new Vector2(lightSource.lightTexture.Bounds.Center.X, lightSource.lightTexture.Bounds.Center.Y), (float)lightSource.radius / (float)(options.lightingQuality / 2), SpriteEffects.None, 0.9f);
+								spriteBatch.Draw(lightSource.lightTexture, GlobalToLocal(viewport, lightSource.position) / (options.lightingQuality / 2), lightSource.lightTexture.Bounds, lightSource.color.Value * light_multiplier, 0f, new Vector2(lightSource.lightTexture.Bounds.Width / 2, lightSource.lightTexture.Bounds.Height / 2), (float)lightSource.radius / (float)(options.lightingQuality / 2), SpriteEffects.None, 0.9f);
 							}
 						}
 					}
@@ -14530,9 +17450,15 @@ namespace StardewValley
 				{
 					background.draw(spriteBatch);
 				}
+				currentLocation.drawBackground(spriteBatch);
 				mapDisplayDevice.BeginScene(spriteBatch);
 				currentLocation.Map.GetLayer("Back").Draw(mapDisplayDevice, viewport, Location.Origin, wrapAround: false, 4);
 				currentLocation.drawWater(spriteBatch);
+				spriteBatch.End();
+				spriteBatch.Begin(SpriteSortMode.FrontToBack, BlendState.AlphaBlend, SamplerState.PointClamp, null, null);
+				currentLocation.drawFloorDecorations(spriteBatch);
+				spriteBatch.End();
+				spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, null);
 				_farmerShadows.Clear();
 				if (currentLocation.currentEvent != null && !currentLocation.currentEvent.isFestival && currentLocation.currentEvent.farmerActors.Count > 0)
 				{
@@ -14560,27 +17486,27 @@ namespace StardewValley
 					{
 						foreach (NPC k in currentLocation.characters)
 						{
-							if (!k.swimming && !k.HideShadow && !k.IsInvisible && !currentLocation.shouldShadowBeDrawnAboveBuildingsLayer(k.getTileLocation()))
+							if (!k.swimming && !k.HideShadow && !k.IsInvisible && !checkCharacterTilesForShadowDrawFlag(k))
 							{
-								spriteBatch.Draw(shadowTexture, GlobalToLocal(viewport, k.Position + new Vector2((float)(k.Sprite.SpriteWidth * 4) / 2f, k.GetBoundingBox().Height + ((!k.IsMonster) ? 12 : 0))), shadowTexture.Bounds, Microsoft.Xna.Framework.Color.White, 0f, new Vector2(shadowTexture.Bounds.Center.X, shadowTexture.Bounds.Center.Y), (4f + (float)k.yJumpOffset / 40f) * (float)k.scale, SpriteEffects.None, Math.Max(0f, (float)k.getStandingY() / 10000f) - 1E-06f);
+								spriteBatch.Draw(shadowTexture, GlobalToLocal(viewport, k.GetShadowOffset() + k.Position + new Vector2((float)(k.GetSpriteWidthForPositioning() * 4) / 2f, k.GetBoundingBox().Height + ((!k.IsMonster) ? 12 : 0))), shadowTexture.Bounds, Microsoft.Xna.Framework.Color.White, 0f, new Vector2(shadowTexture.Bounds.Center.X, shadowTexture.Bounds.Center.Y), Math.Max(0f, (4f + (float)k.yJumpOffset / 40f) * (float)k.scale), SpriteEffects.None, Math.Max(0f, (float)k.getStandingY() / 10000f) - 1E-06f);
 							}
 						}
 					}
 					else
 					{
-						foreach (NPC l in CurrentEvent.actors)
+						foreach (NPC m in CurrentEvent.actors)
 						{
-							if (!l.swimming && !l.HideShadow && !currentLocation.shouldShadowBeDrawnAboveBuildingsLayer(l.getTileLocation()))
+							if ((CurrentEvent == null || !CurrentEvent.ShouldHideCharacter(m)) && !m.swimming && !m.HideShadow && !checkCharacterTilesForShadowDrawFlag(m))
 							{
-								spriteBatch.Draw(shadowTexture, GlobalToLocal(viewport, l.Position + new Vector2((float)(l.Sprite.SpriteWidth * 4) / 2f, l.GetBoundingBox().Height + ((!l.IsMonster) ? ((l.Sprite.SpriteHeight <= 16) ? (-4) : 12) : 0))), shadowTexture.Bounds, Microsoft.Xna.Framework.Color.White, 0f, new Vector2(shadowTexture.Bounds.Center.X, shadowTexture.Bounds.Center.Y), (4f + (float)l.yJumpOffset / 40f) * (float)l.scale, SpriteEffects.None, Math.Max(0f, (float)l.getStandingY() / 10000f) - 1E-06f);
+								spriteBatch.Draw(shadowTexture, GlobalToLocal(viewport, m.GetShadowOffset() + m.Position + new Vector2((float)(m.GetSpriteWidthForPositioning() * 4) / 2f, m.GetBoundingBox().Height + ((!m.IsMonster) ? ((m.Sprite.SpriteHeight <= 16) ? (-4) : 12) : 0))), shadowTexture.Bounds, Microsoft.Xna.Framework.Color.White, 0f, new Vector2(shadowTexture.Bounds.Center.X, shadowTexture.Bounds.Center.Y), Math.Max(0f, 4f + (float)m.yJumpOffset / 40f) * (float)m.scale, SpriteEffects.None, Math.Max(0f, (float)m.getStandingY() / 10000f) - 1E-06f);
 							}
 						}
 					}
 					foreach (Farmer f3 in _farmerShadows)
 					{
-						if (!multiplayer.isDisconnecting(f3.UniqueMultiplayerID) && !f3.swimming && !f3.isRidingHorse() && (currentLocation == null || !currentLocation.shouldShadowBeDrawnAboveBuildingsLayer(f3.getTileLocation())))
+						if (!multiplayer.isDisconnecting(f3.UniqueMultiplayerID) && !f3.swimming && !f3.isRidingHorse() && !f3.IsSitting() && (currentLocation == null || !checkCharacterTilesForShadowDrawFlag(f3)))
 						{
-							spriteBatch.Draw(shadowTexture, GlobalToLocal(f3.Position + new Vector2(32f, 24f)), shadowTexture.Bounds, Microsoft.Xna.Framework.Color.White, 0f, new Vector2(shadowTexture.Bounds.Center.X, shadowTexture.Bounds.Center.Y), 4f - (((f3.running || f3.UsingTool) && f3.FarmerSprite.currentAnimationIndex > 1) ? ((float)Math.Abs(FarmerRenderer.featureYOffsetPerFrame[f3.FarmerSprite.CurrentFrame]) * 0.5f) : 0f), SpriteEffects.None, 0f);
+							spriteBatch.Draw(shadowTexture, GlobalToLocal(f3.GetShadowOffset() + f3.Position + new Vector2(32f, 24f)), shadowTexture.Bounds, Microsoft.Xna.Framework.Color.White, 0f, new Vector2(shadowTexture.Bounds.Center.X, shadowTexture.Bounds.Center.Y), 4f - (((f3.running || f3.UsingTool) && f3.FarmerSprite.currentAnimationIndex > 1) ? ((float)Math.Abs(FarmerRenderer.featureYOffsetPerFrame[f3.FarmerSprite.CurrentFrame]) * 0.5f) : 0f), SpriteEffects.None, 0f);
 						}
 					}
 				}
@@ -14595,9 +17521,9 @@ namespace StardewValley
 					{
 						foreach (NPC n in currentLocation.characters)
 						{
-							if (!n.swimming && !n.HideShadow && !n.isInvisible && currentLocation.shouldShadowBeDrawnAboveBuildingsLayer(n.getTileLocation()))
+							if (!n.swimming && !n.HideShadow && !n.isInvisible && checkCharacterTilesForShadowDrawFlag(n))
 							{
-								spriteBatch.Draw(shadowTexture, GlobalToLocal(viewport, n.Position + new Vector2((float)(n.Sprite.SpriteWidth * 4) / 2f, n.GetBoundingBox().Height + ((!n.IsMonster) ? 12 : 0))), shadowTexture.Bounds, Microsoft.Xna.Framework.Color.White, 0f, new Vector2(shadowTexture.Bounds.Center.X, shadowTexture.Bounds.Center.Y), (4f + (float)n.yJumpOffset / 40f) * (float)n.scale, SpriteEffects.None, Math.Max(0f, (float)n.getStandingY() / 10000f) - 1E-06f);
+								spriteBatch.Draw(shadowTexture, GlobalToLocal(viewport, n.GetShadowOffset() + n.Position + new Vector2((float)(n.GetSpriteWidthForPositioning() * 4) / 2f, n.GetBoundingBox().Height + ((!n.IsMonster) ? 12 : 0))), shadowTexture.Bounds, Microsoft.Xna.Framework.Color.White, 0f, new Vector2(shadowTexture.Bounds.Center.X, shadowTexture.Bounds.Center.Y), Math.Max(0f, (4f + (float)n.yJumpOffset / 40f) * (float)n.scale), SpriteEffects.None, Math.Max(0f, (float)n.getStandingY() / 10000f) - 1E-06f);
 							}
 						}
 					}
@@ -14605,18 +17531,18 @@ namespace StardewValley
 					{
 						foreach (NPC n2 in CurrentEvent.actors)
 						{
-							if (!n2.swimming && !n2.HideShadow && currentLocation.shouldShadowBeDrawnAboveBuildingsLayer(n2.getTileLocation()))
+							if ((CurrentEvent == null || !CurrentEvent.ShouldHideCharacter(n2)) && !n2.swimming && !n2.HideShadow && checkCharacterTilesForShadowDrawFlag(n2))
 							{
-								spriteBatch.Draw(shadowTexture, GlobalToLocal(viewport, n2.Position + new Vector2((float)(n2.Sprite.SpriteWidth * 4) / 2f, n2.GetBoundingBox().Height + ((!n2.IsMonster) ? 12 : 0))), shadowTexture.Bounds, Microsoft.Xna.Framework.Color.White, 0f, new Vector2(shadowTexture.Bounds.Center.X, shadowTexture.Bounds.Center.Y), (4f + (float)n2.yJumpOffset / 40f) * (float)n2.scale, SpriteEffects.None, Math.Max(0f, (float)n2.getStandingY() / 10000f) - 1E-06f);
+								spriteBatch.Draw(shadowTexture, GlobalToLocal(viewport, n2.GetShadowOffset() + n2.Position + new Vector2((float)(n2.GetSpriteWidthForPositioning() * 4) / 2f, n2.GetBoundingBox().Height + ((!n2.IsMonster) ? 12 : 0))), shadowTexture.Bounds, Microsoft.Xna.Framework.Color.White, 0f, new Vector2(shadowTexture.Bounds.Center.X, shadowTexture.Bounds.Center.Y), Math.Max(0f, (4f + (float)n2.yJumpOffset / 40f) * (float)n2.scale), SpriteEffects.None, Math.Max(0f, (float)n2.getStandingY() / 10000f) - 1E-06f);
 							}
 						}
 					}
 					foreach (Farmer f4 in _farmerShadows)
 					{
 						float draw_layer = Math.Max(0.0001f, f4.getDrawLayer() + 0.00011f) - 0.0001f;
-						if (!f4.swimming && !f4.isRidingHorse() && currentLocation != null && currentLocation.shouldShadowBeDrawnAboveBuildingsLayer(f4.getTileLocation()))
+						if (!f4.swimming && !f4.isRidingHorse() && !f4.IsSitting() && currentLocation != null && checkCharacterTilesForShadowDrawFlag(f4))
 						{
-							spriteBatch.Draw(shadowTexture, GlobalToLocal(f4.Position + new Vector2(32f, 24f)), shadowTexture.Bounds, Microsoft.Xna.Framework.Color.White, 0f, new Vector2(shadowTexture.Bounds.Center.X, shadowTexture.Bounds.Center.Y), 4f - (((f4.running || f4.UsingTool) && f4.FarmerSprite.currentAnimationIndex > 1) ? ((float)Math.Abs(FarmerRenderer.featureYOffsetPerFrame[f4.FarmerSprite.CurrentFrame]) * 0.5f) : 0f), SpriteEffects.None, draw_layer);
+							spriteBatch.Draw(shadowTexture, GlobalToLocal(f4.GetShadowOffset() + f4.Position + new Vector2(32f, 24f)), shadowTexture.Bounds, Microsoft.Xna.Framework.Color.White, 0f, new Vector2(shadowTexture.Bounds.Center.X, shadowTexture.Bounds.Center.Y), 4f - (((f4.running || f4.UsingTool) && f4.FarmerSprite.currentAnimationIndex > 1) ? ((float)Math.Abs(FarmerRenderer.featureYOffsetPerFrame[f4.FarmerSprite.CurrentFrame]) * 0.5f) : 0f), SpriteEffects.None, draw_layer);
 						}
 					}
 				}
@@ -14669,18 +17595,6 @@ namespace StardewValley
 				currentLocation.drawAboveFrontLayer(spriteBatch);
 				spriteBatch.End();
 				spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, null);
-				if (displayFarmer && player.ActiveObject != null && (bool)player.ActiveObject.bigCraftable && checkBigCraftableBoundariesForFrontLayer() && currentLocation.Map.GetLayer("Front").PickTile(new Location(player.getStandingX(), player.getStandingY()), viewport.Size) == null)
-				{
-					drawPlayerHeldObject(player);
-				}
-				else if (displayFarmer && player.ActiveObject != null && ((currentLocation.Map.GetLayer("Front").PickTile(new Location((int)player.Position.X, (int)player.Position.Y - 38), viewport.Size) != null && !currentLocation.Map.GetLayer("Front").PickTile(new Location((int)player.Position.X, (int)player.Position.Y - 38), viewport.Size).TileIndexProperties.ContainsKey("FrontAlways")) || (currentLocation.Map.GetLayer("Front").PickTile(new Location(player.GetBoundingBox().Right, (int)player.Position.Y - 38), viewport.Size) != null && !currentLocation.Map.GetLayer("Front").PickTile(new Location(player.GetBoundingBox().Right, (int)player.Position.Y - 38), viewport.Size).TileIndexProperties.ContainsKey("FrontAlways"))))
-				{
-					drawPlayerHeldObject(player);
-				}
-				if ((player.UsingTool || pickingTool) && player.CurrentTool != null && (!player.CurrentTool.Name.Equals("Seeds") || pickingTool) && currentLocation.Map.GetLayer("Front").PickTile(new Location(player.getStandingX(), (int)player.Position.Y - 38), viewport.Size) != null && currentLocation.Map.GetLayer("Front").PickTile(new Location(player.getStandingX(), player.getStandingY()), viewport.Size) == null)
-				{
-					drawTool(player);
-				}
 				if (currentLocation.Map.GetLayer("AlwaysFront") != null)
 				{
 					mapDisplayDevice.BeginScene(spriteBatch);
@@ -14708,7 +17622,10 @@ namespace StardewValley
 					spriteBatch.Draw(littleEffect, new Microsoft.Xna.Framework.Rectangle((int)player.getLocalPosition(viewport).X - 2, (int)player.getLocalPosition(viewport).Y - ((!player.CurrentTool.Name.Equals("Watering Can")) ? 64 : 0) - 2, (int)(toolHold % 600f * 0.08f) + 4, 12), Microsoft.Xna.Framework.Color.Black);
 					spriteBatch.Draw(littleEffect, new Microsoft.Xna.Framework.Rectangle((int)player.getLocalPosition(viewport).X, (int)player.getLocalPosition(viewport).Y - ((!player.CurrentTool.Name.Equals("Watering Can")) ? 64 : 0), (int)(toolHold % 600f * 0.08f), 8), barColor);
 				}
-				drawWeather(gameTime, target_screen);
+				if (!IsFakedBlackScreen())
+				{
+					drawWeather(gameTime, target_screen);
+				}
 				if (farmEvent != null)
 				{
 					farmEvent.draw(spriteBatch);
@@ -14730,32 +17647,44 @@ namespace StardewValley
 				spriteBatch.Begin(SpriteSortMode.FrontToBack, BlendState.AlphaBlend, SamplerState.PointClamp, null, null);
 				if (eventUp && currentLocation.currentEvent != null)
 				{
-					foreach (NPC m in currentLocation.currentEvent.actors)
+					foreach (NPC l in currentLocation.currentEvent.actors)
 					{
-						if (m.isEmoting)
+						if (l.isEmoting)
 						{
-							Vector2 emotePosition = m.getLocalPosition(viewport);
+							Vector2 emotePosition = l.getLocalPosition(viewport);
+							if (l.NeedsBirdieEmoteHack())
+							{
+								emotePosition.X += 64f;
+							}
 							emotePosition.Y -= 140f;
-							if (m.Age == 2)
+							if (l.Age == 2)
 							{
 								emotePosition.Y += 32f;
 							}
-							else if (m.Gender == 1)
+							else if (l.Gender == 1)
 							{
 								emotePosition.Y += 10f;
 							}
-							spriteBatch.Draw(emoteSpriteSheet, emotePosition, new Microsoft.Xna.Framework.Rectangle(m.CurrentEmoteIndex * 16 % emoteSpriteSheet.Width, m.CurrentEmoteIndex * 16 / emoteSpriteSheet.Width * 16, 16, 16), Microsoft.Xna.Framework.Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, (float)m.getStandingY() / 10000f);
+							spriteBatch.Draw(emoteSpriteSheet, emotePosition, new Microsoft.Xna.Framework.Rectangle(l.CurrentEmoteIndex * 16 % emoteSpriteSheet.Width, l.CurrentEmoteIndex * 16 / emoteSpriteSheet.Width * 16, 16, 16), Microsoft.Xna.Framework.Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, (float)l.getStandingY() / 10000f);
 						}
 					}
 				}
 				spriteBatch.End();
-				if (drawLighting)
+				if (drawLighting && !IsFakedBlackScreen())
 				{
 					spriteBatch.Begin(SpriteSortMode.Deferred, lightingBlend, SamplerState.LinearClamp, null, null);
-					spriteBatch.Draw(lightmap, Vector2.Zero, lightmap.Bounds, Microsoft.Xna.Framework.Color.White, 0f, Vector2.Zero, options.lightingQuality / 2, SpriteEffects.None, 1f);
-					if (isRaining && (bool)currentLocation.isOutdoors && !(currentLocation is Desert))
+					Viewport vp = base.GraphicsDevice.Viewport;
+					vp.Bounds = (target_screen?.Bounds ?? base.GraphicsDevice.PresentationParameters.Bounds);
+					base.GraphicsDevice.Viewport = vp;
+					float render_zoom = options.lightingQuality / 2;
+					if (useUnscaledLighting)
 					{
-						spriteBatch.Draw(staminaRect, graphics.GraphicsDevice.Viewport.Bounds, Microsoft.Xna.Framework.Color.OrangeRed * 0.45f);
+						render_zoom /= options.zoomLevel;
+					}
+					spriteBatch.Draw(lightmap, Vector2.Zero, lightmap.Bounds, Microsoft.Xna.Framework.Color.White, 0f, Vector2.Zero, render_zoom, SpriteEffects.None, 1f);
+					if (IsRainingHere() && (bool)currentLocation.isOutdoors && !(currentLocation is Desert))
+					{
+						spriteBatch.Draw(staminaRect, vp.Bounds, Microsoft.Xna.Framework.Color.OrangeRed * 0.45f);
 					}
 					spriteBatch.End();
 				}
@@ -14781,7 +17710,12 @@ namespace StardewValley
 				{
 					spriteBatch.Draw(fadeToBlackRect, new Microsoft.Xna.Framework.Rectangle(0, 0, -Math.Min(viewport.X, 4096), graphics.GraphicsDevice.Viewport.Height), Microsoft.Xna.Framework.Color.Black);
 					spriteBatch.Draw(fadeToBlackRect, new Microsoft.Xna.Framework.Rectangle(-viewport.X + currentLocation.map.Layers[0].LayerWidth * 64, 0, Math.Min(4096, graphics.GraphicsDevice.Viewport.Width - (-viewport.X + currentLocation.map.Layers[0].LayerWidth * 64)), graphics.GraphicsDevice.Viewport.Height), Microsoft.Xna.Framework.Color.Black);
+					spriteBatch.Draw(fadeToBlackRect, new Microsoft.Xna.Framework.Rectangle(0, 0, graphics.GraphicsDevice.Viewport.Width, -Math.Min(viewport.Y, 4096)), Microsoft.Xna.Framework.Color.Black);
+					spriteBatch.Draw(fadeToBlackRect, new Microsoft.Xna.Framework.Rectangle(0, -viewport.Y + currentLocation.map.Layers[0].LayerHeight * 64, graphics.GraphicsDevice.Viewport.Width, Math.Min(4096, graphics.GraphicsDevice.Viewport.Height - (-viewport.Y + currentLocation.map.Layers[0].LayerHeight * 64))), Microsoft.Xna.Framework.Color.Black);
 				}
+				spriteBatch.End();
+				PushUIMode();
+				spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, null);
 				if ((displayHUD || eventUp) && currentBillboard == 0 && gameMode == 3 && !freezeControls && !panMode && !HostPaused && !takingMapScreenshot)
 				{
 					drawHUD();
@@ -14797,11 +17731,17 @@ namespace StardewValley
 						hudMessages[j].draw(spriteBatch, j);
 					}
 				}
+				spriteBatch.End();
+				PopUIMode();
+				spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, null);
 			}
 			if (farmEvent != null)
 			{
 				farmEvent.draw(spriteBatch);
+				spriteBatch.End();
+				spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, null);
 			}
+			PushUIMode();
 			if (dialogueUp && !nameSelectUp && !messagePause && (activeClickableMenu == null || !(activeClickableMenu is DialogueBox)) && !takingMapScreenshot)
 			{
 				drawDialogueBox();
@@ -14811,17 +17751,26 @@ namespace StardewValley
 				spriteBatch.Draw(fadeToBlackRect, new Microsoft.Xna.Framework.Rectangle((graphics.GraphicsDevice.Viewport.GetTitleSafeArea().Width - dialogueWidth) / 2, graphics.GraphicsDevice.Viewport.GetTitleSafeArea().Bottom - 128, dialogueWidth, 32), Microsoft.Xna.Framework.Color.LightGray);
 				spriteBatch.Draw(staminaRect, new Microsoft.Xna.Framework.Rectangle((graphics.GraphicsDevice.Viewport.GetTitleSafeArea().Width - dialogueWidth) / 2, graphics.GraphicsDevice.Viewport.GetTitleSafeArea().Bottom - 128, (int)(pauseAccumulator / pauseTime * (float)dialogueWidth), 32), Microsoft.Xna.Framework.Color.DimGray);
 			}
+			spriteBatch.End();
+			PopUIMode();
+			spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, null);
 			if (eventUp && currentLocation != null && currentLocation.currentEvent != null)
 			{
 				currentLocation.currentEvent.drawAfterMap(spriteBatch);
 			}
-			if (isRaining && currentLocation != null && (bool)currentLocation.isOutdoors && !(currentLocation is Desert))
+			if (!IsFakedBlackScreen() && IsRainingHere() && currentLocation != null && (bool)currentLocation.isOutdoors && !(currentLocation is Desert))
 			{
 				spriteBatch.Draw(staminaRect, graphics.GraphicsDevice.Viewport.Bounds, Microsoft.Xna.Framework.Color.Blue * 0.2f);
 			}
 			if ((fadeToBlack || globalFade) && !menuUp && (!nameSelectUp || messagePause) && !takingMapScreenshot)
 			{
+				spriteBatch.End();
+				PushUIMode();
+				spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, null);
 				spriteBatch.Draw(fadeToBlackRect, graphics.GraphicsDevice.Viewport.Bounds, Microsoft.Xna.Framework.Color.Black * ((gameMode == 0) ? (1f - fadeToBlackAlpha) : fadeToBlackAlpha));
+				spriteBatch.End();
+				PopUIMode();
+				spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, null);
 			}
 			else if (flashAlpha > 0f && !takingMapScreenshot)
 			{
@@ -14841,6 +17790,16 @@ namespace StardewValley
 				{
 					screenOverlayTempSprite.draw(spriteBatch, localPosition: true);
 				}
+				spriteBatch.End();
+				PushUIMode();
+				spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, null);
+				foreach (TemporaryAnimatedSprite uiOverlayTempSprite in uiOverlayTempSprites)
+				{
+					uiOverlayTempSprite.draw(spriteBatch, localPosition: true);
+				}
+				spriteBatch.End();
+				PopUIMode();
+				spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, null);
 			}
 			if (debugMode)
 			{
@@ -14874,17 +17833,27 @@ namespace StardewValley
 				sb.Append(debugOutput);
 				spriteBatch.DrawString(smallFont, sb, new Vector2(base.GraphicsDevice.Viewport.GetTitleSafeArea().X, base.GraphicsDevice.Viewport.GetTitleSafeArea().Y + smallFont.LineSpacing * 8), Microsoft.Xna.Framework.Color.Red, 0f, Vector2.Zero, 1f, SpriteEffects.None, 0.9999999f);
 			}
+			spriteBatch.End();
+			PushUIMode();
+			spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, null);
 			if (showKeyHelp && !takingMapScreenshot)
 			{
 				spriteBatch.DrawString(smallFont, keyHelpString, new Vector2(64f, (float)(viewport.Height - 64 - (dialogueUp ? (192 + (isQuestion ? (questionChoices.Count * 64) : 0)) : 0)) - smallFont.MeasureString(keyHelpString).Y), Microsoft.Xna.Framework.Color.LightGray, 0f, Vector2.Zero, 1f, SpriteEffects.None, 0.9999999f);
 			}
 			if (activeClickableMenu != null && !takingMapScreenshot)
 			{
-				activeClickableMenu.draw(spriteBatch);
+				for (IClickableMenu menu2 = activeClickableMenu; menu2 != null; menu2 = menu2.GetChildMenu())
+				{
+					menu2.draw(spriteBatch);
+				}
 			}
 			else if (farmEvent != null)
 			{
 				farmEvent.drawAboveEverything(spriteBatch);
+			}
+			if (specialCurrencyDisplay != null)
+			{
+				specialCurrencyDisplay.Draw(spriteBatch);
 			}
 			if (emoteMenu != null && !takingMapScreenshot)
 			{
@@ -14897,12 +17866,12 @@ namespace StardewValley
 			}
 			spriteBatch.End();
 			drawOverlays(spriteBatch);
-			renderScreenBuffer(target_screen);
+			PopUIMode();
 		}
 
 		public virtual void drawWeather(GameTime time, RenderTarget2D target_screen)
 		{
-			if (isSnowing && (bool)currentLocation.isOutdoors && !(currentLocation is Desert))
+			if (IsSnowingHere() && (bool)currentLocation.isOutdoors && !(currentLocation is Desert))
 			{
 				snowPos.X %= 64f;
 				Vector2 v = default(Vector2);
@@ -14916,7 +17885,7 @@ namespace StardewValley
 					}
 				}
 			}
-			if (isDebrisWeather && currentLocation.IsOutdoors && !currentLocation.ignoreDebrisWeather && !currentLocation.Name.Equals("Desert"))
+			if (currentLocation.IsOutdoors && !currentLocation.ignoreDebrisWeather && IsDebrisWeatherHere() && !currentLocation.Name.Equals("Desert"))
 			{
 				if (takingMapScreenshot)
 				{
@@ -14939,7 +17908,7 @@ namespace StardewValley
 					}
 				}
 			}
-			if (!isRaining || !currentLocation.IsOutdoors || currentLocation.Name.Equals("Desert") || currentLocation is Summit)
+			if (!IsRainingHere() || !currentLocation.IsOutdoors || currentLocation.Name.Equals("Desert") || currentLocation is Summit)
 			{
 				return;
 			}
@@ -14962,17 +17931,47 @@ namespace StardewValley
 
 		protected virtual void renderScreenBuffer(RenderTarget2D target_screen)
 		{
-			if (takingMapScreenshot)
+			base.GraphicsDevice.SetRenderTarget(null);
+			if (!takingMapScreenshot && !LocalMultiplayer.IsLocalMultiplayer() && (target_screen == null || !target_screen.IsContentLost))
 			{
-				base.GraphicsDevice.SetRenderTarget(null);
+				if (ShouldDrawOnBuffer() && target_screen != null)
+				{
+					base.GraphicsDevice.Clear(bgColor);
+					spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.Opaque, SamplerState.LinearClamp, DepthStencilState.Default, RasterizerState.CullNone);
+					spriteBatch.Draw(target_screen, new Vector2(0f, 0f), target_screen.Bounds, Microsoft.Xna.Framework.Color.White, 0f, Vector2.Zero, options.zoomLevel, SpriteEffects.None, 1f);
+					spriteBatch.End();
+					spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.Default, RasterizerState.CullNone);
+					spriteBatch.Draw(uiScreen, new Vector2(0f, 0f), uiScreen.Bounds, Microsoft.Xna.Framework.Color.White, 0f, Vector2.Zero, options.uiScale, SpriteEffects.None, 1f);
+					spriteBatch.End();
+				}
+				else
+				{
+					spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.Default, RasterizerState.CullNone);
+					spriteBatch.Draw(uiScreen, new Vector2(0f, 0f), uiScreen.Bounds, Microsoft.Xna.Framework.Color.White, 0f, Vector2.Zero, options.uiScale, SpriteEffects.None, 1f);
+					spriteBatch.End();
+				}
 			}
-			else if (options.zoomLevel != 1f)
+		}
+
+		public virtual void DrawSplitScreenWindow()
+		{
+			if (!LocalMultiplayer.IsLocalMultiplayer())
 			{
-				base.GraphicsDevice.SetRenderTarget(null);
-				base.GraphicsDevice.Clear(bgColor);
-				spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.Opaque, SamplerState.LinearClamp, DepthStencilState.Default, RasterizerState.CullNone);
-				spriteBatch.Draw(screen, Vector2.Zero, screen.Bounds, Microsoft.Xna.Framework.Color.White, 0f, Vector2.Zero, options.zoomLevel, SpriteEffects.None, 1f);
+				return;
+			}
+			base.GraphicsDevice.SetRenderTarget(null);
+			if (screen == null || !screen.IsContentLost)
+			{
+				Viewport old_viewport = base.GraphicsDevice.Viewport;
+				Viewport viewport3 = base.GraphicsDevice.Viewport = (base.GraphicsDevice.Viewport = defaultDeviceViewport);
+				spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.Default, RasterizerState.CullNone);
+				spriteBatch.Draw(screen, new Vector2(localMultiplayerWindow.X, localMultiplayerWindow.Y), screen.Bounds, Microsoft.Xna.Framework.Color.White, 0f, Vector2.Zero, instanceOptions.zoomLevel, SpriteEffects.None, 1f);
+				if (uiScreen != null)
+				{
+					spriteBatch.Draw(uiScreen, new Vector2(localMultiplayerWindow.X, localMultiplayerWindow.Y), uiScreen.Bounds, Microsoft.Xna.Framework.Color.White, 0f, Vector2.Zero, instanceOptions.uiScale, SpriteEffects.None, 1f);
+				}
 				spriteBatch.End();
+				base.GraphicsDevice.Viewport = old_viewport;
 			}
 		}
 
@@ -15007,9 +18006,17 @@ namespace StardewValley
 
 		public static bool isOutdoorMapSmallerThanViewport()
 		{
-			if (currentLocation != null && currentLocation.IsOutdoors)
+			if (uiMode)
 			{
-				return currentLocation.map.Layers[0].LayerWidth * 64 < viewport.Width;
+				return false;
+			}
+			if (currentLocation != null && currentLocation.IsOutdoors && !(currentLocation is Summit))
+			{
+				if (currentLocation.map.Layers[0].LayerWidth * 64 >= viewport.Width)
+				{
+					return currentLocation.map.Layers[0].LayerHeight * 64 < viewport.Height;
+				}
+				return true;
 			}
 			return false;
 		}
@@ -15053,7 +18060,7 @@ namespace StardewValley
 					drawWithBorder(content.LoadString("Strings\\StringsFromCSFiles:Game1.cs.3747"), Microsoft.Xna.Framework.Color.Black * 0f, Microsoft.Xna.Framework.Color.White, topOfBar + new Vector2(0f - dialogueFont.MeasureString(content.LoadString("Strings\\StringsFromCSFiles:Game1.cs.3747")).X - 16f - (float)(showingHealth ? 64 : 0), 96f));
 				}
 			}
-			if (currentLocation is MineShaft || currentLocation is Woods || currentLocation is SlimeHutch || player.health < player.maxHealth)
+			if (currentLocation is MineShaft || currentLocation is Woods || currentLocation is SlimeHutch || currentLocation is VolcanoDungeon || player.health < player.maxHealth)
 			{
 				showingHealthBar = true;
 				showingHealth = true;
@@ -15061,9 +18068,9 @@ namespace StardewValley
 				int height = (int)((float)player.health / (float)player.maxHealth * (float)bar_full_height);
 				topOfBar.X -= 56 + ((hitShakeTimer > 0) ? random.Next(-3, 4) : 0);
 				topOfBar.Y = graphics.GraphicsDevice.Viewport.GetTitleSafeArea().Bottom - 224 - 16 - (player.maxHealth - 100);
-				spriteBatch.Draw(mouseCursors, topOfBar, new Microsoft.Xna.Framework.Rectangle(268, 408, 12, 16), (player.health < 20) ? (Microsoft.Xna.Framework.Color.Pink * ((float)Math.Sin(DateTime.UtcNow.TimeOfDay.TotalMilliseconds / (double)((float)player.health * 50f)) / 4f + 0.9f)) : Microsoft.Xna.Framework.Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
-				spriteBatch.Draw(mouseCursors, new Microsoft.Xna.Framework.Rectangle((int)topOfBar.X, (int)(topOfBar.Y + 64f), 48, graphics.GraphicsDevice.Viewport.GetTitleSafeArea().Bottom - 64 - 16 - (int)(topOfBar.Y + 64f)), new Microsoft.Xna.Framework.Rectangle(268, 424, 12, 16), (player.health < 20) ? (Microsoft.Xna.Framework.Color.Pink * ((float)Math.Sin(DateTime.UtcNow.TimeOfDay.TotalMilliseconds / (double)((float)player.health * 50f)) / 4f + 0.9f)) : Microsoft.Xna.Framework.Color.White);
-				spriteBatch.Draw(mouseCursors, new Vector2(topOfBar.X, topOfBar.Y + 224f + (float)(player.maxHealth - 100) - 64f), new Microsoft.Xna.Framework.Rectangle(268, 448, 12, 16), (player.health < 20) ? (Microsoft.Xna.Framework.Color.Pink * ((float)Math.Sin(DateTime.UtcNow.TimeOfDay.TotalMilliseconds / (double)((float)player.health * 50f)) / 4f + 0.9f)) : Microsoft.Xna.Framework.Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
+				spriteBatch.Draw(mouseCursors, topOfBar, new Microsoft.Xna.Framework.Rectangle(268, 408, 12, 16), (player.health < 20) ? (Microsoft.Xna.Framework.Color.Pink * ((float)Math.Sin(currentGameTime.TotalGameTime.TotalMilliseconds / (double)((float)player.health * 50f)) / 4f + 0.9f)) : Microsoft.Xna.Framework.Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
+				spriteBatch.Draw(mouseCursors, new Microsoft.Xna.Framework.Rectangle((int)topOfBar.X, (int)(topOfBar.Y + 64f), 48, graphics.GraphicsDevice.Viewport.GetTitleSafeArea().Bottom - 64 - 16 - (int)(topOfBar.Y + 64f)), new Microsoft.Xna.Framework.Rectangle(268, 424, 12, 16), (player.health < 20) ? (Microsoft.Xna.Framework.Color.Pink * ((float)Math.Sin(currentGameTime.TotalGameTime.TotalMilliseconds / (double)((float)player.health * 50f)) / 4f + 0.9f)) : Microsoft.Xna.Framework.Color.White);
+				spriteBatch.Draw(mouseCursors, new Vector2(topOfBar.X, topOfBar.Y + 224f + (float)(player.maxHealth - 100) - 64f), new Microsoft.Xna.Framework.Rectangle(268, 448, 12, 16), (player.health < 20) ? (Microsoft.Xna.Framework.Color.Pink * ((float)Math.Sin(currentGameTime.TotalGameTime.TotalMilliseconds / (double)((float)player.health * 50f)) / 4f + 0.9f)) : Microsoft.Xna.Framework.Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
 				Microsoft.Xna.Framework.Rectangle health_bar_rect = new Microsoft.Xna.Framework.Rectangle((int)topOfBar.X + 12, (int)topOfBar.Y + 16 + 32 + bar_full_height - height, 24, height);
 				c = Utility.getRedToGreenLerpColor((float)player.health / (float)player.maxHealth);
 				spriteBatch.Draw(staminaRect, health_bar_rect, staminaRect.Bounds, c, 0f, Vector2.Zero, SpriteEffects.None, 1f);
@@ -15206,6 +18213,11 @@ namespace StardewValley
 			oldMouseState = new MouseState(input.X, input.Y, oldMouseState.ScrollWheelValue, oldMouseState.LeftButton, oldMouseState.MiddleButton, oldMouseState.RightButton, oldMouseState.XButton1, oldMouseState.XButton2);
 		}
 
+		public static bool IsRenderingNonNativeUIScale()
+		{
+			return options.uiScale != options.zoomLevel;
+		}
+
 		public virtual void drawMouseCursor()
 		{
 			if (activeClickableMenu == null && timerUntilMouseFade > 0)
@@ -15219,6 +18231,20 @@ namespace StardewValley
 			}
 			if (activeClickableMenu == null && mouseCursor > -1 && currentLocation != null)
 			{
+				if (IsRenderingNonNativeUIScale())
+				{
+					spriteBatch.End();
+					PopUIMode();
+					if (ShouldDrawOnBuffer())
+					{
+						base.GraphicsDevice.SetRenderTarget(screen);
+					}
+					else
+					{
+						base.GraphicsDevice.SetRenderTarget(null);
+					}
+					spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, null);
+				}
 				if (!(mouseCursorTransparency > 0f) || !Utility.canGrabSomethingFromHere(getOldMouseX() + viewport.X, getOldMouseY() + viewport.Y, player) || mouseCursor == 3)
 				{
 					if (player.ActiveObject != null && mouseCursor != 3 && !eventUp && currentMinigame == null && !player.isRidingHorse() && player.CanMove && displayFarmer)
@@ -15228,8 +18254,14 @@ namespace StardewValley
 							player.ActiveObject.drawPlacementBounds(spriteBatch, currentLocation);
 							if (mouseCursorTransparency > 0f)
 							{
+								spriteBatch.End();
+								PushUIMode();
+								spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, null);
 								bool canPlace = Utility.playerCanPlaceItemHere(currentLocation, player.CurrentItem, getMouseX() + viewport.X, getMouseY() + viewport.Y, player) || (Utility.isThereAnObjectHereWhichAcceptsThisItem(currentLocation, player.CurrentItem, getMouseX() + viewport.X, getMouseY() + viewport.Y) && Utility.withinRadiusOfPlayer(getMouseX() + viewport.X, getMouseY() + viewport.Y, 1, player));
 								player.CurrentItem.drawInMenu(spriteBatch, new Vector2(getMouseX() + 16, getMouseY() + 16), canPlace ? (dialogueButtonScale / 75f + 1f) : 1f, canPlace ? 1f : 0.5f, 0.999f);
+								spriteBatch.End();
+								PopUIMode();
+								spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, null);
 							}
 						}
 					}
@@ -15250,7 +18282,7 @@ namespace StardewValley
 						}
 						if (animals != null)
 						{
-							Vector2 mousePos = new Vector2(getOldMouseX() + viewport.X, getOldMouseY() + viewport.Y);
+							Vector2 mousePos = new Vector2(getOldMouseX() + uiViewport.X, getOldMouseY() + uiViewport.Y);
 							player.getGeneralDirectionTowards(mousePos);
 							bool mouseWithinRadiusOfPlayer = Utility.withinRadiusOfPlayer((int)mousePos.X, (int)mousePos.Y, 1, player);
 							foreach (KeyValuePair<long, FarmAnimal> kvp in animals.Pairs)
@@ -15268,6 +18300,13 @@ namespace StardewValley
 							}
 						}
 					}
+				}
+				if (IsRenderingNonNativeUIScale())
+				{
+					spriteBatch.End();
+					PushUIMode();
+					base.GraphicsDevice.SetRenderTarget(uiScreen);
+					spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, null);
 				}
 				if (currentMinigame != null)
 				{
@@ -15289,12 +18328,21 @@ namespace StardewValley
 
 		public static void panScreen(int x, int y)
 		{
+			int old_ui_mode_count = uiModeCount;
+			while (uiModeCount > 0)
+			{
+				PopUIMode();
+			}
 			previousViewportPosition.X = viewport.Location.X;
 			previousViewportPosition.Y = viewport.Location.Y;
 			viewport.X += x;
 			viewport.Y += y;
 			clampViewportToGameMap();
 			updateRaindropPosition();
+			for (int i = 0; i < old_ui_mode_count; i++)
+			{
+				PushUIMode();
+			}
 		}
 
 		public static void clampViewportToGameMap()
@@ -15623,10 +18671,8 @@ namespace StardewValley
 
 		protected void drawFarmBuildings()
 		{
-			if (player.CoopUpgradeLevel > 0)
-			{
-				spriteBatch.Draw(currentCoopTexture, GlobalToLocal(viewport, new Vector2(1280f, 320f)), currentCoopTexture.Bounds, Microsoft.Xna.Framework.Color.White, 0f, Vector2.Zero, 1f, SpriteEffects.None, Math.Max(0f, 0.0576f));
-			}
+			_ = player.CoopUpgradeLevel;
+			_ = 0;
 			switch (player.BarnUpgradeLevel)
 			{
 			case 1:
@@ -15644,7 +18690,7 @@ namespace StardewValley
 
 		public static void drawPlayerHeldObject(Farmer f)
 		{
-			if ((!eventUp || (currentLocation.currentEvent != null && currentLocation.currentEvent.showActiveObject)) && !f.FarmerSprite.PauseForSingleAnimation && !f.isRidingHorse() && !f.bathingClothes)
+			if ((!eventUp || (currentLocation.currentEvent != null && currentLocation.currentEvent.showActiveObject)) && !f.FarmerSprite.PauseForSingleAnimation && !f.isRidingHorse() && !f.bathingClothes && !f.onBridge.Value)
 			{
 				float xPosition = f.getLocalPosition(viewport).X + (float)((f.rotation < 0f) ? (-8) : ((f.rotation > 0f) ? 8 : 0)) + (float)(f.FarmerSprite.CurrentAnimationFrame.xOffset * 4);
 				float objectYLoc = f.getLocalPosition(viewport).Y - 128f + (float)(f.FarmerSprite.CurrentAnimationFrame.positionOffset * 4) + (float)(FarmerRenderer.featureYOffsetPerFrame[f.FarmerSprite.CurrentFrame] * 4);
@@ -16153,6 +19199,11 @@ namespace StardewValley
 			return new Vector2(globalPosition.X - (float)viewport.X, globalPosition.Y - (float)viewport.Y);
 		}
 
+		public static bool IsEnglish()
+		{
+			return content.GetCurrentLanguage() == LocalizedContentManager.LanguageCode.en;
+		}
+
 		public static Vector2 GlobalToLocal(Vector2 globalPosition)
 		{
 			return new Vector2(globalPosition.X - (float)viewport.X, globalPosition.Y - (float)viewport.Y);
@@ -16232,17 +19283,21 @@ namespace StardewValley
 			{
 				if (b is Stable && (int)b.daysOfConstructionLeft <= 0)
 				{
-					Stable stable4 = b as Stable;
-					stables.Add(stable4);
+					Stable stable5 = b as Stable;
+					stables.Add(stable5);
 				}
+			}
+			foreach (Stable stable4 in stables)
+			{
+				if (stable4.owner.Value == -6666666 && getFarmerMaybeOffline(-6666666L) == null)
+				{
+					stable4.owner.Value = player.UniqueMultiplayerID;
+				}
+				stable4.grabHorse();
 			}
 			foreach (Stable item in stables)
 			{
-				item.grabHorse();
-			}
-			foreach (Stable item2 in stables)
-			{
-				Horse horse4 = item2.getStableHorse();
+				Horse horse4 = item.getStableHorse();
 				if (horse4 != null && !claimed_horses.Contains(horse4) && horse4.getOwner() != null && !horse_lookup.ContainsKey(horse4.getOwner().UniqueMultiplayerID) && horse4.getOwner().horseName.Value != null && horse4.getOwner().horseName.Value.Length > 0 && horse4.Name == horse4.getOwner().horseName.Value)
 				{
 					horse_lookup[horse4.getOwner().UniqueMultiplayerID] = horse4;
@@ -16259,9 +19314,9 @@ namespace StardewValley
 				if (farmer != null && farmer.horseName.Value != null && farmer.horseName.Value.Length != 0)
 				{
 					bool fail = false;
-					foreach (Horse item3 in claimed_horses)
+					foreach (Horse item2 in claimed_horses)
 					{
-						if (item3.getOwner() == farmer)
+						if (item2.getOwner() == farmer)
 						{
 							fail = true;
 							break;
@@ -16409,18 +19464,18 @@ namespace StardewValley
 
 		public static string getTimeOfDayString(int time)
 		{
-			string zeroPad = (time % 100 == 0) ? "0" : "";
-			string hours2 = (time / 100 % 12 == 0) ? "12" : string.Concat(time / 100 % 12);
+			string zeroPad = (time % 100 == 0) ? "0" : string.Empty;
+			string hours;
 			switch (LocalizedContentManager.CurrentLanguageCode)
 			{
-			case LocalizedContentManager.LanguageCode.en:
-				hours2 = ((time / 100 % 12 == 0) ? "12" : string.Concat(time / 100 % 12));
+			default:
+				hours = ((time / 100 % 12 == 0) ? "12" : (time / 100 % 12).ToString());
 				break;
 			case LocalizedContentManager.LanguageCode.ja:
-				hours2 = ((time / 100 % 12 == 0) ? "0" : string.Concat(time / 100 % 12));
+				hours = ((time / 100 % 12 == 0) ? "0" : (time / 100 % 12).ToString());
 				break;
 			case LocalizedContentManager.LanguageCode.zh:
-				hours2 = ((time / 100 % 24 == 0) ? "00" : ((time / 100 % 12 == 0) ? "12" : string.Concat(time / 100 % 12)));
+				hours = ((time / 100 % 24 == 0) ? "00" : ((time / 100 % 12 == 0) ? "12" : (time / 100 % 12).ToString()));
 				break;
 			case LocalizedContentManager.LanguageCode.ru:
 			case LocalizedContentManager.LanguageCode.pt:
@@ -16430,11 +19485,11 @@ namespace StardewValley
 			case LocalizedContentManager.LanguageCode.fr:
 			case LocalizedContentManager.LanguageCode.tr:
 			case LocalizedContentManager.LanguageCode.hu:
-				hours2 = string.Concat(time / 100 % 24);
-				hours2 = ((time / 100 % 24 <= 9) ? ("0" + hours2) : hours2);
+				hours = (time / 100 % 24).ToString();
+				hours = ((time / 100 % 24 <= 9) ? ("0" + hours) : hours);
 				break;
 			}
-			string timeText = hours2 + ":" + time % 100 + zeroPad;
+			string timeText = hours + ":" + time % 100 + zeroPad;
 			if (LocalizedContentManager.CurrentLanguageCode == LocalizedContentManager.LanguageCode.en)
 			{
 				timeText = timeText + " " + ((time < 1200 || time >= 2400) ? content.LoadString("Strings\\StringsFromCSFiles:DayTimeMoneyBox.cs.10370") : content.LoadString("Strings\\StringsFromCSFiles:DayTimeMoneyBox.cs.10371"));
@@ -16518,6 +19573,245 @@ namespace StardewValley
 				return Microsoft.Xna.Framework.Color.White;
 			default:
 				return Microsoft.Xna.Framework.Color.SaddleBrown;
+			}
+		}
+
+		public void _PerformRemoveNormalItemFromWorldOvernight(int parent_sheet_index)
+		{
+			foreach (GameLocation k in locations)
+			{
+				_RecursiveRemoveThisNormalItemLocation(k, parent_sheet_index);
+			}
+			foreach (MineShaft mine in MineShaft.activeMines)
+			{
+				_RecursiveRemoveThisNormalItemLocation(mine, parent_sheet_index);
+			}
+			foreach (VolcanoDungeon level in VolcanoDungeon.activeLevels)
+			{
+				_RecursiveRemoveThisNormalItemLocation(level, parent_sheet_index);
+			}
+			for (int j = 0; j < player.team.returnedDonations.Count; j++)
+			{
+				if (_RecursiveRemoveThisNormalItemItem(player.team.returnedDonations[j], parent_sheet_index))
+				{
+					player.team.returnedDonations.RemoveAt(j);
+					j--;
+				}
+			}
+			foreach (SpecialOrder order in player.team.specialOrders)
+			{
+				for (int i = 0; i < order.donatedItems.Count; i++)
+				{
+					Item item = order.donatedItems[i];
+					if (_RecursiveRemoveThisNormalItemItem(item, parent_sheet_index))
+					{
+						order.donatedItems[i] = null;
+					}
+				}
+			}
+		}
+
+		protected virtual void _PerformRemoveNormalItemFromFarmerOvernight(Farmer farmer, int parent_sheet_index)
+		{
+			for (int i = 0; i < farmer.items.Count; i++)
+			{
+				if (_RecursiveRemoveThisNormalItemItem(farmer.items[i], parent_sheet_index))
+				{
+					farmer.items[i] = null;
+				}
+			}
+		}
+
+		protected virtual bool _RecursiveRemoveThisNormalItemItem(Item this_item, int parent_sheet_index)
+		{
+			if (this_item == null)
+			{
+				return false;
+			}
+			if (this_item is Object)
+			{
+				Object o = this_item as Object;
+				if (o is StorageFurniture)
+				{
+					bool removed_item2 = false;
+					for (int j = 0; j < (o as StorageFurniture).heldItems.Count; j++)
+					{
+						Item item2 = (o as StorageFurniture).heldItems[j];
+						if (item2 != null && _RecursiveRemoveThisNormalItemItem(item2, parent_sheet_index))
+						{
+							(o as StorageFurniture).heldItems[j] = null;
+							removed_item2 = true;
+						}
+					}
+					if (removed_item2)
+					{
+						(o as StorageFurniture).ClearNulls();
+					}
+				}
+				if (o is IndoorPot)
+				{
+					IndoorPot pot = o as IndoorPot;
+					if (pot.hoeDirt != null)
+					{
+						_RecursiveRemoveThisNormalItemDirt(pot.hoeDirt, null, Vector2.Zero, parent_sheet_index);
+					}
+				}
+				if (o is Chest)
+				{
+					bool removed_item = false;
+					for (int i = 0; i < (o as Chest).items.Count; i++)
+					{
+						Item item = (o as Chest).items[i];
+						if (item != null && _RecursiveRemoveThisNormalItemItem(item, parent_sheet_index))
+						{
+							(o as Chest).items[i] = null;
+							removed_item = true;
+						}
+					}
+					if (removed_item)
+					{
+						(o as Chest).clearNulls();
+					}
+				}
+				if (o.heldObject.Value != null && _RecursiveRemoveThisNormalItemItem((Object)o.heldObject, parent_sheet_index))
+				{
+					o.heldObject.Value = null;
+				}
+			}
+			return Utility.IsNormalObjectAtParentSheetIndex(this_item, parent_sheet_index);
+		}
+
+		protected virtual void _RecursiveRemoveThisNormalItemDirt(HoeDirt dirt, GameLocation location, Vector2 coord, int parent_sheet_index)
+		{
+			if (dirt.crop != null && dirt.crop.indexOfHarvest.Value == parent_sheet_index)
+			{
+				dirt.destroyCrop(coord, showAnimation: false, location);
+			}
+		}
+
+		protected virtual void _RecursiveRemoveThisNormalItemLocation(GameLocation l, int parent_sheet_index)
+		{
+			if (l == null)
+			{
+				return;
+			}
+			if (l != null)
+			{
+				List<Guid> removed_items = new List<Guid>();
+				foreach (Furniture furniture in l.furniture)
+				{
+					if (_RecursiveRemoveThisNormalItemItem(furniture, parent_sheet_index))
+					{
+						removed_items.Add(l.furniture.GuidOf(furniture));
+					}
+				}
+				foreach (Guid guid in removed_items)
+				{
+					l.furniture.Remove(guid);
+				}
+				foreach (NPC character in l.characters)
+				{
+					if (character is Monster)
+					{
+						Monster monster = character as Monster;
+						if (monster.objectsToDrop != null && monster.objectsToDrop.Count > 0)
+						{
+							for (int i2 = monster.objectsToDrop.Count - 1; i2 >= 0; i2--)
+							{
+								if (monster.objectsToDrop[i2] == parent_sheet_index)
+								{
+									monster.objectsToDrop.RemoveAt(i2);
+								}
+							}
+						}
+					}
+				}
+			}
+			if (l is IslandFarmHouse)
+			{
+				for (int n = 0; n < (l as IslandFarmHouse).fridge.Value.items.Count; n++)
+				{
+					Item item4 = (l as IslandFarmHouse).fridge.Value.items[n];
+					if (item4 != null && _RecursiveRemoveThisNormalItemItem(item4, parent_sheet_index))
+					{
+						(l as IslandFarmHouse).fridge.Value.items[n] = null;
+					}
+				}
+			}
+			foreach (Vector2 coord in l.terrainFeatures.Keys)
+			{
+				TerrainFeature feature = l.terrainFeatures[coord];
+				if (feature is HoeDirt)
+				{
+					HoeDirt dirt = feature as HoeDirt;
+					_RecursiveRemoveThisNormalItemDirt(dirt, l, coord, parent_sheet_index);
+				}
+			}
+			if (l is FarmHouse)
+			{
+				for (int m = 0; m < (l as FarmHouse).fridge.Value.items.Count; m++)
+				{
+					Item item3 = (l as FarmHouse).fridge.Value.items[m];
+					if (item3 != null && _RecursiveRemoveThisNormalItemItem(item3, parent_sheet_index))
+					{
+						(l as FarmHouse).fridge.Value.items[m] = null;
+					}
+				}
+			}
+			if (l is BuildableGameLocation)
+			{
+				foreach (Building b in (l as BuildableGameLocation).buildings)
+				{
+					if (b.indoors.Value != null)
+					{
+						_RecursiveRemoveThisNormalItemLocation(b.indoors.Value, parent_sheet_index);
+					}
+					if (b is Mill)
+					{
+						for (int k = 0; k < (b as Mill).output.Value.items.Count; k++)
+						{
+							Item item2 = (b as Mill).output.Value.items[k];
+							if (item2 != null && _RecursiveRemoveThisNormalItemItem(item2, parent_sheet_index))
+							{
+								(b as Mill).output.Value.items[k] = null;
+							}
+						}
+					}
+					else if (b is JunimoHut)
+					{
+						bool removed_item = false;
+						Chest chest = (b as JunimoHut).output.Value;
+						for (int j = 0; j < chest.items.Count; j++)
+						{
+							Item item = chest.items[j];
+							if (item != null && _RecursiveRemoveThisNormalItemItem(item, parent_sheet_index))
+							{
+								chest.items[j] = null;
+								removed_item = true;
+							}
+						}
+						if (removed_item)
+						{
+							chest.clearNulls();
+						}
+					}
+				}
+			}
+			foreach (Vector2 key in new List<Vector2>(l.objects.Keys))
+			{
+				if (_RecursiveRemoveThisNormalItemItem(l.objects[key], parent_sheet_index))
+				{
+					l.objects.Remove(key);
+				}
+			}
+			for (int i = 0; i < l.debris.Count; i++)
+			{
+				Debris d = l.debris[i];
+				if (d.item != null && _RecursiveRemoveThisNormalItemItem(d.item, parent_sheet_index))
+				{
+					l.debris.RemoveAt(i);
+					i--;
+				}
 			}
 		}
 	}

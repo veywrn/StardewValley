@@ -60,7 +60,7 @@ namespace StardewValley.Locations
 			base.draw(b);
 			if (!Game1.player.mailReceived.Contains("checkedMonsterBoard"))
 			{
-				float yOffset = 4f * (float)Math.Round(Math.Sin(DateTime.UtcNow.TimeOfDay.TotalMilliseconds / 250.0), 2);
+				float yOffset = 4f * (float)Math.Round(Math.Sin(Game1.currentGameTime.TotalGameTime.TotalMilliseconds / 250.0), 2);
 				b.Draw(Game1.mouseCursors, Game1.GlobalToLocal(Game1.viewport, new Vector2(504f, 464f + yOffset)), new Microsoft.Xna.Framework.Rectangle(141, 465, 20, 24), Color.White * 0.75f, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.064801f);
 				b.Draw(Game1.mouseCursors, Game1.GlobalToLocal(Game1.viewport, new Vector2(544f, 504f + yOffset)), new Microsoft.Xna.Framework.Rectangle(175, 425, 12, 12), Color.White * 0.75f, 0f, new Vector2(6f, 6f), 4f, SpriteEffects.None, 0.06481f);
 			}
@@ -88,17 +88,18 @@ namespace StardewValley.Locations
 			}
 			StringBuilder stringBuilder = new StringBuilder();
 			stringBuilder.Append(Game1.content.LoadString("Strings\\Locations:AdventureGuild_KillList_Header").Replace('\n', '^') + "^");
-			int slimesKilled = Game1.stats.getMonstersKilled("Green Slime") + Game1.stats.getMonstersKilled("Frost Jelly") + Game1.stats.getMonstersKilled("Sludge");
-			int shadowsKilled = Game1.stats.getMonstersKilled("Shadow Guy") + Game1.stats.getMonstersKilled("Shadow Shaman") + Game1.stats.getMonstersKilled("Shadow Brute");
+			int slimesKilled = Game1.stats.getMonstersKilled("Green Slime") + Game1.stats.getMonstersKilled("Frost Jelly") + Game1.stats.getMonstersKilled("Sludge") + Game1.stats.getMonstersKilled("Tiger Slime");
+			int shadowsKilled = Game1.stats.getMonstersKilled("Shadow Guy") + Game1.stats.getMonstersKilled("Shadow Shaman") + Game1.stats.getMonstersKilled("Shadow Brute") + Game1.stats.getMonstersKilled("Shadow Sniper");
 			int skeletonsKilled = Game1.stats.getMonstersKilled("Skeleton") + Game1.stats.getMonstersKilled("Skeleton Mage");
 			int crabsKilled = Game1.stats.getMonstersKilled("Rock Crab") + Game1.stats.getMonstersKilled("Lava Crab") + Game1.stats.getMonstersKilled("Iridium Crab");
 			int caveInsectsKilled = Game1.stats.getMonstersKilled("Grub") + Game1.stats.getMonstersKilled("Fly") + Game1.stats.getMonstersKilled("Bug");
-			int batsKilled = Game1.stats.getMonstersKilled("Bat") + Game1.stats.getMonstersKilled("Frost Bat") + Game1.stats.getMonstersKilled("Lava Bat");
-			int duggyKilled = Game1.stats.getMonstersKilled("Duggy");
+			int batsKilled = Game1.stats.getMonstersKilled("Bat") + Game1.stats.getMonstersKilled("Frost Bat") + Game1.stats.getMonstersKilled("Lava Bat") + Game1.stats.getMonstersKilled("Iridium Bat");
+			int duggyKilled = Game1.stats.getMonstersKilled("Duggy") + Game1.stats.getMonstersKilled("Magma Duggy");
 			int dustSpiritKilled = Game1.stats.getMonstersKilled("Dust Spirit");
 			int mummiesKilled = Game1.stats.getMonstersKilled("Mummy");
 			int dinosKilled = Game1.stats.getMonstersKilled("Pepper Rex");
-			int serpentsKilled = Game1.stats.getMonstersKilled("Serpent");
+			int serpentsKilled = Game1.stats.getMonstersKilled("Serpent") + Game1.stats.getMonstersKilled("Royal Serpent");
+			int flameSpiritsKilled = Game1.stats.getMonstersKilled("Magma Sprite") + Game1.stats.getMonstersKilled("Magma Sparker");
 			stringBuilder.Append(killListLine("Slimes", slimesKilled, 1000));
 			stringBuilder.Append(killListLine("VoidSpirits", shadowsKilled, 150));
 			stringBuilder.Append(killListLine("Bats", batsKilled, 200));
@@ -110,6 +111,7 @@ namespace StardewValley.Locations
 			stringBuilder.Append(killListLine("Mummies", mummiesKilled, 100));
 			stringBuilder.Append(killListLine("PepperRex", dinosKilled, 50));
 			stringBuilder.Append(killListLine("Serpent", serpentsKilled, 250));
+			stringBuilder.Append(killListLine("MagmaSprite", flameSpiritsKilled, 150));
 			stringBuilder.Append(Game1.content.LoadString("Strings\\Locations:AdventureGuild_KillList_Footer").Replace('\n', '^'));
 			Game1.drawLetterMessage(stringBuilder.ToString());
 		}
@@ -122,19 +124,20 @@ namespace StardewValley.Locations
 
 		public static bool areAllMonsterSlayerQuestsComplete()
 		{
-			int num = Game1.stats.getMonstersKilled("Green Slime") + Game1.stats.getMonstersKilled("Frost Jelly") + Game1.stats.getMonstersKilled("Sludge");
-			int shadowsKilled = Game1.stats.getMonstersKilled("Shadow Guy") + Game1.stats.getMonstersKilled("Shadow Shaman") + Game1.stats.getMonstersKilled("Shadow Brute");
+			int num = Game1.stats.getMonstersKilled("Green Slime") + Game1.stats.getMonstersKilled("Frost Jelly") + Game1.stats.getMonstersKilled("Sludge") + Game1.stats.getMonstersKilled("Tiger Slime");
+			int shadowsKilled = Game1.stats.getMonstersKilled("Shadow Guy") + Game1.stats.getMonstersKilled("Shadow Shaman") + Game1.stats.getMonstersKilled("Shadow Brute") + Game1.stats.getMonstersKilled("Shadow Sniper");
 			int skeletonsKilled = Game1.stats.getMonstersKilled("Skeleton") + Game1.stats.getMonstersKilled("Skeleton Mage");
 			int crabsKilled = Game1.stats.getMonstersKilled("Rock Crab") + Game1.stats.getMonstersKilled("Lava Crab") + Game1.stats.getMonstersKilled("Iridium Crab");
 			int caveInsectsKilled = Game1.stats.getMonstersKilled("Grub") + Game1.stats.getMonstersKilled("Fly") + Game1.stats.getMonstersKilled("Bug");
-			int batsKilled = Game1.stats.getMonstersKilled("Bat") + Game1.stats.getMonstersKilled("Frost Bat") + Game1.stats.getMonstersKilled("Lava Bat");
-			int duggyKilled = Game1.stats.getMonstersKilled("Duggy");
+			int batsKilled = Game1.stats.getMonstersKilled("Bat") + Game1.stats.getMonstersKilled("Frost Bat") + Game1.stats.getMonstersKilled("Lava Bat") + Game1.stats.getMonstersKilled("Iridium Bat");
+			int duggyKilled = Game1.stats.getMonstersKilled("Duggy") + Game1.stats.getMonstersKilled("Magma Duggy");
 			Game1.stats.getMonstersKilled("Metal Head");
 			Game1.stats.getMonstersKilled("Stone Golem");
 			int dustSpiritKilled = Game1.stats.getMonstersKilled("Dust Spirit");
 			int mummiesKilled = Game1.stats.getMonstersKilled("Mummy");
 			int dinosKilled = Game1.stats.getMonstersKilled("Pepper Rex");
-			int serpentsKilled = Game1.stats.getMonstersKilled("Serpent");
+			int serpentsKilled = Game1.stats.getMonstersKilled("Serpent") + Game1.stats.getMonstersKilled("Royal Serpent");
+			int flameSpiritsKilled = Game1.stats.getMonstersKilled("Magma Sprite") + Game1.stats.getMonstersKilled("Magma Sparker");
 			if (num < 1000)
 			{
 				return false;
@@ -179,37 +182,43 @@ namespace StardewValley.Locations
 			{
 				return false;
 			}
+			if (flameSpiritsKilled < 150)
+			{
+				return false;
+			}
 			return true;
 		}
 
 		public static bool willThisKillCompleteAMonsterSlayerQuest(string nameOfMonster)
 		{
-			int num = Game1.stats.getMonstersKilled("Green Slime") + Game1.stats.getMonstersKilled("Frost Jelly") + Game1.stats.getMonstersKilled("Sludge");
-			int shadowsKilled = Game1.stats.getMonstersKilled("Shadow Guy") + Game1.stats.getMonstersKilled("Shadow Shaman") + Game1.stats.getMonstersKilled("Shadow Brute");
+			int num = Game1.stats.getMonstersKilled("Green Slime") + Game1.stats.getMonstersKilled("Frost Jelly") + Game1.stats.getMonstersKilled("Sludge") + Game1.stats.getMonstersKilled("Tiger Slime");
+			int shadowsKilled = Game1.stats.getMonstersKilled("Shadow Guy") + Game1.stats.getMonstersKilled("Shadow Shaman") + Game1.stats.getMonstersKilled("Shadow Brute") + Game1.stats.getMonstersKilled("Shadow Sniper");
 			int skeletonsKilled = Game1.stats.getMonstersKilled("Skeleton") + Game1.stats.getMonstersKilled("Skeleton Mage");
 			int crabsKilled = Game1.stats.getMonstersKilled("Rock Crab") + Game1.stats.getMonstersKilled("Lava Crab") + Game1.stats.getMonstersKilled("Iridium Crab");
 			int caveInsectsKilled = Game1.stats.getMonstersKilled("Grub") + Game1.stats.getMonstersKilled("Fly") + Game1.stats.getMonstersKilled("Bug");
-			int batsKilled = Game1.stats.getMonstersKilled("Bat") + Game1.stats.getMonstersKilled("Frost Bat") + Game1.stats.getMonstersKilled("Lava Bat");
-			int duggyKilled = Game1.stats.getMonstersKilled("Duggy");
+			int batsKilled = Game1.stats.getMonstersKilled("Bat") + Game1.stats.getMonstersKilled("Frost Bat") + Game1.stats.getMonstersKilled("Lava Bat") + Game1.stats.getMonstersKilled("Iridium Bat");
+			int duggyKilled = Game1.stats.getMonstersKilled("Duggy") + Game1.stats.getMonstersKilled("Magma Duggy");
 			int metalHeadKilled = Game1.stats.getMonstersKilled("Metal Head");
 			int golemKilled = Game1.stats.getMonstersKilled("Stone Golem");
 			int dustSpiritKilled = Game1.stats.getMonstersKilled("Dust Spirit");
 			int mummiesKilled = Game1.stats.getMonstersKilled("Mummy");
 			int dinosKilled = Game1.stats.getMonstersKilled("Pepper Rex");
-			int serpentsKilled = Game1.stats.getMonstersKilled("Serpent");
-			int slimesKilledNew = num + ((nameOfMonster.Equals("Green Slime") || nameOfMonster.Equals("Frost Jelly") || nameOfMonster.Equals("Sludge")) ? 1 : 0);
-			int shadowsKilledNew = shadowsKilled + ((nameOfMonster.Equals("Shadow Guy") || nameOfMonster.Equals("Shadow Shaman") || nameOfMonster.Equals("Shadow Brute")) ? 1 : 0);
+			int serpentsKilled = Game1.stats.getMonstersKilled("Serpent") + Game1.stats.getMonstersKilled("Royal Serpent");
+			int flameSpiritsKilled = Game1.stats.getMonstersKilled("Magma Sprite") + Game1.stats.getMonstersKilled("Magma Sparker");
+			int slimesKilledNew = num + ((nameOfMonster.Equals("Green Slime") || nameOfMonster.Equals("Frost Jelly") || nameOfMonster.Equals("Sludge") || nameOfMonster.Equals("Tiger Slime")) ? 1 : 0);
+			int shadowsKilledNew = shadowsKilled + ((nameOfMonster.Equals("Shadow Guy") || nameOfMonster.Equals("Shadow Shaman") || nameOfMonster.Equals("Shadow Brute") || nameOfMonster.Equals("Shadow Sniper")) ? 1 : 0);
 			int skeletonsKilledNew = skeletonsKilled + ((nameOfMonster.Equals("Skeleton") || nameOfMonster.Equals("Skeleton Mage")) ? 1 : 0);
 			int crabsKilledNew = crabsKilled + ((nameOfMonster.Equals("Rock Crab") || nameOfMonster.Equals("Lava Crab") || nameOfMonster.Equals("Iridium Crab")) ? 1 : 0);
 			int caveInsectsKilledNew = caveInsectsKilled + ((nameOfMonster.Equals("Grub") || nameOfMonster.Equals("Fly") || nameOfMonster.Equals("Bug")) ? 1 : 0);
 			int batsKilledNew = batsKilled + ((nameOfMonster.Equals("Bat") || nameOfMonster.Equals("Frost Bat") || nameOfMonster.Equals("Lava Bat")) ? 1 : 0);
-			int duggyKilledNew = duggyKilled + (nameOfMonster.Equals("Duggy") ? 1 : 0);
+			int duggyKilledNew = duggyKilled + (nameOfMonster.Contains("Duggy") ? 1 : 0);
 			nameOfMonster.Equals("Metal Head");
 			nameOfMonster.Equals("Stone Golem");
 			int dustSpiritKilledNew = dustSpiritKilled + (nameOfMonster.Equals("Dust Spirit") ? 1 : 0);
 			int mummiesKilledNew = mummiesKilled + (nameOfMonster.Equals("Mummy") ? 1 : 0);
 			int dinosKilledNew = dinosKilled + (nameOfMonster.Equals("Pepper Rex") ? 1 : 0);
-			int serpentsKilledNew = serpentsKilled + (nameOfMonster.Equals("Serpent") ? 1 : 0);
+			int serpentsKilledNew = serpentsKilled + (nameOfMonster.Contains("Serpent") ? 1 : 0);
+			int flameSpiritsKilledNew = flameSpiritsKilled + ((nameOfMonster.Equals("Magma Sprite") || nameOfMonster.Equals("Magma Sparker")) ? 1 : 0);
 			if (num < 1000 && slimesKilledNew >= 1000 && !Game1.player.mailReceived.Contains("Gil_Slime Charmer Ring"))
 			{
 				return true;
@@ -254,6 +263,10 @@ namespace StardewValley.Locations
 			{
 				return true;
 			}
+			if (flameSpiritsKilled < 150 && flameSpiritsKilledNew >= 150 && !Game1.player.mailReceived.Contains("Gil_Telephone"))
+			{
+				return true;
+			}
 			return false;
 		}
 
@@ -268,20 +281,21 @@ namespace StardewValley.Locations
 		private void gil()
 		{
 			List<Item> rewards = new List<Item>();
-			int num = Game1.stats.getMonstersKilled("Green Slime") + Game1.stats.getMonstersKilled("Frost Jelly") + Game1.stats.getMonstersKilled("Sludge");
-			int shadowsKilled = Game1.stats.getMonstersKilled("Shadow Guy") + Game1.stats.getMonstersKilled("Shadow Shaman") + Game1.stats.getMonstersKilled("Shadow Brute");
+			int num = Game1.stats.getMonstersKilled("Green Slime") + Game1.stats.getMonstersKilled("Frost Jelly") + Game1.stats.getMonstersKilled("Sludge") + Game1.stats.getMonstersKilled("Tiger Slime");
+			int shadowsKilled = Game1.stats.getMonstersKilled("Shadow Guy") + Game1.stats.getMonstersKilled("Shadow Shaman") + Game1.stats.getMonstersKilled("Shadow Brute") + Game1.stats.getMonstersKilled("Shadow Sniper");
 			int skeletonsKilled = Game1.stats.getMonstersKilled("Skeleton") + Game1.stats.getMonstersKilled("Skeleton Mage");
 			int goblinsKilled = Game1.stats.getMonstersKilled("Goblin Warrior") + Game1.stats.getMonstersKilled("Goblin Wizard");
 			int crabsKilled = Game1.stats.getMonstersKilled("Rock Crab") + Game1.stats.getMonstersKilled("Lava Crab") + Game1.stats.getMonstersKilled("Iridium Crab");
 			int caveInsectsKilled = Game1.stats.getMonstersKilled("Grub") + Game1.stats.getMonstersKilled("Fly") + Game1.stats.getMonstersKilled("Bug");
-			int batsKilled = Game1.stats.getMonstersKilled("Bat") + Game1.stats.getMonstersKilled("Frost Bat") + Game1.stats.getMonstersKilled("Lava Bat");
-			int duggyKilled = Game1.stats.getMonstersKilled("Duggy");
+			int batsKilled = Game1.stats.getMonstersKilled("Bat") + Game1.stats.getMonstersKilled("Frost Bat") + Game1.stats.getMonstersKilled("Lava Bat") + Game1.stats.getMonstersKilled("Iridium Bat");
+			int duggyKilled = Game1.stats.getMonstersKilled("Duggy") + Game1.stats.getMonstersKilled("Magma Duggy");
 			int metalHeadKilled = Game1.stats.getMonstersKilled("Metal Head");
 			int golemKilled = Game1.stats.getMonstersKilled("Stone Golem");
 			int dustSpiritKilled = Game1.stats.getMonstersKilled("Dust Spirit");
 			int mummiesKilled = Game1.stats.getMonstersKilled("Mummy");
 			int dinosKilled = Game1.stats.getMonstersKilled("Pepper Rex");
-			int serpentsKilled = Game1.stats.getMonstersKilled("Serpent");
+			int serpentsKilled = Game1.stats.getMonstersKilled("Serpent") + Game1.stats.getMonstersKilled("Royal Serpent");
+			int flameSpiritsKilled = Game1.stats.getMonstersKilled("Magma Sprite") + Game1.stats.getMonstersKilled("Magma Sparker");
 			if (num >= 1000 && !Game1.player.mailReceived.Contains("Gil_Slime Charmer Ring"))
 			{
 				rewards.Add(new Ring(520));
@@ -337,6 +351,12 @@ namespace StardewValley.Locations
 			if (serpentsKilled >= 250 && !Game1.player.mailReceived.Contains("Gil_Napalm Ring"))
 			{
 				rewards.Add(new Ring(811));
+			}
+			if (flameSpiritsKilled >= 150 && !Game1.player.mailReceived.Contains("Gil_Telephone"))
+			{
+				Game1.addMail("Gil_Telephone", noLetter: true, sendToEveryone: true);
+				Game1.drawDialogue(Gil, Game1.content.LoadString("Strings\\Locations:Gil_Telephone"));
+				return;
 			}
 			foreach (Item i in rewards)
 			{

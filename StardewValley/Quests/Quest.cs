@@ -16,7 +16,7 @@ namespace StardewValley.Quests
 	[XmlInclude(typeof(LostItemQuest))]
 	[XmlInclude(typeof(DescriptionElement))]
 	[XmlInclude(typeof(SecretLostItemQuest))]
-	public class Quest : INetObject<NetFields>
+	public class Quest : INetObject<NetFields>, IQuest
 	{
 		public const int type_basic = 1;
 
@@ -389,7 +389,112 @@ namespace StardewValley.Quests
 					Game1.player.mailReceived.Add("emilyFiber");
 					Game1.player.activeDialogueEvents.Add("emilyFiber", 2);
 				}
+				Game1.dayTimeMoneyBox.questsDirty = true;
 			}
+		}
+
+		public string GetName()
+		{
+			return questTitle;
+		}
+
+		public string GetDescription()
+		{
+			return questDescription;
+		}
+
+		public bool IsHidden()
+		{
+			return isSecretQuest();
+		}
+
+		public List<string> GetObjectiveDescriptions()
+		{
+			return new List<string>
+			{
+				currentObjective
+			};
+		}
+
+		public bool CanBeCancelled()
+		{
+			return canBeCancelled.Value;
+		}
+
+		public bool HasReward()
+		{
+			if (!HasMoneyReward())
+			{
+				if (rewardDescription.Value != null)
+				{
+					return rewardDescription.Value.Length > 2;
+				}
+				return false;
+			}
+			return true;
+		}
+
+		public bool HasMoneyReward()
+		{
+			if (completed.Value)
+			{
+				return moneyReward.Value > 0;
+			}
+			return false;
+		}
+
+		public void MarkAsViewed()
+		{
+			showNew.Value = false;
+		}
+
+		public bool ShouldDisplayAsNew()
+		{
+			return showNew.Value;
+		}
+
+		public bool ShouldDisplayAsComplete()
+		{
+			if (completed.Value)
+			{
+				return !IsHidden();
+			}
+			return false;
+		}
+
+		public bool IsTimedQuest()
+		{
+			return dailyQuest.Value;
+		}
+
+		public int GetDaysLeft()
+		{
+			return daysLeft;
+		}
+
+		public int GetMoneyReward()
+		{
+			return moneyReward.Value;
+		}
+
+		public void OnMoneyRewardClaimed()
+		{
+			moneyReward.Value = 0;
+			destroy.Value = true;
+		}
+
+		public bool OnLeaveQuestPage()
+		{
+			if ((bool)completed && (int)moneyReward <= 0)
+			{
+				destroy.Value = true;
+			}
+			if (destroy.Value)
+			{
+				Game1.player.questLog.Remove(this);
+				return true;
+			}
+			return false;
 		}
 	}
 }

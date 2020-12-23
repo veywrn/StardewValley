@@ -33,7 +33,7 @@ namespace StardewValley
 
 		public CultureInfo CurrentCulture;
 
-		private readonly Dictionary<string, bool> _localizedAsset = new Dictionary<string, bool>();
+		public static readonly Dictionary<string, string> localizedAssetNames = new Dictionary<string, string>();
 
 		public static LanguageCode CurrentLanguageCode
 		{
@@ -98,30 +98,29 @@ namespace StardewValley
 		{
 			if (language != 0)
 			{
-				string localizedAssetName = assetName + "." + LanguageCodeString(language);
-				bool exists = true;
-				if (!_localizedAsset.TryGetValue(localizedAssetName, out exists) | exists)
+				if (!localizedAssetNames.TryGetValue(assetName, out string _))
 				{
+					string localizedAssetName2 = assetName + "." + LanguageCodeString(language);
 					try
 					{
-						T result = base.Load<T>(localizedAssetName);
-						_localizedAsset[localizedAssetName] = true;
-						return result;
+						base.Load<T>(localizedAssetName2);
+						localizedAssetNames[assetName] = localizedAssetName2;
 					}
 					catch (ContentLoadException)
 					{
+						localizedAssetName2 = assetName + "_international";
 						try
 						{
-							T result2 = base.Load<T>(assetName + "_international");
-							_localizedAsset[localizedAssetName] = true;
-							return result2;
+							base.Load<T>(localizedAssetName2);
+							localizedAssetNames[assetName] = localizedAssetName2;
 						}
 						catch (ContentLoadException)
 						{
-							_localizedAsset[localizedAssetName] = false;
+							localizedAssetNames[assetName] = assetName;
 						}
 					}
 				}
+				return base.Load<T>(localizedAssetNames[assetName]);
 			}
 			return base.Load<T>(assetName);
 		}

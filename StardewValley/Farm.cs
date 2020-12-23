@@ -8,6 +8,7 @@ using StardewValley.Locations;
 using StardewValley.Menus;
 using StardewValley.Monsters;
 using StardewValley.Network;
+using StardewValley.Objects;
 using StardewValley.TerrainFeatures;
 using StardewValley.Tools;
 using System;
@@ -58,6 +59,13 @@ namespace StardewValley
 		[XmlIgnore]
 		public static readonly Texture2D houseTextures = Game1.content.Load<Texture2D>("Buildings\\houses");
 
+		[XmlIgnore]
+		public Texture2D paintedHouseTexture;
+
+		public Color? frameHouseColor;
+
+		public NetRef<BuildingPaintColor> housePaintColor = new NetRef<BuildingPaintColor>();
+
 		public const int default_layout = 0;
 
 		public const int riverlands_layout = 1;
@@ -70,18 +78,21 @@ namespace StardewValley
 
 		public const int fourCorners_layout = 5;
 
-		public const int layout_max = 5;
+		public const int beach_layout = 6;
+
+		public const int layout_max = 6;
 
 		[XmlElement("animals")]
 		public readonly NetLongDictionary<FarmAnimal, NetRef<FarmAnimal>> animals = new NetLongDictionary<FarmAnimal, NetRef<FarmAnimal>>();
-
-		public readonly NetCollection<ResourceClump> resourceClumps = new NetCollection<ResourceClump>();
 
 		[XmlElement("piecesOfHay")]
 		public readonly NetInt piecesOfHay = new NetInt(0);
 
 		[XmlElement("grandpaScore")]
 		public NetInt grandpaScore = new NetInt(0);
+
+		[XmlElement("farmCaveReady")]
+		public NetBool farmCaveReady = new NetBool(value: false);
 
 		private TemporaryAnimatedSprite shippingBinLid;
 
@@ -96,10 +107,13 @@ namespace StardewValley
 		public bool hasSeenGrandpaNote;
 
 		[XmlElement("houseSource")]
-		private readonly NetRectangle houseSource = new NetRectangle();
+		public readonly NetRectangle houseSource = new NetRectangle();
 
-		[XmlElement("greenhouseSource")]
-		private readonly NetRectangle greenhouseSource = new NetRectangle();
+		[XmlElement("greenhouseUnlocked")]
+		public readonly NetBool greenhouseUnlocked = new NetBool();
+
+		[XmlElement("greenhouseMoved")]
+		public readonly NetBool greenhouseMoved = new NetBool();
 
 		private readonly NetEvent1Field<Vector2, NetVector2> spawnCrowEvent = new NetEvent1Field<Vector2, NetVector2>();
 
@@ -111,6 +125,21 @@ namespace StardewValley
 
 		[XmlIgnore]
 		public readonly NetPoint petBowlPosition = new NetPoint();
+
+		[XmlIgnore]
+		public Point? mapGrandpaShrinePosition;
+
+		[XmlIgnore]
+		public Point? mapMainMailboxPosition;
+
+		[XmlIgnore]
+		public Point? mainFarmhouseEntry;
+
+		[XmlIgnore]
+		public Vector2? mapSpouseAreaCorner;
+
+		[XmlIgnore]
+		public Vector2? mapShippingBinPosition;
 
 		private int chimneyTimer = 500;
 
@@ -125,33 +154,104 @@ namespace StardewValley
 		public Farm(string mapPath, string name)
 			: base(mapPath, name)
 		{
-			if (!Game1.IsMasterGame)
+			if (Game1.IsMasterGame)
 			{
-				return;
-			}
-			Layer building_layer = map.GetLayer("Buildings");
-			for (int x = 0; x < building_layer.LayerWidth; x++)
-			{
-				for (int y = 0; y < building_layer.LayerHeight; y++)
+				Layer building_layer = map.GetLayer("Buildings");
+				for (int x = 0; x < building_layer.LayerWidth; x++)
 				{
-					if (building_layer.Tiles[x, y] != null && building_layer.Tiles[x, y].TileIndex == 1938)
+					for (int y = 0; y < building_layer.LayerHeight; y++)
 					{
-						petBowlPosition.Set(x, y);
+						if (building_layer.Tiles[x, y] != null && building_layer.Tiles[x, y].TileIndex == 1938)
+						{
+							petBowlPosition.Set(x, y);
+						}
 					}
 				}
 			}
+			AddModularShippingBin();
+		}
+
+		public virtual void AddModularShippingBin()
+		{
+			Building building2 = new ShippingBin(new BluePrint("Shipping Bin"), GetStarterShippingBinLocation());
+			buildings.Add(building2);
+			building2.load();
+			building2 = new GreenhouseBuilding(new BluePrint("Greenhouse"), GetGreenhouseStartLocation());
+			buildings.Add(building2);
+			building2.load();
+		}
+
+		public virtual Microsoft.Xna.Framework.Rectangle GetHouseRect()
+		{
+			Point house_entry = GetMainFarmHouseEntry();
+			return new Microsoft.Xna.Framework.Rectangle(house_entry.X - 5, house_entry.Y - 4, 9, 6);
+		}
+
+		public virtual Vector2 GetStarterShippingBinLocation()
+		{
+			if (!mapShippingBinPosition.HasValue)
+			{
+				mapShippingBinPosition = Utility.PointToVector2(GetMapPropertyPosition("ShippingBinLocation", 71, 14));
+			}
+			return mapShippingBinPosition.Value;
+		}
+
+		public virtual Vector2 GetGreenhouseStartLocation()
+		{
+			if (map.Properties.ContainsKey("GreenhouseLocation"))
+			{
+				int x = -1;
+				int y = -1;
+				string[] split = map.Properties["GreenhouseLocation"].ToString().Split(' ');
+				if (split.Length >= 2 && int.TryParse(split[0], out x) && int.TryParse(split[1], out y))
+				{
+					return new Vector2(x, y);
+				}
+			}
+			if (Game1.whichFarm == 5)
+			{
+				return new Vector2(36f, 29f);
+			}
+			if (Game1.whichFarm == 6)
+			{
+				return new Vector2(14f, 14f);
+			}
+			return new Vector2(25f, 10f);
 		}
 
 		protected override void initNetFields()
 		{
 			base.initNetFields();
-			base.NetFields.AddFields(animals, resourceClumps, piecesOfHay, sharedShippingBin, houseSource, greenhouseSource, spawnCrowEvent, petBowlWatered, petBowlPosition, lightningStrikeEvent, grandpaScore);
+			base.NetFields.AddFields(animals, piecesOfHay, sharedShippingBin, houseSource, spawnCrowEvent, petBowlWatered, petBowlPosition, lightningStrikeEvent, grandpaScore, greenhouseUnlocked, greenhouseMoved, housePaintColor, farmCaveReady);
 			spawnCrowEvent.onEvent += doSpawnCrow;
 			lightningStrikeEvent.onEvent += doLightningStrike;
+			greenhouseMoved.fieldChangeVisibleEvent += delegate
+			{
+				ClearGreenhouseGrassTiles();
+			};
 			petBowlWatered.fieldChangeVisibleEvent += delegate
 			{
 				_UpdateWaterBowl();
 			};
+			if (housePaintColor.Value == null)
+			{
+				housePaintColor.Value = new BuildingPaintColor();
+			}
+		}
+
+		public virtual void ClearGreenhouseGrassTiles()
+		{
+			if (map != null && Game1.gameMode != 6 && greenhouseMoved.Value)
+			{
+				if (Game1.whichFarm == 0 || Game1.whichFarm == 4 || Game1.whichFarm == 3)
+				{
+					ApplyMapOverride("Farm_Greenhouse_Dirt", (Microsoft.Xna.Framework.Rectangle?)null, (Microsoft.Xna.Framework.Rectangle?)new Microsoft.Xna.Framework.Rectangle((int)GetGreenhouseStartLocation().X, (int)GetGreenhouseStartLocation().Y, 9, 6));
+				}
+				else if (Game1.whichFarm == 5)
+				{
+					ApplyMapOverride("Farm_Greenhouse_Dirt_FourCorners", (Microsoft.Xna.Framework.Rectangle?)null, (Microsoft.Xna.Framework.Rectangle?)new Microsoft.Xna.Framework.Rectangle((int)GetGreenhouseStartLocation().X, (int)GetGreenhouseStartLocation().Y, 9, 6));
+				}
+			}
 		}
 
 		protected void _UpdateWaterBowl()
@@ -182,6 +282,8 @@ namespace StardewValley
 				return "Farm_Combat";
 			case 5:
 				return "Farm_FourCorners";
+			case 6:
+				return "Farm_Island";
 			default:
 				return "Farm";
 			}
@@ -205,10 +307,6 @@ namespace StardewValley
 				{
 					characters[j].setTilePosition(GetPetStartLocation());
 				}
-			}
-			if (Game1.whichFarm == 4 && !Game1.player.mailReceived.Contains("henchmanGone"))
-			{
-				Game1.spawnMonstersAtNight = true;
 			}
 			lastItemShipped = null;
 			for (int k = characters.Count - 1; k >= 0; k--)
@@ -249,13 +347,82 @@ namespace StardewValley
 				}
 				if (objects.Count() > 0)
 				{
-					for (int n = 0; n < 6; n++)
+					for (int i3 = 0; i3 < 6; i3++)
 					{
 						Object o2 = objects.Pairs.ElementAt(Game1.random.Next(objects.Count())).Value;
 						if (o2.name.Equals("Weeds") && o2.tileLocation.X < 36f && o2.tileLocation.Y < 34f)
 						{
 							o2.ParentSheetIndex = 792 + Utility.getSeasonNumber(Game1.currentSeason);
 						}
+					}
+				}
+			}
+			else if (Game1.whichFarm == 6)
+			{
+				while (Game1.random.NextDouble() < 0.9)
+				{
+					Vector2 v2 = getRandomTile();
+					if (!isTileLocationTotallyClearAndPlaceable(v2) || getTileIndexAt((int)v2.X, (int)v2.Y, "AlwaysFront") != -1)
+					{
+						continue;
+					}
+					int whichItem2 = -1;
+					if (doesTileHavePropertyNoNull((int)v2.X, (int)v2.Y, "BeachSpawn", "Back") != "")
+					{
+						whichItem2 = 372;
+						Game1.stats.incrementStat("beachFarmSpawns", 1);
+						switch (Game1.random.Next(6))
+						{
+						case 0:
+							whichItem2 = 393;
+							break;
+						case 1:
+							whichItem2 = 719;
+							break;
+						case 2:
+							whichItem2 = 718;
+							break;
+						case 3:
+							whichItem2 = 723;
+							break;
+						case 4:
+						case 5:
+							whichItem2 = 152;
+							break;
+						}
+						if (Game1.stats.DaysPlayed > 1)
+						{
+							if (Game1.random.NextDouble() < 0.15 || Game1.stats.getStat("beachFarmSpawns") % 4u == 0)
+							{
+								whichItem2 = Game1.random.Next(922, 925);
+								objects.Add(v2, new Object(v2, whichItem2, 1)
+								{
+									Fragility = 2,
+									MinutesUntilReady = 3
+								});
+								whichItem2 = -1;
+							}
+							else if (Game1.random.NextDouble() < 0.1)
+							{
+								whichItem2 = 397;
+							}
+							else if (Game1.random.NextDouble() < 0.05)
+							{
+								whichItem2 = 392;
+							}
+							else if (Game1.random.NextDouble() < 0.02)
+							{
+								whichItem2 = 394;
+							}
+						}
+					}
+					else if (Game1.currentSeason != "winter" && new Microsoft.Xna.Framework.Rectangle(20, 66, 33, 18).Contains((int)v2.X, (int)v2.Y) && doesTileHavePropertyNoNull((int)v2.X, (int)v2.Y, "Type", "Back") == "Grass")
+					{
+						whichItem2 = Utility.getRandomBasicSeasonalForageItem(Game1.currentSeason, (int)Game1.stats.DaysPlayed);
+					}
+					if (whichItem2 != -1)
+					{
+						dropObject(new Object(v2, whichItem2, null, canBeSetDown: false, canBeGrabbed: true, isHoedirt: false, isSpawnedObject: true), v2 * 64f, Game1.viewport, initialPlacement: true);
 					}
 				}
 			}
@@ -387,11 +554,11 @@ namespace StardewValley
 			spawnWeeds(weedsOnly: false);
 			if (dayOfMonth == 1)
 			{
-				for (int i3 = terrainFeatures.Count() - 1; i3 >= 0; i3--)
+				for (int i2 = terrainFeatures.Count() - 1; i2 >= 0; i2--)
 				{
-					if (terrainFeatures.Pairs.ElementAt(i3).Value is HoeDirt && (terrainFeatures.Pairs.ElementAt(i3).Value as HoeDirt).crop == null && Game1.random.NextDouble() < 0.8)
+					if (terrainFeatures.Pairs.ElementAt(i2).Value is HoeDirt && (terrainFeatures.Pairs.ElementAt(i2).Value as HoeDirt).crop == null && Game1.random.NextDouble() < 0.8)
 					{
-						terrainFeatures.Remove(terrainFeatures.Pairs.ElementAt(i3).Key);
+						terrainFeatures.Remove(terrainFeatures.Pairs.ElementAt(i2).Key);
 					}
 				}
 				spawnWeedsAndStones(20, weedsOnly: false, spawnFromOldWeeds: false);
@@ -399,13 +566,13 @@ namespace StardewValley
 				{
 					spawnWeedsAndStones(40, weedsOnly: false, spawnFromOldWeeds: false);
 					spawnWeedsAndStones(40, weedsOnly: true, spawnFromOldWeeds: false);
-					for (int i2 = 0; i2 < 15; i2++)
+					for (int n = 0; n < 15; n++)
 					{
 						int xCoord = Game1.random.Next(map.DisplayWidth / 64);
 						int yCoord = Game1.random.Next(map.DisplayHeight / 64);
 						Vector2 location = new Vector2(xCoord, yCoord);
 						objects.TryGetValue(location, out Object o);
-						if (o == null && doesTileHaveProperty(xCoord, yCoord, "Diggable", "Back") != null && isTileLocationOpen(new Location(xCoord * 64, yCoord * 64)) && !isTileOccupied(location) && doesTileHaveProperty(xCoord, yCoord, "Water", "Back") == null)
+						if (o == null && doesTileHaveProperty(xCoord, yCoord, "Diggable", "Back") != null && doesTileHaveProperty(xCoord, yCoord, "NoSpawn", "Back") == null && isTileLocationOpen(new Location(xCoord, yCoord)) && !isTileOccupied(location) && doesTileHaveProperty(xCoord, yCoord, "Water", "Back") == null)
 						{
 							terrainFeatures.Add(location, new Grass(1, 4));
 						}
@@ -482,6 +649,32 @@ namespace StardewValley
 			}
 		}
 
+		public override bool catchOceanCrabPotFishFromThisSpot(int x, int y)
+		{
+			if (Game1.whichFarm == 6)
+			{
+				if (x > 28 && x < 57 && y > 46 && y < 82)
+				{
+					return false;
+				}
+				return true;
+			}
+			return base.catchOceanCrabPotFishFromThisSpot(x, y);
+		}
+
+		public override float getExtraTrashChanceForCrabPot(int x, int y)
+		{
+			if (Game1.whichFarm == 6)
+			{
+				if (x > 28 && x < 57 && y > 46 && y < 82)
+				{
+					return 0.25f;
+				}
+				return 0f;
+			}
+			return base.getExtraTrashChanceForCrabPot(x, y);
+		}
+
 		public void addCrows()
 		{
 			int numCrops = 0;
@@ -545,7 +738,9 @@ namespace StardewValley
 
 		public static Point getFrontDoorPositionForFarmer(Farmer who)
 		{
-			return new Point(64, 14);
+			Point entry_point = Game1.getFarm().GetMainFarmHouseEntry();
+			entry_point.Y--;
+			return entry_point;
 		}
 
 		public override void performTenMinuteUpdate(int timeOfDay)
@@ -622,7 +817,7 @@ namespace StardewValley
 				});
 				success2 = true;
 			}
-			else if (Game1.random.NextDouble() < 0.65 && isTileLocationTotallyClearAndPlaceable(spawnLocation))
+			else if (Game1.random.NextDouble() < ((Game1.whichFarm == 4) ? 0.66 : 0.33) && isTileLocationTotallyClearAndPlaceable(spawnLocation))
 			{
 				characters.Add(new RockGolem(spawnLocation * 64f, Game1.player.CombatLevel)
 				{
@@ -760,8 +955,7 @@ namespace StardewValley
 
 		public override bool performToolAction(Tool t, int tileX, int tileY)
 		{
-			Point p = new Point(tileX * 64 + 32, tileY * 64 + 32);
-			resourceClumps.Filter((ResourceClump clump) => !clump.getBoundingBox(clump.tile).Contains(p) || !clump.performToolAction(t, 1, clump.tile, this));
+			new Point(tileX * 64 + 32, tileY * 64 + 32);
 			if (t is MeleeWeapon)
 			{
 				foreach (FarmAnimal a in animals.Values)
@@ -843,23 +1037,33 @@ namespace StardewValley
 		{
 			if (!glider)
 			{
-				foreach (ResourceClump stump in resourceClumps)
+				if (resourceClumps.Count > 0)
 				{
-					if (stump.getBoundingBox(stump.tile).Intersects(position) && (!isFarmer || character == null || !stump.getBoundingBox(stump.tile).Intersects(character.GetBoundingBox())))
+					Microsoft.Xna.Framework.Rectangle characterBox = character?.GetBoundingBox() ?? Microsoft.Xna.Framework.Rectangle.Empty;
+					foreach (ResourceClump resourceClump in resourceClumps)
 					{
-						return true;
+						Microsoft.Xna.Framework.Rectangle stumpBox = resourceClump.getBoundingBox(resourceClump.tile);
+						if (stumpBox.Intersects(position) && (!isFarmer || character == null || !stumpBox.Intersects(characterBox)))
+						{
+							return true;
+						}
 					}
 				}
-				foreach (KeyValuePair<long, FarmAnimal> kvp in animals.Pairs)
+				if (character != null && !(character is FarmAnimal))
 				{
-					if (character != null && !character.Equals(kvp.Value) && !(character is FarmAnimal) && position.Intersects(kvp.Value.GetBoundingBox()) && (!isFarmer || !Game1.player.GetBoundingBox().Intersects(kvp.Value.GetBoundingBox())))
+					Microsoft.Xna.Framework.Rectangle playerBox = Game1.player.GetBoundingBox();
+					Farmer farmer = isFarmer ? (character as Farmer) : null;
+					foreach (FarmAnimal animal in animals.Values)
 					{
-						if (isFarmer && character is Farmer && (character as Farmer).TemporaryPassableTiles.Intersects(position))
+						if (position.Intersects(animal.GetBoundingBox()) && (!isFarmer || !playerBox.Intersects(animal.GetBoundingBox())))
 						{
-							break;
+							if (farmer != null && farmer.TemporaryPassableTiles.Intersects(position))
+							{
+								break;
+							}
+							animal.farmerPushing();
+							return true;
 						}
-						kvp.Value.farmerPushing();
-						return true;
 					}
 				}
 			}
@@ -936,35 +1140,12 @@ namespace StardewValley
 			{
 				return true;
 			}
-			foreach (ResourceClump stump in resourceClumps)
-			{
-				if (stump.getBoundingBox(stump.tile).Intersects(tileRect))
-				{
-					stump.performUseAction(new Vector2(tileLocation.X, tileLocation.Y), this);
-					return true;
-				}
-			}
-			if (tileLocation.X >= 71 && tileLocation.X <= 72 && tileLocation.Y >= 13 && tileLocation.Y <= 14)
-			{
-				ItemGrabMenu itemGrabMenu = new ItemGrabMenu(null, reverseGrab: true, showReceivingMenu: false, Utility.highlightShippableObjects, shipItem, "", null, snapToBottom: true, canBeExitedWithKey: true, playRightClickSound: false, allowRightClick: true, showOrganizeButton: false, 0, null, -1, this);
-				itemGrabMenu.initializeUpperRightCloseButton();
-				itemGrabMenu.setBackgroundTransparency(b: false);
-				itemGrabMenu.setDestroyItemOnClick(b: true);
-				itemGrabMenu.initializeShippingBin();
-				Game1.activeClickableMenu = itemGrabMenu;
-				playSound("shwip");
-				if (Game1.player.FacingDirection == 1)
-				{
-					Game1.player.Halt();
-				}
-				Game1.player.showCarrying();
-				return true;
-			}
 			int tileIndexOfCheckLocation = (map.GetLayer("Buildings").Tiles[tileLocation] != null) ? map.GetLayer("Buildings").Tiles[tileLocation].TileIndex : (-1);
 			if ((uint)(tileIndexOfCheckLocation - 1956) <= 2u)
 			{
 				if (!hasSeenGrandpaNote)
 				{
+					Game1.addMail("hasSeenGrandpaNote", noLetter: true);
 					hasSeenGrandpaNote = true;
 					Game1.activeClickableMenu = new LetterViewerMenu(Game1.content.LoadString("Strings\\Locations:Farm_GrandpaNote", Game1.player.Name).Replace('\n', '^'));
 					return true;
@@ -1024,6 +1205,17 @@ namespace StardewValley
 			}
 		}
 
+		public override void TransferDataFromSavedLocation(GameLocation l)
+		{
+			base.TransferDataFromSavedLocation(l);
+			housePaintColor.Value = (l as Farm).housePaintColor.Value;
+			farmCaveReady.Value = (l as Farm).farmCaveReady.Value;
+			if ((l as Farm).hasSeenGrandpaNote)
+			{
+				Game1.addMail("hasSeenGrandpaNote", noLetter: true);
+			}
+		}
+
 		public NetCollection<Item> getShippingBin(Farmer who)
 		{
 			if ((bool)Game1.player.team.useSeparateWallets)
@@ -1033,7 +1225,7 @@ namespace StardewValley
 			return sharedShippingBin;
 		}
 
-		private void shipItem(Item i, Farmer who)
+		public void shipItem(Item i, Farmer who)
 		{
 			if (i != null)
 			{
@@ -1054,15 +1246,6 @@ namespace StardewValley
 
 		public override bool leftClick(int x, int y, Farmer who)
 		{
-			if (who.ActiveObject != null && x / 64 >= 71 && x / 64 <= 72 && y / 64 >= 13 && y / 64 <= 14 && who.ActiveObject.canBeShipped() && Vector2.Distance(who.getTileLocation(), new Vector2(71.5f, 14f)) <= 2f)
-			{
-				getShippingBin(who).Add(who.ActiveObject);
-				lastItemShipped = who.ActiveObject;
-				who.showNotCarrying();
-				showShipment(who.ActiveObject);
-				who.ActiveObject = null;
-				return true;
-			}
 			return base.leftClick(x, y, who);
 		}
 
@@ -1181,7 +1364,46 @@ namespace StardewValley
 				}
 				return base.getFish(millisecondsAfterNibble, bait, waterDepth, who, baitPotency, bobberTile, "Town");
 			}
-			if (Game1.whichFarm == 5)
+			if (Game1.whichFarm == 6)
+			{
+				if (who != null && who.getTileLocation().Equals(new Vector2(23f, 98f)) && !who.mailReceived.Contains("gotBoatPainting"))
+				{
+					who.mailReceived.Add("gotBoatPainting");
+					return new Furniture(2421, Vector2.Zero);
+				}
+				if (!new Microsoft.Xna.Framework.Rectangle(26, 45, 31, 39).Contains((int)bobberTile.X, (int)bobberTile.Y))
+				{
+					if (Game1.random.NextDouble() < 0.15)
+					{
+						return new Object(152, 1);
+					}
+					if (Game1.random.NextDouble() < 0.06)
+					{
+						int whichItem = -1;
+						switch (Game1.random.Next(4))
+						{
+						case 0:
+							whichItem = 723;
+							break;
+						case 1:
+							whichItem = 393;
+							break;
+						case 2:
+							whichItem = 719;
+							break;
+						case 3:
+							whichItem = 718;
+							break;
+						}
+						return new Object(whichItem, 1);
+					}
+					if (Game1.random.NextDouble() < 0.66)
+					{
+						return base.getFish(millisecondsAfterNibble, bait, waterDepth, who, baitPotency, bobberTile, "Beach");
+					}
+				}
+			}
+			else if (Game1.whichFarm == 5)
 			{
 				if (who != null && who.getTileX() < 40 && who.getTileY() > 54 && Game1.random.NextDouble() <= 0.5)
 				{
@@ -1240,34 +1462,18 @@ namespace StardewValley
 					return true;
 				}
 			}
-			Microsoft.Xna.Framework.Rectangle r = new Microsoft.Xna.Framework.Rectangle((int)tileLocation.X * 64, (int)tileLocation.Y * 64, 64, 64);
-			foreach (ResourceClump resourceClump in resourceClumps)
-			{
-				if (resourceClump.getBoundingBox(resourceClump.tile).Intersects(r))
-				{
-					return true;
-				}
-			}
 			return base.isTileOccupied(tileLocation, characterToIgnore, ignoreAllCharacters);
-		}
-
-		public override void removeEverythingExceptCharactersFromThisTile(int x, int y)
-		{
-			base.removeEverythingFromThisTile(x, y);
-			for (int i = resourceClumps.Count - 1; i >= 0; i--)
-			{
-				if (resourceClumps[i].tile.X == (float)x && resourceClumps[i].tile.Y == (float)y)
-				{
-					resourceClumps.RemoveAt(i);
-				}
-			}
 		}
 
 		protected override void resetSharedState()
 		{
 			base.resetSharedState();
+			if (!greenhouseUnlocked.Value && Utility.doesMasterPlayerHaveMailReceivedButNotMailForTomorrow("ccPantry"))
+			{
+				greenhouseUnlocked.Value = true;
+			}
+			ClearGreenhouseGrassTiles();
 			houseSource.Value = new Microsoft.Xna.Framework.Rectangle(0, 144 * (((int)Game1.MasterPlayer.houseUpgradeLevel == 3) ? 2 : ((int)Game1.MasterPlayer.houseUpgradeLevel)), 160, 144);
-			greenhouseSource.Value = new Microsoft.Xna.Framework.Rectangle(160, 160 * (Utility.doesMasterPlayerHaveMailReceivedButNotMailForTomorrow("ccPantry") ? 1 : 0), 112, 160);
 			int i = characters.Count - 1;
 			while (true)
 			{
@@ -1292,6 +1498,8 @@ namespace StardewValley
 		protected override void resetLocalState()
 		{
 			base.resetLocalState();
+			hasSeenGrandpaNote = Game1.player.hasOrWillReceiveMail("hasSeenGrandpaNote");
+			frameHouseColor = null;
 			_UpdateWaterBowl();
 			if (!Game1.player.mailReceived.Contains("button_tut_2"))
 			{
@@ -1302,36 +1510,24 @@ namespace StardewValley
 			{
 				addSpouseOutdoorArea(Game1.MasterPlayer.spouse);
 			}
-			for (int i = characters.Count - 1; i >= 0; i--)
+			for (int k = characters.Count - 1; k >= 0; k--)
 			{
-				if (characters[i] is Child)
+				if (characters[k] is Child)
 				{
-					(characters[i] as Child).resetForPlayerEntry(this);
+					(characters[k] as Child).resetForPlayerEntry(this);
 				}
-				if (characters[i].isVillager() && characters[i].name.Equals(Game1.player.spouse))
+				if (characters[k].isVillager() && characters[k].name.Equals(Game1.player.spouse))
 				{
 					petBowlWatered.Set(newValue: true);
 				}
 			}
 			if (Game1.timeOfDay >= 1830)
 			{
-				for (int j = animals.Count() - 1; j >= 0; j--)
+				for (int l = animals.Count() - 1; l >= 0; l--)
 				{
-					animals.Pairs.ElementAt(j).Value.warpHome(this, animals.Pairs.ElementAt(j).Value);
+					animals.Pairs.ElementAt(l).Value.warpHome(this, animals.Pairs.ElementAt(l).Value);
 				}
 			}
-			shippingBinLid = new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(134, 226, 30, 25), new Vector2(71f, 13f) * 64f + new Vector2(2f, -7f) * 4f, flipped: false, 0f, Color.White)
-			{
-				holdLastFrame = true,
-				destroyable = false,
-				interval = 20f,
-				animationLength = 13,
-				paused = true,
-				scale = 4f,
-				layerDepth = 0.0961f,
-				pingPong = true,
-				pingPongMotion = 0
-			};
 			if (isThereABuildingUnderConstruction() && (int)getBuildingUnderConstruction().daysOfConstructionLeft > 0 && Game1.getCharacterFromName("Robin").currentLocation.Equals(this))
 			{
 				Building b = getBuildingUnderConstruction();
@@ -1350,116 +1546,175 @@ namespace StardewValley
 				removeTemporarySpritesWithIDLocal(16846f);
 			}
 			addGrandpaCandles();
+			if (Game1.MasterPlayer.mailReceived.Contains("Farm_Eternal") && !Game1.player.mailReceived.Contains("Farm_Eternal_Parrots") && !Game1.IsRainingHere(this))
+			{
+				for (int j = 0; j < 20; j++)
+				{
+					temporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\parrots", new Microsoft.Xna.Framework.Rectangle(49, 24 * Game1.random.Next(4), 24, 24), new Vector2(Game1.viewport.MaxCorner.X, Game1.viewport.Location.Y + Game1.random.Next(64, Game1.viewport.Height / 2)), flipped: false, 0f, Color.White)
+					{
+						scale = 4f,
+						motion = new Vector2(-5f + (float)Game1.random.Next(-10, 11) / 10f, 4f + (float)Game1.random.Next(-10, 11) / 10f),
+						acceleration = new Vector2(0f, -0.02f),
+						animationLength = 3,
+						interval = 100f,
+						pingPong = true,
+						totalNumberOfLoops = 999,
+						delayBeforeAnimationStart = j * 250,
+						drawAboveAlwaysFront = true,
+						startSound = "batFlap"
+					});
+				}
+				DelayedAction.playSoundAfterDelay("parrot_squawk", 1000);
+				DelayedAction.playSoundAfterDelay("parrot_squawk", 4000);
+				DelayedAction.playSoundAfterDelay("parrot", 3000);
+				DelayedAction.playSoundAfterDelay("parrot", 5500);
+				DelayedAction.playSoundAfterDelay("parrot_squawk", 7000);
+				for (int i = 0; i < 20; i++)
+				{
+					DelayedAction.playSoundAfterDelay("batFlap", 5000 + i * 250);
+				}
+				Game1.player.mailReceived.Add("Farm_Eternal_Parrots");
+			}
+		}
+
+		public virtual Vector2 GetSpouseOutdoorAreaCorner()
+		{
+			if (!mapSpouseAreaCorner.HasValue)
+			{
+				int default_x = 69;
+				int default_y = 6;
+				if (Game1.whichFarm == 6)
+				{
+					default_x = 79;
+					default_y = 2;
+				}
+				Point point = GetMapPropertyPosition("SpouseAreaLocation", default_x, default_y);
+				mapSpouseAreaCorner = Utility.PointToVector2(point);
+			}
+			return mapSpouseAreaCorner.Value;
+		}
+
+		public virtual int GetSpouseOutdoorAreaSpritesheetIndex()
+		{
+			if (Game1.whichFarm == 6)
+			{
+				return 2;
+			}
+			return 1;
 		}
 
 		public void addSpouseOutdoorArea(string spouseName)
 		{
-			removeTile(70, 9, "Buildings");
-			removeTile(71, 9, "Buildings");
-			removeTile(72, 9, "Buildings");
-			removeTile(69, 9, "Buildings");
-			removeTile(70, 8, "Buildings");
-			removeTile(71, 8, "Buildings");
-			removeTile(72, 8, "Buildings");
-			removeTile(69, 8, "Buildings");
-			removeTile(70, 7, "Front");
-			removeTile(71, 7, "Front");
-			removeTile(72, 7, "Front");
-			removeTile(69, 7, "Front");
-			removeTile(70, 6, "AlwaysFront");
-			removeTile(71, 6, "AlwaysFront");
-			removeTile(72, 6, "AlwaysFront");
-			removeTile(69, 6, "AlwaysFront");
+			Point patio_corner = Utility.Vector2ToPoint(GetSpouseOutdoorAreaCorner());
+			int spritesheet_index = GetSpouseOutdoorAreaSpritesheetIndex();
+			string above_always_layer = "AlwaysFront";
+			removeTile(patio_corner.X + 1, patio_corner.Y + 3, "Buildings");
+			removeTile(patio_corner.X + 2, patio_corner.Y + 3, "Buildings");
+			removeTile(patio_corner.X + 3, patio_corner.Y + 3, "Buildings");
+			removeTile(patio_corner.X, patio_corner.Y + 3, "Buildings");
+			removeTile(patio_corner.X + 1, patio_corner.Y + 2, "Buildings");
+			removeTile(patio_corner.X + 2, patio_corner.Y + 2, "Buildings");
+			removeTile(patio_corner.X + 3, patio_corner.Y + 2, "Buildings");
+			removeTile(patio_corner.X, patio_corner.Y + 2, "Buildings");
+			removeTile(patio_corner.X + 1, patio_corner.Y + 1, "Front");
+			removeTile(patio_corner.X + 2, patio_corner.Y + 1, "Front");
+			removeTile(patio_corner.X + 3, patio_corner.Y + 1, "Front");
+			removeTile(patio_corner.X, patio_corner.Y + 1, "Front");
+			removeTile(patio_corner.X + 1, patio_corner.Y, above_always_layer);
+			removeTile(patio_corner.X + 2, patio_corner.Y, above_always_layer);
+			removeTile(patio_corner.X + 3, patio_corner.Y, above_always_layer);
+			removeTile(patio_corner.X, patio_corner.Y, above_always_layer);
 			switch (spouseName)
 			{
 			case "Emily":
-				setMapTileIndex(69, 8, 1867, "Buildings", 1);
-				setMapTileIndex(72, 8, 1867, "Buildings", 1);
-				setMapTileIndex(69, 7, 1842, "Front", 1);
-				setMapTileIndex(72, 7, 1842, "Front", 1);
-				setMapTileIndex(69, 9, 1866, "Buildings", 1);
-				setMapTileIndex(71, 8, 1866, "Buildings", 1);
-				setMapTileIndex(72, 9, 1967, "Buildings", 1);
-				setMapTileIndex(70, 8, 1967, "Buildings", 1);
+				setMapTileIndex(patio_corner.X, patio_corner.Y + 2, 1867, "Buildings", spritesheet_index);
+				setMapTileIndex(patio_corner.X + 3, patio_corner.Y + 2, 1867, "Buildings", spritesheet_index);
+				setMapTileIndex(patio_corner.X, patio_corner.Y + 1, 1842, "Front", spritesheet_index);
+				setMapTileIndex(patio_corner.X + 3, patio_corner.Y + 1, 1842, "Front", spritesheet_index);
+				setMapTileIndex(patio_corner.X, patio_corner.Y + 3, 1866, "Buildings", spritesheet_index);
+				setMapTileIndex(patio_corner.X + 2, patio_corner.Y + 2, 1866, "Buildings", spritesheet_index);
+				setMapTileIndex(patio_corner.X + 3, patio_corner.Y + 3, 1967, "Buildings", spritesheet_index);
+				setMapTileIndex(patio_corner.X + 1, patio_corner.Y + 2, 1967, "Buildings", spritesheet_index);
 				break;
 			case "Shane":
-				setMapTileIndex(70, 9, 1940, "Buildings", 1);
-				setMapTileIndex(71, 9, 1941, "Buildings", 1);
-				setMapTileIndex(72, 9, 1942, "Buildings", 1);
-				setMapTileIndex(70, 8, 1915, "Buildings", 1);
-				setMapTileIndex(71, 8, 1916, "Buildings", 1);
-				setMapTileIndex(72, 8, 1917, "Buildings", 1);
-				setMapTileIndex(70, 7, 1772, "Front", 1);
-				setMapTileIndex(71, 7, 1773, "Front", 1);
-				setMapTileIndex(72, 7, 1774, "Front", 1);
-				setMapTileIndex(70, 6, 1747, "AlwaysFront", 1);
-				setMapTileIndex(71, 6, 1748, "AlwaysFront", 1);
-				setMapTileIndex(72, 6, 1749, "AlwaysFront", 1);
+				setMapTileIndex(patio_corner.X + 1, patio_corner.Y + 3, 1940, "Buildings", spritesheet_index);
+				setMapTileIndex(patio_corner.X + 2, patio_corner.Y + 3, 1941, "Buildings", spritesheet_index);
+				setMapTileIndex(patio_corner.X + 3, patio_corner.Y + 3, 1942, "Buildings", spritesheet_index);
+				setMapTileIndex(patio_corner.X + 1, patio_corner.Y + 2, 1915, "Buildings", spritesheet_index);
+				setMapTileIndex(patio_corner.X + 2, patio_corner.Y + 2, 1916, "Buildings", spritesheet_index);
+				setMapTileIndex(patio_corner.X + 3, patio_corner.Y + 2, 1917, "Buildings", spritesheet_index);
+				setMapTileIndex(patio_corner.X + 1, patio_corner.Y + 1, 1772, "Front", spritesheet_index);
+				setMapTileIndex(patio_corner.X + 2, patio_corner.Y + 1, 1773, "Front", spritesheet_index);
+				setMapTileIndex(patio_corner.X + 3, patio_corner.Y + 1, 1774, "Front", spritesheet_index);
+				setMapTileIndex(patio_corner.X + 1, patio_corner.Y, 1747, above_always_layer, spritesheet_index);
+				setMapTileIndex(patio_corner.X + 2, patio_corner.Y, 1748, above_always_layer, spritesheet_index);
+				setMapTileIndex(patio_corner.X + 3, patio_corner.Y, 1749, above_always_layer, spritesheet_index);
 				break;
 			case "Sebastian":
-				setMapTileIndex(70, 8, 1927, "Buildings", 1);
-				setMapTileIndex(71, 8, 1928, "Buildings", 1);
-				setMapTileIndex(72, 8, 1929, "Buildings", 1);
-				setMapTileIndex(70, 7, 1902, "Front", 1);
-				setMapTileIndex(71, 7, 1903, "Front", 1);
+				setMapTileIndex(patio_corner.X + 1, patio_corner.Y + 2, 1927, "Buildings", spritesheet_index);
+				setMapTileIndex(patio_corner.X + 2, patio_corner.Y + 2, 1928, "Buildings", spritesheet_index);
+				setMapTileIndex(patio_corner.X + 3, patio_corner.Y + 2, 1929, "Buildings", spritesheet_index);
+				setMapTileIndex(patio_corner.X + 1, patio_corner.Y + 1, 1902, "Front", spritesheet_index);
+				setMapTileIndex(patio_corner.X + 2, patio_corner.Y + 1, 1903, "Front", spritesheet_index);
 				break;
 			case "Sam":
-				setMapTileIndex(69, 8, 1173, "Buildings", 1);
-				setMapTileIndex(72, 8, 1174, "Buildings", 1);
-				setMapTileIndex(70, 8, 1198, "Buildings", 1);
-				setMapTileIndex(71, 8, 1199, "Buildings", 1);
-				setMapTileIndex(69, 7, 1148, "Front", 1);
-				setMapTileIndex(72, 7, 1149, "Front", 1);
+				setMapTileIndex(patio_corner.X, patio_corner.Y + 2, 1173, "Buildings", spritesheet_index);
+				setMapTileIndex(patio_corner.X + 3, patio_corner.Y + 2, 1174, "Buildings", spritesheet_index);
+				setMapTileIndex(patio_corner.X + 1, patio_corner.Y + 2, 1198, "Buildings", spritesheet_index);
+				setMapTileIndex(patio_corner.X + 2, patio_corner.Y + 2, 1199, "Buildings", spritesheet_index);
+				setMapTileIndex(patio_corner.X, patio_corner.Y + 1, 1148, "Front", spritesheet_index);
+				setMapTileIndex(patio_corner.X + 3, patio_corner.Y + 1, 1149, "Front", spritesheet_index);
 				break;
 			case "Elliott":
-				setMapTileIndex(69, 8, 1098, "Buildings", 1);
-				setMapTileIndex(70, 8, 1123, "Buildings", 1);
-				setMapTileIndex(72, 8, 1098, "Buildings", 1);
+				setMapTileIndex(patio_corner.X, patio_corner.Y + 2, 1098, "Buildings", spritesheet_index);
+				setMapTileIndex(patio_corner.X + 1, patio_corner.Y + 2, 1123, "Buildings", spritesheet_index);
+				setMapTileIndex(patio_corner.X + 3, patio_corner.Y + 2, 1098, "Buildings", spritesheet_index);
 				break;
 			case "Harvey":
-				setMapTileIndex(69, 8, 1098, "Buildings", 1);
-				setMapTileIndex(70, 8, 1123, "Buildings", 1);
-				setMapTileIndex(72, 8, 1098, "Buildings", 1);
+				setMapTileIndex(patio_corner.X, patio_corner.Y + 2, 1098, "Buildings", spritesheet_index);
+				setMapTileIndex(patio_corner.X + 1, patio_corner.Y + 2, 1123, "Buildings", spritesheet_index);
+				setMapTileIndex(patio_corner.X + 3, patio_corner.Y + 2, 1098, "Buildings", spritesheet_index);
 				break;
 			case "Alex":
-				setMapTileIndex(69, 8, 1099, "Buildings", 1);
+				setMapTileIndex(patio_corner.X, patio_corner.Y + 2, 1099, "Buildings", spritesheet_index);
 				break;
 			case "Maru":
-				setMapTileIndex(71, 8, 1124, "Buildings", 1);
+				setMapTileIndex(patio_corner.X + 2, patio_corner.Y + 2, 1124, "Buildings", spritesheet_index);
 				break;
 			case "Penny":
-				setMapTileIndex(69, 8, 1098, "Buildings", 1);
-				setMapTileIndex(70, 8, 1123, "Buildings", 1);
-				setMapTileIndex(72, 8, 1098, "Buildings", 1);
+				setMapTileIndex(patio_corner.X, patio_corner.Y + 2, 1098, "Buildings", spritesheet_index);
+				setMapTileIndex(patio_corner.X + 1, patio_corner.Y + 2, 1123, "Buildings", spritesheet_index);
+				setMapTileIndex(patio_corner.X + 3, patio_corner.Y + 2, 1098, "Buildings", spritesheet_index);
 				break;
 			case "Haley":
-				setMapTileIndex(69, 8, 1074, "Buildings", 1);
-				setMapTileIndex(69, 7, 1049, "Front", 1);
-				setMapTileIndex(69, 6, 1024, "AlwaysFront", 1);
-				setMapTileIndex(72, 8, 1074, "Buildings", 1);
-				setMapTileIndex(72, 7, 1049, "Front", 1);
-				setMapTileIndex(72, 6, 1024, "AlwaysFront", 1);
+				setMapTileIndex(patio_corner.X, patio_corner.Y + 2, 1074, "Buildings", spritesheet_index);
+				setMapTileIndex(patio_corner.X, patio_corner.Y + 1, 1049, "Front", spritesheet_index);
+				setMapTileIndex(patio_corner.X, patio_corner.Y, 1024, above_always_layer, spritesheet_index);
+				setMapTileIndex(patio_corner.X + 3, patio_corner.Y + 2, 1074, "Buildings", spritesheet_index);
+				setMapTileIndex(patio_corner.X + 3, patio_corner.Y + 1, 1049, "Front", spritesheet_index);
+				setMapTileIndex(patio_corner.X + 3, patio_corner.Y, 1024, above_always_layer, spritesheet_index);
 				break;
 			case "Abigail":
-				setMapTileIndex(69, 8, 1098, "Buildings", 1);
-				setMapTileIndex(70, 8, 1123, "Buildings", 1);
-				setMapTileIndex(72, 8, 1098, "Buildings", 1);
+				setMapTileIndex(patio_corner.X, patio_corner.Y + 2, 1098, "Buildings", spritesheet_index);
+				setMapTileIndex(patio_corner.X + 1, patio_corner.Y + 2, 1123, "Buildings", spritesheet_index);
+				setMapTileIndex(patio_corner.X + 3, patio_corner.Y + 2, 1098, "Buildings", spritesheet_index);
 				break;
 			case "Leah":
-				setMapTileIndex(70, 8, 1122, "Buildings", 1);
-				setMapTileIndex(70, 7, 1097, "Front", 1);
+				setMapTileIndex(patio_corner.X + 1, patio_corner.Y + 2, 1122, "Buildings", spritesheet_index);
+				setMapTileIndex(patio_corner.X + 1, patio_corner.Y + 1, 1097, "Front", spritesheet_index);
 				break;
 			}
 		}
 
 		public void addGrandpaCandles()
 		{
+			Point grandpa_shrine_location = GetGrandpaShrinePosition();
 			if ((int)grandpaScore > 0)
 			{
 				Microsoft.Xna.Framework.Rectangle candleSource = new Microsoft.Xna.Framework.Rectangle(577, 1985, 2, 5);
 				removeTemporarySpritesWithIDLocal(6666f);
-				temporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", candleSource, 99999f, 1, 9999, new Vector2(468f, 404f), flicker: false, flipped: false, 0.0384f, 0f, Color.White, 4f, 0f, 0f, 0f));
-				temporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(536, 1945, 8, 8), new Vector2(460f, 380f), flipped: false, 0f, Color.White)
+				temporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", candleSource, 99999f, 1, 9999, new Vector2((grandpa_shrine_location.X - 1) * 64 + 20, (grandpa_shrine_location.Y - 1) * 64 + 20), flicker: false, flipped: false, (float)((grandpa_shrine_location.Y - 1) * 64) / 10000f, 0f, Color.White, 4f, 0f, 0f, 0f));
+				temporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(536, 1945, 8, 8), new Vector2((grandpa_shrine_location.X - 1) * 64 + 12, (grandpa_shrine_location.Y - 1) * 64 - 4), flipped: false, 0f, Color.White)
 				{
 					interval = 50f,
 					totalNumberOfLoops = 99999,
@@ -1473,8 +1728,8 @@ namespace StardewValley
 				});
 				if ((int)grandpaScore > 1)
 				{
-					temporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", candleSource, 99999f, 1, 9999, new Vector2(488f, 344f), flicker: false, flipped: false, 0.0384f, 0f, Color.White, 4f, 0f, 0f, 0f));
-					temporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(536, 1945, 8, 8), new Vector2(484f, 320f), flipped: false, 0f, Color.White)
+					temporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", candleSource, 99999f, 1, 9999, new Vector2((grandpa_shrine_location.X - 1) * 64 + 40, (grandpa_shrine_location.Y - 2) * 64 + 24), flicker: false, flipped: false, (float)((grandpa_shrine_location.Y - 1) * 64) / 10000f, 0f, Color.White, 4f, 0f, 0f, 0f));
+					temporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(536, 1945, 8, 8), new Vector2((grandpa_shrine_location.X - 1) * 64 + 36, (grandpa_shrine_location.Y - 2) * 64), flipped: false, 0f, Color.White)
 					{
 						interval = 50f,
 						totalNumberOfLoops = 99999,
@@ -1489,8 +1744,8 @@ namespace StardewValley
 				}
 				if ((int)grandpaScore > 2)
 				{
-					temporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", candleSource, 99999f, 1, 9999, new Vector2(596f, 344f), flicker: false, flipped: false, 0.0384f, 0f, Color.White, 4f, 0f, 0f, 0f));
-					temporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(536, 1945, 8, 8), new Vector2(592f, 320f), flipped: false, 0f, Color.White)
+					temporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", candleSource, 99999f, 1, 9999, new Vector2((grandpa_shrine_location.X + 1) * 64 + 20, (grandpa_shrine_location.Y - 2) * 64 + 24), flicker: false, flipped: false, (float)((grandpa_shrine_location.Y - 1) * 64) / 10000f, 0f, Color.White, 4f, 0f, 0f, 0f));
+					temporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(536, 1945, 8, 8), new Vector2((grandpa_shrine_location.X + 1) * 64 + 16, (grandpa_shrine_location.Y - 2) * 64), flipped: false, 0f, Color.White)
 					{
 						interval = 50f,
 						totalNumberOfLoops = 99999,
@@ -1505,8 +1760,8 @@ namespace StardewValley
 				}
 				if ((int)grandpaScore > 3)
 				{
-					temporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", candleSource, 99999f, 1, 9999, new Vector2(616f, 404f), flicker: false, flipped: false, 0.0384f, 0f, Color.White, 4f, 0f, 0f, 0f));
-					temporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(536, 1945, 8, 8), new Vector2(612f, 380f), flipped: false, 0f, Color.White)
+					temporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", candleSource, 99999f, 1, 9999, new Vector2((grandpa_shrine_location.X + 1) * 64 + 40, (grandpa_shrine_location.Y - 1) * 64 + 20), flicker: false, flipped: false, (float)((grandpa_shrine_location.Y - 1) * 64) / 10000f, 0f, Color.White, 4f, 0f, 0f, 0f));
+					temporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(536, 1945, 8, 8), new Vector2((grandpa_shrine_location.X + 1) * 64 + 36, (grandpa_shrine_location.Y - 1) * 64 - 4), flipped: false, 0f, Color.White)
 					{
 						interval = 50f,
 						totalNumberOfLoops = 99999,
@@ -1519,6 +1774,10 @@ namespace StardewValley
 						delayBeforeAnimationStart = 150
 					});
 				}
+			}
+			if (Game1.MasterPlayer.mailReceived.Contains("Farm_Eternal"))
+			{
+				temporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors2", new Microsoft.Xna.Framework.Rectangle(176, 157, 15, 16), 99999f, 1, 9999, new Vector2(grandpa_shrine_location.X * 64 + 4, (grandpa_shrine_location.Y - 2) * 64 - 24), flicker: false, flipped: false, (float)((grandpa_shrine_location.Y - 1) * 64) / 10000f, 0f, Color.White, 4f, 0f, 0f, 0f));
 			}
 		}
 
@@ -1574,19 +1833,6 @@ namespace StardewValley
 			return false;
 		}
 
-		public override bool shouldShadowBeDrawnAboveBuildingsLayer(Vector2 p)
-		{
-			if (p.X >= 71f && p.X <= 72f && p.Y == 13f)
-			{
-				return false;
-			}
-			if (doesTileHavePropertyNoNull((int)p.X, (int)p.Y, "Type", "Back").Length > 0)
-			{
-				return true;
-			}
-			return base.shouldShadowBeDrawnAboveBuildingsLayer(p);
-		}
-
 		public override void pokeTileForConstruction(Vector2 tile)
 		{
 			base.pokeTileForConstruction(tile);
@@ -1608,38 +1854,56 @@ namespace StardewValley
 					return true;
 				}
 			}
-			foreach (ResourceClump resourceClump in resourceClumps)
+			return base.isTileOccupiedForPlacement(tileLocation, toPlace);
+		}
+
+		public override bool shouldShadowBeDrawnAboveBuildingsLayer(Vector2 p)
+		{
+			if (doesTileHaveProperty((int)p.X, (int)p.Y, "NoSpawn", "Back") == "All" && doesTileHaveProperty((int)p.X, (int)p.Y, "Type", "Back") == "Wood")
 			{
-				if (resourceClump.occupiesTile((int)tileLocation.X, (int)tileLocation.Y))
+				return true;
+			}
+			foreach (Building building in buildings)
+			{
+				if (building.occupiesTile(p) && building.isTilePassable(p))
 				{
 					return true;
 				}
 			}
-			return base.isTileOccupiedForPlacement(tileLocation, toPlace);
+			return base.shouldShadowBeDrawnAboveBuildingsLayer(p);
 		}
 
 		public override void draw(SpriteBatch b)
 		{
 			base.draw(b);
-			foreach (ResourceClump stump in resourceClumps)
-			{
-				stump.draw(b, stump.tile);
-			}
 			foreach (KeyValuePair<long, FarmAnimal> pair in animals.Pairs)
 			{
 				pair.Value.draw(b);
 			}
-			b.Draw(Game1.mouseCursors, Game1.GlobalToLocal(Game1.viewport, new Vector2(3776f, 1088f)), Building.leftShadow, Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1E-05f);
+			Point entry_position_tile = GetMainFarmHouseEntry();
+			Vector2 entry_position_world = Utility.PointToVector2(entry_position_tile) * 64f;
+			b.Draw(Game1.mouseCursors, Game1.GlobalToLocal(Game1.viewport, new Vector2(entry_position_tile.X - 5, entry_position_tile.Y + 2) * 64f), Building.leftShadow, Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1E-05f);
 			for (int x = 1; x < 8; x++)
 			{
-				b.Draw(Game1.mouseCursors, Game1.GlobalToLocal(Game1.viewport, new Vector2(3776 + x * 64, 1088f)), Building.middleShadow, Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1E-05f);
+				b.Draw(Game1.mouseCursors, Game1.GlobalToLocal(Game1.viewport, new Vector2(entry_position_tile.X - 5 + x, entry_position_tile.Y + 2) * 64f), Building.middleShadow, Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1E-05f);
 			}
-			b.Draw(Game1.mouseCursors, Game1.GlobalToLocal(Game1.viewport, new Vector2(4288f, 1088f)), Building.rightShadow, Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1E-05f);
-			b.Draw(houseTextures, Game1.GlobalToLocal(Game1.viewport, new Vector2(3712f, 520f)), houseSource, Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.075f);
-			b.Draw(houseTextures, Game1.GlobalToLocal(Game1.viewport, (Game1.whichFarm == 5) ? new Vector2(2304f, 1600f) : new Vector2(1600f, 384f)), greenhouseSource, Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.0704f);
+			b.Draw(Game1.mouseCursors, Game1.GlobalToLocal(Game1.viewport, new Vector2(entry_position_tile.X + 3, entry_position_tile.Y + 2) * 64f), Building.rightShadow, Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1E-05f);
+			Texture2D house_texture = houseTextures;
+			if (paintedHouseTexture != null)
+			{
+				house_texture = paintedHouseTexture;
+			}
+			Color house_draw_color = Color.White;
+			if (frameHouseColor.HasValue)
+			{
+				house_draw_color = frameHouseColor.Value;
+				frameHouseColor = null;
+			}
+			Vector2 house_draw_position = new Vector2(entry_position_world.X - 384f, entry_position_world.Y - 440f);
+			b.Draw(house_texture, Game1.GlobalToLocal(Game1.viewport, house_draw_position), houseSource, house_draw_color, 0f, Vector2.Zero, 4f, SpriteEffects.None, (house_draw_position.Y + 230f) / 10000f);
 			if (Game1.mailbox.Count > 0)
 			{
-				float yOffset = 4f * (float)Math.Round(Math.Sin(DateTime.UtcNow.TimeOfDay.TotalMilliseconds / 250.0), 2);
+				float yOffset = 4f * (float)Math.Round(Math.Sin(Game1.currentGameTime.TotalGameTime.TotalMilliseconds / 250.0), 2);
 				Point mailbox_position = Game1.player.getMailboxPosition();
 				float draw_layer = (float)((mailbox_position.X + 1) * 64) / 10000f + (float)(mailbox_position.Y * 64) / 10000f;
 				b.Draw(Game1.mouseCursors, Game1.GlobalToLocal(Game1.viewport, new Vector2(mailbox_position.X * 64, (float)(mailbox_position.Y * 64 - 96 - 48) + yOffset)), new Microsoft.Xna.Framework.Rectangle(141, 465, 20, 24), Color.White * 0.75f, 0f, Vector2.Zero, 4f, SpriteEffects.None, draw_layer + 1E-06f);
@@ -1651,8 +1915,48 @@ namespace StardewValley
 			}
 			if (!hasSeenGrandpaNote)
 			{
-				b.Draw(Game1.mouseCursors, Game1.GlobalToLocal(Game1.viewport, new Vector2(576f, 448f)), new Microsoft.Xna.Framework.Rectangle(575, 1972, 11, 8), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.0448009968f);
+				Point grandpa_shrine = GetGrandpaShrinePosition();
+				b.Draw(Game1.mouseCursors, Game1.GlobalToLocal(Game1.viewport, new Vector2((grandpa_shrine.X + 1) * 64, grandpa_shrine.Y * 64)), new Microsoft.Xna.Framework.Rectangle(575, 1972, 11, 8), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.0448009968f);
 			}
+		}
+
+		public virtual Point GetMainMailboxPosition()
+		{
+			if (!mapMainMailboxPosition.HasValue)
+			{
+				mapMainMailboxPosition = GetMapPropertyPosition("MailboxLocation", 68, 16);
+			}
+			return mapMainMailboxPosition.Value;
+		}
+
+		public virtual Point GetGrandpaShrinePosition()
+		{
+			if (!mapGrandpaShrinePosition.HasValue)
+			{
+				mapGrandpaShrinePosition = GetMapPropertyPosition("GrandpaShrineLocation", 8, 7);
+			}
+			return mapGrandpaShrinePosition.Value;
+		}
+
+		public virtual Point GetMainFarmHouseEntry()
+		{
+			if (!mainFarmhouseEntry.HasValue)
+			{
+				mainFarmhouseEntry = GetMapPropertyPosition("FarmHouseEntry", 64, 15);
+			}
+			return mainFarmhouseEntry.Value;
+		}
+
+		public override void startEvent(Event evt)
+		{
+			if (evt.id != -2)
+			{
+				Point mainFarmHouseEntry = GetMainFarmHouseEntry();
+				int offset_x = mainFarmHouseEntry.X - 64;
+				int offset_y = mainFarmHouseEntry.Y - 15;
+				evt.eventPositionTileOffset = new Vector2(offset_x, offset_y);
+			}
+			base.startEvent(evt);
 		}
 
 		public override void drawAboveAlwaysFrontLayer(SpriteBatch b)
@@ -1660,10 +1964,21 @@ namespace StardewValley
 			base.drawAboveAlwaysFrontLayer(b);
 		}
 
+		public virtual void ApplyHousePaint()
+		{
+			if (paintedHouseTexture != null)
+			{
+				paintedHouseTexture.Dispose();
+				paintedHouseTexture = null;
+			}
+			paintedHouseTexture = BuildingPainter.Apply(houseTextures, "Buildings\\houses_PaintMask", housePaintColor);
+		}
+
 		public override void updateEvenIfFarmerIsntHere(GameTime time, bool skipWasUpdatedFlush = false)
 		{
 			spawnCrowEvent.Poll();
 			lightningStrikeEvent.Poll();
+			housePaintColor.Value.Poll(ApplyHousePaint);
 			base.updateEvenIfFarmerIsntHere(time, skipWasUpdatedFlush);
 			if (!Game1.currentLocation.Equals(this))
 			{
@@ -1706,23 +2021,11 @@ namespace StardewValley
 			return false;
 		}
 
-		public void addResourceClumpAndRemoveUnderlyingTerrain(int resourceClumpIndex, int width, int height, Vector2 tile)
-		{
-			for (int x = 0; x < width; x++)
-			{
-				for (int y = 0; y < height; y++)
-				{
-					removeEverythingExceptCharactersFromThisTile((int)tile.X + x, (int)tile.Y + y);
-				}
-			}
-			resourceClumps.Add(new ResourceClump(resourceClumpIndex, width, height, tile));
-		}
-
 		private void doLightningStrike(LightningStrikeEvent lightning)
 		{
 			if (lightning.smallFlash)
 			{
-				if (Game1.currentLocation.IsOutdoors && !(Game1.currentLocation is Desert) && !Game1.newDay)
+				if (Game1.currentLocation.IsOutdoors && !(Game1.currentLocation is Desert) && !Game1.newDay && Game1.netWorldState.Value.GetWeatherForLocation(Game1.currentLocation.GetLocationContext()).isLightning.Value)
 				{
 					Game1.flashAlpha = (float)(0.5 + Game1.random.NextDouble());
 					if (Game1.random.NextDouble() < 0.5)
@@ -1732,7 +2035,7 @@ namespace StardewValley
 					DelayedAction.playSoundAfterDelay("thunder_small", Game1.random.Next(500, 1500));
 				}
 			}
-			else if (lightning.bigFlash && Game1.currentLocation.IsOutdoors && !(Game1.currentLocation is Desert) && !Game1.newDay)
+			else if (lightning.bigFlash && Game1.currentLocation.IsOutdoors && !(Game1.currentLocation is Desert) && Game1.netWorldState.Value.GetWeatherForLocation(Game1.currentLocation.GetLocationContext()).isLightning.Value && !Game1.newDay)
 			{
 				Game1.flashAlpha = (float)(0.5 + Game1.random.NextDouble());
 				Game1.playSound("thunder");
@@ -1797,10 +2100,6 @@ namespace StardewValley
 				}
 				chimneyTimer = 500;
 			}
-			foreach (ResourceClump stump in resourceClumps)
-			{
-				stump.tickUpdate(time, stump.tile, this);
-			}
 			foreach (KeyValuePair<long, FarmAnimal> kvp2 in animals.Pairs)
 			{
 				_tempAnimals.Add(kvp2);
@@ -1830,6 +2129,140 @@ namespace StardewValley
 				}
 				updateShippingBinLid(time);
 			}
+		}
+
+		public int getTotalCrops()
+		{
+			int amount = 0;
+			foreach (TerrainFeature t in terrainFeatures.Values)
+			{
+				if (t is HoeDirt && (t as HoeDirt).crop != null && !(t as HoeDirt).crop.dead)
+				{
+					amount++;
+				}
+			}
+			return amount;
+		}
+
+		public int getTotalCropsReadyForHarvest()
+		{
+			int amount = 0;
+			foreach (TerrainFeature t in terrainFeatures.Values)
+			{
+				if (t is HoeDirt && (t as HoeDirt).readyForHarvest())
+				{
+					amount++;
+				}
+			}
+			return amount;
+		}
+
+		public int getTotalUnwateredCrops()
+		{
+			int amount = 0;
+			foreach (TerrainFeature t in terrainFeatures.Values)
+			{
+				if (t is HoeDirt && (t as HoeDirt).crop != null && (t as HoeDirt).needsWatering() && (int)(t as HoeDirt).state != 1)
+				{
+					amount++;
+				}
+			}
+			return amount;
+		}
+
+		public int getTotalGreenhouseCropsReadyForHarvest()
+		{
+			if (Game1.MasterPlayer.mailReceived.Contains("ccPantry"))
+			{
+				int amount = 0;
+				{
+					foreach (TerrainFeature t in Game1.getLocationFromName("Greenhouse").terrainFeatures.Values)
+					{
+						if (t is HoeDirt && (t as HoeDirt).readyForHarvest())
+						{
+							amount++;
+						}
+					}
+					return amount;
+				}
+			}
+			return -1;
+		}
+
+		private GreenhouseBuilding getGreenhouseBuilding()
+		{
+			foreach (Building b in buildings)
+			{
+				if (b is GreenhouseBuilding)
+				{
+					return b as GreenhouseBuilding;
+				}
+			}
+			return null;
+		}
+
+		public int getTotalOpenHoeDirt()
+		{
+			int amount = 0;
+			foreach (TerrainFeature t in terrainFeatures.Values)
+			{
+				if (t is HoeDirt && (t as HoeDirt).crop == null && !objects.ContainsKey(t.currentTileLocation))
+				{
+					amount++;
+				}
+			}
+			return amount;
+		}
+
+		public int getTotalForageItems()
+		{
+			int amount = 0;
+			foreach (Object value in objects.Values)
+			{
+				if ((bool)value.isSpawnedObject)
+				{
+					amount++;
+				}
+			}
+			return amount;
+		}
+
+		public int getNumberOfMachinesReadyForHarvest()
+		{
+			int num = 0;
+			foreach (Object value in objects.Values)
+			{
+				if (value.IsConsideredReadyMachineForComputer())
+				{
+					num++;
+				}
+			}
+			foreach (Object value2 in Game1.getLocationFromName("FarmHouse").objects.Values)
+			{
+				if (value2.IsConsideredReadyMachineForComputer())
+				{
+					num++;
+				}
+			}
+			foreach (Building b in buildings)
+			{
+				if (b.indoors.Value != null)
+				{
+					foreach (Object value3 in b.indoors.Value.objects.Values)
+					{
+						if (value3.IsConsideredReadyMachineForComputer())
+						{
+							num++;
+						}
+					}
+				}
+			}
+			return num;
+		}
+
+		public bool doesFarmCaveNeedHarvesting()
+		{
+			return farmCaveReady.Value;
 		}
 	}
 }

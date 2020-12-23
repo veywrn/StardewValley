@@ -8,11 +8,11 @@ To build the repository:
 
 2.  Copy the following files from the Stardew Valley install to /lib/:
     - BmFont.dll
-    - CSteamworks.dll
+    - CSteamworks.dll (pre 1.5)
     - Galaxy.dll
     - GalaxyCSharp.dll
     - GalaxyCSharpGlue.dll
-    - GalaxyPeer.dll
+    - GalaxyPeer.dll (pre 1.5)
     - Lidgren.Network.dll
     - Netcode.dll
     - steam_api.dll

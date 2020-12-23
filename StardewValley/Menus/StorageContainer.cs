@@ -21,7 +21,7 @@ namespace StardewValley.Menus
 		{
 			this.itemChangeBehavior = itemChangeBehavior;
 			int containerWidth = 64 * (capacity / rows);
-			ItemsToGrabMenu = new InventoryMenu(Game1.viewport.Width / 2 - containerWidth / 2, yPositionOnScreen + 64, playerInventory: false, inventory, null, capacity, rows);
+			ItemsToGrabMenu = new InventoryMenu(Game1.uiViewport.Width / 2 - containerWidth / 2, yPositionOnScreen + 64, playerInventory: false, inventory, null, capacity, rows);
 			for (int j = 0; j < ItemsToGrabMenu.actualInventory.Count; j++)
 			{
 				if (j >= ItemsToGrabMenu.actualInventory.Count - ItemsToGrabMenu.capacity / ItemsToGrabMenu.rows)
@@ -61,6 +61,14 @@ namespace StardewValley.Menus
 				setCurrentlySnappedComponentTo(53910);
 				snapCursorToCurrentSnappedComponent();
 			}
+		}
+
+		public override void gameWindowSizeChanged(Rectangle oldBounds, Rectangle newBounds)
+		{
+			base.gameWindowSizeChanged(oldBounds, newBounds);
+			int containerWidth = 64 * (ItemsToGrabMenu.capacity / ItemsToGrabMenu.rows);
+			_ = ItemsToGrabMenu.rows;
+			ItemsToGrabMenu = new InventoryMenu(Game1.uiViewport.Width / 2 - containerWidth / 2, yPositionOnScreen + 64, playerInventory: false, ItemsToGrabMenu.actualInventory, null, ItemsToGrabMenu.capacity, ItemsToGrabMenu.rows);
 		}
 
 		public override void receiveLeftClick(int x, int y, bool playSound = true)
@@ -235,7 +243,7 @@ namespace StardewValley.Menus
 
 		public override void draw(SpriteBatch b)
 		{
-			b.Draw(Game1.fadeToBlackRect, new Rectangle(0, 0, Game1.viewport.Width, Game1.viewport.Height), Color.Black * 0.5f);
+			b.Draw(Game1.fadeToBlackRect, new Rectangle(0, 0, Game1.uiViewport.Width, Game1.uiViewport.Height), Color.Black * 0.5f);
 			base.draw(b, drawUpperPortion: false, drawDescriptionArea: false);
 			Game1.drawDialogueBox(ItemsToGrabMenu.xPositionOnScreen - IClickableMenu.borderWidth - IClickableMenu.spaceToClearSideBorder, ItemsToGrabMenu.yPositionOnScreen - IClickableMenu.borderWidth - IClickableMenu.spaceToClearTopBorder, ItemsToGrabMenu.width + IClickableMenu.borderWidth * 2 + IClickableMenu.spaceToClearSideBorder * 2, ItemsToGrabMenu.height + IClickableMenu.spaceToClearTopBorder + IClickableMenu.borderWidth * 2, speaker: false, drawOnlyBox: true);
 			ItemsToGrabMenu.draw(b);

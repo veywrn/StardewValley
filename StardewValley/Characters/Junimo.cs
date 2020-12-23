@@ -490,17 +490,17 @@ namespace StardewValley.Characters
 			}
 			else if (position.IsInterpolating())
 			{
-				if (base.FacingDirection == 1)
+				if (FacingDirection == 1)
 				{
 					flip = false;
 					Sprite.Animate(time, 16, 8, 50f);
 				}
-				else if (base.FacingDirection == 3)
+				else if (FacingDirection == 3)
 				{
 					Sprite.Animate(time, 16, 8, 50f);
 					flip = true;
 				}
-				else if (base.FacingDirection == 0)
+				else if (FacingDirection == 0)
 				{
 					Sprite.Animate(time, 32, 8, 50f);
 				}

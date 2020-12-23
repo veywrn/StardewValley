@@ -302,7 +302,6 @@ namespace StardewValley.Quests
 				numberFished.Value = Math.Min(numberToFish, (int)numberFished + number2);
 				if ((int)numberFished >= (int)numberToFish)
 				{
-					dailyQuest.Value = false;
 					if (target.Value == null)
 					{
 						target.Value = "Willy";

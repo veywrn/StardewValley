@@ -38,7 +38,7 @@ namespace StardewValley.Menus
 		private bool isJukebox;
 
 		public ChooseFromListMenu(List<string> options, actionOnChoosingListOption chooseAction, bool isJukebox = false, string default_selection = null)
-			: base(Game1.viewport.Width / 2 - 320, Game1.viewport.Height - 64 - 192, 640, 192)
+			: base(Game1.uiViewport.Width / 2 - 320, Game1.uiViewport.Height - 64 - 192, 640, 192)
 		{
 			this.chooseAction = chooseAction;
 			backButton = new ClickableTextureComponent(new Rectangle(xPositionOnScreen - 128 - 4, yPositionOnScreen + 85, 48, 44), Game1.mouseCursors, new Rectangle(352, 495, 12, 11), 4f)
@@ -67,41 +67,7 @@ namespace StardewValley.Menus
 			this.isJukebox = isJukebox;
 			if (isJukebox)
 			{
-				for (int i = options.Count - 1; i >= 0; i--)
-				{
-					if (options[i].ToLower().Contains("ambient") || options[i].ToLower().Contains("bigdrums") || options[i].ToLower().Contains("clubloop") || options[i].ToLower().Contains("ambience"))
-					{
-						options.RemoveAt(i);
-					}
-					else
-					{
-						switch (options[i])
-						{
-						case "ocean":
-							options.RemoveAt(i);
-							break;
-						case "communityCenter":
-							options.RemoveAt(i);
-							break;
-						case "nightTime":
-							options.RemoveAt(i);
-							break;
-						case "title_day":
-							options.RemoveAt(i);
-							options.Add("MainTheme");
-							break;
-						case "coin":
-							options.RemoveAt(i);
-							break;
-						case "buglevelloop":
-							options.RemoveAt(i);
-							break;
-						case "jojaOfficeSoundscape":
-							options.RemoveAt(i);
-							break;
-						}
-					}
-				}
+				FilterJukeboxTracks(options);
 			}
 			this.options = options;
 			if (default_selection != null)
@@ -119,6 +85,59 @@ namespace StardewValley.Menus
 			}
 		}
 
+		public static void FilterJukeboxTracks(List<string> options)
+		{
+			for (int i = options.Count - 1; i >= 0; i--)
+			{
+				if (!IsValidJukeboxSong(options[i]))
+				{
+					options.RemoveAt(i);
+				}
+				else
+				{
+					switch (options[i])
+					{
+					case "ocean":
+						options.RemoveAt(i);
+						break;
+					case "communityCenter":
+						options.RemoveAt(i);
+						break;
+					case "nightTime":
+						options.RemoveAt(i);
+						break;
+					case "title_day":
+						options.RemoveAt(i);
+						options.Add("MainTheme");
+						break;
+					case "coin":
+						options.RemoveAt(i);
+						break;
+					case "buglevelloop":
+						options.RemoveAt(i);
+						break;
+					case "jojaOfficeSoundscape":
+						options.RemoveAt(i);
+						break;
+					}
+				}
+			}
+		}
+
+		public static bool IsValidJukeboxSong(string name)
+		{
+			name = name.ToLower();
+			if (name.Trim() == "")
+			{
+				return false;
+			}
+			if (name.Contains("ambient") || name.Contains("bigdrums") || name.Contains("clubloop") || name.Contains("ambience"))
+			{
+				return false;
+			}
+			return true;
+		}
+
 		public override void snapToDefaultClickableComponent()
 		{
 			currentlySnappedComponent = getComponentWithID(103);
@@ -132,8 +151,8 @@ namespace StardewValley.Menus
 		public override void gameWindowSizeChanged(Rectangle oldBounds, Rectangle newBounds)
 		{
 			base.gameWindowSizeChanged(oldBounds, newBounds);
-			xPositionOnScreen = Game1.viewport.Width / 2 - 320;
-			yPositionOnScreen = Game1.viewport.Height - 64 - 192;
+			xPositionOnScreen = Game1.uiViewport.Width / 2 - 320;
+			yPositionOnScreen = Game1.uiViewport.Height - 64 - 192;
 			backButton = new ClickableTextureComponent(new Rectangle(xPositionOnScreen - 128 - 4, yPositionOnScreen + 85, 48, 44), Game1.mouseCursors, new Rectangle(352, 495, 12, 11), 4f);
 			forwardButton = new ClickableTextureComponent(new Rectangle(xPositionOnScreen + 640 + 16 + 64, yPositionOnScreen + 85, 48, 44), Game1.mouseCursors, new Rectangle(365, 495, 12, 11), 4f);
 			okButton = new ClickableTextureComponent("OK", new Rectangle(xPositionOnScreen + width + 128 + 8, yPositionOnScreen + 192 - 128, 64, 64), null, null, Game1.mouseCursors, new Rectangle(175, 379, 16, 15), 4f);

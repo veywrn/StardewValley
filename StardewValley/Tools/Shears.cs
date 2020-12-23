@@ -19,7 +19,10 @@ namespace StardewValley.Tools
 
 		public override Item getOne()
 		{
-			return new Shears();
+			Shears shears = new Shears();
+			CopyEnchantments(this, shears);
+			shears._GetOneFrom(this);
+			return shears;
 		}
 
 		protected override string loadDisplayName()

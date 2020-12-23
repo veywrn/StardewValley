@@ -17,7 +17,6 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x86'">
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <Optimize>false</Optimize>
-    <OutputPath />
     <DebugType>full</DebugType>
     <DebugSymbols>true</DebugSymbols>
   </PropertyGroup>
@@ -67,16 +66,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="..\lib\CSteamworks.dll" Visible="false">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
     <None Include="..\lib\Galaxy.dll" Visible="false">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Include="..\lib\GalaxyCSharpGlue.dll" Visible="false">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Include="..\lib\GalaxyPeer.dll" Visible="false">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Include="..\lib\steam_api.dll" Visible="false">
@@ -85,7 +78,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Include="..\Microsoft.Xna.Framework.Graphics\ViewportExtensions.cs" />
+    <Compile Include="..\Force.DeepCloner\**\*.cs" />
+    <Compile Include="..\Ionic\**\*.cs" />
+    <Compile Include="..\Microsoft.Xna.Framework.Graphics\**\*.cs" />
+    <Compile Include="..\Sickhead.Engine.Util\**\*.cs" />
   </ItemGroup>
 
   <ItemGroup>

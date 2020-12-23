@@ -1,10 +1,9 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using StardewValley.Locations;
 using StardewValley.Network;
 using System;
 
-namespace StardewValley
+namespace StardewValley.BellsAndWhistles
 {
 	public class Bird
 	{
@@ -28,7 +27,7 @@ namespace StardewValley
 
 		public BirdState birdState;
 
-		public MovieTheater theater;
+		public PerchingBirds context;
 
 		public int peckFrames;
 
@@ -37,6 +36,8 @@ namespace StardewValley
 		public int peckDirection;
 
 		public int birdType;
+
+		public int flapFrames = 2;
 
 		public float flyArcHeight;
 
@@ -48,16 +49,17 @@ namespace StardewValley
 			birdType = Game1.random.Next(0, 4);
 		}
 
-		public Bird(Point point, MovieTheater location, int bird_type = 0)
+		public Bird(Point point, PerchingBirds context, int bird_type = 0, int flap_frames = 2)
 		{
 			startPosition.X = (endPosition.X = point.X);
 			startPosition.Y = (endPosition.Y = point.Y);
 			position.X = ((float)startPosition.X + 0.5f) * 64f;
 			position.Y = ((float)startPosition.Y + 0.5f) * 64f;
-			theater = location;
+			this.context = context;
 			birdType = bird_type;
 			framesUntilNextMove = Game1.random.Next(100, 300);
 			peckDirection = Game1.random.Next(0, 2);
+			flapFrames = flap_frames;
 		}
 
 		public void Draw(SpriteBatch b)
@@ -74,17 +76,13 @@ namespace StardewValley
 				{
 					effect = SpriteEffects.FlipHorizontally;
 				}
-				frame = ((!theater.ShouldBirdsRoost()) ? ((peckFrames > 0) ? 1 : 0) : ((peckFrames <= 0) ? 8 : 9));
+				frame = ((!context.ShouldBirdsRoost()) ? ((peckFrames > 0) ? 1 : 0) : ((peckFrames <= 0) ? 8 : 9));
 			}
 			else
 			{
 				Vector2 offset = new Vector2(endPosition.X - startPosition.X, endPosition.Y - startPosition.Y);
 				offset.Normalize();
-				if (!(Math.Abs(offset.X) > Math.Abs(offset.Y)))
-				{
-					frame = ((!(offset.Y > 0f)) ? 6 : 4);
-				}
-				else
+				if (Math.Abs(offset.X) > Math.Abs(offset.Y))
 				{
 					frame = 2;
 					if (offset.X > 0f)
@@ -92,31 +90,47 @@ namespace StardewValley
 						effect = SpriteEffects.FlipHorizontally;
 					}
 				}
+				else if (offset.Y > 0f)
+				{
+					frame = 2 + flapFrames;
+					if (offset.X > 0f)
+					{
+						effect = SpriteEffects.FlipHorizontally;
+					}
+				}
+				else
+				{
+					frame = 2 + flapFrames * 2;
+					if (offset.X < 0f)
+					{
+						effect = SpriteEffects.FlipHorizontally;
+					}
+				}
 				if (pathPosition > 0.95f)
 				{
-					frame += Game1.currentGameTime.TotalGameTime.Milliseconds / 50 % 2;
+					frame += Game1.currentGameTime.TotalGameTime.Milliseconds / 50 % flapFrames;
 				}
 				else if (!(pathPosition > 0.75f))
 				{
-					frame += Game1.currentGameTime.TotalGameTime.Milliseconds / 100 % 2;
+					frame += Game1.currentGameTime.TotalGameTime.Milliseconds / 100 % flapFrames;
 				}
 			}
-			Rectangle source = new Rectangle(16 * frame, 16 * birdType, 16, 16);
-			Rectangle draw_position = Game1.GlobalToLocal(Game1.viewport, new Rectangle((int)offset_position.X, (int)offset_position.Y, 64, 64));
-			b.Draw(Game1.birdsSpriteSheet, draw_position, source, Color.White, 0f, new Vector2(8f, 14f), effect, 0.01f - Math.Min(0.01f, position.Y * 0.001f));
+			Rectangle source = new Rectangle(context.GetBirdWidth() * frame, context.GetBirdHeight() * birdType, context.GetBirdWidth(), context.GetBirdHeight());
+			Rectangle draw_position = Game1.GlobalToLocal(Game1.viewport, new Rectangle((int)offset_position.X, (int)offset_position.Y, context.GetBirdWidth() * 4, context.GetBirdHeight() * 4));
+			b.Draw(context.GetTexture(), draw_position, source, Color.White, 0f, context.GetBirdOrigin(), effect, position.Y / 10000f);
 		}
 
 		public void FlyToNewPoint()
 		{
-			Point point = theater.GetFreeBirdPoint(this, 500);
+			Point point = context.GetFreeBirdPoint(this, 500);
 			if (point != default(Point))
 			{
-				theater.ReserveBirdPoint(this, point);
+				context.ReserveBirdPoint(this, point);
 				startPosition = endPosition;
 				endPosition = point;
 				pathPosition = 0f;
 				velocity = 0f;
-				if (theater.ShouldBirdsRoost())
+				if (context.ShouldBirdsRoost())
 				{
 					birdState = BirdState.Idle;
 				}
@@ -155,19 +169,19 @@ namespace StardewValley
 				nextPeck--;
 				if (nextPeck <= 0)
 				{
-					if (theater.ShouldBirdsRoost())
+					if (context.ShouldBirdsRoost())
 					{
 						peckFrames = 50;
 					}
 					else
 					{
-						peckFrames = 5;
+						peckFrames = context.peckDuration;
 					}
 					nextPeck = Game1.random.Next(10, 30);
 					if (Game1.random.NextDouble() <= 0.75)
 					{
 						nextPeck += Game1.random.Next(50, 100);
-						if (!theater.ShouldBirdsRoost())
+						if (!context.ShouldBirdsRoost())
 						{
 							peckDirection = Game1.random.Next(0, 2);
 						}
@@ -176,9 +190,9 @@ namespace StardewValley
 			}
 			if (birdState == BirdState.Idle)
 			{
-				if (!theater.ShouldBirdsRoost())
+				if (!context.ShouldBirdsRoost())
 				{
-					using (FarmerCollection.Enumerator enumerator = theater.farmers.GetEnumerator())
+					using (FarmerCollection.Enumerator enumerator = Game1.currentLocation.farmers.GetEnumerator())
 					{
 						if (enumerator.MoveNext())
 						{
@@ -200,9 +214,9 @@ namespace StardewValley
 					return;
 				}
 				float distance = Utility.distance((float)(endPosition.X * 64) + 32f, position.X, (float)(endPosition.Y * 64) + 32f, position.Y);
-				int max_velocity = 5;
+				float max_velocity = context.birdSpeed;
 				float slow_down_multiplier = 0.25f;
-				if (distance > (float)max_velocity / slow_down_multiplier)
+				if (distance > max_velocity / slow_down_multiplier)
 				{
 					velocity = Utility.MoveTowards(velocity, max_velocity, 0.5f);
 				}

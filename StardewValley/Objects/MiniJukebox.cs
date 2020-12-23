@@ -46,6 +46,7 @@ namespace StardewValley.Objects
 			{
 				List<string> list = Game1.player.songsHeard.Distinct().ToList();
 				list.Insert(0, "turn_off");
+				list.Add("random");
 				Game1.activeClickableMenu = new ChooseFromListMenu(list, OnSongChosen, isJukebox: true, who.currentLocation.miniJukeboxTrack.Value);
 			}
 			return true;
@@ -105,6 +106,10 @@ namespace StardewValley.Objects
 			{
 				showNote = true;
 				shakeTimer = 1000;
+			}
+			if (selection == "random")
+			{
+				Game1.player.currentLocation.SelectRandomMiniJukeboxTrack();
 			}
 			Game1.player.currentLocation.miniJukeboxTrack.Value = selection;
 		}

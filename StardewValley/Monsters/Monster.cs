@@ -1,6 +1,7 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Netcode;
+using StardewValley.Locations;
 using System;
 using System.Collections.Generic;
 using System.Xml.Serialization;
@@ -55,6 +56,9 @@ namespace StardewValley.Monsters
 		[XmlElement("hasSpecialItem")]
 		public readonly NetBool hasSpecialItem = new NetBool();
 
+		[XmlIgnore]
+		public readonly NetFloat synchedRotation = new NetFloat().Interpolated(interpolate: true, wait: true);
+
 		public readonly NetIntList objectsToDrop = new NetIntList();
 
 		protected int skipHorizontal;
@@ -65,6 +69,11 @@ namespace StardewValley.Monsters
 		private bool skipHorizontalUp;
 
 		protected readonly NetInt defaultAnimationInterval = new NetInt(175);
+
+		public int stunTime;
+
+		[XmlElement("initializedForLocation")]
+		public bool initializedForLocation;
 
 		[XmlIgnore]
 		public readonly NetBool netFocusedOnFarmers = new NetBool();
@@ -79,7 +88,13 @@ namespace StardewValley.Monsters
 		[XmlIgnore]
 		private readonly NetEvent0 deathAnimEvent = new NetEvent0();
 
+		[XmlElement("ignoreDamageLOS")]
+		public readonly NetBool ignoreDamageLOS = new NetBool();
+
 		protected collisionBehavior onCollision;
+
+		[XmlElement("isHardModeMonster")]
+		public NetBool isHardModeMonster = new NetBool(value: false);
 
 		private int slideAnimationTimer;
 
@@ -192,7 +207,7 @@ namespace StardewValley.Monsters
 		protected override void initNetFields()
 		{
 			base.initNetFields();
-			base.NetFields.AddFields(damageToFarmer, health, maxHealth, coinsToDrop, durationOfRandomMovements, resilience, slipperiness, experienceGained, jitteriness, missChance, isGlider, mineMonster, hasSpecialItem, objectsToDrop, defaultAnimationInterval, netFocusedOnFarmers, netWildernessFarmMonster, deathAnimEvent, parryEvent, trajectoryEvent);
+			base.NetFields.AddFields(damageToFarmer, health, maxHealth, coinsToDrop, durationOfRandomMovements, resilience, slipperiness, experienceGained, jitteriness, missChance, isGlider, mineMonster, hasSpecialItem, objectsToDrop, defaultAnimationInterval, netFocusedOnFarmers, netWildernessFarmMonster, deathAnimEvent, parryEvent, trajectoryEvent, ignoreDamageLOS, synchedRotation, isHardModeMonster);
 			position.Field.AxisAlignedMovement = false;
 			parryEvent.onEvent += handleParried;
 			parryEvent.InterpolationWait = false;
@@ -266,7 +281,7 @@ namespace StardewValley.Monsters
 			}
 		}
 
-		public bool isInvincible()
+		public virtual bool isInvincible()
 		{
 			return invincibleCountdown > 0;
 		}
@@ -286,6 +301,39 @@ namespace StardewValley.Monsters
 				result = Math.Max(result, farmer.timesReachedMineBottom);
 			}
 			return result;
+		}
+
+		public virtual Debris ModifyMonsterLoot(Debris debris)
+		{
+			return debris;
+		}
+
+		public virtual int GetBaseDifficultyLevel()
+		{
+			return 0;
+		}
+
+		public virtual void BuffForAdditionalDifficulty(int additional_difficulty)
+		{
+			int target3 = 0;
+			if (DamageToFarmer != 0)
+			{
+				DamageToFarmer = (int)((float)DamageToFarmer * (1f + (float)additional_difficulty * 0.25f));
+				target3 = 20 + (additional_difficulty - 1) * 20;
+				if (DamageToFarmer < target3)
+				{
+					DamageToFarmer = (int)Utility.Lerp(DamageToFarmer, target3, 0.5f);
+				}
+			}
+			MaxHealth = (int)((float)MaxHealth * (1f + (float)additional_difficulty * 0.5f));
+			target3 = 500 + (additional_difficulty - 1) * 300;
+			if (MaxHealth < target3)
+			{
+				MaxHealth = (int)Utility.Lerp(MaxHealth, target3, 0.5f);
+			}
+			Health = MaxHealth;
+			resilience.Value += additional_difficulty * resilience.Value;
+			isHardModeMonster.Value = true;
 		}
 
 		protected void parseMonsterInfo(string name)
@@ -320,10 +368,6 @@ namespace StardewValley.Monsters
 				Health += Game1.random.Next(0, Health);
 				DamageToFarmer += Game1.random.Next(0, DamageToFarmer / 2);
 				coinsToDrop.Value += Game1.random.Next(0, (int)coinsToDrop + 1);
-				if (Game1.random.NextDouble() < 0.001)
-				{
-					objectsToDrop.Add((Game1.random.NextDouble() < 0.5) ? 72 : 74);
-				}
 			}
 			try
 			{
@@ -337,6 +381,31 @@ namespace StardewValley.Monsters
 			{
 				base.displayName = monsterInfo[monsterInfo.Length - 1];
 			}
+		}
+
+		public virtual void InitializeForLocation(GameLocation location)
+		{
+			if (initializedForLocation)
+			{
+				return;
+			}
+			if ((bool)mineMonster && maxTimesReachedMineBottom() >= 1)
+			{
+				double additional_chance = 0.0;
+				if (location is MineShaft)
+				{
+					additional_chance = (double)(location as MineShaft).GetAdditionalDifficulty() * 0.001;
+				}
+				if (Game1.random.NextDouble() < 0.001 + additional_chance)
+				{
+					objectsToDrop.Add((Game1.random.NextDouble() < 0.5) ? 72 : 74);
+				}
+			}
+			if (Game1.player.team.SpecialOrderRuleActive("DROP_QI_BEANS") && Game1.random.NextDouble() < (((string)name == "Dust Spirit") ? 0.02 : 0.05))
+			{
+				objectsToDrop.Add(890);
+			}
+			initializedForLocation = true;
 		}
 
 		public override void reloadSprite()
@@ -487,6 +556,11 @@ namespace StardewValley.Monsters
 
 		public override void update(GameTime time, GameLocation location)
 		{
+			if (Game1.IsMasterGame && !initializedForLocation && location != null)
+			{
+				InitializeForLocation(location);
+				initializedForLocation = true;
+			}
 			parryEvent.Poll();
 			trajectoryEvent.Poll();
 			deathAnimEvent.Poll();
@@ -499,29 +573,49 @@ namespace StardewValley.Monsters
 					stopGlowing();
 				}
 			}
-			if (location.farmers.Count != 0)
+			if (!location.farmers.Any())
 			{
-				if (!Player.isRafting || !withinPlayerThreshold(4))
-				{
-					base.update(time, location);
-				}
-				if (Game1.IsMasterGame)
+				return;
+			}
+			if (!Player.isRafting || !withinPlayerThreshold(4))
+			{
+				base.update(time, location);
+			}
+			if (Game1.IsMasterGame)
+			{
+				if (stunTime <= 0)
 				{
 					behaviorAtGameTick(time);
 				}
-				updateAnimation(time);
-				if (controller != null && withinPlayerThreshold(3))
+				else
 				{
-					controller = null;
+					stunTime -= (int)time.ElapsedGameTime.TotalMilliseconds;
+					if (stunTime < 0)
+					{
+						stunTime = 0;
+					}
 				}
-				if (!isGlider && (base.Position.X < 0f || base.Position.X > (float)(location.Map.GetLayer("Back").LayerWidth * 64) || base.Position.Y < 0f || base.Position.Y > (float)(location.map.GetLayer("Back").LayerHeight * 64)))
-				{
-					location.characters.Remove(this);
-				}
-				else if ((bool)isGlider && base.Position.X < -2000f)
-				{
-					Health = -500;
-				}
+			}
+			updateAnimation(time);
+			if (Game1.IsMasterGame)
+			{
+				synchedRotation.Value = rotation;
+			}
+			else
+			{
+				rotation = synchedRotation.Value;
+			}
+			if (controller != null && withinPlayerThreshold(3))
+			{
+				controller = null;
+			}
+			if (!isGlider && (base.Position.X < 0f || base.Position.X > (float)(location.Map.GetLayer("Back").LayerWidth * 64) || base.Position.Y < 0f || base.Position.Y > (float)(location.map.GetLayer("Back").LayerHeight * 64)))
+			{
+				location.characters.Remove(this);
+			}
+			else if ((bool)isGlider && base.Position.X < -2000f)
+			{
+				Health = -500;
 			}
 		}
 
@@ -613,11 +707,23 @@ namespace StardewValley.Monsters
 			return wasAbleToMoveHorizontally;
 		}
 
+		public virtual bool ShouldActuallyMoveAwayFromPlayer()
+		{
+			return false;
+		}
+
 		private void checkHorizontalMovement(ref bool success, ref bool setMoving, ref bool scootSuccess, Farmer who, GameLocation location)
 		{
 			if (who.Position.X > base.Position.X + 16f)
 			{
-				SetMovingOnlyRight();
+				if (ShouldActuallyMoveAwayFromPlayer())
+				{
+					SetMovingOnlyLeft();
+				}
+				else
+				{
+					SetMovingOnlyRight();
+				}
 				setMoving = true;
 				if (!location.isCollidingPosition(nextPosition(1), Game1.viewport, isFarmer: false, DamageToFarmer, isGlider, this))
 				{
@@ -636,7 +742,14 @@ namespace StardewValley.Monsters
 			{
 				return;
 			}
-			SetMovingOnlyLeft();
+			if (ShouldActuallyMoveAwayFromPlayer())
+			{
+				SetMovingOnlyRight();
+			}
+			else
+			{
+				SetMovingOnlyLeft();
+			}
 			setMoving = true;
 			if (!location.isCollidingPosition(nextPosition(3), Game1.viewport, isFarmer: false, DamageToFarmer, isGlider, this))
 			{
@@ -654,7 +767,14 @@ namespace StardewValley.Monsters
 		{
 			if (!success && who.Position.Y < base.Position.Y - 16f)
 			{
-				SetMovingOnlyUp();
+				if (ShouldActuallyMoveAwayFromPlayer())
+				{
+					SetMovingOnlyDown();
+				}
+				else
+				{
+					SetMovingOnlyUp();
+				}
 				setMoving = true;
 				if (!location.isCollidingPosition(nextPosition(0), Game1.viewport, isFarmer: false, DamageToFarmer, isGlider, this))
 				{
@@ -673,7 +793,14 @@ namespace StardewValley.Monsters
 			{
 				return;
 			}
-			SetMovingOnlyDown();
+			if (ShouldActuallyMoveAwayFromPlayer())
+			{
+				SetMovingOnlyUp();
+			}
+			else
+			{
+				SetMovingOnlyDown();
+			}
 			setMoving = true;
 			if (!location.isCollidingPosition(nextPosition(2), Game1.viewport, isFarmer: false, DamageToFarmer, isGlider, this))
 			{
@@ -697,7 +824,7 @@ namespace StardewValley.Monsters
 					{
 						if (lastPosition.Equals(base.Position) && Game1.random.NextDouble() < 0.001)
 						{
-							switch (base.FacingDirection)
+							switch (FacingDirection)
 							{
 							case 1:
 							case 3:
@@ -800,6 +927,16 @@ namespace StardewValley.Monsters
 			}
 		}
 
+		public virtual bool TakesDamageFromHitbox(Microsoft.Xna.Framework.Rectangle area_of_effect)
+		{
+			return GetBoundingBox().Intersects(area_of_effect);
+		}
+
+		public virtual bool OverlapsFarmerForDamage(Farmer who)
+		{
+			return GetBoundingBox().Intersects(who.GetBoundingBox());
+		}
+
 		public override void Halt()
 		{
 			int old_speed = base.speed;
@@ -809,6 +946,10 @@ namespace StardewValley.Monsters
 
 		public override void MovePosition(GameTime time, xTile.Dimensions.Rectangle viewport, GameLocation currentLocation)
 		{
+			if (stunTime > 0)
+			{
+				return;
+			}
 			lastPosition = base.Position;
 			if (xVelocity != 0f || yVelocity != 0f)
 			{
@@ -818,9 +959,44 @@ namespace StardewValley.Monsters
 					yVelocity = 0f;
 				}
 				Microsoft.Xna.Framework.Rectangle nextPosition = GetBoundingBox();
-				nextPosition.X += (int)xVelocity;
-				nextPosition.Y -= (int)yVelocity;
-				if (!currentLocation.isCollidingPosition(nextPosition, viewport, isFarmer: false, DamageToFarmer, isGlider, this))
+				int start_x = nextPosition.X;
+				int start_y = nextPosition.Y;
+				int end_x = nextPosition.X + (int)xVelocity;
+				int end_y = nextPosition.Y - (int)yVelocity;
+				int steps = 1;
+				bool found_collision = false;
+				bool is_grounded_glider = false;
+				if (this is SquidKid)
+				{
+					is_grounded_glider = true;
+				}
+				if (!isGlider.Value | is_grounded_glider)
+				{
+					if (nextPosition.Width > 0 && Math.Abs((int)xVelocity) > nextPosition.Width)
+					{
+						steps = (int)Math.Max(steps, Math.Ceiling((float)Math.Abs((int)xVelocity) / (float)nextPosition.Width));
+					}
+					if (nextPosition.Height > 0 && Math.Abs((int)yVelocity) > nextPosition.Height)
+					{
+						steps = (int)Math.Max(steps, Math.Ceiling((float)Math.Abs((int)yVelocity) / (float)nextPosition.Height));
+					}
+				}
+				for (int i = 1; i <= steps; i++)
+				{
+					nextPosition.X = (int)Utility.Lerp(start_x, end_x, (float)i / (float)steps);
+					nextPosition.Y = (int)Utility.Lerp(start_y, end_y, (float)i / (float)steps);
+					bool is_glider = isGlider;
+					if (is_grounded_glider)
+					{
+						is_glider = false;
+					}
+					if (currentLocation != null && currentLocation.isCollidingPosition(nextPosition, viewport, isFarmer: false, DamageToFarmer, is_glider, this))
+					{
+						found_collision = true;
+						break;
+					}
+				}
+				if (!found_collision)
 				{
 					position.X += xVelocity;
 					position.Y -= yVelocity;
@@ -852,18 +1028,21 @@ namespace StardewValley.Monsters
 				}
 				else if ((bool)isGlider || Slipperiness >= 8)
 				{
-					bool[] array = Utility.horizontalOrVerticalCollisionDirections(nextPosition, this);
-					if (array[0])
+					if ((bool)isGlider)
 					{
-						xVelocity = 0f - xVelocity;
-						position.X += Math.Sign(xVelocity);
-						rotation += (float)(Math.PI + (double)Game1.random.Next(-10, 11) * Math.PI / 500.0);
-					}
-					if (array[1])
-					{
-						yVelocity = 0f - yVelocity;
-						position.Y -= Math.Sign(yVelocity);
-						rotation += (float)(Math.PI + (double)Game1.random.Next(-10, 11) * Math.PI / 500.0);
+						bool[] array = Utility.horizontalOrVerticalCollisionDirections(nextPosition, this);
+						if (array[0])
+						{
+							xVelocity = 0f - xVelocity;
+							position.X += Math.Sign(xVelocity);
+							rotation += (float)(Math.PI + (double)Game1.random.Next(-10, 11) * Math.PI / 500.0);
+						}
+						if (array[1])
+						{
+							yVelocity = 0f - yVelocity;
+							position.Y -= Math.Sign(yVelocity);
+							rotation += (float)(Math.PI + (double)Game1.random.Next(-10, 11) * Math.PI / 500.0);
+						}
 					}
 					if (Slipperiness < 1000)
 					{
@@ -906,21 +1085,21 @@ namespace StardewValley.Monsters
 					{
 						Sprite.AnimateUp(time);
 					}
-					base.FacingDirection = 0;
+					FacingDirection = 0;
 					faceDirection(0);
 				}
 				else
 				{
 					Microsoft.Xna.Framework.Rectangle tmp = this.nextPosition(0);
 					tmp.Width /= 4;
-					bool leftCorner = currentLocation.isCollidingPosition(tmp, viewport, isFarmer: false, DamageToFarmer, isGlider, this);
+					bool leftCorner2 = currentLocation.isCollidingPosition(tmp, viewport, isFarmer: false, DamageToFarmer, isGlider, this);
 					tmp.X += tmp.Width * 3;
-					bool rightCorner = currentLocation.isCollidingPosition(tmp, viewport, isFarmer: false, DamageToFarmer, isGlider, this);
-					if (leftCorner && !rightCorner && !currentLocation.isCollidingPosition(this.nextPosition(1), viewport, isFarmer: false, DamageToFarmer, isGlider, this))
+					bool rightCorner2 = currentLocation.isCollidingPosition(tmp, viewport, isFarmer: false, DamageToFarmer, isGlider, this);
+					if (leftCorner2 && !rightCorner2 && !currentLocation.isCollidingPosition(this.nextPosition(1), viewport, isFarmer: false, DamageToFarmer, isGlider, this))
 					{
 						position.X += (float)base.speed * ((float)time.ElapsedGameTime.Milliseconds / 64f);
 					}
-					else if (rightCorner && !leftCorner && !currentLocation.isCollidingPosition(this.nextPosition(3), viewport, isFarmer: false, DamageToFarmer, isGlider, this))
+					else if (rightCorner2 && !leftCorner2 && !currentLocation.isCollidingPosition(this.nextPosition(3), viewport, isFarmer: false, DamageToFarmer, isGlider, this))
 					{
 						position.X -= (float)base.speed * ((float)time.ElapsedGameTime.Milliseconds / 64f);
 					}
@@ -956,7 +1135,7 @@ namespace StardewValley.Monsters
 					{
 						Sprite.AnimateRight(time);
 					}
-					base.FacingDirection = 1;
+					FacingDirection = 1;
 					faceDirection(1);
 				}
 				else
@@ -1006,21 +1185,21 @@ namespace StardewValley.Monsters
 					{
 						Sprite.AnimateDown(time);
 					}
-					base.FacingDirection = 2;
+					FacingDirection = 2;
 					faceDirection(2);
 				}
 				else
 				{
 					Microsoft.Xna.Framework.Rectangle tmp3 = this.nextPosition(2);
 					tmp3.Width /= 4;
-					bool leftCorner2 = currentLocation.isCollidingPosition(tmp3, viewport, isFarmer: false, DamageToFarmer, isGlider, this);
+					bool leftCorner = currentLocation.isCollidingPosition(tmp3, viewport, isFarmer: false, DamageToFarmer, isGlider, this);
 					tmp3.X += tmp3.Width * 3;
-					bool rightCorner2 = currentLocation.isCollidingPosition(tmp3, viewport, isFarmer: false, DamageToFarmer, isGlider, this);
-					if (leftCorner2 && !rightCorner2 && !currentLocation.isCollidingPosition(this.nextPosition(1), viewport, isFarmer: false, DamageToFarmer, isGlider, this))
+					bool rightCorner = currentLocation.isCollidingPosition(tmp3, viewport, isFarmer: false, DamageToFarmer, isGlider, this);
+					if (leftCorner && !rightCorner && !currentLocation.isCollidingPosition(this.nextPosition(1), viewport, isFarmer: false, DamageToFarmer, isGlider, this))
 					{
 						position.X += (float)base.speed * ((float)time.ElapsedGameTime.Milliseconds / 64f);
 					}
-					else if (rightCorner2 && !leftCorner2 && !currentLocation.isCollidingPosition(this.nextPosition(3), viewport, isFarmer: false, DamageToFarmer, isGlider, this))
+					else if (rightCorner && !leftCorner && !currentLocation.isCollidingPosition(this.nextPosition(3), viewport, isFarmer: false, DamageToFarmer, isGlider, this))
 					{
 						position.X -= (float)base.speed * ((float)time.ElapsedGameTime.Milliseconds / 64f);
 					}
@@ -1052,7 +1231,7 @@ namespace StardewValley.Monsters
 				if (((!Game1.eventUp || Game1.IsMultiplayer) && !currentLocation.isCollidingPosition(this.nextPosition(3), viewport, isFarmer: false, DamageToFarmer, isGlider, this)) || isCharging)
 				{
 					position.X -= base.speed + base.addedSpeed;
-					base.FacingDirection = 3;
+					FacingDirection = 3;
 					if (!ignoreMovementAnimations)
 					{
 						Sprite.AnimateLeft(time);

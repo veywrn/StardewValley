@@ -42,10 +42,10 @@ namespace StardewValley.Menus
 			itemsToList.Add(null);
 			_ = 40;
 			int itemSlotWidth = 96;
-			int centerX = Game1.viewport.Width / 2;
-			int centerY = Game1.viewport.Height / 2;
-			width = Math.Min(800, Game1.viewport.Width - 128);
-			height = Math.Min(720, Game1.viewport.Height - 128);
+			int centerX = Game1.uiViewport.Width / 2;
+			int centerY = Game1.uiViewport.Height / 2;
+			width = Math.Min(800, Game1.uiViewport.Width - 128);
+			height = Math.Min(720, Game1.uiViewport.Height - 128);
 			if (height <= 720)
 			{
 				itemsPerCategoryPage = 7;
@@ -60,9 +60,7 @@ namespace StardewValley.Menus
 			};
 			if (Game1.options.gamepadControls)
 			{
-				Mouse.SetPosition(okRect.Center.X, okRect.Center.Y);
-				Game1.InvalidateOldMouseMovement();
-				Game1.lastCursorMotionWasMouse = false;
+				Game1.setMousePositionRaw(okRect.Center.X, okRect.Center.Y);
 			}
 			backButton = new ClickableTextureComponent("", new Rectangle(xPositionOnScreen - 64, yPositionOnScreen + height - 64, 48, 44), null, "", Game1.mouseCursors, new Rectangle(352, 495, 12, 11), 4f)
 			{

@@ -71,5 +71,27 @@ namespace StardewValley.Locations
 				Game1.player.team.theaterBuildDate.Set(Game1.Date.TotalDays + 1);
 			}
 		}
+
+		protected override void resetSharedState()
+		{
+			if (Game1.netWorldState.Value.Bundles.ContainsKey(36) && !bundleMutex.IsLocked() && !Game1.eventUp && !Game1.MasterPlayer.hasOrWillReceiveMail("ccMovieTheater"))
+			{
+				bool fail2 = false;
+				bool[] array = Game1.netWorldState.Value.Bundles[36];
+				for (int i = 0; i < array.Length; i++)
+				{
+					if (!array[i])
+					{
+						fail2 = true;
+						return;
+					}
+				}
+				if (!fail2)
+				{
+					restoreAreaCutscene();
+				}
+			}
+			base.resetSharedState();
+		}
 	}
 }

@@ -7,12 +7,15 @@ using StardewValley.Tools;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using System.Xml.Serialization;
 
 namespace StardewValley
 {
+	[XmlInclude(typeof(ModDataDictionary))]
 	[XmlInclude(typeof(Object))]
 	[XmlInclude(typeof(Tool))]
+	[InstanceStatics]
 	public abstract class Item : IComparable, INetObject<NetFields>, ISalable
 	{
 		public bool isLostItem;
@@ -30,6 +33,9 @@ namespace StardewValley
 
 		protected bool _contextTagsDirty;
 
+		[XmlIgnore]
+		public ModDataDictionary modData = new ModDataDictionary();
+
 		[XmlElement("name")]
 		public readonly NetString netName = new NetString();
 
@@ -37,6 +43,19 @@ namespace StardewValley
 		public readonly NetInt parentSheetIndex = new NetInt();
 
 		public bool specialItem;
+
+		[XmlElement("modData")]
+		public ModDataDictionary modDataForSerialization
+		{
+			get
+			{
+				return modData.GetForSerialization();
+			}
+			set
+			{
+				modData.SetFromSerialization(value);
+			}
+		}
 
 		public int SpecialVariable
 		{
@@ -127,6 +146,11 @@ namespace StardewValley
 				return true;
 			}
 			return false;
+		}
+
+		public void MarkContextTagsDirty()
+		{
+			_contextTagsDirty = true;
 		}
 
 		public List<string> GetContextTagList()
@@ -348,6 +372,7 @@ namespace StardewValley
 		protected Item()
 		{
 			NetFields.AddFields(specialVariable, category, netName, parentSheetIndex, hasbeenInInventory);
+			NetFields.AddField(modData);
 			parentSheetIndex.Value = -1;
 		}
 
@@ -356,9 +381,9 @@ namespace StardewValley
 			return parentSheetIndex.Value != -1;
 		}
 
-		public virtual void drawTooltip(SpriteBatch spriteBatch, ref int x, ref int y, SpriteFont font, float alpha, string overrideText)
+		public virtual void drawTooltip(SpriteBatch spriteBatch, ref int x, ref int y, SpriteFont font, float alpha, StringBuilder overrideText)
 		{
-			if (!string.IsNullOrEmpty(overrideText) && overrideText != " ")
+			if (overrideText != null && overrideText.Length != 0 && (overrideText.Length != 1 || overrideText[0] != ' '))
 			{
 				spriteBatch.DrawString(font, overrideText, new Vector2(x + 16, y + 16 + 4) + new Vector2(2f, 2f), Game1.textShadowColor * alpha);
 				spriteBatch.DrawString(font, overrideText, new Vector2(x + 16, y + 16 + 4) + new Vector2(0f, 2f), Game1.textShadowColor * alpha);
@@ -368,9 +393,19 @@ namespace StardewValley
 			}
 		}
 
-		public virtual Point getExtraSpaceNeededForTooltipSpecialIcons(SpriteFont font, int minWidth, int horizontalBuffer, int startingHeight, string descriptionText, string boldTitleText, int moneyAmountToDisplayAtBottom)
+		public virtual string[] ModifyItemBuffs(string[] buffs)
+		{
+			return buffs;
+		}
+
+		public virtual Point getExtraSpaceNeededForTooltipSpecialIcons(SpriteFont font, int minWidth, int horizontalBuffer, int startingHeight, StringBuilder descriptionText, string boldTitleText, int moneyAmountToDisplayAtBottom)
 		{
 			return Point.Zero;
+		}
+
+		public bool ShouldDrawIcon()
+		{
+			return true;
 		}
 
 		public abstract void drawInMenu(SpriteBatch spriteBatch, Vector2 location, float scaleSize, float transparency, float layerDepth, StackDrawType drawStackNumber, Color color, bool drawShadow);
@@ -405,11 +440,15 @@ namespace StardewValley
 
 		public virtual bool canBeTrashed()
 		{
-			if (this is Tool && (!(this is MeleeWeapon) || (this as MeleeWeapon).isScythe()) && !(this is FishingRod) && !(this is Pan))
+			if (!specialItem)
 			{
-				return this is Slingshot;
+				if (this is Tool && (!(this is MeleeWeapon) || (this as MeleeWeapon).isScythe()) && !(this is FishingRod) && !(this is Pan))
+				{
+					return this is Slingshot;
+				}
+				return true;
 			}
-			return true;
+			return false;
 		}
 
 		public virtual bool canBePlacedInWater()
@@ -514,6 +553,10 @@ namespace StardewValley
 			}
 			if ((other is Object && this is Object) || (other is ColoredObject && this is ColoredObject))
 			{
+				if ((other as Object).orderData.Value != (this as Object).orderData.Value)
+				{
+					return false;
+				}
 				if (this is ColoredObject && other is ColoredObject && !(this as ColoredObject).color.Value.Equals((other as ColoredObject).color.Value))
 				{
 					return false;
@@ -534,6 +577,15 @@ namespace StardewValley
 
 		public abstract Item getOne();
 
+		public virtual void _GetOneFrom(Item source)
+		{
+			modData.Clear();
+			foreach (string key in source.modData.Keys)
+			{
+				modData[key] = source.modData[key];
+			}
+		}
+
 		public ISalable GetSalableInstance()
 		{
 			return getOne();
@@ -547,6 +599,14 @@ namespace StardewValley
 				{
 					if ((obj as Item).Name.Equals(Name) && (obj as Item).ParentSheetIndex == ParentSheetIndex)
 					{
+						if (obj is Object && this is Object)
+						{
+							int quality_comparison = (obj as Object).Quality.CompareTo((this as Object).Quality);
+							if (quality_comparison != 0)
+							{
+								return quality_comparison;
+							}
+						}
 						return Stack - (obj as Item).Stack;
 					}
 					if (this is Object && obj is Object)

@@ -28,7 +28,7 @@ namespace StardewValley.Menus
 		private int exitTimer = -1;
 
 		public JojaCDMenu(Texture2D noteTexture)
-			: base(Game1.viewport.Width / 2 - 640, Game1.viewport.Height / 2 - 288, 1280, 576, showUpperRightCloseButton: true)
+			: base(Game1.uiViewport.Width / 2 - 640, Game1.uiViewport.Height / 2 - 288, 1280, 576, showUpperRightCloseButton: true)
 		{
 			Game1.player.forceCanMove();
 			this.noteTexture = noteTexture;
@@ -205,8 +205,8 @@ namespace StardewValley.Menus
 		public override void gameWindowSizeChanged(Rectangle oldBounds, Rectangle newBounds)
 		{
 			base.gameWindowSizeChanged(oldBounds, newBounds);
-			xPositionOnScreen = Game1.viewport.Width / 2 - 640;
-			yPositionOnScreen = Game1.viewport.Height / 2 - 288;
+			xPositionOnScreen = Game1.uiViewport.Width / 2 - 640;
+			yPositionOnScreen = Game1.uiViewport.Height / 2 - 288;
 			int x = xPositionOnScreen + 4;
 			int y = yPositionOnScreen + 208;
 			checkboxes.Clear();
@@ -239,7 +239,7 @@ namespace StardewValley.Menus
 					b.Draw(noteTexture, new Vector2(c.bounds.Left + 16, c.bounds.Y + 16), new Rectangle(0, 144, 16, 16), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.8f);
 				}
 			}
-			Game1.dayTimeMoneyBox.drawMoneyBox(b, Game1.viewport.Width - 300 - IClickableMenu.spaceToClearSideBorder * 2, 4);
+			Game1.dayTimeMoneyBox.drawMoneyBox(b, Game1.uiViewport.Width - 300 - IClickableMenu.spaceToClearSideBorder * 2, 4);
 			Game1.mouseCursorTransparency = 1f;
 			drawMouse(b);
 			if (hoverText != null && !hoverText.Equals(""))

@@ -26,6 +26,9 @@ namespace StardewValley
 
 		private readonly List<KeyValuePair<long, FarmAnimal>> _tempAnimals = new List<KeyValuePair<long, FarmAnimal>>();
 
+		[XmlIgnore]
+		public bool hasShownIncubatorBuildingFullMessage;
+
 		public NetLongDictionary<FarmAnimal, NetRef<FarmAnimal>> Animals => animals;
 
 		public AnimalHouse()
@@ -62,6 +65,7 @@ namespace StardewValley
 				incubatingEgg.Y = Game1.player.ActiveObject.ParentSheetIndex;
 				map.GetLayer("Front").Tiles[1, 2].TileIndex += ((Game1.player.ActiveObject.ParentSheetIndex != 180 && Game1.player.ActiveObject.ParentSheetIndex != 182) ? 1 : 2);
 				Game1.throwActiveObjectDown();
+				hasShownIncubatorBuildingFullMessage = false;
 			}
 			else if (Game1.player.ActiveObject == null && incubatingEgg.Y > 0)
 			{
@@ -134,6 +138,7 @@ namespace StardewValley
 				objects.Add(new Vector2(tileLocation.X, tileLocation.Y), (Object)who.ActiveObject.getOne());
 				who.reduceActiveItemByOne();
 				who.currentLocation.playSound("coin");
+				Game1.haltAfterCheck = false;
 				return true;
 			}
 			bool b = base.checkAction(tileLocation, viewport, who);
@@ -168,29 +173,43 @@ namespace StardewValley
 			resetPositionsOfAllAnimals();
 			foreach (Object o in objects.Values)
 			{
-				if ((bool)o.bigCraftable && o.Name.Contains("Incubator") && o.heldObject.Value != null && (int)o.minutesUntilReady <= 0 && !isFull())
+				if ((bool)o.bigCraftable && o.Name.Contains("Incubator") && o.heldObject.Value != null && (int)o.minutesUntilReady <= 0)
 				{
-					string whatHatched = "??";
-					switch (o.heldObject.Value.ParentSheetIndex)
+					if (!isFull())
 					{
-					case 305:
-						whatHatched = Game1.content.LoadString("Strings\\Locations:AnimalHouse_Incubator_Hatch_VoidEgg");
-						break;
-					case 174:
-					case 176:
-					case 180:
-					case 182:
-						whatHatched = Game1.content.LoadString("Strings\\Locations:AnimalHouse_Incubator_Hatch_RegularEgg");
-						break;
-					case 442:
-						whatHatched = Game1.content.LoadString("Strings\\Locations:AnimalHouse_Incubator_Hatch_DuckEgg");
-						break;
-					case 107:
-						whatHatched = Game1.content.LoadString("Strings\\Locations:AnimalHouse_Incubator_Hatch_DinosaurEgg");
+						string whatHatched = "??";
+						switch (o.heldObject.Value.ParentSheetIndex)
+						{
+						case 305:
+							whatHatched = Game1.content.LoadString("Strings\\Locations:AnimalHouse_Incubator_Hatch_VoidEgg");
+							break;
+						case 174:
+						case 176:
+						case 180:
+						case 182:
+							whatHatched = Game1.content.LoadString("Strings\\Locations:AnimalHouse_Incubator_Hatch_RegularEgg");
+							break;
+						case 442:
+							whatHatched = Game1.content.LoadString("Strings\\Locations:AnimalHouse_Incubator_Hatch_DuckEgg");
+							break;
+						case 107:
+							whatHatched = Game1.content.LoadString("Strings\\Locations:AnimalHouse_Incubator_Hatch_DinosaurEgg");
+							break;
+						case 289:
+							whatHatched = Game1.content.LoadString("Strings\\Locations:AnimalHouse_Incubator_Hatch_Ostrich");
+							break;
+						case 928:
+							whatHatched = Game1.content.LoadString("Strings\\Locations:AnimalHouse_Incubator_Hatch_GoldenEgg");
+							break;
+						}
+						currentEvent = new Event("none/-1000 -1000/farmer 2 9 0/pause 250/message \"" + whatHatched + "\"/pause 500/animalNaming/pause 500/end");
 						break;
 					}
-					currentEvent = new Event("none/-1000 -1000/farmer 2 9 0/pause 250/message \"" + whatHatched + "\"/pause 500/animalNaming/pause 500/end");
-					break;
+					if (!hasShownIncubatorBuildingFullMessage)
+					{
+						hasShownIncubatorBuildingFullMessage = true;
+						Game1.showGlobalMessage(Game1.content.LoadString("Strings\\Locations:AnimalHouse_Incubator_HouseFull"));
+					}
 				}
 			}
 			base.resetSharedState();
@@ -210,55 +229,64 @@ namespace StardewValley
 
 		public void addNewHatchedAnimal(string name)
 		{
-			if (getBuilding() is Coop)
+			bool foundIncubator = false;
+			foreach (Object o in objects.Values)
 			{
-				foreach (Object o in objects.Values)
+				if ((bool)o.bigCraftable && o.Name.Contains("Incubator") && o.heldObject.Value != null && (int)o.minutesUntilReady <= 0 && !isFull())
 				{
-					if ((bool)o.bigCraftable && o.Name.Contains("Incubator") && o.heldObject.Value != null && (int)o.minutesUntilReady <= 0 && !isFull())
+					foundIncubator = true;
+					string animalName = "??";
+					if (o.heldObject.Value == null)
 					{
-						string animalName = "??";
-						if (o.heldObject.Value == null)
-						{
-							animalName = "White Chicken";
-						}
-						else
-						{
-							switch (o.heldObject.Value.ParentSheetIndex)
-							{
-							case 305:
-								animalName = "Void Chicken";
-								break;
-							case 174:
-							case 176:
-								animalName = "White Chicken";
-								break;
-							case 180:
-							case 182:
-								animalName = "Brown Chicken";
-								break;
-							case 442:
-								animalName = "Duck";
-								break;
-							case 107:
-								animalName = "Dinosaur";
-								break;
-							}
-						}
-						FarmAnimal a2 = new FarmAnimal(animalName, Game1.multiplayer.getNewID(), Game1.player.uniqueMultiplayerID);
-						a2.Name = name;
-						a2.displayName = name;
-						Building newAnimalHome2 = a2.home = getBuilding();
-						a2.homeLocation.Value = new Vector2((int)newAnimalHome2.tileX, (int)newAnimalHome2.tileY);
-						a2.setRandomPosition(a2.home.indoors);
-						(newAnimalHome2.indoors.Value as AnimalHouse).animals.Add(a2.myID, a2);
-						(newAnimalHome2.indoors.Value as AnimalHouse).animalsThatLiveHere.Add(a2.myID);
-						o.heldObject.Value = null;
-						o.ParentSheetIndex = 101;
-						break;
+						animalName = "White Chicken";
 					}
+					else
+					{
+						switch (o.heldObject.Value.ParentSheetIndex)
+						{
+						case 305:
+							animalName = "Void Chicken";
+							break;
+						case 174:
+						case 176:
+							animalName = "White Chicken";
+							break;
+						case 180:
+						case 182:
+							animalName = "Brown Chicken";
+							break;
+						case 442:
+							animalName = "Duck";
+							break;
+						case 107:
+							animalName = "Dinosaur";
+							break;
+						case 289:
+							animalName = "Ostrich";
+							break;
+						case 928:
+							animalName = "Golden Chicken";
+							break;
+						}
+					}
+					FarmAnimal a2 = new FarmAnimal(animalName, Game1.multiplayer.getNewID(), Game1.player.uniqueMultiplayerID);
+					a2.Name = name;
+					a2.displayName = name;
+					Building newAnimalHome2 = a2.home = getBuilding();
+					a2.homeLocation.Value = new Vector2((int)newAnimalHome2.tileX, (int)newAnimalHome2.tileY);
+					a2.setRandomPosition(a2.home.indoors);
+					(newAnimalHome2.indoors.Value as AnimalHouse).animals.Add(a2.myID, a2);
+					(newAnimalHome2.indoors.Value as AnimalHouse).animalsThatLiveHere.Add(a2.myID);
+					o.heldObject.Value = null;
+					o.ParentSheetIndex = 101;
+					if (animalName == "Ostrich")
+					{
+						o.ParentSheetIndex = 254;
+					}
+					break;
 				}
 			}
-			else if (Game1.farmEvent != null && Game1.farmEvent is QuestionEvent)
+			if (!foundIncubator && Game1.farmEvent != null && Game1.farmEvent is QuestionEvent)
 			{
 				FarmAnimal a = new FarmAnimal((Game1.farmEvent as QuestionEvent).animal.type.Value, Game1.multiplayer.getNewID(), Game1.player.uniqueMultiplayerID);
 				a.Name = name;

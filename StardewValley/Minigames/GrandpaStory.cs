@@ -283,9 +283,7 @@ namespace StardewValley.Minigames
 				{
 					mouseActive = true;
 					Point pos = clickableGrandpaLetterRect().Center;
-					Mouse.SetPosition((int)((float)pos.X * Game1.options.zoomLevel), (int)((float)pos.Y * Game1.options.zoomLevel));
-					Game1.InvalidateOldMouseMovement();
-					Game1.lastCursorMotionWasMouse = false;
+					Game1.setMousePositionRaw((int)((float)pos.X * Game1.options.zoomLevel), (int)((float)pos.Y * Game1.options.zoomLevel));
 				}
 				if (clickedLetter)
 				{
@@ -307,7 +305,7 @@ namespace StardewValley.Minigames
 
 		private Rectangle clickableGrandpaLetterRect()
 		{
-			return new Rectangle((int)Utility.getTopLeftPositionForCenteringOnScreen(1294, 730).X + (286 - parallaxPan) * 4, (int)Utility.getTopLeftPositionForCenteringOnScreen(1294, 730).Y + 218 + Math.Max(0, Math.Min(60, (grandpaSpeechTimer - 5000) / 8)), 524, 344);
+			return new Rectangle((int)Utility.getTopLeftPositionForCenteringOnScreen(Game1.viewport, 1294, 730).X + (286 - parallaxPan) * 4, (int)Utility.getTopLeftPositionForCenteringOnScreen(Game1.viewport, 1294, 730).Y + 218 + Math.Max(0, Math.Min(60, (grandpaSpeechTimer - 5000) / 8)), 524, 344);
 		}
 
 		public void receiveLeftClick(int x, int y, bool playSound = true)
@@ -400,12 +398,12 @@ namespace StardewValley.Minigames
 			b.Draw(Game1.staminaRect, new Rectangle(0, 0, Game1.viewport.Width, Game1.viewport.Height), Color.Black * backgroundFade);
 			if (drawGrandpa)
 			{
-				b.Draw(texture, Utility.getTopLeftPositionForCenteringOnScreen(1294, 730), new Rectangle(427, (totalMilliseconds % 300 < 150) ? 240 : 0, 427, 240), Color.White, 0f, Vector2.Zero, 3f, SpriteEffects.None, 1f);
-				b.Draw(texture, Utility.getTopLeftPositionForCenteringOnScreen(1294, 730) + new Vector2(317f, 74f) * 3f, new Rectangle(427 + 74 * (totalMilliseconds % 400 / 100), 480, 74, 42), Color.White, 0f, Vector2.Zero, 3f, SpriteEffects.None, 1f);
-				b.Draw(texture, Utility.getTopLeftPositionForCenteringOnScreen(1294, 730) + new Vector2(320f, 75f) * 3f, new Rectangle(427, 522, 70, 32), Color.White, 0f, Vector2.Zero, 3f, SpriteEffects.None, 1f);
+				b.Draw(texture, Utility.getTopLeftPositionForCenteringOnScreen(Game1.viewport, 1294, 730), new Rectangle(427, (totalMilliseconds % 300 < 150) ? 240 : 0, 427, 240), Color.White, 0f, Vector2.Zero, 3f, SpriteEffects.None, 1f);
+				b.Draw(texture, Utility.getTopLeftPositionForCenteringOnScreen(Game1.viewport, 1294, 730) + new Vector2(317f, 74f) * 3f, new Rectangle(427 + 74 * (totalMilliseconds % 400 / 100), 480, 74, 42), Color.White, 0f, Vector2.Zero, 3f, SpriteEffects.None, 1f);
+				b.Draw(texture, Utility.getTopLeftPositionForCenteringOnScreen(Game1.viewport, 1294, 730) + new Vector2(320f, 75f) * 3f, new Rectangle(427, 522, 70, 32), Color.White, 0f, Vector2.Zero, 3f, SpriteEffects.None, 1f);
 				if (grandpaSpeechTimer > 8000 && grandpaSpeechTimer % 10000 < 5000)
 				{
-					b.Draw(texture, Utility.getTopLeftPositionForCenteringOnScreen(1294, 730) + new Vector2(189f, 69f) * 3f, new Rectangle(497 + 18 * (totalMilliseconds % 400 / 200), 523, 18, 18), Color.White, 0f, Vector2.Zero, 3f, SpriteEffects.None, 1f);
+					b.Draw(texture, Utility.getTopLeftPositionForCenteringOnScreen(Game1.viewport, 1294, 730) + new Vector2(189f, 69f) * 3f, new Rectangle(497 + 18 * (totalMilliseconds % 400 / 200), 523, 18, 18), Color.White, 0f, Vector2.Zero, 3f, SpriteEffects.None, 1f);
 				}
 				if (grandpaSpeech.Count > 0 && grandpaSpeechTimer > 3000)
 				{
@@ -414,7 +412,7 @@ namespace StardewValley.Minigames
 					Vector2 textSize = Game1.dialogueFont.MeasureString(text);
 					textSize *= textScale;
 					float shadowOffsetX = 3f * textScale;
-					Vector2 textPos = new Vector2((float)(Game1.viewport.Width / 2) - textSize.X / 2f, (float)((int)Utility.getTopLeftPositionForCenteringOnScreen(1294, 730).Y + 669) + 3f);
+					Vector2 textPos = new Vector2((float)(Game1.viewport.Width / 2) - textSize.X / 2f, (float)((int)Utility.getTopLeftPositionForCenteringOnScreen(Game1.viewport, 1294, 730).Y + 669) + 3f);
 					textPos.X -= shadowOffsetX;
 					b.DrawString(Game1.dialogueFont, text, textPos, Color.White * 0.25f, 0f, Vector2.Zero, textScale, SpriteEffects.None, 1f);
 					textPos.X += shadowOffsetX;
@@ -422,26 +420,26 @@ namespace StardewValley.Minigames
 				}
 				if (letterReceived)
 				{
-					b.Draw(texture, Utility.getTopLeftPositionForCenteringOnScreen(1294, 730) + new Vector2(157f, 113f) * 3f, new Rectangle(463, 556, 37, 17), Color.White, 0f, Vector2.Zero, 3f, SpriteEffects.None, 1f);
+					b.Draw(texture, Utility.getTopLeftPositionForCenteringOnScreen(Game1.viewport, 1294, 730) + new Vector2(157f, 113f) * 3f, new Rectangle(463, 556, 37, 17), Color.White, 0f, Vector2.Zero, 3f, SpriteEffects.None, 1f);
 					if (grandpaSpeechTimer > 8000 && grandpaSpeechTimer % 10000 > 7000 && grandpaSpeechTimer % 10000 < 9000 && totalMilliseconds % 600 < 300)
 					{
-						b.Draw(texture, Utility.getTopLeftPositionForCenteringOnScreen(1294, 730) + new Vector2(157f, 113f) * 3f, new Rectangle(500, 556, 37, 17), Color.White, 0f, Vector2.Zero, 3f, SpriteEffects.None, 1f);
+						b.Draw(texture, Utility.getTopLeftPositionForCenteringOnScreen(Game1.viewport, 1294, 730) + new Vector2(157f, 113f) * 3f, new Rectangle(500, 556, 37, 17), Color.White, 0f, Vector2.Zero, 3f, SpriteEffects.None, 1f);
 					}
-					b.Draw(texture, Utility.getTopLeftPositionForCenteringOnScreen(1294, 730) + letterPosition, new Rectangle(729, 524, 131, 63), Color.White, 0f, Vector2.Zero, letterScale, SpriteEffects.None, 1f);
+					b.Draw(texture, Utility.getTopLeftPositionForCenteringOnScreen(Game1.viewport, 1294, 730) + letterPosition, new Rectangle(729, 524, 131, 63), Color.White, 0f, Vector2.Zero, letterScale, SpriteEffects.None, 1f);
 				}
 			}
 			else if (scene == 3)
 			{
-				SpriteText.drawString(b, Game1.content.LoadString("Strings\\StringsFromCSFiles:GrandpaStory.cs.12059"), (int)Utility.getTopLeftPositionForCenteringOnScreen(0, 0, -200).X, (int)Utility.getTopLeftPositionForCenteringOnScreen(0, 0, 0, -50).Y, 999, -1, 999, 1f, 1f, junimoText: false, -1, "", 4);
+				SpriteText.drawString(b, Game1.content.LoadString("Strings\\StringsFromCSFiles:GrandpaStory.cs.12059"), (int)Utility.getTopLeftPositionForCenteringOnScreen(Game1.viewport, 0, 0, -200).X, (int)Utility.getTopLeftPositionForCenteringOnScreen(Game1.viewport, 0, 0, 0, -50).Y, 999, -1, 999, 1f, 1f, junimoText: false, -1, "", 4);
 			}
 			else if (scene == 4)
 			{
 				float alpha = 1f - ((float)grandpaSpeechTimer - 7000f) / 2000f;
-				b.Draw(texture, Utility.getTopLeftPositionForCenteringOnScreen(1294, 730), new Rectangle(0, 0, 427, 240), Color.White * alpha, 0f, Vector2.Zero, 3f, SpriteEffects.None, 1f);
-				b.Draw(texture, Utility.getTopLeftPositionForCenteringOnScreen(1294, 730) + new Vector2(22f, 211f) * 3f, new Rectangle(264 + totalMilliseconds % 500 / 250 * 19, 581, 19, 17), Color.White * alpha, 0f, Vector2.Zero, 3f, SpriteEffects.None, 1f);
-				b.Draw(texture, Utility.getTopLeftPositionForCenteringOnScreen(1294, 730) + new Vector2(332f, 215f) * 3f, new Rectangle(305 + totalMilliseconds % 600 / 200 * 12, 581, 12, 12), Color.White * alpha, 0f, Vector2.Zero, 3f, SpriteEffects.None, 1f);
-				b.Draw(texture, Utility.getTopLeftPositionForCenteringOnScreen(1294, 730) + new Vector2(414f, 211f) * 3f, new Rectangle(460 + totalMilliseconds % 400 / 200 * 13, 581, 13, 17), Color.White * alpha, 0f, Vector2.Zero, 3f, SpriteEffects.None, 1f);
-				b.Draw(texture, Utility.getTopLeftPositionForCenteringOnScreen(1294, 730) + new Vector2(189f, 81f) * 3f, new Rectangle(426 + totalMilliseconds % 800 / 400 * 16, 581, 16, 16), Color.White * alpha, 0f, Vector2.Zero, 3f, SpriteEffects.None, 1f);
+				b.Draw(texture, Utility.getTopLeftPositionForCenteringOnScreen(Game1.viewport, 1294, 730), new Rectangle(0, 0, 427, 240), Color.White * alpha, 0f, Vector2.Zero, 3f, SpriteEffects.None, 1f);
+				b.Draw(texture, Utility.getTopLeftPositionForCenteringOnScreen(Game1.viewport, 1294, 730) + new Vector2(22f, 211f) * 3f, new Rectangle(264 + totalMilliseconds % 500 / 250 * 19, 581, 19, 17), Color.White * alpha, 0f, Vector2.Zero, 3f, SpriteEffects.None, 1f);
+				b.Draw(texture, Utility.getTopLeftPositionForCenteringOnScreen(Game1.viewport, 1294, 730) + new Vector2(332f, 215f) * 3f, new Rectangle(305 + totalMilliseconds % 600 / 200 * 12, 581, 12, 12), Color.White * alpha, 0f, Vector2.Zero, 3f, SpriteEffects.None, 1f);
+				b.Draw(texture, Utility.getTopLeftPositionForCenteringOnScreen(Game1.viewport, 1294, 730) + new Vector2(414f, 211f) * 3f, new Rectangle(460 + totalMilliseconds % 400 / 200 * 13, 581, 13, 17), Color.White * alpha, 0f, Vector2.Zero, 3f, SpriteEffects.None, 1f);
+				b.Draw(texture, Utility.getTopLeftPositionForCenteringOnScreen(Game1.viewport, 1294, 730) + new Vector2(189f, 81f) * 3f, new Rectangle(426 + totalMilliseconds % 800 / 400 * 16, 581, 16, 16), Color.White * alpha, 0f, Vector2.Zero, 3f, SpriteEffects.None, 1f);
 			}
 			if ((scene == 4 && grandpaSpeechTimer >= 5000) || scene == 5)
 			{
@@ -459,15 +457,18 @@ namespace StardewValley.Minigames
 			}
 			if (scene == 6)
 			{
-				b.Draw(texture, Utility.getTopLeftPositionForCenteringOnScreen(1294, 730) + new Vector2(261 - parallaxPan, 145f) * 4f, new Rectangle(550, 540, 56 + parallaxPan, 35), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
-				b.Draw(texture, Utility.getTopLeftPositionForCenteringOnScreen(1294, 730) + new Vector2(261 - parallaxPan, 4f + (float)Math.Max(0, Math.Min(60, (grandpaSpeechTimer - 5000) / 8))) * 4f, new Rectangle(264, 434, 56 + parallaxPan, 141), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
+				b.Draw(texture, Utility.getTopLeftPositionForCenteringOnScreen(Game1.viewport, 1294, 730) + new Vector2(261 - parallaxPan, 145f) * 4f, new Rectangle(550, 540, 56 + parallaxPan, 35), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
+				b.Draw(texture, Utility.getTopLeftPositionForCenteringOnScreen(Game1.viewport, 1294, 730) + new Vector2(261 - parallaxPan, 4f + (float)Math.Max(0, Math.Min(60, (grandpaSpeechTimer - 5000) / 8))) * 4f, new Rectangle(264, 434, 56 + parallaxPan, 141), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
 				if (grandpaSpeechTimer > 3000)
 				{
-					b.Draw(texture, Utility.getTopLeftPositionForCenteringOnScreen(1294, 730) + new Vector2(286 - parallaxPan, 32f + (float)Math.Max(0, Math.Min(60, (grandpaSpeechTimer - 5000) / 8)) + Math.Min(30f, (float)letterOpenTimer / 4f)) * 4f, new Rectangle(729 + Math.Min(2, letterOpenTimer / 200) * 131, 508, 131, 79), Color.White, 0f, Vector2.Zero, 3f, SpriteEffects.None, 1f);
+					b.Draw(texture, Utility.getTopLeftPositionForCenteringOnScreen(Game1.viewport, 1294, 730) + new Vector2(286 - parallaxPan, 32f + (float)Math.Max(0, Math.Min(60, (grandpaSpeechTimer - 5000) / 8)) + Math.Min(30f, (float)letterOpenTimer / 4f)) * 4f, new Rectangle(729 + Math.Min(2, letterOpenTimer / 200) * 131, 508, 131, 79), Color.White, 0f, Vector2.Zero, 3f, SpriteEffects.None, 1f);
 				}
-				b.Draw(texture, Utility.getTopLeftPositionForCenteringOnScreen(1294, 730), new Rectangle(parallaxPan, 240, 320, 180), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
-				b.Draw(texture, Utility.getTopLeftPositionForCenteringOnScreen(1294, 730) + new Vector2(187f - (float)parallaxPan * 2.5f, 8f) * 4f, new Rectangle(20, 428, 232, 172), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
+				b.Draw(texture, Utility.getTopLeftPositionForCenteringOnScreen(Game1.viewport, 1294, 730), new Rectangle(parallaxPan, 240, 320, 180), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
+				b.Draw(texture, Utility.getTopLeftPositionForCenteringOnScreen(Game1.viewport, 1294, 730) + new Vector2(187f - (float)parallaxPan * 2.5f, 8f) * 4f, new Rectangle(20, 428, 232, 172), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
 			}
+			b.End();
+			Game1.PushUIMode();
+			b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, null);
 			if (letterView != null)
 			{
 				letterView.draw(b);
@@ -476,6 +477,9 @@ namespace StardewValley.Minigames
 			{
 				b.Draw(Game1.mouseCursors, new Vector2(Game1.getOldMouseX(), Game1.getOldMouseY()), Game1.getSourceRectForStandardTileSheet(Game1.mouseCursors, 0, 16, 16), Color.White, 0f, Vector2.Zero, 4f + Game1.dialogueButtonScale / 150f, SpriteEffects.None, 1f);
 			}
+			b.End();
+			Game1.PopUIMode();
+			b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, null);
 			b.Draw(Game1.staminaRect, new Rectangle(0, 0, Game1.viewport.Width, Game1.viewport.Height), fadingToQuit ? (new Color(64, 136, 248) * foregroundFade) : (Color.Black * foregroundFade));
 			b.End();
 		}

@@ -28,6 +28,8 @@ namespace StardewValley.BellsAndWhistles
 
 		private bool playSounds = true;
 
+		public Action<int> onPlaySound;
+
 		public MoneyDial(int numDigits, bool playSound = true)
 		{
 			this.numDigits = numDigits;
@@ -36,6 +38,15 @@ namespace StardewValley.BellsAndWhistles
 			if (Game1.player != null)
 			{
 				currentValue = Game1.player.Money;
+			}
+			onPlaySound = playDefaultSound;
+		}
+
+		public void playDefaultSound(int direction)
+		{
+			if (direction > 0)
+			{
+				Game1.playSound("moneyDial");
 			}
 		}
 
@@ -77,9 +88,9 @@ namespace StardewValley.BellsAndWhistles
 				}
 				if (soundTimer <= 0)
 				{
-					if (currentValue < target && playSounds)
+					if (playSounds && onPlaySound != null)
 					{
-						Game1.playSound("moneyDial");
+						onPlaySound(Math.Sign(target - currentValue));
 					}
 					soundTimer = Math.Max(6, 100 / (Math.Abs(speed) + 1));
 					if (Game1.random.NextDouble() < 0.4)

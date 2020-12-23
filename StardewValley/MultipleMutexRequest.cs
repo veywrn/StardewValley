@@ -4,7 +4,7 @@ using System.Collections.Generic;
 
 namespace StardewValley
 {
-	internal class MultipleMutexRequest
+	public class MultipleMutexRequest
 	{
 		protected int _reportedCount;
 

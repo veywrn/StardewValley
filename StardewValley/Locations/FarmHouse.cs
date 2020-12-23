@@ -5,8 +5,8 @@ using StardewValley.BellsAndWhistles;
 using StardewValley.Characters;
 using StardewValley.Menus;
 using StardewValley.Monsters;
-using StardewValley.Network;
 using StardewValley.Objects;
+using StardewValley.TerrainFeatures;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -28,11 +28,23 @@ namespace StardewValley.Locations
 		[XmlElement("fridge")]
 		public readonly NetRef<Chest> fridge = new NetRef<Chest>(new Chest(playerChest: true));
 
+		[XmlIgnore]
+		public readonly NetInt synchronizedDisplayedLevel = new NetInt(-1);
+
 		public Point fridgePosition;
+
+		[XmlIgnore]
+		public Point? kitchenStandingLocation;
 
 		private LocalizedContentManager mapLoader;
 
 		public List<Warp> cellarWarps;
+
+		[XmlElement("cribStyle")]
+		public readonly NetInt cribStyle = new NetInt(1);
+
+		[XmlIgnore]
+		public int previousUpgradeLevel = -1;
 
 		private int currentlyDisplayedUpgradeLevel;
 
@@ -46,11 +58,18 @@ namespace StardewValley.Locations
 		{
 			get
 			{
+				if (owner == null)
+				{
+					return 0;
+				}
 				return owner.houseUpgradeLevel;
 			}
 			set
 			{
-				owner.houseUpgradeLevel.Value = value;
+				if (owner != null)
+				{
+					owner.houseUpgradeLevel.Value = value;
+				}
 			}
 		}
 
@@ -66,11 +85,25 @@ namespace StardewValley.Locations
 		protected override void initNetFields()
 		{
 			base.initNetFields();
-			base.NetFields.AddFields(fireplaceOn, fridge);
+			base.NetFields.AddFields(fireplaceOn, fridge, cribStyle, synchronizedDisplayedLevel);
 			fireplaceOn.fieldChangeVisibleEvent += delegate(NetBool field, bool oldValue, bool newValue)
 			{
 				Point fireplacePoint = getFireplacePoint();
 				setFireplace(newValue, fireplacePoint.X, fireplacePoint.Y);
+			};
+			cribStyle.InterpolationEnabled = false;
+			cribStyle.fieldChangeVisibleEvent += delegate
+			{
+				if (map != null)
+				{
+					if (_appliedMapOverrides != null && _appliedMapOverrides.Contains("crib"))
+					{
+						_appliedMapOverrides.Remove("crib");
+					}
+					UpdateChildRoom();
+					setWallpapers();
+					setFloors();
+				}
 			};
 		}
 
@@ -96,43 +129,16 @@ namespace StardewValley.Locations
 
 		public override bool isCollidingPosition(Microsoft.Xna.Framework.Rectangle position, xTile.Dimensions.Rectangle viewport, bool isFarmer, int damagesFarmer, bool glider, Character character, bool pathfinding, bool projectile = false, bool ignoreCharacterRequirement = false)
 		{
-			foreach (Furniture f in furniture)
-			{
-				if ((int)f.furniture_type != 12 && f.getBoundingBox(f.tileLocation).Intersects(position))
-				{
-					return true;
-				}
-			}
-			return base.isCollidingPosition(position, viewport, isFarmer, damagesFarmer, glider, character, pathfinding, projectile: false, ignoreCharacterRequirement: false);
+			return base.isCollidingPosition(position, viewport, isFarmer, damagesFarmer, glider, character, pathfinding);
 		}
 
 		public override bool isCollidingPosition(Microsoft.Xna.Framework.Rectangle position, xTile.Dimensions.Rectangle viewport, bool isFarmer, int damagesFarmer, bool glider, Character character)
 		{
-			if (character == null || character.willDestroyObjectsUnderfoot)
-			{
-				foreach (Furniture f in furniture)
-				{
-					if ((int)f.furniture_type != 12 && f.getBoundingBox(f.tileLocation).Intersects(position))
-					{
-						return true;
-					}
-				}
-			}
 			return base.isCollidingPosition(position, viewport, isFarmer, damagesFarmer, glider, character);
 		}
 
 		public override bool isTileLocationTotallyClearAndPlaceable(Vector2 v)
 		{
-			Vector2 nonTile = v * 64f;
-			nonTile.X += 32f;
-			nonTile.Y += 32f;
-			foreach (Furniture f in furniture)
-			{
-				if ((int)f.furniture_type != 12 && f.getBoundingBox(f.tileLocation).Contains((int)nonTile.X, (int)nonTile.Y))
-				{
-					return false;
-				}
-			}
 			return base.isTileLocationTotallyClearAndPlaceable(v);
 		}
 
@@ -149,11 +155,29 @@ namespace StardewValley.Locations
 					}
 					if (Game1.IsMasterGame && Game1.timeOfDay >= 2200 && Game1.IsMasterGame && c.getTileLocationPoint() != getSpouseBedSpot(c.Name) && (timeOfDay == 2200 || (c.controller == null && timeOfDay % 100 % 30 == 0)))
 					{
+						Point bed_spot = getSpouseBedSpot(c.Name);
 						c.controller = null;
-						c.controller = new PathFindController(c, this, getSpouseBedSpot(c.Name), 0, spouseSleepEndFunction);
+						PathFindController.endBehavior end_behavior = null;
+						bool found_bed = GetSpouseBed() != null;
+						if (found_bed)
+						{
+							end_behavior = spouseSleepEndFunction;
+						}
+						c.controller = new PathFindController(c, this, bed_spot, 0, end_behavior);
 						if (c.controller.pathToEndPoint == null || !isTileOnMap(c.controller.pathToEndPoint.Last().X, c.controller.pathToEndPoint.Last().Y))
 						{
 							c.controller = null;
+						}
+						else if (found_bed)
+						{
+							foreach (Furniture furniture in base.furniture)
+							{
+								if (furniture is BedFurniture && furniture.getBoundingBox(furniture.TileLocation).Intersects(new Microsoft.Xna.Framework.Rectangle(bed_spot.X * 64, bed_spot.Y * 64, 64, 64)))
+								{
+									(furniture as BedFurniture).ReserveForNPC();
+									break;
+								}
+							}
 						}
 					}
 				}
@@ -166,10 +190,41 @@ namespace StardewValley.Locations
 
 		public static void spouseSleepEndFunction(Character c, GameLocation location)
 		{
-			if (c != null && c is NPC && Game1.content.Load<Dictionary<string, string>>("Data\\animationDescriptions").ContainsKey(c.name.Value.ToLower() + "_sleep"))
+			if (c != null && c is NPC)
 			{
-				(c as NPC).playSleepingAnimation();
+				if (Game1.content.Load<Dictionary<string, string>>("Data\\animationDescriptions").ContainsKey(c.name.Value.ToLower() + "_sleep"))
+				{
+					(c as NPC).playSleepingAnimation();
+				}
+				foreach (Furniture furniture in location.furniture)
+				{
+					if (furniture is BedFurniture && furniture.getBoundingBox(furniture.TileLocation).Intersects(c.GetBoundingBox()))
+					{
+						(furniture as BedFurniture).ReserveForNPC();
+						break;
+					}
+				}
 			}
+		}
+
+		public virtual Point getFrontDoorSpot()
+		{
+			foreach (Warp warp in warps)
+			{
+				if (warp.TargetName == "Farm")
+				{
+					if (this is Cabin)
+					{
+						return new Point(warp.TargetX, warp.TargetY);
+					}
+					if (warp.X == 64 && warp.Y == 15)
+					{
+						return Game1.getFarm().GetMainFarmHouseEntry();
+					}
+					return new Point(warp.TargetX, warp.TargetY);
+				}
+			}
+			return Game1.getFarm().GetMainFarmHouseEntry();
 		}
 
 		public virtual Point getPorchStandingSpot()
@@ -177,7 +232,9 @@ namespace StardewValley.Locations
 			int num = farmerNumberOfOwner;
 			if ((uint)num <= 1u)
 			{
-				return new Point(66, 15);
+				Point p = Game1.getFarm().GetMainFarmHouseEntry();
+				p.X += 2;
+				return p;
 			}
 			return new Point(-1000, -1000);
 		}
@@ -187,51 +244,90 @@ namespace StardewValley.Locations
 			switch (upgradeLevel)
 			{
 			case 1:
-				return new Point(4, 5);
+				if (!kitchenStandingLocation.HasValue)
+				{
+					kitchenStandingLocation = GetMapPropertyPosition("KitchenStandingLocation", 4, 5);
+				}
+				return kitchenStandingLocation.Value;
 			case 2:
 			case 3:
-				return new Point(7, 14);
+				if (!kitchenStandingLocation.HasValue)
+				{
+					kitchenStandingLocation = GetMapPropertyPosition("KitchenStandingLocation", 7, 14);
+				}
+				return kitchenStandingLocation.Value;
 			default:
 				return new Point(-1000, -1000);
 			}
 		}
 
+		public virtual BedFurniture GetSpouseBed()
+		{
+			return GetBed(BedFurniture.BedType.Double);
+		}
+
 		public Point getSpouseBedSpot(string spouseName)
+		{
+			if (SocialPage.isRoommateOfAnyone(spouseName) || GetSpouseBed() == null)
+			{
+				return GetSpouseRoomSpot();
+			}
+			Point bed_spot = GetSpouseBed().GetBedSpot();
+			bed_spot.X++;
+			return bed_spot;
+		}
+
+		public Point GetSpouseRoomSpot()
 		{
 			switch (upgradeLevel)
 			{
 			case 1:
-				if (!SocialPage.isRoommateOfAnyone(spouseName))
-				{
-					return new Point(23, 4);
-				}
 				return new Point(32, 5);
 			case 2:
 			case 3:
-				if (!SocialPage.isRoommateOfAnyone(spouseName))
-				{
-					return new Point(29, 13);
-				}
 				return new Point(38, 14);
 			default:
 				return new Point(-1000, -1000);
 			}
 		}
 
-		public Point getBedSpot()
+		public BedFurniture GetBed(BedFurniture.BedType bed_type = BedFurniture.BedType.Any, int index = 0)
 		{
-			switch (upgradeLevel)
+			foreach (Furniture f in furniture)
 			{
-			case 0:
-				return new Point(10, 9);
-			case 1:
-				return new Point(22, 4);
-			case 2:
-			case 3:
-				return new Point(28, 13);
-			default:
-				return new Point(-1000, -1000);
+				if (f is BedFurniture)
+				{
+					BedFurniture bed = f as BedFurniture;
+					if (bed_type == BedFurniture.BedType.Any || bed.bedType == bed_type)
+					{
+						if (index == 0)
+						{
+							return bed;
+						}
+						index--;
+					}
+				}
 			}
+			return null;
+		}
+
+		public Point GetPlayerBedSpot()
+		{
+			return GetPlayerBed()?.GetBedSpot() ?? getEntryLocation();
+		}
+
+		public BedFurniture GetPlayerBed()
+		{
+			if (upgradeLevel == 0)
+			{
+				return GetBed(BedFurniture.BedType.Single);
+			}
+			return GetBed(BedFurniture.BedType.Double);
+		}
+
+		public Point getBedSpot(BedFurniture.BedType bed_type = BedFurniture.BedType.Any)
+		{
+			return GetBed(bed_type)?.GetBedSpot() ?? new Point(-1000, -1000);
 		}
 
 		public Point getEntryLocation()
@@ -250,17 +346,14 @@ namespace StardewValley.Locations
 			}
 		}
 
-		public Point getChildBed(int gender)
+		public BedFurniture GetChildBed(int index)
 		{
-			switch (gender)
-			{
-			case 0:
-				return new Point(23, 5);
-			case 1:
-				return new Point(27, 5);
-			default:
-				return Point.Zero;
-			}
+			return GetBed(BedFurniture.BedType.Child, index);
+		}
+
+		public Point GetChildBedSpot(int index)
+		{
+			return GetChildBed(index)?.GetBedSpot() ?? Point.Zero;
 		}
 
 		public Point getRandomOpenPointInHouse(Random r, int buffer = 0, int tries = 30)
@@ -276,6 +369,10 @@ namespace StardewValley.Locations
 					for (int y = zone.Y; y < zone.Bottom; y++)
 					{
 						obstacleFound = (getTileIndexAt(x, y, "Back") == -1 || !isTileLocationTotallyClearAndPlaceable(x, y) || Utility.pointInRectangles(getWalls(), x, y));
+						if (getTileIndexAt(x, y, "Back") == 0 && getTileSheetIDAt(x, y, "Back") == "indoor")
+						{
+							obstacleFound = true;
+						}
 						if (obstacleFound)
 						{
 							break;
@@ -298,51 +395,10 @@ namespace StardewValley.Locations
 		{
 			if (action != null && who.IsLocalPlayer)
 			{
-				string[] array = action.Split(' ');
-				string a = array[0];
+				string a = action.Split(' ')[0];
 				if (a == "kitchen")
 				{
-					List<NetMutex> muticies = new List<NetMutex>();
-					List<Chest> mini_fridges = new List<Chest>();
-					foreach (Object item in objects.Values)
-					{
-						if (item != null && (bool)item.bigCraftable && item is Chest && item.ParentSheetIndex == 216)
-						{
-							mini_fridges.Add(item as Chest);
-							muticies.Add((item as Chest).mutex);
-						}
-					}
-					if (fridge.Value.mutex.IsLocked())
-					{
-						Game1.showRedMessage(Game1.content.LoadString("Strings\\UI:Kitchen_InUse"));
-					}
-					else
-					{
-						MultipleMutexRequest multiple_mutex_request = null;
-						multiple_mutex_request = new MultipleMutexRequest(muticies, delegate
-						{
-							fridge.Value.mutex.RequestLock(delegate
-							{
-								List<Chest> list = new List<Chest>();
-								list.Add(fridge);
-								list.AddRange(mini_fridges);
-								Vector2 topLeftPositionForCenteringOnScreen = Utility.getTopLeftPositionForCenteringOnScreen(800 + IClickableMenu.borderWidth * 2, 600 + IClickableMenu.borderWidth * 2);
-								Game1.activeClickableMenu = new CraftingPage((int)topLeftPositionForCenteringOnScreen.X, (int)topLeftPositionForCenteringOnScreen.Y, 800 + IClickableMenu.borderWidth * 2, 600 + IClickableMenu.borderWidth * 2, cooking: true, standalone_menu: true, list);
-								Game1.activeClickableMenu.exitFunction = delegate
-								{
-									fridge.Value.mutex.ReleaseLock();
-									multiple_mutex_request.ReleaseLocks();
-								};
-							}, delegate
-							{
-								Game1.showRedMessage(Game1.content.LoadString("Strings\\UI:Kitchen_InUse"));
-								multiple_mutex_request.ReleaseLocks();
-							});
-						}, delegate
-						{
-							Game1.showRedMessage(Game1.content.LoadString("Strings\\UI:Kitchen_InUse"));
-						});
-					}
+					ActivateKitchen(fridge);
 					return true;
 				}
 			}
@@ -387,6 +443,7 @@ namespace StardewValley.Locations
 		public FarmHouse(string m, string name)
 			: base(m, name)
 		{
+			furniture.Add(new BedFurniture(BedFurniture.DEFAULT_BED_INDEX, new Vector2(9f, 8f)));
 			switch (Game1.whichFarm)
 			{
 			case 0:
@@ -398,10 +455,7 @@ namespace StardewValley.Locations
 				furniture.Add(new Furniture(1614, new Vector2(3f, 1f)));
 				furniture.Add(new Furniture(1618, new Vector2(6f, 8f)));
 				furniture.Add(new Furniture(1602, new Vector2(5f, 1f)));
-				if (!(this is Cabin))
-				{
-					furniture.Add(new Furniture(1792, Utility.PointToVector2(getFireplacePoint())));
-				}
+				furniture.Add(new Furniture(1792, Utility.PointToVector2(getFireplacePoint())));
 				objects.Add(new Vector2(3f, 7f), new Chest(0, new List<Item>
 				{
 					new Object(472, 15)
@@ -419,10 +473,7 @@ namespace StardewValley.Locations
 				furniture.Add(new Furniture(1676, new Vector2(5f, 1f)));
 				furniture.Add(new Furniture(1737, new Vector2(6f, 8f)));
 				furniture.Add(new Furniture(1742, new Vector2(5f, 5f)));
-				if (!(this is Cabin))
-				{
-					furniture.Add(new Furniture(1792, Utility.PointToVector2(getFireplacePoint())));
-				}
+				furniture.Add(new Furniture(1792, Utility.PointToVector2(getFireplacePoint())));
 				furniture.Add(new Furniture(1675, new Vector2(10f, 1f)));
 				objects.Add(new Vector2(4f, 7f), new Chest(0, new List<Item>
 				{
@@ -440,10 +491,7 @@ namespace StardewValley.Locations
 				furniture.Add(new Furniture(1682, new Vector2(3f, 1f)));
 				furniture.Add(new Furniture(1777, new Vector2(6f, 5f)));
 				furniture.Add(new Furniture(1745, new Vector2(6f, 1f)));
-				if (!(this is Cabin))
-				{
-					furniture.Add(new Furniture(1792, Utility.PointToVector2(getFireplacePoint())));
-				}
+				furniture.Add(new Furniture(1792, Utility.PointToVector2(getFireplacePoint())));
 				furniture.Add(new Furniture(1747, new Vector2(5f, 4f)));
 				furniture.Add(new Furniture(1296, new Vector2(10f, 4f)));
 				objects.Add(new Vector2(4f, 7f), new Chest(0, new List<Item>
@@ -467,10 +515,7 @@ namespace StardewValley.Locations
 				{
 					new Object(472, 15)
 				}, new Vector2(2f, 9f), giftbox: true));
-				if (!(this is Cabin))
-				{
-					furniture.Add(new Furniture(1794, Utility.PointToVector2(getFireplacePoint())));
-				}
+				furniture.Add(new Furniture(1794, Utility.PointToVector2(getFireplacePoint())));
 				break;
 			case 4:
 				setWallpaper(95, -1, persist: true);
@@ -482,10 +527,7 @@ namespace StardewValley.Locations
 				furniture.Add(new Furniture(1678, new Vector2(10f, 1f)));
 				furniture.Add(new Furniture(1812, new Vector2(3f, 1f)));
 				furniture.Add(new Furniture(1630, new Vector2(1f, 1f)));
-				if (!(this is Cabin))
-				{
-					furniture.Add(new Furniture(1794, Utility.PointToVector2(getFireplacePoint())));
-				}
+				furniture.Add(new Furniture(1794, Utility.PointToVector2(getFireplacePoint())));
 				furniture.Add(new Furniture(1811, new Vector2(6f, 1f)));
 				furniture.Add(new Furniture(1389, new Vector2(10f, 4f)));
 				objects.Add(new Vector2(4f, 7f), new Chest(0, new List<Item>
@@ -498,10 +540,7 @@ namespace StardewValley.Locations
 				setWallpaper(65, -1, persist: true);
 				setFloor(5, -1, persist: true);
 				furniture.Add(new TV(1466, new Vector2(1f, 4f)));
-				if (!(this is Cabin))
-				{
-					furniture.Add(new Furniture(1792, Utility.PointToVector2(getFireplacePoint())));
-				}
+				furniture.Add(new Furniture(1792, Utility.PointToVector2(getFireplacePoint())));
 				furniture.Add(new Furniture(1614, new Vector2(3f, 1f)));
 				furniture.Add(new Furniture(1614, new Vector2(6f, 1f)));
 				furniture.Add(new Furniture(1601, new Vector2(10f, 1f)));
@@ -517,6 +556,26 @@ namespace StardewValley.Locations
 				{
 					new Object(472, 15)
 				}, new Vector2(3f, 7f), giftbox: true));
+				break;
+			case 6:
+				setWallpaper(106, -1, persist: true);
+				setFloor(35, -1, persist: true);
+				furniture.Add(new TV(1680, new Vector2(4f, 4f)));
+				furniture.Add(new Furniture(1614, new Vector2(7f, 1f)));
+				furniture.Add(new Furniture(1294, new Vector2(3f, 4f)));
+				furniture.Add(new Furniture(1283, new Vector2(1f, 4f)));
+				furniture.Add(new Furniture(1614, new Vector2(8f, 1f)));
+				furniture.Add(new Furniture(202, new Vector2(7f, 4f)));
+				furniture.Add(new Furniture(1294, new Vector2(10f, 4f)));
+				furniture.Add(new Furniture(6, new Vector2(2f, 6f), 1));
+				furniture.Add(new Furniture(6, new Vector2(5f, 7f), 3));
+				furniture.Add(new Furniture(1124, new Vector2(3f, 6f)));
+				furniture.Last().heldObject.Value = new Furniture(1362, new Vector2(4f, 6f));
+				objects.Add(new Vector2(8f, 6f), new Chest(0, new List<Item>
+				{
+					new Object(472, 15)
+				}, new Vector2(8f, 6f), giftbox: true));
+				furniture.Add(new Furniture(1228, new Vector2(2f, 9f)));
 				break;
 			}
 		}
@@ -544,49 +603,53 @@ namespace StardewValley.Locations
 					if (spouse_farmer != null && spouse_farmer == owner)
 					{
 						NPC spouse = npc;
-						if (spouse != null && Game1.timeOfDay < 1500 && Game1.random.NextDouble() < 0.0006 && spouse.controller == null && spouse.Schedule == null && !spouse.getTileLocation().Equals(Utility.PointToVector2(getSpouseBedSpot(Game1.player.spouse))) && furniture.Count > 0)
+						if (spouse != null && Game1.timeOfDay < 1500 && Game1.random.NextDouble() < 0.0006 && spouse.controller == null && spouse.Schedule == null && !spouse.getTileLocation().Equals(Utility.PointToVector2(getSpouseBedSpot(Game1.player.spouse))) && base.furniture.Count > 0)
 						{
-							Microsoft.Xna.Framework.Rectangle b = furniture[Game1.random.Next(furniture.Count)].boundingBox;
+							Furniture furniture = base.furniture[Game1.random.Next(base.furniture.Count)];
+							Microsoft.Xna.Framework.Rectangle b = furniture.boundingBox;
 							Vector2 possibleLocation = new Vector2(b.X / 64, b.Y / 64);
-							int tries = 0;
-							int facingDirection = -3;
-							for (; tries < 3; tries++)
+							if (furniture.furniture_type.Value != 15)
 							{
-								int xMove = Game1.random.Next(-1, 2);
-								int yMove = Game1.random.Next(-1, 2);
-								possibleLocation.X += xMove;
-								if (xMove == 0)
+								int tries = 0;
+								int facingDirection = -3;
+								for (; tries < 3; tries++)
 								{
-									possibleLocation.Y += yMove;
-								}
-								switch (xMove)
-								{
-								case -1:
-									facingDirection = 1;
-									break;
-								case 1:
-									facingDirection = 3;
-									break;
-								default:
-									switch (yMove)
+									int xMove = Game1.random.Next(-1, 2);
+									int yMove = Game1.random.Next(-1, 2);
+									possibleLocation.X += xMove;
+									if (xMove == 0)
+									{
+										possibleLocation.Y += yMove;
+									}
+									switch (xMove)
 									{
 									case -1:
-										facingDirection = 2;
+										facingDirection = 1;
 										break;
 									case 1:
-										facingDirection = 0;
+										facingDirection = 3;
+										break;
+									default:
+										switch (yMove)
+										{
+										case -1:
+											facingDirection = 2;
+											break;
+										case 1:
+											facingDirection = 0;
+											break;
+										}
 										break;
 									}
-									break;
+									if (isTileLocationTotallyClearAndPlaceable(possibleLocation))
+									{
+										break;
+									}
 								}
-								if (isTileLocationTotallyClearAndPlaceable(possibleLocation))
+								if (tries < 3)
 								{
-									break;
+									spouse.controller = new PathFindController(spouse, this, new Point((int)possibleLocation.X, (int)possibleLocation.Y), facingDirection, eraseOldPathController: false, clearMarriageDialogues: false);
 								}
-							}
-							if (tries < 3)
-							{
-								spouse.controller = new PathFindController(spouse, this, new Point((int)possibleLocation.X, (int)possibleLocation.Y), facingDirection, eraseOldPathController: false, clearMarriageDialogues: false);
 							}
 						}
 					}
@@ -709,11 +772,15 @@ namespace StardewValley.Locations
 					for (int y = spouseRoomBounds.Y; y <= spouseRoomBounds.Bottom; y++)
 					{
 						Object tile_object = getObjectAtTile(x, y);
-						if (tile_object == null)
+						if (tile_object == null || tile_object is Furniture)
 						{
 							continue;
 						}
 						tile_object.performRemoveAction(new Vector2(x, y), this);
+						if (tile_object is Fence)
+						{
+							tile_object = new Object(Vector2.Zero, (tile_object as Fence).GetItemParentSheetIndex(), 1);
+						}
 						if (tile_object is IndoorPot)
 						{
 							IndoorPot garden_pot = tile_object as IndoorPot;
@@ -737,7 +804,7 @@ namespace StardewValley.Locations
 						{
 							tile_object.readyForHarvest.Value = false;
 						}
-						collected_items.Add(getObjectAtTile(x, y));
+						collected_items.Add(tile_object);
 						objects.Remove(new Vector2(x, y));
 					}
 				}
@@ -753,26 +820,7 @@ namespace StardewValley.Locations
 			loadObjects();
 			if (upgradeLevel == 3)
 			{
-				setMapTileIndex(3, 22, 162, "Front");
-				removeTile(4, 22, "Front");
-				removeTile(5, 22, "Front");
-				setMapTileIndex(6, 22, 163, "Front");
-				setMapTileIndex(3, 23, 64, "Buildings");
-				setMapTileIndex(3, 24, 96, "Buildings");
-				setMapTileIndex(4, 24, 165, "Front");
-				setMapTileIndex(5, 24, 165, "Front");
-				removeTile(4, 23, "Back");
-				removeTile(5, 23, "Back");
-				setMapTileIndex(4, 23, 1043, "Back");
-				setMapTileIndex(5, 23, 1043, "Back");
-				setMapTileIndex(4, 24, 1075, "Back");
-				setMapTileIndex(5, 24, 1075, "Back");
-				setMapTileIndex(6, 23, 68, "Buildings");
-				setMapTileIndex(6, 24, 130, "Buildings");
-				setMapTileIndex(4, 25, 0, "Front");
-				setMapTileIndex(5, 25, 0, "Front");
-				removeTile(4, 23, "Buildings");
-				removeTile(5, 23, "Buildings");
+				AddCellarTiles();
 				createCellarWarps();
 				if (!Game1.player.craftingRecipes.ContainsKey("Cask"))
 				{
@@ -783,6 +831,40 @@ namespace StardewValley.Locations
 			{
 				loadSpouseRoom();
 			}
+		}
+
+		public virtual void AddCellarTiles()
+		{
+			setMapTileIndex(3, 22, 162, "Front");
+			removeTile(4, 22, "Front");
+			removeTile(5, 22, "Front");
+			removeTile(4, 23, "Front");
+			removeTile(5, 23, "Front");
+			setMapTileIndex(6, 22, 163, "Front");
+			setMapTileIndex(3, 23, 64, "Buildings");
+			setMapTileIndex(3, 23, 64, "Front");
+			setMapTileIndex(3, 24, 96, "Buildings");
+			setMapTileIndex(4, 24, 165, "Front");
+			setMapTileIndex(5, 24, 165, "Front");
+			removeTile(4, 23, "Back");
+			removeTile(5, 23, "Back");
+			setMapTileIndex(4, 23, 1043, "Back");
+			setMapTileIndex(5, 23, 1043, "Back");
+			setTileProperty(4, 23, "Back", "NoFurniture", "t");
+			setTileProperty(5, 23, "Back", "NoFurniture", "t");
+			setTileProperty(4, 23, "Back", "NPCBarrier", "t");
+			setTileProperty(5, 23, "Back", "NPCBarrier", "t");
+			setMapTileIndex(4, 24, 1075, "Back");
+			setMapTileIndex(5, 24, 1075, "Back");
+			setTileProperty(4, 24, "Back", "NoFurniture", "t");
+			setTileProperty(5, 24, "Back", "NoFurniture", "t");
+			setMapTileIndex(6, 23, 68, "Buildings");
+			setMapTileIndex(6, 23, 68, "Front");
+			setMapTileIndex(6, 24, 130, "Buildings");
+			setMapTileIndex(4, 25, 0, "Front");
+			setMapTileIndex(5, 25, 0, "Front");
+			removeTile(4, 23, "Buildings");
+			removeTile(5, 23, "Buildings");
 		}
 
 		public string GetCellarName()
@@ -823,7 +905,7 @@ namespace StardewValley.Locations
 			Farm farm = Game1.getFarm();
 			for (int l = characters.Count - 1; l >= 0; l--)
 			{
-				if (characters[l] is Pet && (!isTileOnMap(characters[l].getTileX(), characters[l].getTileY()) || getTileIndexAt(characters[l].getTileLocationPoint(), "Buildings") != -1 || getTileIndexAt(characters[l].getTileX() + 1, characters[l].getTileY(), "Buildings") != -1))
+				if (characters[l] is Pet && (!isTileOnMap(characters[l].getTileX(), characters[l].getTileY()) || getTileIndexAt(characters[l].GetBoundingBox().Left / 64, characters[l].getTileY(), "Buildings") != -1 || getTileIndexAt(characters[l].GetBoundingBox().Right / 64, characters[l].getTileY(), "Buildings") != -1))
 				{
 					characters[l].faceDirection(2);
 					Game1.warpCharacter(characters[l], "Farm", farm.GetPetStartLocation());
@@ -849,20 +931,82 @@ namespace StardewValley.Locations
 			}
 		}
 
+		public void UpdateForRenovation()
+		{
+			updateFarmLayout();
+			setWallpapers();
+			setFloors();
+		}
+
 		public void updateFarmLayout()
 		{
 			if (currentlyDisplayedUpgradeLevel != upgradeLevel)
 			{
 				setMapForUpgradeLevel(upgradeLevel);
 			}
+			_ApplyRenovations();
 			if ((!displayingSpouseRoom && shouldShowSpouseRoom()) || (displayingSpouseRoom && !shouldShowSpouseRoom()))
 			{
 				showSpouseRoom();
+			}
+			UpdateChildRoom();
+		}
+
+		protected virtual void _ApplyRenovations()
+		{
+			if (upgradeLevel < 2)
+			{
+				return;
+			}
+			if (_appliedMapOverrides.Contains("bedroom_open"))
+			{
+				_appliedMapOverrides.Remove("bedroom_open");
+			}
+			if (owner.mailReceived.Contains("renovation_bedroom_open"))
+			{
+				ApplyMapOverride("FarmHouse_Bedroom_Open", "bedroom_open");
+			}
+			else
+			{
+				ApplyMapOverride("FarmHouse_Bedroom_Normal", "bedroom_open");
+			}
+			if (_appliedMapOverrides.Contains("southernroom_open"))
+			{
+				_appliedMapOverrides.Remove("southernroom_open");
+			}
+			if (owner.mailReceived.Contains("renovation_southern_open"))
+			{
+				ApplyMapOverride("FarmHouse_SouthernRoom_Add", "southernroom_open");
+			}
+			else
+			{
+				ApplyMapOverride("FarmHouse_SouthernRoom_Remove", "southernroom_open");
+			}
+			if (_appliedMapOverrides.Contains("cornerroom_open"))
+			{
+				_appliedMapOverrides.Remove("cornerroom_open");
+			}
+			if (owner.mailReceived.Contains("renovation_corner_open"))
+			{
+				ApplyMapOverride("FarmHouse_CornerRoom_Add", "cornerroom_open");
+				if (displayingSpouseRoom)
+				{
+					setMapTile(34, 9, 229, "Front", null, 2);
+				}
+			}
+			else
+			{
+				ApplyMapOverride("FarmHouse_CornerRoom_Remove", "cornerroom_open");
+				if (displayingSpouseRoom)
+				{
+					setMapTile(34, 9, 87, "Front", null, 2);
+				}
 			}
 		}
 
 		protected override void resetLocalState()
 		{
+			updateFarmLayout();
 			base.resetLocalState();
 			if (owner.isMarried() && owner.spouse != null && owner.spouse.Equals("Emily") && Game1.player.eventsSeen.Contains(463391))
 			{
@@ -874,7 +1018,6 @@ namespace StardewValley.Locations
 				}
 				temporarySprites.Add(new EmilysParrot(parrotSpot));
 			}
-			updateFarmLayout();
 			setWallpapers();
 			setFloors();
 			if (Game1.player.currentLocation == null || (!Game1.player.currentLocation.Equals(this) && !Game1.player.currentLocation.name.Value.StartsWith("Cellar")))
@@ -907,54 +1050,16 @@ namespace StardewValley.Locations
 			}
 			if (owner == Game1.player && Game1.player.team.GetSpouse(Game1.player.UniqueMultiplayerID).HasValue && Game1.player.team.IsMarried(Game1.player.UniqueMultiplayerID) && !Game1.player.mailReceived.Contains("CF_Spouse"))
 			{
-				Vector2 chestPosition = Utility.PointToVector2(getBedSpot()) + new Vector2(-3f, 0f);
-				if (this.upgradeLevel == 1)
-				{
-					chestPosition = Utility.PointToVector2(getBedSpot()) + new Vector2(3f, 0f);
-				}
+				Vector2 chestPosition = Utility.PointToVector2(getEntryLocation()) + new Vector2(0f, -1f);
 				Chest chest = new Chest(0, new List<Item>
 				{
 					new Object(434, 1)
 				}, chestPosition, giftbox: true, 1);
 				overlayObjects[chestPosition] = chest;
 			}
-			if (owner != null && !owner.activeDialogueEvents.ContainsKey("pennyRedecorating"))
+			if (owner != null && !owner.activeDialogueEvents.ContainsKey("pennyRedecorating") && !owner.mailReceived.Contains("pennyQuilt0") && !owner.mailReceived.Contains("pennyQuilt1"))
 			{
-				int whichQuilt2 = -1;
-				if (owner.mailReceived.Contains("pennyQuilt0"))
-				{
-					whichQuilt2 = 0;
-				}
-				else if (owner.mailReceived.Contains("pennyQuilt1"))
-				{
-					whichQuilt2 = 1;
-				}
-				else if (owner.mailReceived.Contains("pennyQuilt2"))
-				{
-					whichQuilt2 = 2;
-				}
-				if (whichQuilt2 != -1)
-				{
-					Point startTile = Point.Zero;
-					if (this.upgradeLevel >= 2)
-					{
-						startTile = new Point(27, 12);
-					}
-					else if (this.upgradeLevel == 1)
-					{
-						startTile = new Point(21, 3);
-					}
-					if (!startTile.Equals(Point.Zero))
-					{
-						int startIndex = 61 + whichQuilt2 * 3;
-						setMapTileIndex(startTile.X, startTile.Y, startIndex, "Front", 1);
-						setMapTileIndex(startTile.X + 1, startTile.Y, startIndex + 1, "Front", 1);
-						setMapTileIndex(startTile.X + 2, startTile.Y, startIndex + 2, "Front", 1);
-						setMapTileIndex(startTile.X, startTile.Y + 1, startIndex + 12, "Front", 1);
-						setMapTileIndex(startTile.X + 1, startTile.Y + 1, startIndex + 13, "Front", 1);
-						setMapTileIndex(startTile.X + 2, startTile.Y + 1, startIndex + 14, "Front", 1);
-					}
-				}
+				owner.mailReceived.Contains("pennyQuilt2");
 			}
 			if (owner.Equals(Game1.player) && !Game1.player.activeDialogueEvents.ContainsKey("pennyRedecorating"))
 			{
@@ -973,6 +1078,38 @@ namespace StardewValley.Locations
 				}
 				if (whichQuilt != -1 && !Game1.player.mailReceived.Contains("pennyRefurbished"))
 				{
+					foreach (Furniture f in furniture)
+					{
+						if (f is BedFurniture)
+						{
+							BedFurniture bed_furniture = f as BedFurniture;
+							if (bed_furniture.bedType == BedFurniture.BedType.Double)
+							{
+								int bed_index = -1;
+								if (owner.mailReceived.Contains("pennyQuilt0"))
+								{
+									bed_index = 2058;
+								}
+								if (owner.mailReceived.Contains("pennyQuilt1"))
+								{
+									bed_index = 2064;
+								}
+								if (owner.mailReceived.Contains("pennyQuilt2"))
+								{
+									bed_index = 2070;
+								}
+								if (bed_index != -1)
+								{
+									Vector2 tile_location = bed_furniture.TileLocation;
+									bed_furniture.performRemoveAction(bed_furniture.tileLocation, this);
+									Guid guid = furniture.GuidOf(bed_furniture);
+									furniture.Remove(guid);
+									furniture.Add(new BedFurniture(bed_index, new Vector2(tile_location.X, tile_location.Y)));
+								}
+								break;
+							}
+						}
+					}
 					Game1.player.mailReceived.Add("pennyRefurbished");
 					Microsoft.Xna.Framework.Rectangle roomToRedecorate2 = Microsoft.Xna.Framework.Rectangle.Empty;
 					roomToRedecorate2 = ((this.upgradeLevel >= 2) ? new Microsoft.Xna.Framework.Rectangle(23, 10, 11, 13) : new Microsoft.Xna.Framework.Rectangle(20, 1, 8, 10));
@@ -987,7 +1124,7 @@ namespace StardewValley.Locations
 							}
 							Object o2 = null;
 							o2 = getObjectAtTile(x, y);
-							if (o2 != null && !(o2 is Chest) && !(o2 is StorageFurniture) && !(o2 is IndoorPot))
+							if (o2 != null && !(o2 is Chest) && !(o2 is StorageFurniture) && !(o2 is IndoorPot) && !(o2 is BedFurniture))
 							{
 								if (o2.Name != null && o2.Name.Contains("Table") && o2.heldObject.Value != null)
 								{
@@ -996,7 +1133,11 @@ namespace StardewValley.Locations
 									objectsPickedUp.Add(held_object);
 								}
 								o2.performRemoveAction(new Vector2(x, y), this);
-								objectsPickedUp.Add(getObjectAtTile(x, y));
+								if (o2 is Fence)
+								{
+									o2 = new Object(Vector2.Zero, (o2 as Fence).GetItemParentSheetIndex(), 1);
+								}
+								objectsPickedUp.Add(o2);
 								objects.Remove(new Vector2(x, y));
 								if (o2 is Furniture)
 								{
@@ -1133,17 +1274,8 @@ namespace StardewValley.Locations
 					addFurnitureIfSpaceIsFreePenny(objectsToStoreInChests, new Furniture(1916, new Vector2(24f, 1f)));
 					addFurnitureIfSpaceIsFreePenny(objectsToStoreInChests, new Furniture(1682, new Vector2(26f, 1f)));
 					addFurnitureIfSpaceIsFreePenny(objectsToStoreInChests, new Furniture(1747, new Vector2(25f, 4f)));
-					if (!(this is Cabin))
-					{
-						addFurnitureIfSpaceIsFreePenny(objectsToStoreInChests, new Furniture(1395, new Vector2(26f, 4f)), new Furniture(1363, Vector2.Zero));
-						addFurnitureIfSpaceIsFreePenny(objectsToStoreInChests, new Furniture(1443, new Vector2(27f, 4f)));
-					}
-					else
-					{
-						objectsToStoreInChests.Add(new Furniture(1395, new Vector2(26f, 4f)));
-						objectsToStoreInChests.Add(new Furniture(1363, Vector2.Zero));
-						objectsToStoreInChests.Add(new Furniture(1443, new Vector2(27f, 4f)));
-					}
+					addFurnitureIfSpaceIsFreePenny(objectsToStoreInChests, new Furniture(1395, new Vector2(26f, 4f)), new Furniture(1363, Vector2.Zero));
+					addFurnitureIfSpaceIsFreePenny(objectsToStoreInChests, new Furniture(1443, new Vector2(27f, 4f)));
 					addFurnitureIfSpaceIsFreePenny(objectsToStoreInChests, new Furniture(1664, new Vector2(27f, 5f), 1));
 					addFurnitureIfSpaceIsFreePenny(objectsToStoreInChests, new Furniture(1978, new Vector2(21f, 6f)));
 					addFurnitureIfSpaceIsFreePenny(objectsToStoreInChests, new Furniture(1124, new Vector2(26f, 9f)), new Furniture(1368, Vector2.Zero));
@@ -1194,14 +1326,7 @@ namespace StardewValley.Locations
 					addFurnitureIfSpaceIsFreePenny(objectsToStoreInChests, new Furniture(1814, new Vector2(23f, 1f)));
 					addFurnitureIfSpaceIsFreePenny(objectsToStoreInChests, new Furniture(1907, new Vector2(24f, 1f)));
 					addFurnitureIfSpaceIsFreePenny(objectsToStoreInChests, new Furniture(1400, new Vector2(25f, 4f)), new Furniture(1365, Vector2.Zero));
-					if (!(this is Cabin))
-					{
-						addFurnitureIfSpaceIsFreePenny(objectsToStoreInChests, new Furniture(1866, new Vector2(26f, 4f)));
-					}
-					else
-					{
-						objectsToStoreInChests.Add(new Furniture(1866, new Vector2(26f, 4f)));
-					}
+					addFurnitureIfSpaceIsFreePenny(objectsToStoreInChests, new Furniture(1866, new Vector2(26f, 4f)));
 					addFurnitureIfSpaceIsFreePenny(objectsToStoreInChests, new Furniture(1909, new Vector2(27f, 6f), 1));
 					addFurnitureIfSpaceIsFreePenny(objectsToStoreInChests, new Furniture(1451, new Vector2(21f, 6f)));
 					addFurnitureIfSpaceIsFreePenny(objectsToStoreInChests, new Furniture(1138, new Vector2(27f, 9f)), new Furniture(1378, Vector2.Zero));
@@ -1257,14 +1382,7 @@ namespace StardewValley.Locations
 					addFurnitureIfSpaceIsFreePenny(objectsToStoreInChests, new Furniture(1675, new Vector2(24f, 1f)));
 					addFurnitureIfSpaceIsFreePenny(objectsToStoreInChests, new Furniture(1900, new Vector2(25f, 1f)));
 					addFurnitureIfSpaceIsFreePenny(objectsToStoreInChests, new Furniture(1393, new Vector2(25f, 4f)), new Furniture(1367, Vector2.Zero));
-					if (!(this is Cabin))
-					{
-						addFurnitureIfSpaceIsFreePenny(objectsToStoreInChests, new Furniture(1798, new Vector2(26f, 4f)));
-					}
-					else
-					{
-						objectsToStoreInChests.Add(new Furniture(1798, new Vector2(26f, 4f)));
-					}
+					addFurnitureIfSpaceIsFreePenny(objectsToStoreInChests, new Furniture(1798, new Vector2(26f, 4f)));
 					addFurnitureIfSpaceIsFreePenny(objectsToStoreInChests, new Furniture(1902, new Vector2(25f, 5f)));
 					addFurnitureIfSpaceIsFreePenny(objectsToStoreInChests, new Furniture(1751, new Vector2(22f, 6f)));
 					addFurnitureIfSpaceIsFreePenny(objectsToStoreInChests, new Furniture(1122, new Vector2(26f, 9f)), new Furniture(1378, Vector2.Zero));
@@ -1372,8 +1490,21 @@ namespace StardewValley.Locations
 			}
 		}
 
+		public virtual void RefreshFloorObjectNeighbors()
+		{
+			foreach (Vector2 key in terrainFeatures.Keys)
+			{
+				TerrainFeature t = terrainFeatures[key];
+				if (t is Flooring)
+				{
+					(t as Flooring).OnAdded(this, key);
+				}
+			}
+		}
+
 		public void moveObjectsForHouseUpgrade(int whichUpgrade)
 		{
+			previousUpgradeLevel = upgradeLevel;
 			overlayObjects.Clear();
 			switch (whichUpgrade)
 			{
@@ -1447,20 +1578,24 @@ namespace StardewValley.Locations
 		public override void updateMap()
 		{
 			bool showSpouse = owner.spouse != null && owner.isMarried();
-			mapPath.Value = "Maps\\" + base.Name + ((upgradeLevel == 0) ? "" : ((upgradeLevel == 3) ? "2" : string.Concat(upgradeLevel))) + (showSpouse ? "_marriage" : "");
+			mapPath.Value = "Maps\\FarmHouse" + ((upgradeLevel == 0) ? "" : ((upgradeLevel == 3) ? "2" : string.Concat(upgradeLevel))) + (showSpouse ? "_marriage" : "");
 			base.updateMap();
 		}
 
 		public virtual void setMapForUpgradeLevel(int level)
 		{
 			upgradeLevel = level;
+			int previous_synchronized_displayed_level = synchronizedDisplayedLevel.Value;
 			currentlyDisplayedUpgradeLevel = level;
+			synchronizedDisplayedLevel.Value = level;
 			bool showSpouse = owner.isMarried() && owner.spouse != null;
 			if (displayingSpouseRoom && !showSpouse)
 			{
 				displayingSpouseRoom = false;
 			}
 			updateMap();
+			RefreshFloorObjectNeighbors();
+			kitchenStandingLocation = null;
 			if (showSpouse)
 			{
 				showSpouseRoom();
@@ -1468,69 +1603,138 @@ namespace StardewValley.Locations
 			loadObjects();
 			if (level == 3)
 			{
-				setMapTileIndex(3, 22, 162, "Front");
-				removeTile(4, 22, "Front");
-				removeTile(5, 22, "Front");
-				setMapTileIndex(6, 22, 163, "Front");
-				setMapTileIndex(3, 23, 64, "Buildings");
-				setMapTileIndex(3, 24, 96, "Buildings");
-				setMapTileIndex(4, 24, 165, "Front");
-				setMapTileIndex(5, 24, 165, "Front");
-				removeTile(4, 23, "Back");
-				removeTile(5, 23, "Back");
-				setMapTileIndex(4, 23, 1043, "Back");
-				setMapTileIndex(5, 23, 1043, "Back");
-				setTileProperty(4, 23, "Back", "NoFurniture", "t");
-				setTileProperty(5, 23, "Back", "NoFurniture", "t");
-				setTileProperty(4, 23, "Back", "NPCBarrier", "t");
-				setTileProperty(5, 23, "Back", "NPCBarrier", "t");
-				setMapTileIndex(4, 24, 1075, "Back");
-				setMapTileIndex(5, 24, 1075, "Back");
-				setTileProperty(4, 24, "Back", "NoFurniture", "t");
-				setTileProperty(5, 24, "Back", "NoFurniture", "t");
-				setMapTileIndex(6, 23, 68, "Buildings");
-				setMapTileIndex(6, 24, 130, "Buildings");
-				setMapTileIndex(4, 25, 0, "Front");
-				setMapTileIndex(5, 25, 0, "Front");
-				removeTile(4, 23, "Buildings");
-				removeTile(5, 23, "Buildings");
+				AddCellarTiles();
 				createCellarWarps();
 				if (!Game1.player.craftingRecipes.ContainsKey("Cask"))
 				{
 					Game1.player.craftingRecipes.Add("Cask", 0);
 				}
 			}
-			if (wallPaper.Count > 0 && floor.Count > 0)
+			bool need_bed_upgrade = false;
+			if (previousUpgradeLevel == 0 && upgradeLevel >= 0)
 			{
-				if (upgradeLevel >= 1 && floor.Count <= 1)
+				need_bed_upgrade = true;
+			}
+			if (previousUpgradeLevel >= 0)
+			{
+				if (previousUpgradeLevel < 2 && upgradeLevel >= 2)
+				{
+					for (int x3 = 0; x3 < map.Layers[0].TileWidth; x3++)
+					{
+						for (int y3 = 0; y3 < map.Layers[0].TileHeight; y3++)
+						{
+							if (doesTileHaveProperty(x3, y3, "DefaultChildBedPosition", "Back") != null)
+							{
+								int bed_index3 = BedFurniture.CHILD_BED_INDEX;
+								furniture.Add(new BedFurniture(bed_index3, new Vector2(x3, y3)));
+								break;
+							}
+						}
+					}
+				}
+				Furniture bed_furniture = null;
+				if (previousUpgradeLevel == 0)
+				{
+					foreach (Furniture f2 in furniture)
+					{
+						if (f2 is BedFurniture && (f2 as BedFurniture).bedType == BedFurniture.BedType.Single)
+						{
+							bed_furniture = f2;
+							break;
+						}
+					}
+				}
+				else
+				{
+					foreach (Furniture f in furniture)
+					{
+						if (f is BedFurniture && (f as BedFurniture).bedType == BedFurniture.BedType.Double)
+						{
+							bed_furniture = f;
+							break;
+						}
+					}
+				}
+				if (upgradeLevel != 3 || need_bed_upgrade)
+				{
+					for (int x2 = 0; x2 < map.Layers[0].TileWidth; x2++)
+					{
+						for (int y2 = 0; y2 < map.Layers[0].TileHeight; y2++)
+						{
+							if (doesTileHaveProperty(x2, y2, "DefaultBedPosition", "Back") == null)
+							{
+								continue;
+							}
+							int bed_index2 = BedFurniture.DEFAULT_BED_INDEX;
+							if (previousUpgradeLevel != 1 || bed_furniture == null || (bed_furniture.tileLocation.X == 24f && bed_furniture.tileLocation.Y == 12f))
+							{
+								if (bed_furniture != null)
+								{
+									bed_index2 = bed_furniture.ParentSheetIndex;
+								}
+								if (previousUpgradeLevel == 0 && bed_furniture != null)
+								{
+									bed_furniture.performRemoveAction(bed_furniture.tileLocation, this);
+									Guid guid2 = furniture.GuidOf(bed_furniture);
+									furniture.Remove(guid2);
+									bed_index2 = Utility.GetDoubleWideVersionOfBed(bed_index2);
+									furniture.Add(new BedFurniture(bed_index2, new Vector2(x2, y2)));
+								}
+								else if (bed_furniture != null)
+								{
+									bed_furniture.performRemoveAction(bed_furniture.tileLocation, this);
+									Guid guid = furniture.GuidOf(bed_furniture);
+									furniture.Remove(guid);
+									furniture.Add(new BedFurniture(bed_furniture.ParentSheetIndex, new Vector2(x2, y2)));
+								}
+							}
+							break;
+						}
+					}
+				}
+				previousUpgradeLevel = -1;
+			}
+			if (upgradeLevel >= 1)
+			{
+				if (floor.Count <= 1)
 				{
 					setFloor(floor[0], 1, persist: true);
 					setFloor(floor[0], 2, persist: true);
 					setFloor(floor[0], 3, persist: true);
 					setFloor(22, 0, persist: true);
 				}
-				if (upgradeLevel >= 2 && wallPaper.Count <= 3)
+				if (wallPaper.Count <= 1)
 				{
-					setWallpaper(wallPaper[0], 4, persist: true);
-					setWallpaper(wallPaper[2], 6, persist: true);
-					setWallpaper(wallPaper[1], 5, persist: true);
-					setWallpaper(11, 0, persist: true);
-					setWallpaper(61, 1, persist: true);
-					setWallpaper(61, 2, persist: true);
-				}
-				if (upgradeLevel >= 2 && floor.Count <= 4)
-				{
-					int bedroomFloor = floor[3];
-					setFloor(floor[2], 5, persist: true);
-					setFloor(floor[0], 3, persist: true);
-					setFloor(floor[1], 4, persist: true);
-					setFloor(bedroomFloor, 6, persist: true);
-					setFloor(1, 0, persist: true);
-					setFloor(31, 1, persist: true);
-					setFloor(31, 2, persist: true);
+					setWallpaper(wallPaper[0], 1, persist: true);
+					setWallpaper(wallPaper[0], 2, persist: true);
 				}
 			}
-			lightGlows.Clear();
+			if (upgradeLevel >= 2 && wallPaper.Count <= 3)
+			{
+				setWallpaper(wallPaper[0], 4, persist: true);
+				setWallpaper(wallPaper[2], 6, persist: true);
+				setWallpaper(wallPaper[1], 5, persist: true);
+				setWallpaper(11, 0, persist: true);
+				setWallpaper(61, 1, persist: true);
+				setWallpaper(61, 2, persist: true);
+			}
+			if (upgradeLevel >= 2 && floor.Count <= 4)
+			{
+				int bedroomFloor = floor[3];
+				setFloor(floor[2], 5, persist: true);
+				setFloor(floor[0], 3, persist: true);
+				setFloor(floor[1], 4, persist: true);
+				setFloor(bedroomFloor, 6, persist: true);
+				setFloor(1, 0, persist: true);
+				setFloor(31, 1, persist: true);
+				setFloor(31, 2, persist: true);
+			}
+			setFloors();
+			setWallpapers();
+			if (previous_synchronized_displayed_level != level)
+			{
+				lightGlows.Clear();
+			}
 			fridgePosition = default(Point);
 			bool found_fridge = false;
 			for (int x = 0; x < map.GetLayer("Buildings").LayerWidth; x++)
@@ -1663,6 +1867,62 @@ namespace StardewValley.Locations
 			}
 		}
 
+		public virtual Microsoft.Xna.Framework.Rectangle? GetCribBounds()
+		{
+			if (upgradeLevel < 2)
+			{
+				return null;
+			}
+			return new Microsoft.Xna.Framework.Rectangle(15, 2, 3, 4);
+		}
+
+		public virtual Microsoft.Xna.Framework.Rectangle? GetBedBounds(int child_index = 0)
+		{
+			if (upgradeLevel < 2)
+			{
+				return null;
+			}
+			switch (child_index)
+			{
+			case 0:
+				return new Microsoft.Xna.Framework.Rectangle(22, 3, 2, 4);
+			case 1:
+				return new Microsoft.Xna.Framework.Rectangle(26, 3, 2, 4);
+			default:
+				return null;
+			}
+		}
+
+		public virtual Microsoft.Xna.Framework.Rectangle? GetChildBedBounds(int child_index = 0)
+		{
+			if (upgradeLevel < 2)
+			{
+				return null;
+			}
+			switch (child_index)
+			{
+			case 0:
+				return new Microsoft.Xna.Framework.Rectangle(22, 3, 2, 4);
+			case 1:
+				return new Microsoft.Xna.Framework.Rectangle(26, 3, 2, 4);
+			default:
+				return null;
+			}
+		}
+
+		public virtual void UpdateChildRoom()
+		{
+			Microsoft.Xna.Framework.Rectangle? crib_location = GetCribBounds();
+			if (crib_location.HasValue)
+			{
+				if (_appliedMapOverrides.Contains("crib"))
+				{
+					_appliedMapOverrides.Remove("crib");
+				}
+				ApplyMapOverride("FarmHouse_Crib_" + cribStyle.Value, "crib", null, crib_location);
+			}
+		}
+
 		public void playerDivorced()
 		{
 			displayingSpouseRoom = false;
@@ -1718,16 +1978,57 @@ namespace StardewValley.Locations
 				break;
 			case 2:
 			case 3:
+			{
 				walls.Add(new Microsoft.Xna.Framework.Rectangle(1, 1, 12, 3));
 				walls.Add(new Microsoft.Xna.Framework.Rectangle(15, 1, 13, 3));
 				walls.Add(new Microsoft.Xna.Framework.Rectangle(13, 3, 2, 2));
 				walls.Add(new Microsoft.Xna.Framework.Rectangle(1, 10, 10, 3));
 				walls.Add(new Microsoft.Xna.Framework.Rectangle(13, 10, 8, 3));
-				walls.Add(new Microsoft.Xna.Framework.Rectangle(21, 15, 2, 2));
-				walls.Add(new Microsoft.Xna.Framework.Rectangle(23, 10, 11, 3));
+				int bedroomWidthReduction = owner.hasOrWillReceiveMail("renovation_corner_open") ? (-3) : 0;
+				if (owner.hasOrWillReceiveMail("renovation_bedroom_open"))
+				{
+					walls.Add(new Microsoft.Xna.Framework.Rectangle(21, 15, 0, 2));
+					walls.Add(new Microsoft.Xna.Framework.Rectangle(21, 10, 13 + bedroomWidthReduction, 3));
+				}
+				else
+				{
+					walls.Add(new Microsoft.Xna.Framework.Rectangle(21, 15, 2, 2));
+					walls.Add(new Microsoft.Xna.Framework.Rectangle(23, 10, 11 + bedroomWidthReduction, 3));
+				}
+				if (owner.hasOrWillReceiveMail("renovation_southern_open"))
+				{
+					walls.Add(new Microsoft.Xna.Framework.Rectangle(23, 24, 3, 3));
+					walls.Add(new Microsoft.Xna.Framework.Rectangle(31, 24, 3, 3));
+				}
+				else
+				{
+					walls.Add(new Microsoft.Xna.Framework.Rectangle(0, 0, 0, 0));
+					walls.Add(new Microsoft.Xna.Framework.Rectangle(0, 0, 0, 0));
+				}
+				if (owner.hasOrWillReceiveMail("renovation_corner_open"))
+				{
+					walls.Add(new Microsoft.Xna.Framework.Rectangle(30, 1, 9, 3));
+					walls.Add(new Microsoft.Xna.Framework.Rectangle(28, 3, 2, 2));
+				}
+				else
+				{
+					walls.Add(new Microsoft.Xna.Framework.Rectangle(0, 0, 0, 0));
+					walls.Add(new Microsoft.Xna.Framework.Rectangle(0, 0, 0, 0));
+				}
 				break;
 			}
+			}
 			return walls;
+		}
+
+		public override void TransferDataFromSavedLocation(GameLocation l)
+		{
+			if (l is FarmHouse)
+			{
+				FarmHouse farmhouse = l as FarmHouse;
+				cribStyle.Value = farmhouse.cribStyle.Value;
+			}
+			base.TransferDataFromSavedLocation(l);
 		}
 
 		public override List<Microsoft.Xna.Framework.Rectangle> getFloors()
@@ -1751,11 +2052,57 @@ namespace StardewValley.Locations
 				floors.Add(new Microsoft.Xna.Framework.Rectangle(13, 5, 2, 2));
 				floors.Add(new Microsoft.Xna.Framework.Rectangle(0, 12, 10, 11));
 				floors.Add(new Microsoft.Xna.Framework.Rectangle(10, 12, 11, 9));
-				floors.Add(new Microsoft.Xna.Framework.Rectangle(21, 17, 2, 2));
-				floors.Add(new Microsoft.Xna.Framework.Rectangle(23, 12, 12, 11));
+				if (owner.mailReceived.Contains("renovation_bedroom_open"))
+				{
+					floors.Add(new Microsoft.Xna.Framework.Rectangle(21, 17, 0, 2));
+					floors.Add(new Microsoft.Xna.Framework.Rectangle(21, 12, 14, 11));
+				}
+				else
+				{
+					floors.Add(new Microsoft.Xna.Framework.Rectangle(21, 17, 2, 2));
+					floors.Add(new Microsoft.Xna.Framework.Rectangle(23, 12, 12, 11));
+				}
+				if (owner.hasOrWillReceiveMail("renovation_southern_open"))
+				{
+					floors.Add(new Microsoft.Xna.Framework.Rectangle(23, 26, 11, 8));
+				}
+				else
+				{
+					floors.Add(new Microsoft.Xna.Framework.Rectangle(0, 0, 0, 0));
+				}
+				if (owner.hasOrWillReceiveMail("renovation_corner_open"))
+				{
+					floors.Add(new Microsoft.Xna.Framework.Rectangle(28, 5, 2, 3));
+					floors.Add(new Microsoft.Xna.Framework.Rectangle(30, 3, 9, 6));
+				}
+				else
+				{
+					floors.Add(new Microsoft.Xna.Framework.Rectangle(0, 0, 0, 0));
+					floors.Add(new Microsoft.Xna.Framework.Rectangle(0, 0, 0, 0));
+				}
 				break;
 			}
 			return floors;
+		}
+
+		public virtual bool CanModifyCrib()
+		{
+			if (owner == null)
+			{
+				return false;
+			}
+			if (owner.isMarried() && owner.GetSpouseFriendship().DaysUntilBirthing != -1)
+			{
+				return false;
+			}
+			foreach (Child child in owner.getChildren())
+			{
+				if (child.Age < 3)
+				{
+					return false;
+				}
+			}
+			return true;
 		}
 	}
 }

@@ -32,6 +32,8 @@ namespace StardewValley.Events
 
 		private bool terminate;
 
+		public bool goldenWitch;
+
 		public NetFields NetFields
 		{
 			get;
@@ -47,6 +49,10 @@ namespace StardewValley.Events
 				if (b2 is Coop && !b2.buildingType.Equals("Coop") && !(b2.indoors.Value as AnimalHouse).isFull() && b2.indoors.Value.objects.Count() < 50 && r.NextDouble() < 0.8)
 				{
 					targetBuilding = b2;
+					if (Game1.MasterPlayer.mailReceived.Contains("Farm_Eternal") && r.NextDouble() < 0.6)
+					{
+						goldenWitch = true;
+					}
 				}
 			}
 			if (targetBuilding == null)
@@ -78,7 +84,7 @@ namespace StardewValley.Events
 			Game1.viewport.Y = Math.Max(0, Math.Min(f.map.DisplayHeight - Game1.viewport.Height, ((int)targetBuilding.tileY - 3) * 64 - Game1.viewport.Height / 2));
 			witchPosition = new Vector2(Game1.viewport.X + Game1.viewport.Width + 128, (int)targetBuilding.tileY * 64 - 64);
 			Game1.changeMusicTrack("nightTime");
-			DelayedAction.playSoundAfterDelay("cacklingWitch", 3200);
+			DelayedAction.playSoundAfterDelay(goldenWitch ? "yoba" : "cacklingWitch", 3200);
 			return false;
 		}
 
@@ -121,7 +127,7 @@ namespace StardewValley.Events
 							animateLeft = true;
 							for (int i = 0; i < 75; i++)
 							{
-								f.temporarySprites.Add(new TemporaryAnimatedSprite(10, witchPosition + new Vector2(8f, 80f), (r.NextDouble() < 0.5) ? Color.Lime : Color.DarkViolet)
+								f.temporarySprites.Add(new TemporaryAnimatedSprite(10, witchPosition + new Vector2(8f, 80f), goldenWitch ? ((r.NextDouble() < 0.5) ? Color.Gold : new Color(255, 150, 0)) : ((r.NextDouble() < 0.5) ? Color.Lime : Color.DarkViolet))
 								{
 									motion = new Vector2((float)r.Next(-100, 100) / 100f, 1.5f),
 									alphaFade = 0.015f,
@@ -129,14 +135,14 @@ namespace StardewValley.Events
 									layerDepth = 1f
 								});
 							}
-							Game1.playSound("debuffSpell");
+							Game1.playSound(goldenWitch ? "discoverMineral" : "debuffSpell");
 						}
 					}
 					else
 					{
 						witchFrame--;
 						animationLoopsDone = 4;
-						DelayedAction.playSoundAfterDelay("cacklingWitch", 2500);
+						DelayedAction.playSoundAfterDelay(goldenWitch ? "yoba" : "cacklingWitch", 2500);
 					}
 				}
 			}
@@ -172,7 +178,14 @@ namespace StardewValley.Events
 
 		public void draw(SpriteBatch b)
 		{
-			b.Draw(Game1.mouseCursors, Game1.GlobalToLocal(Game1.viewport, witchPosition), new Rectangle(277, 1886 + witchFrame * 29, 34, 29), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.9999999f);
+			if (goldenWitch)
+			{
+				b.Draw(Game1.mouseCursors2, Game1.GlobalToLocal(Game1.viewport, witchPosition), new Rectangle(215, 262 + witchFrame * 29, 34, 29), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.9999999f);
+			}
+			else
+			{
+				b.Draw(Game1.mouseCursors, Game1.GlobalToLocal(Game1.viewport, witchPosition), new Rectangle(277, 1886 + witchFrame * 29, 34, 29), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.9999999f);
+			}
 		}
 
 		public void makeChangesToLocation()
@@ -201,13 +214,13 @@ namespace StardewValley.Events
 					return;
 				}
 				v = new Vector2(r.Next(2, targetBuilding.indoors.Value.Map.Layers[0].LayerWidth - 2), r.Next(2, targetBuilding.indoors.Value.Map.Layers[0].LayerHeight - 2));
-				if (targetBuilding.indoors.Value.isTileLocationTotallyClearAndPlaceable(v) || (targetBuilding.indoors.Value.terrainFeatures.ContainsKey(v) && targetBuilding.indoors.Value.terrainFeatures[v] is Flooring))
+				if ((targetBuilding.indoors.Value.isTileLocationTotallyClearAndPlaceable(v) || (targetBuilding.indoors.Value.terrainFeatures.ContainsKey(v) && targetBuilding.indoors.Value.terrainFeatures[v] is Flooring)) && !targetBuilding.indoors.Value.objects.ContainsKey(v))
 				{
 					break;
 				}
 				tries++;
 			}
-			targetBuilding.indoors.Value.objects.Add(v, new Object(Vector2.Zero, 305, null, canBeSetDown: false, canBeGrabbed: true, isHoedirt: false, isSpawnedObject: true));
+			targetBuilding.indoors.Value.objects.Add(v, new Object(Vector2.Zero, goldenWitch ? 928 : 305, null, canBeSetDown: false, canBeGrabbed: true, isHoedirt: false, isSpawnedObject: true));
 		}
 
 		public void drawAboveEverything(SpriteBatch b)

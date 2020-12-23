@@ -1,3 +1,4 @@
+using Ionic.Zlib;
 using Microsoft.Xna.Framework;
 using Netcode;
 using StardewValley.Buildings;
@@ -41,6 +42,23 @@ namespace StardewValley
 			Level9PuddingFishingRecipe2,
 			quarryMineBushes,
 			MissingQisChallenge,
+			BedsToFurniture,
+			ChildBedsToFurniture,
+			ModularizeFarmStructures,
+			FixFlooringFlags,
+			AddBugSteakRecipe,
+			AddBirdie,
+			AddTownBush,
+			AddNewRingRecipes1_5,
+			ResetForges,
+			AddSquidInkRavioli,
+			MakeDarkSwordVampiric,
+			FixRingSheetIndex,
+			FixBeachFarmBushes,
+			AddCampfireKit,
+			Level9PuddingFishingRecipe3,
+			OstrichIncubatorFragility,
+			FixBotchedBundleData,
 			MAX
 		}
 
@@ -106,8 +124,10 @@ namespace StardewValley
 			typeof(TerrainFeature)
 		});
 
+		[InstancedStatic]
 		public static bool IsProcessing;
 
+		[InstancedStatic]
 		public static bool CancelToTitle;
 
 		public Farmer player;
@@ -127,6 +147,26 @@ namespace StardewValley
 		public List<string> worldStateIDs;
 
 		public int lostBooksFound = -1;
+
+		public int goldenWalnuts = -1;
+
+		public int goldenWalnutsFound;
+
+		public int miniShippingBinsObtained;
+
+		public bool mineShrineActivated;
+
+		public bool goldenCoconutCracked;
+
+		public bool parrotPlatformsUnlocked;
+
+		public bool farmPerfect;
+
+		public List<string> foundBuriedNuts = new List<string>();
+
+		public int visitsUntilY1Guarantee = -1;
+
+		public Game1.MineChestType shuffleMineChests;
 
 		public int dayOfMonth;
 
@@ -174,6 +214,7 @@ namespace StardewValley
 
 		public Stats stats;
 
+		[InstancedStatic]
 		public static SaveGame loaded;
 
 		public float musicVolume;
@@ -188,11 +229,19 @@ namespace StardewValley
 
 		public int moveBuildingPermissionMode;
 
+		public SerializableDictionary<GameLocation.LocationContext, LocationWeather> locationWeather;
+
 		public SerializableDictionary<string, string> bannedUsers = new SerializableDictionary<string, string>();
+
+		public SerializableDictionary<string, string> bundleData = new SerializableDictionary<string, string>();
+
+		public SerializableDictionary<string, int> limitedNutDrops = new SerializableDictionary<string, int>();
 
 		public long latestID;
 
 		public Options options;
+
+		public SerializableDictionary<long, Options> splitscreenOptions = new SerializableDictionary<long, Options>();
 
 		public SerializableDictionary<string, string> CustomData = new SerializableDictionary<string, string>();
 
@@ -218,7 +267,29 @@ namespace StardewValley
 
 		public int whichFarm;
 
+		public int mine_lowestLevelReachedForOrder = -1;
+
+		public int skullCavesDifficulty;
+
+		public int minesDifficulty;
+
+		public int currentGemBirdIndex;
+
 		public NetLeaderboards junimoKartLeaderboards;
+
+		public List<SpecialOrder> specialOrders;
+
+		public List<SpecialOrder> availableSpecialOrders;
+
+		public List<string> completedSpecialOrders;
+
+		public List<string> acceptedSpecialOrderTypes = new List<string>();
+
+		public List<Item> returnedDonations;
+
+		public List<Item> junimoChest;
+
+		public List<string> collectedNutTracker = new List<string>();
 
 		public SerializableDictionary<FarmerPair, Friendship> farmerFriendships = new SerializableDictionary<FarmerPair, Friendship>();
 
@@ -236,6 +307,16 @@ namespace StardewValley
 		public static IEnumerator<int> Save()
 		{
 			IsProcessing = true;
+			if (LocalMultiplayer.IsLocalMultiplayer())
+			{
+				IEnumerator<int> save = getSaveEnumerator();
+				while (save.MoveNext())
+				{
+					yield return save.Current;
+				}
+				yield return 100;
+				yield break;
+			}
 			Console.WriteLine("SaveGame.Save() called.");
 			yield return 1;
 			IEnumerator<int> loader = getSaveEnumerator();
@@ -311,6 +392,10 @@ namespace StardewValley
 			{
 				saveData.broadcastedMail.Add(mail_key);
 			}
+			saveData.skullCavesDifficulty = Game1.netWorldState.Value.SkullCavesDifficulty;
+			saveData.minesDifficulty = Game1.netWorldState.Value.MinesDifficulty;
+			saveData.visitsUntilY1Guarantee = Game1.netWorldState.Value.VisitsUntilY1Guarantee;
+			saveData.shuffleMineChests = Game1.netWorldState.Value.ShuffleMineChests;
 			saveData.elliottBookName = Game1.elliottBookName;
 			saveData.dayOfMonth = Game1.dayOfMonth;
 			saveData.year = Game1.year;
@@ -323,22 +408,37 @@ namespace StardewValley
 			saveData.isSnowing = Game1.isSnowing;
 			saveData.isDebrisWeather = Game1.isDebrisWeather;
 			saveData.shouldSpawnMonsters = Game1.spawnMonstersAtNight;
+			saveData.specialOrders = Game1.player.team.specialOrders.ToList();
+			saveData.availableSpecialOrders = Game1.player.team.availableSpecialOrders.ToList();
+			saveData.completedSpecialOrders = Game1.player.team.completedSpecialOrders.Keys.ToList();
+			saveData.collectedNutTracker = new List<string>(Game1.player.team.collectedNutTracker.Keys);
+			saveData.acceptedSpecialOrderTypes = Game1.player.team.acceptedSpecialOrderTypes.ToList();
+			saveData.returnedDonations = Game1.player.team.returnedDonations.ToList();
+			saveData.junimoChest = Game1.player.team.junimoChest.ToList();
 			saveData.weddingToday = Game1.weddingToday;
 			saveData.whichFarm = Game1.whichFarm;
 			saveData.minecartHighScore = Game1.minecartHighScore;
 			saveData.junimoKartLeaderboards = Game1.player.team.junimoKartScores;
 			saveData.lastAppliedSaveFix = (int)Game1.lastAppliedSaveFix;
-			saveData.cellarAssignments = new SerializableDictionary<int, long>();
-			foreach (int key2 in Game1.player.team.cellarAssignments.Keys)
+			saveData.locationWeather = new SerializableDictionary<GameLocation.LocationContext, LocationWeather>();
+			foreach (int i in Game1.netWorldState.Value.LocationWeather.Keys)
 			{
-				saveData.cellarAssignments[key2] = Game1.player.team.cellarAssignments[key2];
+				LocationWeather weather = Game1.netWorldState.Value.LocationWeather[i];
+				saveData.locationWeather[(GameLocation.LocationContext)i] = weather;
+			}
+			saveData.cellarAssignments = new SerializableDictionary<int, long>();
+			foreach (int key4 in Game1.player.team.cellarAssignments.Keys)
+			{
+				saveData.cellarAssignments[key4] = Game1.player.team.cellarAssignments[key4];
 			}
 			saveData.uniqueIDForThisGame = Game1.uniqueIDForThisGame;
 			saveData.musicVolume = Game1.options.musicVolumeLevel;
 			saveData.soundVolume = Game1.options.soundVolumeLevel;
 			saveData.shippingTax = Game1.shippingTax;
 			saveData.cropsOfTheWeek = Game1.cropsOfTheWeek;
-			saveData.mine_lowestLevelReached = MineShaft.lowestLevelReached;
+			saveData.mine_lowestLevelReached = Game1.netWorldState.Value.LowestMineLevel;
+			saveData.mine_lowestLevelReachedForOrder = Game1.netWorldState.Value.LowestMineLevelForOrder;
+			saveData.currentGemBirdIndex = Game1.currentGemBirdIndex;
 			saveData.mine_permanentMineChanges = MineShaft.permanentMineChanges;
 			saveData.currentFloor = Game1.currentFloor;
 			saveData.currentWallpaper = Game1.currentWallpaper;
@@ -347,12 +447,32 @@ namespace StardewValley
 			saveData.latestID = (long)Game1.multiplayer.latestID;
 			saveData.highestPlayerLimit = Game1.netWorldState.Value.HighestPlayerLimit;
 			saveData.options = Game1.options;
+			saveData.splitscreenOptions = Game1.splitscreenOptions;
 			saveData.CustomData = Game1.CustomData;
 			saveData.worldStateIDs = Game1.worldStateIDs;
 			saveData.currentSongIndex = Game1.currentSongIndex;
 			saveData.weatherForTomorrow = Game1.weatherForTomorrow;
+			saveData.goldenWalnuts = Game1.netWorldState.Value.GoldenWalnuts;
+			saveData.goldenWalnutsFound = Game1.netWorldState.Value.GoldenWalnutsFound;
+			saveData.miniShippingBinsObtained = Game1.netWorldState.Value.MiniShippingBinsObtained;
+			saveData.goldenCoconutCracked = Game1.netWorldState.Value.GoldenCoconutCracked.Value;
+			saveData.parrotPlatformsUnlocked = Game1.netWorldState.Value.ParrotPlatformsUnlocked.Value;
+			saveData.farmPerfect = Game1.player.team.farmPerfect.Value;
 			saveData.lostBooksFound = Game1.netWorldState.Value.LostBooksFound;
+			saveData.foundBuriedNuts = new List<string>(Game1.netWorldState.Value.FoundBuriedNuts.Keys);
+			saveData.mineShrineActivated = Game1.player.team.mineShrineActivated;
 			saveData.gameVersion = Game1.version;
+			saveData.limitedNutDrops = new SerializableDictionary<string, int>();
+			foreach (string key3 in Game1.player.team.limitedNutDrops.Keys)
+			{
+				saveData.limitedNutDrops[key3] = Game1.player.team.limitedNutDrops[key3];
+			}
+			saveData.bundleData = new SerializableDictionary<string, string>();
+			Dictionary<string, string> unlocalized_bundles = Game1.netWorldState.Value.GetUnlocalizedBundleData();
+			foreach (string key2 in unlocalized_bundles.Keys)
+			{
+				saveData.bundleData[key2] = unlocalized_bundles[key2];
+			}
 			saveData.moveBuildingPermissionMode = (int)Game1.player.team.farmhandsCanMoveBuildings.Value;
 			saveData.hasApplied1_3_UpdateChanges = Game1.hasApplied1_3_UpdateChanges;
 			saveData.hasApplied1_4_UpdateChanges = Game1.hasApplied1_4_UpdateChanges;
@@ -361,128 +481,170 @@ namespace StardewValley
 				saveData.farmerFriendships[key] = Game1.player.team.friendshipData[key];
 			}
 			string tmpString = "_STARDEWVALLEYSAVETMP";
+			bool save_backups_and_metadata = true;
 			string friendlyName = FilterFileName(Game1.GetSaveGameName());
 			string filenameNoTmpString = friendlyName + "_" + Game1.uniqueIDForThisGame;
 			string filenameWithTmpString = friendlyName + "_" + Game1.uniqueIDForThisGame + tmpString;
-			string fullFilePath3 = Path.Combine(Path.Combine(Path.Combine(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "StardewValley"), "Saves"), filenameNoTmpString), filenameWithTmpString);
+			string save_directory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "StardewValley", "Saves", filenameNoTmpString + Path.DirectorySeparatorChar.ToString());
+			if (Game1.savePathOverride != "")
+			{
+				save_directory = Game1.savePathOverride;
+				if (Game1.savePathOverride != "")
+				{
+					save_backups_and_metadata = false;
+				}
+			}
+			string fullFilePath3 = Path.Combine(save_directory, filenameWithTmpString);
 			ensureFolderStructureExists();
-			string justFarmerFilePath3 = Path.Combine(Path.Combine(Path.Combine(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "StardewValley"), "Saves"), filenameNoTmpString), "SaveGameInfo" + tmpString);
+			string justFarmerFilePath3 = Path.Combine(save_directory, "SaveGameInfo" + tmpString);
 			if (File.Exists(fullFilePath3))
 			{
 				File.Delete(fullFilePath3);
 			}
-			if (File.Exists(justFarmerFilePath3))
+			if (save_backups_and_metadata && File.Exists(justFarmerFilePath3))
 			{
 				File.Delete(justFarmerFilePath3);
 			}
-			Stream stream = null;
+			Stream fstream = null;
 			try
 			{
-				stream = File.Create(fullFilePath3);
+				fstream = File.Create(fullFilePath3);
 			}
 			catch (IOException ex)
 			{
-				if (stream != null)
+				if (fstream != null)
 				{
-					stream.Close();
-					stream.Dispose();
+					fstream.Close();
+					fstream.Dispose();
 				}
 				Game1.gameMode = 9;
 				Game1.debugOutput = Game1.parseText(ex.Message);
 				yield break;
 			}
+			MemoryStream mstream3 = new MemoryStream(1024);
+			MemoryStream mstream2 = new MemoryStream(1024);
 			if (CancelToTitle)
 			{
 				throw new TaskCanceledException();
 			}
 			yield return 2;
-			XmlWriterSettings settings2 = new XmlWriterSettings();
-			settings2.CloseOutput = true;
-			using (XmlWriter xmlWriter = XmlWriter.Create(stream, settings2))
-			{
-				xmlWriter.WriteStartDocument();
-				serializer.Serialize(xmlWriter, saveData);
-				xmlWriter.WriteEndDocument();
-				xmlWriter.Flush();
-			}
-			stream.Close();
-			stream.Dispose();
+			XmlWriterSettings settings = new XmlWriterSettings();
+			settings.CloseOutput = false;
+			Console.WriteLine("Saving without compression...");
+			_ = mstream2;
+			XmlWriter writer2 = XmlWriter.Create(mstream3, settings);
+			writer2.WriteStartDocument();
+			serializer.Serialize(writer2, saveData);
+			writer2.WriteEndDocument();
+			writer2.Flush();
+			writer2.Close();
+			mstream3.Close();
+			byte[] buffer = mstream3.ToArray();
 			if (CancelToTitle)
 			{
 				throw new TaskCanceledException();
 			}
 			yield return 2;
-			Game1.player.saveTime = (int)(DateTime.UtcNow - new DateTime(2012, 6, 22)).TotalMinutes;
-			try
+			fstream.Write(buffer, 0, buffer.Length);
+			fstream.Close();
+			if (save_backups_and_metadata)
 			{
-				stream = File.Create(justFarmerFilePath3);
+				Game1.player.saveTime = (int)(DateTime.UtcNow - new DateTime(2012, 6, 22)).TotalMinutes;
+				try
+				{
+					fstream = File.Create(justFarmerFilePath3);
+				}
+				catch (IOException ex2)
+				{
+					fstream?.Close();
+					Game1.gameMode = 9;
+					Game1.debugOutput = Game1.parseText(ex2.Message);
+					yield break;
+				}
+				writer2 = XmlWriter.Create(fstream, new XmlWriterSettings
+				{
+					CloseOutput = false
+				});
+				writer2.WriteStartDocument();
+				farmerSerializer.Serialize(writer2, Game1.player);
+				writer2.WriteEndDocument();
+				writer2.Flush();
+				fstream.Close();
 			}
-			catch (IOException ex2)
-			{
-				stream?.Close();
-				Game1.gameMode = 9;
-				Game1.debugOutput = Game1.parseText(ex2.Message);
-				yield break;
-			}
-			settings2 = new XmlWriterSettings();
-			settings2.CloseOutput = true;
-			using (XmlWriter writer = XmlWriter.Create(stream, settings2))
-			{
-				writer.WriteStartDocument();
-				farmerSerializer.Serialize(writer, Game1.player);
-				writer.WriteEndDocument();
-				writer.Flush();
-			}
-			stream.Close();
-			stream.Dispose();
 			if (CancelToTitle)
 			{
 				throw new TaskCanceledException();
 			}
 			yield return 2;
-			fullFilePath3 = Path.Combine(Path.Combine(Path.Combine(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "StardewValley"), "Saves"), filenameNoTmpString), filenameNoTmpString);
-			justFarmerFilePath3 = Path.Combine(Path.Combine(Path.Combine(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "StardewValley"), "Saves"), filenameNoTmpString), "SaveGameInfo");
-			string fullFilePathOld = Path.Combine(Path.Combine(Path.Combine(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "StardewValley"), "Saves"), filenameNoTmpString), filenameNoTmpString + "_old");
-			string justFarmerFilePathOld = Path.Combine(Path.Combine(Path.Combine(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "StardewValley"), "Saves"), filenameNoTmpString), "SaveGameInfo_old");
-			if (File.Exists(fullFilePathOld))
+			fullFilePath3 = Path.Combine(save_directory, filenameNoTmpString);
+			justFarmerFilePath3 = Path.Combine(save_directory, "SaveGameInfo");
+			if (save_backups_and_metadata)
 			{
-				File.Delete(fullFilePathOld);
-			}
-			if (File.Exists(justFarmerFilePathOld))
-			{
-				File.Delete(justFarmerFilePathOld);
-			}
-			try
-			{
-				File.Move(fullFilePath3, fullFilePathOld);
-				File.Move(justFarmerFilePath3, justFarmerFilePathOld);
-			}
-			catch (Exception)
-			{
+				string fullFilePathOld = Path.Combine(save_directory, filenameNoTmpString + "_old");
+				string justFarmerFilePathOld = Path.Combine(save_directory, "SaveGameInfo_old");
+				if (File.Exists(fullFilePathOld))
+				{
+					File.Delete(fullFilePathOld);
+				}
+				if (File.Exists(justFarmerFilePathOld))
+				{
+					File.Delete(justFarmerFilePathOld);
+				}
+				try
+				{
+					File.Move(fullFilePath3, fullFilePathOld);
+					File.Move(justFarmerFilePath3, justFarmerFilePathOld);
+				}
+				catch (Exception)
+				{
+				}
 			}
 			if (File.Exists(fullFilePath3))
 			{
 				File.Delete(fullFilePath3);
 			}
-			if (File.Exists(justFarmerFilePath3))
+			if (save_backups_and_metadata && File.Exists(justFarmerFilePath3))
 			{
 				File.Delete(justFarmerFilePath3);
 			}
-			fullFilePath3 = Path.Combine(Path.Combine(Path.Combine(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "StardewValley"), "Saves"), filenameNoTmpString), filenameWithTmpString);
-			justFarmerFilePath3 = Path.Combine(Path.Combine(Path.Combine(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "StardewValley"), "Saves"), filenameNoTmpString), "SaveGameInfo" + tmpString);
+			fullFilePath3 = Path.Combine(save_directory, filenameWithTmpString);
 			if (File.Exists(fullFilePath3))
 			{
 				File.Move(fullFilePath3, fullFilePath3.Replace(tmpString, ""));
 			}
-			if (File.Exists(justFarmerFilePath3))
+			if (save_backups_and_metadata)
 			{
-				File.Move(justFarmerFilePath3, justFarmerFilePath3.Replace(tmpString, ""));
+				justFarmerFilePath3 = Path.Combine(save_directory, "SaveGameInfo" + tmpString);
+				if (File.Exists(justFarmerFilePath3))
+				{
+					File.Move(justFarmerFilePath3, justFarmerFilePath3.Replace(tmpString, ""));
+				}
 			}
 			if (CancelToTitle)
 			{
 				throw new TaskCanceledException();
 			}
 			yield return 100;
+		}
+
+		public static bool IsNewGameSaveNameCollision(string save_name)
+		{
+			string friendlyName = save_name;
+			string text = friendlyName;
+			for (int i = 0; i < text.Length; i++)
+			{
+				char c = text[i];
+				if (!char.IsLetterOrDigit(c))
+				{
+					friendlyName = friendlyName.Replace(c.ToString() ?? "", "");
+				}
+			}
+			if (!friendlyName.EndsWith(Path.DirectorySeparatorChar.ToString()))
+			{
+				friendlyName += Path.DirectorySeparatorChar.ToString();
+			}
+			string filename = friendlyName + "_" + Game1.uniqueIDForThisGame;
+			return new FileInfo(Path.Combine(Path.Combine(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "StardewValley"), "Saves"), filename)).Directory.Exists;
 		}
 
 		public static void ensureFolderStructureExists(string tmpString = "")
@@ -520,11 +682,11 @@ namespace StardewValley
 
 		public static IEnumerator<int> getLoadEnumerator(string file)
 		{
-			Game1.SetSaveName(file.Split('_').FirstOrDefault());
+			Game1.SetSaveName(Path.GetFileNameWithoutExtension(file).Split('_').FirstOrDefault());
 			Console.WriteLine("getLoadEnumerator('{0}')", file);
 			Stopwatch stopwatch = Stopwatch.StartNew();
 			Game1.loadingMessage = "Accessing save...";
-			new SaveGame();
+			SaveGame saveData = new SaveGame();
 			IsProcessing = true;
 			if (CancelToTitle)
 			{
@@ -532,7 +694,12 @@ namespace StardewValley
 			}
 			yield return 1;
 			Stream stream = null;
-			string fullFilePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "StardewValley", "Saves", file, file);
+			string fullFilePath = file;
+			Game1.savePathOverride = Path.GetDirectoryName(file);
+			if (Game1.savePathOverride == "")
+			{
+				fullFilePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "StardewValley", "Saves", file, file);
+			}
 			if (!File.Exists(fullFilePath))
 			{
 				fullFilePath += ".xml";
@@ -546,7 +713,8 @@ namespace StardewValley
 			yield return 5;
 			try
 			{
-				stream = File.Open(fullFilePath, FileMode.Open);
+				byte[] buffer = File.ReadAllBytes(fullFilePath);
+				stream = new MemoryStream(buffer, writable: false);
 			}
 			catch (IOException ex)
 			{
@@ -560,25 +728,43 @@ namespace StardewValley
 			}
 			Game1.loadingMessage = Game1.content.LoadString("Strings\\StringsFromCSFiles:SaveGame.cs.4696");
 			yield return 7;
-			SaveGame pendingSaveGame = null;
-			Task deserializeTask = new Task(delegate
+			byte num = (byte)stream.ReadByte();
+			stream.Position--;
+			if (num == 120)
 			{
-				Thread.CurrentThread.CurrentCulture = CultureInfo.InvariantCulture;
-				pendingSaveGame = (SaveGame)serializer.Deserialize(stream);
-			});
-			deserializeTask.Start();
-			while (!deserializeTask.IsCanceled && !deserializeTask.IsCompleted && !deserializeTask.IsFaulted)
-			{
-				yield return 20;
+				Console.WriteLine("zlib stream detected...");
+				stream = new ZlibStream(stream, CompressionMode.Decompress);
 			}
-			if (deserializeTask.IsFaulted)
+			else
 			{
-				Exception baseException = deserializeTask.Exception.GetBaseException();
-				Console.WriteLine("deserializeTask failed with an exception");
-				Console.WriteLine(baseException);
-				throw baseException;
+				Console.WriteLine("regular stream detected...");
 			}
-			loaded = pendingSaveGame;
+			if (LocalMultiplayer.IsLocalMultiplayer())
+			{
+				loaded = (SaveGame)serializer.Deserialize(stream);
+			}
+			else
+			{
+				SaveGame pendingSaveGame = null;
+				Task deserializeTask4 = new Task(delegate
+				{
+					Thread.CurrentThread.CurrentCulture = CultureInfo.InvariantCulture;
+					pendingSaveGame = (SaveGame)serializer.Deserialize(stream);
+				});
+				deserializeTask4.Start();
+				while (!deserializeTask4.IsCanceled && !deserializeTask4.IsCompleted && !deserializeTask4.IsFaulted)
+				{
+					yield return 20;
+				}
+				if (deserializeTask4.IsFaulted)
+				{
+					Exception baseException = deserializeTask4.Exception.GetBaseException();
+					Console.WriteLine("deserializeTask failed with an exception");
+					Console.WriteLine(baseException);
+					throw baseException;
+				}
+				loaded = pendingSaveGame;
+			}
 			stream.Dispose();
 			Game1.loadingMessage = Game1.content.LoadString("Strings\\StringsFromCSFiles:SaveGame.cs.4697");
 			if (CancelToTitle)
@@ -597,29 +783,36 @@ namespace StardewValley
 			{
 				Game1.netWorldState.Value.HighestPlayerLimit.Set(Math.Max(Game1.netWorldState.Value.HighestPlayerLimit.Value, Game1.multiplayer.MaxPlayers));
 			}
-			Task loadNewGameTask = new Task(delegate
-			{
-				Thread.CurrentThread.CurrentCulture = CultureInfo.InvariantCulture;
-				Game1.loadForNewGame(loadedGame: true);
-			});
-			loadNewGameTask.Start();
-			while (!loadNewGameTask.IsCanceled && !loadNewGameTask.IsCompleted && !loadNewGameTask.IsFaulted)
-			{
-				yield return 24;
-			}
-			if (loadNewGameTask.IsFaulted)
-			{
-				Exception baseException2 = loadNewGameTask.Exception.GetBaseException();
-				Console.WriteLine("loadNewGameTask failed with an exception");
-				Console.WriteLine(baseException2);
-				throw baseException2;
-			}
-			if (CancelToTitle)
-			{
-				Game1.ExitToTitle();
-			}
-			yield return 25;
 			Game1.uniqueIDForThisGame = loaded.uniqueIDForThisGame;
+			if (LocalMultiplayer.IsLocalMultiplayer())
+			{
+				Game1.loadForNewGame(loadedGame: true);
+			}
+			else
+			{
+				Task deserializeTask4 = new Task(delegate
+				{
+					Thread.CurrentThread.CurrentCulture = CultureInfo.InvariantCulture;
+					Game1.loadForNewGame(loadedGame: true);
+				});
+				deserializeTask4.Start();
+				while (!deserializeTask4.IsCanceled && !deserializeTask4.IsCompleted && !deserializeTask4.IsFaulted)
+				{
+					yield return 24;
+				}
+				if (deserializeTask4.IsFaulted)
+				{
+					Exception baseException2 = deserializeTask4.Exception.GetBaseException();
+					Console.WriteLine("loadNewGameTask failed with an exception");
+					Console.WriteLine(baseException2);
+					throw baseException2;
+				}
+				if (CancelToTitle)
+				{
+					Game1.ExitToTitle();
+				}
+				yield return 25;
+			}
 			Game1.weatherForTomorrow = loaded.weatherForTomorrow;
 			Game1.dayOfMonth = loaded.dayOfMonth;
 			Game1.year = loaded.year;
@@ -629,7 +822,17 @@ namespace StardewValley
 			if (loaded.mine_permanentMineChanges != null)
 			{
 				MineShaft.permanentMineChanges = loaded.mine_permanentMineChanges;
-				MineShaft.lowestLevelReached = loaded.mine_lowestLevelReached;
+				Game1.netWorldState.Value.LowestMineLevel = loaded.mine_lowestLevelReached;
+				Game1.netWorldState.Value.LowestMineLevelForOrder = loaded.mine_lowestLevelReachedForOrder;
+			}
+			Game1.currentGemBirdIndex = loaded.currentGemBirdIndex;
+			if (loaded.bundleData.Count > 0)
+			{
+				Game1.netWorldState.Value.SetBundleData(loaded.bundleData);
+				foreach (string key7 in Game1.netWorldState.Value.BundleData.Keys)
+				{
+					saveData.bundleData[key7] = Game1.netWorldState.Value.BundleData[key7];
+				}
 			}
 			if (CancelToTitle)
 			{
@@ -640,29 +843,109 @@ namespace StardewValley
 			Game1.isLightning = loaded.isLightning;
 			Game1.isSnowing = loaded.isSnowing;
 			Game1.lastAppliedSaveFix = (SaveFixes)loaded.lastAppliedSaveFix;
-			Task loadFarmerTask = new Task(delegate
+			if (Game1.IsMasterGame)
 			{
-				Thread.CurrentThread.CurrentCulture = CultureInfo.InvariantCulture;
-				loadDataToFarmer(loaded.player);
-			});
-			loadFarmerTask.Start();
-			while (!loadFarmerTask.IsCanceled && !loadFarmerTask.IsCompleted && !loadFarmerTask.IsFaulted)
-			{
-				yield return 1;
+				Game1.netWorldState.Value.UpdateFromGame1();
 			}
-			if (loadFarmerTask.IsFaulted)
+			if (loaded.locationWeather != null)
 			{
-				Exception baseException3 = loadFarmerTask.Exception.GetBaseException();
-				Console.WriteLine("loadFarmerTask failed with an exception");
-				Console.WriteLine(baseException3);
-				throw baseException3;
+				foreach (GameLocation.LocationContext context in loaded.locationWeather.Keys)
+				{
+					Game1.netWorldState.Value.GetWeatherForLocation(context).CopyFrom(loaded.locationWeather[context]);
+				}
+			}
+			if (LocalMultiplayer.IsLocalMultiplayer())
+			{
+				loadDataToFarmer(loaded.player);
+			}
+			else
+			{
+				Task deserializeTask4 = new Task(delegate
+				{
+					Thread.CurrentThread.CurrentCulture = CultureInfo.InvariantCulture;
+					loadDataToFarmer(loaded.player);
+				});
+				deserializeTask4.Start();
+				while (!deserializeTask4.IsCanceled && !deserializeTask4.IsCompleted && !deserializeTask4.IsFaulted)
+				{
+					yield return 1;
+				}
+				if (deserializeTask4.IsFaulted)
+				{
+					Exception baseException3 = deserializeTask4.Exception.GetBaseException();
+					Console.WriteLine("loadFarmerTask failed with an exception");
+					Console.WriteLine(baseException3);
+					throw baseException3;
+				}
 			}
 			Game1.player = loaded.player;
-			foreach (FarmerPair key2 in loaded.farmerFriendships.Keys)
+			if (Game1.MasterPlayer.hasOrWillReceiveMail("leoMoved"))
 			{
-				Game1.player.team.friendshipData[key2] = loaded.farmerFriendships[key2];
+				Mountain mountain = Game1.getLocationFromName("Mountain") as Mountain;
+				if (mountain != null)
+				{
+					mountain.reloadMap();
+					mountain.ApplyTreehouseIfNecessary();
+					if (mountain.treehouseDoorDirty)
+					{
+						mountain.treehouseDoorDirty = false;
+						NPC.populateRoutesFromLocationToLocationList();
+					}
+				}
+			}
+			Game1.addParrotBoyIfNecessary();
+			foreach (FarmerPair key6 in loaded.farmerFriendships.Keys)
+			{
+				Game1.player.team.friendshipData[key6] = loaded.farmerFriendships[key6];
 			}
 			Game1.spawnMonstersAtNight = loaded.shouldSpawnMonsters;
+			Game1.player.team.limitedNutDrops.Clear();
+			if (Game1.netWorldState != null && Game1.netWorldState.Value != null)
+			{
+				Game1.netWorldState.Value.RegisterSpecialCurrencies();
+			}
+			if (loaded.limitedNutDrops != null)
+			{
+				foreach (string key5 in loaded.limitedNutDrops.Keys)
+				{
+					if (loaded.limitedNutDrops[key5] > 0)
+					{
+						Game1.player.team.limitedNutDrops[key5] = loaded.limitedNutDrops[key5];
+					}
+				}
+			}
+			Game1.player.team.completedSpecialOrders.Clear();
+			foreach (string key4 in loaded.completedSpecialOrders)
+			{
+				Game1.player.team.completedSpecialOrders[key4] = true;
+			}
+			Game1.player.team.specialOrders.Clear();
+			foreach (SpecialOrder order2 in loaded.specialOrders)
+			{
+				Game1.player.team.specialOrders.Add(order2);
+			}
+			Game1.player.team.availableSpecialOrders.Clear();
+			foreach (SpecialOrder order in loaded.availableSpecialOrders)
+			{
+				Game1.player.team.availableSpecialOrders.Add(order);
+			}
+			Game1.player.team.acceptedSpecialOrderTypes.Clear();
+			Game1.player.team.acceptedSpecialOrderTypes.AddRange(loaded.acceptedSpecialOrderTypes);
+			Game1.player.team.collectedNutTracker.Clear();
+			foreach (string key3 in loaded.collectedNutTracker)
+			{
+				Game1.player.team.collectedNutTracker[key3] = true;
+			}
+			Game1.player.team.junimoChest.Clear();
+			foreach (Item donated_item2 in loaded.junimoChest)
+			{
+				Game1.player.team.junimoChest.Add(donated_item2);
+			}
+			Game1.player.team.returnedDonations.Clear();
+			foreach (Item donated_item in loaded.returnedDonations)
+			{
+				Game1.player.team.returnedDonations.Add(donated_item);
+			}
 			if (loaded.stats != null)
 			{
 				Game1.player.stats = loaded.stats;
@@ -681,27 +964,34 @@ namespace StardewValley
 			yield return 36;
 			if (loaded.cellarAssignments != null)
 			{
-				foreach (int key in loaded.cellarAssignments.Keys)
+				foreach (int key2 in loaded.cellarAssignments.Keys)
 				{
-					Game1.player.team.cellarAssignments[key] = loaded.cellarAssignments[key];
+					Game1.player.team.cellarAssignments[key2] = loaded.cellarAssignments[key2];
 				}
 			}
-			Task loadLocationsTask = new Task(delegate
+			if (LocalMultiplayer.IsLocalMultiplayer())
 			{
-				Thread.CurrentThread.CurrentCulture = CultureInfo.InvariantCulture;
 				loadDataToLocations(loaded.locations);
-			});
-			loadLocationsTask.Start();
-			while (!loadLocationsTask.IsCanceled && !loadLocationsTask.IsCompleted && !loadLocationsTask.IsFaulted)
-			{
-				yield return 1;
 			}
-			if (loadLocationsTask.IsFaulted)
+			else
 			{
-				Exception baseException4 = loadLocationsTask.Exception.GetBaseException();
-				Console.WriteLine("loadLocationsTask failed with an exception");
-				Console.WriteLine(baseException4);
-				throw loadLocationsTask.Exception.GetBaseException();
+				Task deserializeTask4 = new Task(delegate
+				{
+					Thread.CurrentThread.CurrentCulture = CultureInfo.InvariantCulture;
+					loadDataToLocations(loaded.locations);
+				});
+				deserializeTask4.Start();
+				while (!deserializeTask4.IsCanceled && !deserializeTask4.IsCompleted && !deserializeTask4.IsFaulted)
+				{
+					yield return 1;
+				}
+				if (deserializeTask4.IsFaulted)
+				{
+					Exception baseException4 = deserializeTask4.Exception.GetBaseException();
+					Console.WriteLine("loadLocationsTask failed with an exception");
+					Console.WriteLine(baseException4);
+					throw deserializeTask4.Exception.GetBaseException();
+				}
 			}
 			foreach (Farmer farmer in Game1.getAllFarmers())
 			{
@@ -802,13 +1092,26 @@ namespace StardewValley
 			}
 			Game1.removeFrontLayerForFarmBuildings();
 			Game1.addNewFarmBuildingMaps();
-			Game1.currentLocation = Game1.getLocationFromName("FarmHouse");
+			GameLocation last_sleep_location = null;
+			if (Game1.player.lastSleepLocation.Value != null && Game1.isLocationAccessible(Game1.player.lastSleepLocation.Value))
+			{
+				last_sleep_location = Game1.getLocationFromName(Game1.player.lastSleepLocation);
+			}
+			bool apply_default_bed_position = true;
+			if (last_sleep_location != null && (Game1.player.sleptInTemporaryBed.Value || last_sleep_location.GetFurnitureAt(Utility.PointToVector2(Game1.player.lastSleepPoint)) is BedFurniture))
+			{
+				Game1.currentLocation = last_sleep_location;
+				Game1.player.currentLocation = Game1.currentLocation;
+				Game1.player.Position = Utility.PointToVector2(Game1.player.lastSleepPoint) * 64f;
+				apply_default_bed_position = false;
+			}
+			if (apply_default_bed_position)
+			{
+				Game1.currentLocation = Game1.getLocationFromName("FarmHouse");
+			}
 			Game1.currentLocation.map.LoadTileSheets(Game1.mapDisplayDevice);
 			Game1.player.CanMove = true;
-			Game1.player.Position = Utility.PointToVector2((Game1.getLocationFromName("FarmHouse") as FarmHouse).getBedSpot()) * 64f;
-			Game1.player.position.Y += 32f;
-			Game1.player.position.X -= 64f;
-			Game1.player.faceDirection(1);
+			Game1.player.ReequipEnchantments();
 			if (loaded.junimoKartLeaderboards != null)
 			{
 				Game1.player.team.junimoKartScores.LoadScores(loaded.junimoKartLeaderboards.GetScores());
@@ -816,8 +1119,8 @@ namespace StardewValley
 			Game1.minecartHighScore = loaded.minecartHighScore;
 			Game1.currentWallpaper = loaded.currentWallpaper;
 			Game1.currentFloor = loaded.currentFloor;
-			Game1.dishOfTheDay = loaded.dishOfTheDay;
 			Game1.options = loaded.options;
+			Game1.splitscreenOptions = loaded.splitscreenOptions;
 			Game1.CustomData = loaded.CustomData;
 			Game1.hasApplied1_3_UpdateChanges = loaded.hasApplied1_3_UpdateChanges;
 			Game1.hasApplied1_4_UpdateChanges = loaded.hasApplied1_4_UpdateChanges;
@@ -841,7 +1144,7 @@ namespace StardewValley
 			try
 			{
 				StartupPreferences startupPreferences = new StartupPreferences();
-				startupPreferences.loadPreferences(async: false);
+				startupPreferences.loadPreferences(async: false, applyLanguage: false);
 				Game1.options.gamepadMode = startupPreferences.gamepadMode;
 			}
 			catch (Exception)
@@ -852,13 +1155,29 @@ namespace StardewValley
 				Game1.initializeVolumeLevels();
 			}
 			Game1.multiplayer.latestID = (ulong)loaded.latestID;
-			if (Game1.isRaining)
+			Game1.netWorldState.Value.SkullCavesDifficulty = loaded.skullCavesDifficulty;
+			Game1.netWorldState.Value.MinesDifficulty = loaded.minesDifficulty;
+			Game1.netWorldState.Value.VisitsUntilY1Guarantee = loaded.visitsUntilY1Guarantee;
+			Game1.netWorldState.Value.ShuffleMineChests = loaded.shuffleMineChests;
+			Game1.netWorldState.Value.DishOfTheDay.Value = loaded.dishOfTheDay;
+			if (Game1.IsRainingHere())
 			{
 				Game1.changeMusicTrack("rain", track_interruptable: true);
 			}
 			Game1.updateWeatherIcon();
+			Game1.netWorldState.Value.MiniShippingBinsObtained.Set(loaded.miniShippingBinsObtained);
 			Game1.netWorldState.Value.LostBooksFound.Set(loaded.lostBooksFound);
+			Game1.netWorldState.Value.GoldenWalnuts.Set(loaded.goldenWalnuts);
+			Game1.netWorldState.Value.GoldenWalnutsFound.Set(loaded.goldenWalnutsFound);
+			Game1.netWorldState.Value.GoldenCoconutCracked.Value = loaded.goldenCoconutCracked;
+			Game1.netWorldState.Value.FoundBuriedNuts.Clear();
+			foreach (string key in loaded.foundBuriedNuts)
+			{
+				Game1.netWorldState.Value.FoundBuriedNuts[key] = true;
+			}
+			IslandSouth.SetupIslandSchedules();
 			Game1.player.team.farmhandsCanMoveBuildings.Value = (FarmerTeam.RemoteBuildingPermissions)loaded.moveBuildingPermissionMode;
+			Game1.player.team.mineShrineActivated.Value = loaded.mineShrineActivated;
 			if (Game1.multiplayerMode == 2)
 			{
 				if (Program.sdk.Networking != null && Game1.options.serverPrivacy == ServerPrivacy.InviteOnly)
@@ -882,7 +1201,6 @@ namespace StardewValley
 				need_lost_book_recount = true;
 			}
 			loaded = null;
-			Game1.currentLocation = Utility.getHomeOfFarmer(Game1.player);
 			Game1.currentLocation.lastTouchActionLocation = Game1.player.getTileLocation();
 			if (Game1.player.horseName.Value == null)
 			{
@@ -890,8 +1208,10 @@ namespace StardewValley
 				if (horse != null && horse.displayName != "")
 				{
 					Game1.player.horseName.Value = horse.displayName;
+					horse.ownerId.Value = Game1.player.UniqueMultiplayerID;
 				}
 			}
+			Game1.UpdateHorseOwnership();
 			foreach (Item i in Game1.player.items)
 			{
 				if (i != null && i is Object)
@@ -900,6 +1220,7 @@ namespace StardewValley
 				}
 			}
 			Game1.gameMode = 3;
+			Game1.AddModNPCs();
 			try
 			{
 				Game1.fixProblems();
@@ -913,7 +1234,6 @@ namespace StardewValley
 				LevelUpMenu.AddMissedLevelRecipes(allFarmer);
 				LevelUpMenu.RevalidateHealth(allFarmer);
 			}
-			Game1.playMorningSong();
 			updateWedding();
 			foreach (Building building in Game1.getFarm().buildings)
 			{
@@ -936,12 +1256,17 @@ namespace StardewValley
 			{
 				Game1.apply1_4_UpdateChanges();
 			}
-			else if (need_lost_book_recount)
+			else
 			{
-				Game1.recalculateLostBookCount();
+				if (need_lost_book_recount)
+				{
+					Game1.recalculateLostBookCount();
+				}
+				Game1.UpdateFarmPerfection();
+				Game1.doMorningStuff();
 			}
 			int current_save_fix = (int)Game1.lastAppliedSaveFix;
-			while (current_save_fix < 14)
+			while (current_save_fix < 31)
 			{
 				if (Enum.IsDefined(typeof(SaveFixes), current_save_fix))
 				{
@@ -951,7 +1276,17 @@ namespace StardewValley
 					Game1.lastAppliedSaveFix = (SaveFixes)current_save_fix;
 				}
 			}
+			if (apply_default_bed_position && Game1.player.currentLocation is FarmHouse)
+			{
+				Game1.player.Position = Utility.PointToVector2((Game1.player.currentLocation as FarmHouse).GetPlayerBedSpot()) * 64f;
+			}
+			BedFurniture.ShiftPositionForBed(Game1.player);
 			Game1.stats.checkForAchievements();
+			if (Game1.stats.stat_dictionary.ContainsKey("walnutsFound"))
+			{
+				Game1.netWorldState.Value.GoldenWalnutsFound.Value += (int)Game1.stats.stat_dictionary["walnutsFound"];
+				Game1.stats.stat_dictionary.Remove("walnutsFound");
+			}
 			if (Game1.IsMasterGame)
 			{
 				Game1.netWorldState.Value.UpdateFromGame1();
@@ -962,8 +1297,10 @@ namespace StardewValley
 				Game1.ExitToTitle();
 			}
 			IsProcessing = false;
+			Game1.player.currentLocation.lastTouchActionLocation = Game1.player.getTileLocation();
 			Game1.player.currentLocation.resetForPlayerEntry();
 			Game1.player.showToolUpgradeAvailability();
+			Game1.dayTimeMoneyBox.questsDirty = true;
 			yield return 100;
 		}
 
@@ -1082,150 +1419,166 @@ namespace StardewValley
 
 		public static void loadDataToLocations(List<GameLocation> gamelocations)
 		{
-			foreach (GameLocation m in gamelocations)
+			foreach (GameLocation l2 in gamelocations)
 			{
-				if (m is Cellar && Game1.getLocationFromName(m.name) == null)
+				if (l2 is Cellar && Game1.getLocationFromName(l2.name) == null)
 				{
-					Game1.locations.Add(new Cellar("Maps\\Cellar", m.name));
+					Game1.locations.Add(new Cellar("Maps\\Cellar", l2.name));
 				}
-				if (m is FarmHouse)
+				if (l2 is FarmHouse)
 				{
-					GameLocation realLocation = Game1.getLocationFromName(m.name);
-					(realLocation as FarmHouse).setMapForUpgradeLevel((realLocation as FarmHouse).upgradeLevel);
-					(realLocation as FarmHouse).wallPaper.Set((m as FarmHouse).wallPaper);
-					(realLocation as FarmHouse).floor.Set((m as FarmHouse).floor);
-					(realLocation as FarmHouse).furniture.Set((m as FarmHouse).furniture);
-					(realLocation as FarmHouse).fireplaceOn.Value = (m as FarmHouse).fireplaceOn;
-					(realLocation as FarmHouse).fridge.Value = (m as FarmHouse).fridge;
-					(realLocation as FarmHouse).farmerNumberOfOwner = (m as FarmHouse).farmerNumberOfOwner;
-					(realLocation as FarmHouse).resetForPlayerEntry();
-					foreach (Furniture item in (realLocation as FarmHouse).furniture)
-					{
-						item.updateDrawPosition();
-					}
-					realLocation.lastTouchActionLocation = Game1.player.getTileLocation();
+					GameLocation realLocation2 = Game1.getLocationFromName(l2.name);
+					(realLocation2 as FarmHouse).setMapForUpgradeLevel((realLocation2 as FarmHouse).upgradeLevel);
+					(realLocation2 as FarmHouse).fireplaceOn.Value = (l2 as FarmHouse).fireplaceOn;
+					(realLocation2 as FarmHouse).fridge.Value = (l2 as FarmHouse).fridge;
+					(realLocation2 as FarmHouse).farmerNumberOfOwner = (l2 as FarmHouse).farmerNumberOfOwner;
 				}
-				if (m.name.Equals("Farm"))
+				if (l2.name.Equals("Farm"))
 				{
-					GameLocation realLocation3 = Game1.getLocationFromName(m.name);
-					foreach (Building building in ((Farm)m).buildings)
+					GameLocation realLocation3 = Game1.getLocationFromName(l2.name);
+					foreach (Building building in ((Farm)l2).buildings)
 					{
 						building.load();
 					}
-					((Farm)realLocation3).buildings.Set(((Farm)m).buildings);
-					foreach (FarmAnimal value in ((Farm)m).animals.Values)
+					((Farm)realLocation3).buildings.Set(((Farm)l2).buildings);
+					foreach (FarmAnimal value in ((Farm)l2).animals.Values)
 					{
 						value.reload(null);
 					}
+					((Farm)realLocation3).greenhouseUnlocked.Value = ((Farm)l2).greenhouseUnlocked.Value;
+					((Farm)realLocation3).greenhouseMoved.Value = ((Farm)l2).greenhouseMoved.Value;
 				}
-				if (m.name.Equals("MovieTheater"))
+				if (l2.name.Equals("MovieTheater"))
 				{
-					(Game1.getLocationFromName(m.name) as MovieTheater).dayFirstEntered.Set((m as MovieTheater).dayFirstEntered);
+					(Game1.getLocationFromName(l2.name) as MovieTheater).dayFirstEntered.Set((l2 as MovieTheater).dayFirstEntered);
 				}
 			}
-			foreach (GameLocation l2 in gamelocations)
+			Game1.netWorldState.Value.ParrotPlatformsUnlocked.Set(loaded.parrotPlatformsUnlocked);
+			Game1.player.team.farmPerfect.Value = loaded.farmPerfect;
+			foreach (GameLocation l3 in gamelocations)
 			{
-				GameLocation realLocation2 = Game1.getLocationFromName(l2.name);
-				if (realLocation2 != null)
+				GameLocation realLocation = Game1.getLocationFromName(l3.name);
+				if (realLocation != null)
 				{
-					realLocation2.miniJukeboxCount.Value = l2.miniJukeboxCount.Value;
-					realLocation2.miniJukeboxTrack.Value = l2.miniJukeboxTrack.Value;
-					for (int n = l2.characters.Count - 1; n >= 0; n--)
+					realLocation.miniJukeboxCount.Value = l3.miniJukeboxCount.Value;
+					realLocation.miniJukeboxTrack.Value = l3.miniJukeboxTrack.Value;
+					realLocation.furniture.Set(l3.furniture);
+					foreach (Furniture item in realLocation.furniture)
 					{
-						initializeCharacter(l2.characters[n], realLocation2);
+						item.updateDrawPosition();
 					}
-					foreach (TerrainFeature value2 in l2.terrainFeatures.Values)
+					for (int i2 = l3.characters.Count - 1; i2 >= 0; i2--)
 					{
+						initializeCharacter(l3.characters[i2], realLocation);
+					}
+					foreach (LargeTerrainFeature largeTerrainFeature in l3.largeTerrainFeatures)
+					{
+						largeTerrainFeature.currentLocation = realLocation;
+						largeTerrainFeature.loadSprite();
+					}
+					foreach (TerrainFeature value2 in l3.terrainFeatures.Values)
+					{
+						value2.currentLocation = realLocation;
 						value2.loadSprite();
 					}
-					foreach (KeyValuePair<Vector2, Object> v in l2.objects.Pairs)
+					foreach (KeyValuePair<Vector2, Object> v in l3.objects.Pairs)
 					{
 						v.Value.initializeLightSource(v.Key);
 						v.Value.reloadSprite();
 					}
-					if (l2.name.Equals("Farm"))
+					if (l3.name.Equals("Farm"))
 					{
-						((Farm)realLocation2).buildings.Set(((Farm)l2).buildings);
-						foreach (FarmAnimal value3 in ((Farm)l2).animals.Values)
+						((Farm)realLocation).buildings.Set(((Farm)l3).buildings);
+						foreach (FarmAnimal value3 in ((Farm)l3).animals.Values)
 						{
 							value3.reload(null);
 						}
-						foreach (Building building2 in ((Farm)realLocation2).buildings)
+						foreach (Building building2 in ((Farm)realLocation).buildings)
 						{
 							building2.load();
 						}
 					}
-					if (realLocation2 != null)
+					if (realLocation != null)
 					{
-						realLocation2.characters.Set(l2.characters);
-						realLocation2.netObjects.Set(l2.netObjects.Pairs);
-						realLocation2.numberOfSpawnedObjectsOnMap = l2.numberOfSpawnedObjectsOnMap;
-						realLocation2.terrainFeatures.Set(l2.terrainFeatures.Pairs);
-						realLocation2.largeTerrainFeatures.Set(l2.largeTerrainFeatures);
-						if (realLocation2.name.Equals("Farm"))
+						realLocation.characters.Set(l3.characters);
+						realLocation.netObjects.Set(l3.netObjects.Pairs);
+						realLocation.numberOfSpawnedObjectsOnMap = l3.numberOfSpawnedObjectsOnMap;
+						realLocation.terrainFeatures.Set(l3.terrainFeatures.Pairs);
+						realLocation.largeTerrainFeatures.Set(l3.largeTerrainFeatures);
+						if (realLocation.name.Equals("Farm"))
 						{
-							((Farm)realLocation2).animals.MoveFrom(((Farm)l2).animals);
-							(realLocation2 as Farm).piecesOfHay.Value = (l2 as Farm).piecesOfHay;
-							List<ResourceClump> clumps = new List<ResourceClump>((l2 as Farm).resourceClumps);
-							(l2 as Farm).resourceClumps.Clear();
-							(realLocation2 as Farm).resourceClumps.Set(clumps);
-							(realLocation2 as Farm).hasSeenGrandpaNote = (l2 as Farm).hasSeenGrandpaNote;
-							(realLocation2 as Farm).grandpaScore = (l2 as Farm).grandpaScore;
-							(realLocation2 as Farm).petBowlWatered.Set((l2 as Farm).petBowlWatered.Value);
+							((Farm)realLocation).animals.MoveFrom(((Farm)l3).animals);
+							(realLocation as Farm).piecesOfHay.Value = (l3 as Farm).piecesOfHay;
+							List<ResourceClump> clumps = new List<ResourceClump>((l3 as Farm).resourceClumps);
+							(l3 as Farm).resourceClumps.Clear();
+							(realLocation as Farm).resourceClumps.Set(clumps);
+							(realLocation as Farm).hasSeenGrandpaNote = (l3 as Farm).hasSeenGrandpaNote;
+							(realLocation as Farm).grandpaScore = (l3 as Farm).grandpaScore;
+							(realLocation as Farm).petBowlWatered.Set((l3 as Farm).petBowlWatered.Value);
 						}
-						if (realLocation2.name.Equals("Town"))
+						if (realLocation.name.Equals("Town"))
 						{
-							(realLocation2 as Town).daysUntilCommunityUpgrade.Value = (l2 as Town).daysUntilCommunityUpgrade;
+							(realLocation as Town).daysUntilCommunityUpgrade.Value = (l3 as Town).daysUntilCommunityUpgrade;
 						}
-						if (realLocation2 is Beach)
+						if (realLocation is Beach)
 						{
-							(realLocation2 as Beach).bridgeFixed.Value = (l2 as Beach).bridgeFixed;
+							(realLocation as Beach).bridgeFixed.Value = (l3 as Beach).bridgeFixed;
 						}
-						if (realLocation2 is Woods)
+						if (realLocation is Woods)
 						{
-							(realLocation2 as Woods).stumps.MoveFrom((l2 as Woods).stumps);
-							(realLocation2 as Woods).hasUnlockedStatue.Value = (l2 as Woods).hasUnlockedStatue.Value;
+							(realLocation as Woods).stumps.MoveFrom((l3 as Woods).stumps);
+							(realLocation as Woods).hasUnlockedStatue.Value = (l3 as Woods).hasUnlockedStatue.Value;
 						}
-						if (realLocation2 is CommunityCenter)
+						if (realLocation is CommunityCenter)
 						{
-							(realLocation2 as CommunityCenter).areasComplete.Set((l2 as CommunityCenter).areasComplete);
+							(realLocation as CommunityCenter).areasComplete.Set((l3 as CommunityCenter).areasComplete);
 						}
-						if (realLocation2 is ShopLocation && l2 is ShopLocation)
+						if (realLocation is ShopLocation && l3 is ShopLocation)
 						{
-							(realLocation2 as ShopLocation).itemsFromPlayerToSell.MoveFrom((l2 as ShopLocation).itemsFromPlayerToSell);
-							(realLocation2 as ShopLocation).itemsToStartSellingTomorrow.MoveFrom((l2 as ShopLocation).itemsToStartSellingTomorrow);
+							(realLocation as ShopLocation).itemsFromPlayerToSell.MoveFrom((l3 as ShopLocation).itemsFromPlayerToSell);
+							(realLocation as ShopLocation).itemsToStartSellingTomorrow.MoveFrom((l3 as ShopLocation).itemsToStartSellingTomorrow);
 						}
-						if (realLocation2 is Forest)
+						if (realLocation is Forest)
 						{
 							if (Game1.dayOfMonth % 7 % 5 == 0)
 							{
-								(realLocation2 as Forest).travelingMerchantDay = true;
-								(realLocation2 as Forest).travelingMerchantBounds.Clear();
-								(realLocation2 as Forest).travelingMerchantBounds.Add(new Rectangle(1472, 640, 492, 112));
-								(realLocation2 as Forest).travelingMerchantBounds.Add(new Rectangle(1652, 744, 76, 48));
-								(realLocation2 as Forest).travelingMerchantBounds.Add(new Rectangle(1812, 744, 104, 48));
-								foreach (Rectangle travelingMerchantBound in (realLocation2 as Forest).travelingMerchantBounds)
+								(realLocation as Forest).travelingMerchantDay = true;
+								(realLocation as Forest).travelingMerchantBounds.Clear();
+								(realLocation as Forest).travelingMerchantBounds.Add(new Rectangle(1472, 640, 492, 112));
+								(realLocation as Forest).travelingMerchantBounds.Add(new Rectangle(1652, 744, 76, 48));
+								(realLocation as Forest).travelingMerchantBounds.Add(new Rectangle(1812, 744, 104, 48));
+								foreach (Rectangle travelingMerchantBound in (realLocation as Forest).travelingMerchantBounds)
 								{
-									Utility.clearObjectsInArea(travelingMerchantBound, realLocation2);
+									Utility.clearObjectsInArea(travelingMerchantBound, realLocation);
 								}
 							}
-							(realLocation2 as Forest).log = (l2 as Forest).log;
+							(realLocation as Forest).log = (l3 as Forest).log;
+						}
+						realLocation.TransferDataFromSavedLocation(l3);
+						if (realLocation is IslandLocation)
+						{
+							(realLocation as IslandLocation).AddAdditionalWalnutBushes();
 						}
 					}
 				}
 			}
-			foreach (GameLocation l in Game1.locations)
+			List<NPC> characters = new List<NPC>();
+			foreach (GameLocation n in Game1.locations)
 			{
-				for (int k = l.characters.Count - 1; k >= 0; k--)
+				for (int m = 0; m < n.characters.Count; m++)
 				{
-					if (k < l.characters.Count)
-					{
-						l.characters[k].reloadSprite();
-					}
+					characters.Add(n.characters[m]);
 				}
-				if (l is BuildableGameLocation)
+			}
+			for (int l = 0; l < characters.Count; l++)
+			{
+				characters[l].reloadSprite();
+			}
+			foreach (GameLocation k in Game1.locations)
+			{
+				if (k is BuildableGameLocation)
 				{
-					foreach (Building building3 in (l as BuildableGameLocation).buildings)
+					foreach (Building building3 in (k as BuildableGameLocation).buildings)
 					{
 						GameLocation interior = building3.indoors.Value;
 						if (interior != null)
@@ -1255,13 +1608,20 @@ namespace StardewValley
 					}
 				}
 			}
-			Game1.UpdateHorseOwnership();
+			(Game1.getLocationFromName("FarmCave") as FarmCave)?.UpdateReadyFlag();
 			Game1.player.currentLocation = Utility.getHomeOfFarmer(Game1.player);
 		}
 
 		public static void initializeCharacter(NPC c, GameLocation location)
 		{
+			string default_map = c.DefaultMap;
+			Vector2 default_position = c.DefaultPosition;
 			c.reloadData();
+			if (c.DefaultMap != default_map)
+			{
+				c.DefaultMap = default_map;
+				c.DefaultPosition = default_position;
+			}
 			if (!c.DefaultPosition.Equals(Vector2.Zero))
 			{
 				c.Position = c.DefaultPosition;

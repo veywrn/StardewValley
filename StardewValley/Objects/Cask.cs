@@ -54,6 +54,19 @@ namespace StardewValley.Objects
 			return base.performToolAction(t, location);
 		}
 
+		public virtual bool IsValidCaskLocation(GameLocation location)
+		{
+			if (location is Cellar)
+			{
+				return true;
+			}
+			if (location.getMapProperty("CanCaskHere") != "")
+			{
+				return true;
+			}
+			return false;
+		}
+
 		public override bool performObjectDropInAction(Item dropIn, bool probe, Farmer who)
 		{
 			if (dropIn != null && dropIn is Object && (bool)(dropIn as Object).bigCraftable)
@@ -62,11 +75,34 @@ namespace StardewValley.Objects
 			}
 			if (heldObject.Value != null)
 			{
+				if ((int)dropIn.parentSheetIndex == 872)
+				{
+					if (probe)
+					{
+						return true;
+					}
+					if (heldObject.Value == null)
+					{
+						return false;
+					}
+					if (heldObject.Value.Quality == 4)
+					{
+						return false;
+					}
+					Utility.addSprinklesToLocation(who.currentLocation, (int)tileLocation.X, (int)tileLocation.Y, 1, 2, 400, 40, Color.White);
+					Game1.playSound("yoba");
+					daysToMature.Value = GetDaysForQuality(GetNextQuality(heldObject.Value.Quality));
+					checkForMaturity();
+					return true;
+				}
 				return false;
 			}
-			if (!probe && (who == null || !(who.currentLocation is Cellar)))
+			if (!probe && (who == null || !IsValidCaskLocation(who.currentLocation)))
 			{
-				Game1.showRedMessageUsingLoadString("Strings\\Objects:CaskNoCellar");
+				if (Object.autoLoadChest == null)
+				{
+					Game1.showRedMessageUsingLoadString("Strings\\Objects:CaskNoCellar");
+				}
 				return false;
 			}
 			if ((int)quality >= 4)
@@ -78,54 +114,18 @@ namespace StardewValley.Objects
 			{
 				return false;
 			}
-			bool goodItem = false;
-			float multiplier = 1f;
-			switch ((int)dropIn.parentSheetIndex)
-			{
-			case 426:
-				goodItem = true;
-				multiplier = 4f;
-				break;
-			case 424:
-				goodItem = true;
-				multiplier = 4f;
-				break;
-			case 348:
-				goodItem = true;
-				multiplier = 1f;
-				break;
-			case 459:
-				goodItem = true;
-				multiplier = 2f;
-				break;
-			case 303:
-				goodItem = true;
-				multiplier = 1.66f;
-				break;
-			case 346:
-				goodItem = true;
-				multiplier = 2f;
-				break;
-			}
-			if (goodItem)
+			float multiplier2 = 1f;
+			multiplier2 = GetAgingMultiplierForItem(dropIn);
+			if (multiplier2 > 0f)
 			{
 				heldObject.Value = (dropIn.getOne() as Object);
 				if (!probe)
 				{
-					agingRate.Value = multiplier;
-					daysToMature.Value = 56f;
+					agingRate.Value = multiplier2;
 					minutesUntilReady.Value = 999999;
-					if ((int)heldObject.Value.quality == 1)
+					daysToMature.Value = GetDaysForQuality(heldObject.Value.Quality);
+					if (heldObject.Value.Quality == 4)
 					{
-						daysToMature.Value = 42f;
-					}
-					else if ((int)heldObject.Value.quality == 2)
-					{
-						daysToMature.Value = 28f;
-					}
-					else if ((int)heldObject.Value.quality == 4)
-					{
-						daysToMature.Value = 0f;
 						minutesUntilReady.Value = 1;
 					}
 					who.currentLocation.playSound("Ship");
@@ -138,6 +138,33 @@ namespace StardewValley.Objects
 				return true;
 			}
 			return false;
+		}
+
+		public virtual float GetAgingMultiplierForItem(Item item)
+		{
+			if (item == null)
+			{
+				return 0f;
+			}
+			if (Utility.IsNormalObjectAtParentSheetIndex(item, item.ParentSheetIndex))
+			{
+				switch ((int)item.parentSheetIndex)
+				{
+				case 426:
+					return 4f;
+				case 424:
+					return 4f;
+				case 348:
+					return 1f;
+				case 459:
+					return 2f;
+				case 303:
+					return 1.66f;
+				case 346:
+					return 2f;
+				}
+			}
+			return 0f;
 		}
 
 		public override bool checkForAction(Farmer who, bool justCheckingForActivity = false)
@@ -156,20 +183,45 @@ namespace StardewValley.Objects
 			}
 		}
 
+		public float GetDaysForQuality(int quality)
+		{
+			switch (quality)
+			{
+			case 4:
+				return 0f;
+			case 2:
+				return 28f;
+			case 1:
+				return 42f;
+			default:
+				return 56f;
+			}
+		}
+
+		public int GetNextQuality(int quality)
+		{
+			switch (quality)
+			{
+			case 4:
+				return 4;
+			case 2:
+				return 4;
+			case 1:
+				return 2;
+			default:
+				return 1;
+			}
+		}
+
 		public void checkForMaturity()
 		{
-			if ((float)daysToMature <= 0f)
+			if ((float)daysToMature <= GetDaysForQuality(GetNextQuality(heldObject.Value.quality.Value)))
 			{
-				minutesUntilReady.Value = 1;
-				heldObject.Value.quality.Value = 4;
-			}
-			else if ((float)daysToMature <= 28f)
-			{
-				heldObject.Value.quality.Value = 2;
-			}
-			else if ((float)daysToMature <= 42f)
-			{
-				heldObject.Value.quality.Value = 1;
+				heldObject.Value.quality.Value = GetNextQuality(heldObject.Value.quality.Value);
+				if (heldObject.Value.Quality == 4)
+				{
+					minutesUntilReady.Value = 1;
+				}
 			}
 		}
 

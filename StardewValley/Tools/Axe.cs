@@ -1,4 +1,5 @@
 using Microsoft.Xna.Framework;
+using Netcode;
 using xTile.ObjectModel;
 
 namespace StardewValley.Tools
@@ -13,18 +14,27 @@ namespace StardewValley.Tools
 
 		private int hitsToStump;
 
+		public NetInt additionalPower = new NetInt(0);
+
 		public Axe()
 			: base("Axe", 0, 189, 215, stackable: false)
 		{
 			base.UpgradeLevel = 0;
 		}
 
+		protected override void initNetFields()
+		{
+			base.initNetFields();
+			base.NetFields.AddFields(additionalPower);
+		}
+
 		public override Item getOne()
 		{
-			return new Axe
-			{
-				UpgradeLevel = base.UpgradeLevel
-			};
+			Axe result = new Axe();
+			result.UpgradeLevel = base.UpgradeLevel;
+			CopyEnchantments(this, result);
+			result._GetOneFrom(this);
+			return result;
 		}
 
 		protected override string loadDisplayName()
@@ -47,7 +57,10 @@ namespace StardewValley.Tools
 		public override void DoFunction(GameLocation location, int x, int y, int power, Farmer who)
 		{
 			base.DoFunction(location, x, y, power, who);
-			who.Stamina -= (float)(2 * power) - (float)who.ForagingLevel * 0.1f;
+			if (!isEfficient)
+			{
+				who.Stamina -= (float)(2 * power) - (float)who.ForagingLevel * 0.1f;
+			}
 			int tileX = x / 64;
 			int tileY = y / 64;
 			Rectangle tileRect = new Rectangle(tileX * 64, tileY * 64, 64, 64);
@@ -62,6 +75,7 @@ namespace StardewValley.Tools
 					return;
 				}
 			}
+			upgradeLevel.Value += additionalPower.Value;
 			location.performToolAction(this, tileX, tileY);
 			if (location.terrainFeatures.ContainsKey(tile) && location.terrainFeatures[tile].performToolAction(this, 0, tile, location))
 			{
@@ -87,6 +101,7 @@ namespace StardewValley.Tools
 				location.Objects[toolTilePosition].performRemoveAction(toolTilePosition, location);
 				location.Objects.Remove(toolTilePosition);
 			}
+			upgradeLevel.Value -= additionalPower.Value;
 		}
 	}
 }

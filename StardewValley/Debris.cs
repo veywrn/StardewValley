@@ -1,6 +1,7 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Netcode;
+using StardewValley.Locations;
 using StardewValley.Network;
 using StardewValley.Quests;
 using StardewValley.Tools;
@@ -90,7 +91,7 @@ namespace StardewValley
 
 		public readonly NetFloat scale = new NetFloat(1f).Interpolated(interpolate: true, wait: true);
 
-		public bool chunksMoveTowardPlayer;
+		protected NetBool _chunksMoveTowardsPlayer = new NetBool(value: false).Interpolated(interpolate: false, wait: false);
 
 		public readonly NetLong DroppedByPlayerID = new NetLong().Interpolated(interpolate: false, wait: false);
 
@@ -158,6 +159,18 @@ namespace StardewValley
 			}
 		}
 
+		public bool chunksMoveTowardPlayer
+		{
+			get
+			{
+				return _chunksMoveTowardsPlayer.Value;
+			}
+			set
+			{
+				_chunksMoveTowardsPlayer.Value = value;
+			}
+		}
+
 		public Texture2D spriteChunkSheet
 		{
 			get
@@ -192,7 +205,7 @@ namespace StardewValley
 
 		public Debris()
 		{
-			NetFields.AddFields(chunks, chunkType, sizeOfSourceRectSquares, netItemQuality, netChunkFinalYLevel, netChunkFinalYTarget, scale, floppingFish, debrisType, debrisMessage, nonSpriteChunkColor, chunksColor, spriteChunkSheetName, netItem, player.NetFields, DroppedByPlayerID);
+			NetFields.AddFields(chunks, chunkType, sizeOfSourceRectSquares, netItemQuality, netChunkFinalYLevel, netChunkFinalYTarget, scale, floppingFish, debrisType, debrisMessage, nonSpriteChunkColor, chunksColor, spriteChunkSheetName, netItem, player.NetFields, DroppedByPlayerID, _chunksMoveTowardsPlayer);
 			player.Delayed(interpolationWait: false);
 		}
 
@@ -330,6 +343,71 @@ namespace StardewValley
 			chunksColor.Value = getColorForDebris((color == -1) ? type : color);
 		}
 
+		public virtual bool isEssentialItem()
+		{
+			if (item != null && Utility.IsNormalObjectAtParentSheetIndex(item, 73))
+			{
+				return true;
+			}
+			if (item != null && !item.canBeTrashed())
+			{
+				return true;
+			}
+			return false;
+		}
+
+		public virtual bool collect(Farmer farmer, Chunk chunk = null)
+		{
+			if (chunk == null)
+			{
+				if (chunks.Count <= 0)
+				{
+					return false;
+				}
+				chunk = chunks[0];
+			}
+			int switcher = ((DebrisType)debrisType == DebrisType.ARCHAEOLOGY || (DebrisType)debrisType == DebrisType.OBJECT) ? chunk.debrisType : (chunk.debrisType - chunk.debrisType % 2);
+			if ((DebrisType)debrisType == DebrisType.ARCHAEOLOGY)
+			{
+				Game1.farmerFindsArtifact(chunk.debrisType);
+			}
+			else if (item != null)
+			{
+				Item tmpItem = item;
+				item = null;
+				if (!farmer.addItemToInventoryBool(tmpItem))
+				{
+					item = tmpItem;
+					return false;
+				}
+			}
+			else if ((DebrisType)debrisType != 0 || switcher != 8)
+			{
+				if (switcher <= -10000)
+				{
+					if (!farmer.addItemToInventoryBool(new MeleeWeapon(switcher)))
+					{
+						return false;
+					}
+				}
+				else if (switcher <= 0)
+				{
+					if (!farmer.addItemToInventoryBool(new Object(Vector2.Zero, -switcher)))
+					{
+						return false;
+					}
+				}
+				else if (!farmer.addItemToInventoryBool((switcher == 93 || switcher == 94) ? new Torch(Vector2.Zero, 1, switcher) : new Object(Vector2.Zero, switcher, 1)
+				{
+					Quality = itemQuality
+				}))
+				{
+					return false;
+				}
+			}
+			return true;
+		}
+
 		public Color getColorForDebris(int type)
 		{
 			switch (type)
@@ -416,7 +494,7 @@ namespace StardewValley
 			int maxYVelocity3 = 10;
 			int minXVelocity3 = -10;
 			int maxXVelocity3 = 10;
-			floppingFish.Value = (Game1.objectInformation.ContainsKey(debrisType) && Game1.objectInformation[debrisType].Split('/')[3].Contains("-4"));
+			floppingFish.Value = (Game1.objectInformation.ContainsKey(debrisType) && Game1.objectInformation[debrisType].Split('/')[3].Contains("-4") && !Game1.objectInformation[debrisType].Split('/')[0].Equals("Mussel"));
 			isFishable = (Game1.objectInformation.ContainsKey(debrisType) && Game1.objectInformation[debrisType].Split('/')[3].Contains("Fish"));
 			if (playerPosition.Y >= debrisOrigin.Y - 32f && playerPosition.Y <= debrisOrigin.Y + 32f)
 			{
@@ -477,15 +555,24 @@ namespace StardewValley
 
 		private bool playerInRange(Vector2 position, Farmer farmer)
 		{
-			if (Math.Abs(position.X + 32f - (float)farmer.getStandingX()) <= (float)farmer.MagneticRadius)
+			if (isEssentialItem())
 			{
-				return Math.Abs(position.Y + 32f - (float)farmer.getStandingY()) <= (float)farmer.MagneticRadius;
+				return true;
+			}
+			int applied_magnetic_radius = farmer.GetAppliedMagneticRadius();
+			if (Math.Abs(position.X + 32f - (float)farmer.getStandingX()) <= (float)applied_magnetic_radius)
+			{
+				return Math.Abs(position.Y + 32f - (float)farmer.getStandingY()) <= (float)applied_magnetic_radius;
 			}
 			return false;
 		}
 
 		private Farmer findBestPlayer(GameLocation location)
 		{
+			if (location != null && location.isTemp())
+			{
+				return Game1.player;
+			}
 			Vector2 position = approximatePosition();
 			float bestDistance = float.MaxValue;
 			Farmer bestFarmer = null;
@@ -532,13 +619,17 @@ namespace StardewValley
 				}
 				timeSinceDoneBouncing = 0f;
 			}
-			if (location.farmers.Count == 0)
+			if (!location.farmers.Any() && !location.isTemp())
 			{
 				return false;
 			}
 			Vector2 position = approximatePosition();
 			Farmer farmer = player.Value;
-			if (chunksMoveTowardPlayer)
+			if (isEssentialItem() && shouldControlThis(location) && farmer == null)
+			{
+				farmer = findBestPlayer(location);
+			}
+			if (chunksMoveTowardPlayer && !isEssentialItem())
 			{
 				if (player.Value != null && player.Value == Game1.player && !playerInRange(position, player.Value))
 				{
@@ -570,196 +661,173 @@ namespace StardewValley
 				if (chunk.position.X < -128f || chunk.position.Y < -64f || chunk.position.X >= (float)(location.map.DisplayWidth + 64) || chunk.position.Y >= (float)(location.map.DisplayHeight + 64))
 				{
 					chunks.RemoveAt(i);
-					continue;
 				}
-				bool canMoveTowardPlayer = farmer != null;
-				if (canMoveTowardPlayer)
+				else
 				{
-					switch (debrisType.Value)
+					bool canMoveTowardPlayer = farmer != null;
+					if (canMoveTowardPlayer)
 					{
-					case DebrisType.ARCHAEOLOGY:
-					case DebrisType.OBJECT:
-						if (item != null)
+						switch (debrisType.Value)
 						{
-							canMoveTowardPlayer = farmer.couldInventoryAcceptThisItem(item);
+						case DebrisType.ARCHAEOLOGY:
+						case DebrisType.OBJECT:
+							if (item != null)
+							{
+								canMoveTowardPlayer = farmer.couldInventoryAcceptThisItem(item);
+								break;
+							}
+							canMoveTowardPlayer = ((chunk.debrisType >= 0) ? farmer.couldInventoryAcceptThisObject(chunk.debrisType, 1, itemQuality) : farmer.couldInventoryAcceptThisItem(new Object(Vector2.Zero, chunk.debrisType * -1)));
+							if (chunk.debrisType == 102 && (bool)farmer.hasMenuOpen)
+							{
+								canMoveTowardPlayer = false;
+							}
+							break;
+						case DebrisType.RESOURCE:
+							canMoveTowardPlayer = farmer.couldInventoryAcceptThisObject(chunk.debrisType - chunk.debrisType % 2, 1);
+							break;
+						default:
+							canMoveTowardPlayer = true;
 							break;
 						}
-						canMoveTowardPlayer = ((chunk.debrisType >= 0) ? farmer.couldInventoryAcceptThisObject(chunk.debrisType, 1, itemQuality) : farmer.couldInventoryAcceptThisItem(new Object(Vector2.Zero, chunk.debrisType * -1)));
-						if (chunk.debrisType == 102 && (bool)farmer.hasMenuOpen)
+						anyCouldMove |= canMoveTowardPlayer;
+						if (canMoveTowardPlayer && shouldControlThis(location))
 						{
-							canMoveTowardPlayer = false;
-						}
-						break;
-					case DebrisType.RESOURCE:
-						canMoveTowardPlayer = farmer.couldInventoryAcceptThisObject(chunk.debrisType - chunk.debrisType % 2, 1);
-						break;
-					default:
-						canMoveTowardPlayer = true;
-						break;
-					}
-					anyCouldMove |= canMoveTowardPlayer;
-					if (canMoveTowardPlayer && shouldControlThis(location))
-					{
-						player.Value = farmer;
-					}
-				}
-				if (((chunksMoveTowardPlayer || isFishable) & canMoveTowardPlayer) && player.Value != null)
-				{
-					if (!player.Value.IsLocalPlayer)
-					{
-						continue;
-					}
-					if (chunk.position.X < player.Value.Position.X - 12f)
-					{
-						chunk.xVelocity.Value = Math.Min((float)chunk.xVelocity + 0.8f, 8f);
-					}
-					else if (chunk.position.X > player.Value.Position.X + 12f)
-					{
-						chunk.xVelocity.Value = Math.Max((float)chunk.xVelocity - 0.8f, -8f);
-					}
-					if (chunk.position.Y + 32f < (float)(player.Value.getStandingY() - 12))
-					{
-						chunk.yVelocity.Value = Math.Max((float)chunk.yVelocity - 0.8f, -8f);
-					}
-					else if (chunk.position.Y + 32f > (float)(player.Value.getStandingY() + 12))
-					{
-						chunk.yVelocity.Value = Math.Min((float)chunk.yVelocity + 0.8f, 8f);
-					}
-					chunk.position.X += chunk.xVelocity;
-					chunk.position.Y -= chunk.yVelocity;
-					if (!(Math.Abs(chunk.position.X + 32f - (float)player.Value.getStandingX()) <= 64f) || !(Math.Abs(chunk.position.Y + 32f - (float)player.Value.getStandingY()) <= 64f))
-					{
-						continue;
-					}
-					int switcher = ((DebrisType)debrisType == DebrisType.ARCHAEOLOGY || (DebrisType)debrisType == DebrisType.OBJECT) ? chunk.debrisType : (chunk.debrisType - chunk.debrisType % 2);
-					if ((DebrisType)debrisType == DebrisType.ARCHAEOLOGY)
-					{
-						Game1.farmerFindsArtifact(chunk.debrisType);
-					}
-					else if (item != null)
-					{
-						Item tmpItem = item;
-						item = null;
-						if (!player.Value.addItemToInventoryBool(tmpItem))
-						{
-							item = tmpItem;
-							continue;
+							player.Value = farmer;
 						}
 					}
-					else if ((DebrisType)debrisType != 0 || switcher != 8)
+					if (((chunksMoveTowardPlayer || isFishable) & canMoveTowardPlayer) && player.Value != null)
 					{
-						if (switcher <= -10000)
+						if (player.Value.IsLocalPlayer)
 						{
-							if (!player.Value.addItemToInventoryBool(new MeleeWeapon(switcher)))
+							if (chunk.position.X < player.Value.Position.X - 12f)
 							{
-								continue;
+								chunk.xVelocity.Value = Math.Min((float)chunk.xVelocity + 0.8f, 8f);
+							}
+							else if (chunk.position.X > player.Value.Position.X + 12f)
+							{
+								chunk.xVelocity.Value = Math.Max((float)chunk.xVelocity - 0.8f, -8f);
+							}
+							if (chunk.position.Y + 32f < (float)(player.Value.getStandingY() - 12))
+							{
+								chunk.yVelocity.Value = Math.Max((float)chunk.yVelocity - 0.8f, -8f);
+							}
+							else if (chunk.position.Y + 32f > (float)(player.Value.getStandingY() + 12))
+							{
+								chunk.yVelocity.Value = Math.Min((float)chunk.yVelocity + 0.8f, 8f);
+							}
+							chunk.position.X += chunk.xVelocity;
+							chunk.position.Y -= chunk.yVelocity;
+							if (Math.Abs(chunk.position.X + 32f - (float)player.Value.getStandingX()) <= 64f && Math.Abs(chunk.position.Y + 32f - (float)player.Value.getStandingY()) <= 64f)
+							{
+								Item old = item;
+								if (collect(player, chunk))
+								{
+									if (Game1.debrisSoundInterval <= 0f)
+									{
+										Game1.debrisSoundInterval = 10f;
+										if ((old == null || (int)old.parentSheetIndex != 73) && chunk.debrisType != 73)
+										{
+											location.localSound("coin");
+										}
+									}
+									chunks.RemoveAt(i);
+								}
 							}
 						}
-						else if (switcher <= 0)
-						{
-							if (!player.Value.addItemToInventoryBool(new Object(Vector2.Zero, -switcher)))
-							{
-								continue;
-							}
-						}
-						else if (!player.Value.addItemToInventoryBool((switcher == 93 || switcher == 94) ? new Torch(Vector2.Zero, 1, switcher) : new Object(Vector2.Zero, switcher, 1)
-						{
-							Quality = itemQuality
-						}))
-						{
-							continue;
-						}
-					}
-					if (Game1.debrisSoundInterval <= 0f)
-					{
-						Game1.debrisSoundInterval = 10f;
-						location.localSound("coin");
-					}
-					chunks.RemoveAt(i);
-					continue;
-				}
-				if ((DebrisType)debrisType == DebrisType.NUMBERS && toHover != null)
-				{
-					relativeXPosition += chunk.xVelocity;
-					chunk.position.X = toHover.Position.X + 32f + relativeXPosition;
-					chunk.scale = Math.Min(2f, Math.Max(1f, 0.9f + Math.Abs(chunk.position.Y - (float)chunkFinalYLevel) / 128f));
-					chunkFinalYLevel = toHover.getStandingY() + 8;
-					if (timeSinceDoneBouncing > 250f)
-					{
-						chunk.alpha = Math.Max(0f, chunk.alpha - 0.033f);
-					}
-					if (!(toHover is Farmer) && !nonSpriteChunkColor.Equals(Color.Yellow) && !nonSpriteChunkColor.Equals(Color.Green))
-					{
-						nonSpriteChunkColor.R = (byte)Math.Max(Math.Min(255, 200 + (int)chunkType), Math.Min(Math.Min(255, 220 + (int)chunkType), 400.0 * Math.Sin((double)timeSinceDoneBouncing / (Math.PI * 256.0) + Math.PI / 12.0)));
-						nonSpriteChunkColor.G = (byte)Math.Max(150 - (int)chunkType, Math.Min(255 - (int)chunkType, (nonSpriteChunkColor.R > 220) ? (300.0 * Math.Sin((double)timeSinceDoneBouncing / (Math.PI * 256.0) + Math.PI / 12.0)) : 0.0));
-						nonSpriteChunkColor.B = (byte)Math.Max(0, Math.Min(255, (nonSpriteChunkColor.G > 200) ? (nonSpriteChunkColor.G - 20) : 0));
-					}
-				}
-				chunk.position.X += chunk.xVelocity;
-				chunk.position.Y -= chunk.yVelocity;
-				if (movingFinalYLevel)
-				{
-					chunkFinalYLevel -= (int)Math.Ceiling((float)chunk.yVelocity / 2f);
-					if (chunkFinalYLevel <= chunkFinalYTarget)
-					{
-						chunkFinalYLevel = chunkFinalYTarget;
-						movingFinalYLevel = false;
-					}
-				}
-				if ((DebrisType)debrisType == DebrisType.SQUARES && chunk.position.Y < (float)(chunkFinalYLevel - 96) && Game1.random.NextDouble() < 0.1)
-				{
-					chunk.position.Y = chunkFinalYLevel - Game1.random.Next(1, 21);
-					chunk.yVelocity.Value = (float)Game1.random.Next(30, 80) / 40f;
-					chunk.position.X = Game1.random.Next((int)(chunk.position.X - chunk.position.X % 64f + 1f), (int)(chunk.position.X - chunk.position.X % 64f + 64f));
-				}
-				if ((DebrisType)debrisType != DebrisType.SQUARES && chunk.bounces <= (floppingFish ? 65 : 2))
-				{
-					chunk.yVelocity.Value -= 0.4f;
-				}
-				bool destroyThisChunk = false;
-				if (chunk.position.Y >= (float)chunkFinalYLevel && (bool)chunk.hasPassedRestingLineOnce && chunk.bounces <= (floppingFish ? 65 : 2))
-				{
-					if ((DebrisType)debrisType != DebrisType.LETTERS && (DebrisType)debrisType != DebrisType.NUMBERS && (DebrisType)debrisType != DebrisType.SPRITECHUNKS && ((DebrisType)debrisType != 0 || chunk.debrisType - chunk.debrisType % 2 == 8) && shouldControlThis(location))
-					{
-						location.playSound("shiny4");
-					}
-					chunk.bounces++;
-					if ((bool)floppingFish)
-					{
-						chunk.yVelocity.Value = Math.Abs(chunk.yVelocity) * ((movingUp && chunk.bounces < 2) ? 0.6f : 0.9f);
-						chunk.xVelocity.Value = (float)Game1.random.Next(-250, 250) / 100f;
 					}
 					else
 					{
-						chunk.yVelocity.Value = Math.Abs((float)chunk.yVelocity * 2f / 3f);
-						chunk.rotationVelocity = ((Game1.random.NextDouble() < 0.5) ? (chunk.rotationVelocity / 2f) : ((0f - chunk.rotationVelocity) * 2f / 3f));
-						chunk.xVelocity.Value -= (float)chunk.xVelocity / 2f;
+						if ((DebrisType)debrisType == DebrisType.NUMBERS && toHover != null)
+						{
+							relativeXPosition += chunk.xVelocity;
+							chunk.position.X = toHover.Position.X + 32f + relativeXPosition;
+							chunk.scale = Math.Min(2f, Math.Max(1f, 0.9f + Math.Abs(chunk.position.Y - (float)chunkFinalYLevel) / 128f));
+							chunkFinalYLevel = toHover.getStandingY() + 8;
+							if (timeSinceDoneBouncing > 250f)
+							{
+								chunk.alpha = Math.Max(0f, chunk.alpha - 0.033f);
+							}
+							if (!(toHover is Farmer) && !nonSpriteChunkColor.Equals(Color.Yellow) && !nonSpriteChunkColor.Equals(Color.Green))
+							{
+								nonSpriteChunkColor.R = (byte)Math.Max(Math.Min(255, 200 + (int)chunkType), Math.Min(Math.Min(255, 220 + (int)chunkType), 400.0 * Math.Sin((double)timeSinceDoneBouncing / (Math.PI * 256.0) + Math.PI / 12.0)));
+								nonSpriteChunkColor.G = (byte)Math.Max(150 - (int)chunkType, Math.Min(255 - (int)chunkType, (nonSpriteChunkColor.R > 220) ? (300.0 * Math.Sin((double)timeSinceDoneBouncing / (Math.PI * 256.0) + Math.PI / 12.0)) : 0.0));
+								nonSpriteChunkColor.B = (byte)Math.Max(0, Math.Min(255, (nonSpriteChunkColor.G > 200) ? (nonSpriteChunkColor.G - 20) : 0));
+							}
+						}
+						chunk.position.X += chunk.xVelocity;
+						chunk.position.Y -= chunk.yVelocity;
+						if (movingFinalYLevel)
+						{
+							chunkFinalYLevel -= (int)Math.Ceiling((float)chunk.yVelocity / 2f);
+							if (chunkFinalYLevel <= chunkFinalYTarget)
+							{
+								chunkFinalYLevel = chunkFinalYTarget;
+								movingFinalYLevel = false;
+							}
+						}
+						if ((DebrisType)debrisType == DebrisType.SQUARES && chunk.position.Y < (float)(chunkFinalYLevel - 96) && Game1.random.NextDouble() < 0.1)
+						{
+							chunk.position.Y = chunkFinalYLevel - Game1.random.Next(1, 21);
+							chunk.yVelocity.Value = (float)Game1.random.Next(30, 80) / 40f;
+							chunk.position.X = Game1.random.Next((int)(chunk.position.X - chunk.position.X % 64f + 1f), (int)(chunk.position.X - chunk.position.X % 64f + 64f));
+						}
+						if ((DebrisType)debrisType != DebrisType.SQUARES && chunk.bounces <= (floppingFish ? 65 : 2))
+						{
+							chunk.yVelocity.Value -= 0.4f;
+						}
+						bool destroyThisChunk = false;
+						if (chunk.position.Y >= (float)chunkFinalYLevel && (bool)chunk.hasPassedRestingLineOnce && chunk.bounces <= (floppingFish ? 65 : 2))
+						{
+							Point tile_point = new Point((int)chunk.position.X / 64, chunkFinalYLevel / 64);
+							if (Game1.currentLocation is IslandNorth && (debrisType.Value == DebrisType.ARCHAEOLOGY || debrisType.Value == DebrisType.OBJECT || debrisType.Value == DebrisType.RESOURCE || debrisType.Value == DebrisType.CHUNKS) && Game1.currentLocation.isTileOnMap(tile_point.X, tile_point.Y) && Game1.currentLocation.getTileIndexAt(tile_point, "Back") == -1)
+							{
+								chunkFinalYLevel += 48;
+							}
+							if ((DebrisType)debrisType != DebrisType.LETTERS && (DebrisType)debrisType != DebrisType.NUMBERS && (DebrisType)debrisType != DebrisType.SPRITECHUNKS && ((DebrisType)debrisType != 0 || chunk.debrisType - chunk.debrisType % 2 == 8) && shouldControlThis(location))
+							{
+								location.playSound("shiny4");
+							}
+							chunk.bounces++;
+							if ((bool)floppingFish)
+							{
+								chunk.yVelocity.Value = Math.Abs(chunk.yVelocity) * ((movingUp && chunk.bounces < 2) ? 0.6f : 0.9f);
+								chunk.xVelocity.Value = (float)Game1.random.Next(-250, 250) / 100f;
+							}
+							else
+							{
+								chunk.yVelocity.Value = Math.Abs((float)chunk.yVelocity * 2f / 3f);
+								chunk.rotationVelocity = ((Game1.random.NextDouble() < 0.5) ? (chunk.rotationVelocity / 2f) : ((0f - chunk.rotationVelocity) * 2f / 3f));
+								chunk.xVelocity.Value -= (float)chunk.xVelocity / 2f;
+							}
+							Vector2 chunkTile = new Vector2((int)((chunk.position.X + 32f) / 64f), (int)((chunk.position.Y + 32f) / 64f));
+							if ((DebrisType)debrisType != DebrisType.LETTERS && (DebrisType)debrisType != DebrisType.SPRITECHUNKS && (DebrisType)debrisType != DebrisType.NUMBERS && location.doesTileSinkDebris((int)chunkTile.X, (int)chunkTile.Y, debrisType))
+							{
+								destroyThisChunk = location.sinkDebris(this, chunkTile, chunk.position);
+							}
+						}
+						int tile_x = (int)((chunk.position.X + 32f) / 64f);
+						int tile_y = (int)((chunk.position.Y + 32f) / 64f);
+						if ((!chunk.hitWall && location.Map.GetLayer("Buildings").Tiles[tile_x, tile_y] != null && location.doesTileHaveProperty(tile_x, tile_y, "Passable", "Buildings") == null) || location.Map.GetLayer("Back").Tiles[tile_x, tile_y] == null)
+						{
+							chunk.xVelocity.Value = 0f - (float)chunk.xVelocity;
+							chunk.hitWall = true;
+						}
+						if (chunk.position.Y < (float)chunkFinalYLevel)
+						{
+							chunk.hasPassedRestingLineOnce.Value = true;
+						}
+						if (chunk.bounces > (floppingFish ? 65 : 2))
+						{
+							chunk.yVelocity.Value = 0f;
+							chunk.xVelocity.Value = 0f;
+							chunk.rotationVelocity = 0f;
+						}
+						chunk.rotation += chunk.rotationVelocity;
+						if (destroyThisChunk)
+						{
+							chunks.RemoveAt(i);
+						}
 					}
-					Vector2 chunkTile = new Vector2((int)((chunk.position.X + 32f) / 64f), (int)((chunk.position.Y + 32f) / 64f));
-					if ((DebrisType)debrisType != DebrisType.LETTERS && (DebrisType)debrisType != DebrisType.SPRITECHUNKS && (DebrisType)debrisType != DebrisType.NUMBERS && location.doesTileSinkDebris((int)chunkTile.X, (int)chunkTile.Y, debrisType))
-					{
-						destroyThisChunk = location.sinkDebris(this, chunkTile, chunk.position);
-					}
-				}
-				if ((!chunk.hitWall && location.Map.GetLayer("Buildings").Tiles[(int)((chunk.position.X + 32f) / 64f), (int)((chunk.position.Y + 32f) / 64f)] != null) || location.Map.GetLayer("Back").Tiles[(int)((chunk.position.X + 32f) / 64f), (int)((chunk.position.Y + 32f) / 64f)] == null)
-				{
-					chunk.xVelocity.Value = 0f - (float)chunk.xVelocity;
-					chunk.hitWall = true;
-				}
-				if (chunk.position.Y < (float)chunkFinalYLevel)
-				{
-					chunk.hasPassedRestingLineOnce.Value = true;
-				}
-				if (chunk.bounces > (floppingFish ? 65 : 2))
-				{
-					chunk.yVelocity.Value = 0f;
-					chunk.xVelocity.Value = 0f;
-					chunk.rotationVelocity = 0f;
-				}
-				chunk.rotation += chunk.rotationVelocity;
-				if (destroyThisChunk)
-				{
-					chunks.RemoveAt(i);
 				}
 			}
 			if (!anyCouldMove && shouldControlThis(location))

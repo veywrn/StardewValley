@@ -13,6 +13,8 @@ namespace StardewValley.Monsters
 
 		private readonly NetInt shellHealth = new NetInt(5);
 
+		private readonly NetBool isStickBug = new NetBool();
+
 		public RockCrab()
 		{
 		}
@@ -40,17 +42,46 @@ namespace StardewValley.Monsters
 				waiter = true;
 				moveTowardPlayerThreshold.Value = 1;
 			}
+			else if (name.Equals("False Magma Cap"))
+			{
+				waiter = false;
+			}
+		}
+
+		public void makeStickBug()
+		{
+			isStickBug.Value = true;
+			waiter = false;
+			base.Name = "Stick Bug";
+			base.DamageToFarmer = 20;
+			base.MaxHealth = 700;
+			base.Health = 700;
+			base.reloadSprite();
+			base.HideShadow = true;
+			Sprite.SpriteHeight = 24;
+			Sprite.UpdateSourceRect();
+			objectsToDrop.Clear();
+			objectsToDrop.Add(858);
+			while (Game1.random.NextDouble() < 0.5)
+			{
+				objectsToDrop.Add(858);
+			}
+			objectsToDrop.Add(829);
 		}
 
 		protected override void initNetFields()
 		{
 			base.initNetFields();
-			base.NetFields.AddFields(shellGone, shellHealth);
+			base.NetFields.AddFields(shellGone, shellHealth, isStickBug);
 			position.Field.AxisAlignedMovement = true;
 		}
 
 		public override bool hitWithTool(Tool t)
 		{
+			if ((bool)isStickBug)
+			{
+				return false;
+			}
 			if (t is Pickaxe && t.getLastFarmerToUse() != null && (int)shellHealth > 0)
 			{
 				base.currentLocation.playSound("hammer");
@@ -197,19 +228,19 @@ namespace StardewValley.Monsters
 		{
 			if (isMoving())
 			{
-				if (base.FacingDirection == 0)
+				if (FacingDirection == 0)
 				{
 					Sprite.AnimateUp(time);
 				}
-				else if (base.FacingDirection == 3)
+				else if (FacingDirection == 3)
 				{
 					Sprite.AnimateLeft(time);
 				}
-				else if (base.FacingDirection == 1)
+				else if (FacingDirection == 1)
 				{
 					Sprite.AnimateRight(time);
 				}
-				else if (base.FacingDirection == 2)
+				else if (FacingDirection == 2)
 				{
 					Sprite.AnimateDown(time);
 				}

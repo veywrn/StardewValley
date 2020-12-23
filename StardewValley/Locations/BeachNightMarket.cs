@@ -2,6 +2,7 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using StardewValley.BellsAndWhistles;
 using StardewValley.Menus;
+using StardewValley.Network;
 using StardewValley.Objects;
 using System;
 using System.Collections.Generic;
@@ -19,6 +20,8 @@ namespace StardewValley.Locations
 		private string paintingMailKey;
 
 		private bool hasReceivedFreeGift;
+
+		private bool hasShownCCUpgrade;
 
 		public BeachNightMarket()
 		{
@@ -149,6 +152,21 @@ namespace StardewValley.Locations
 			}
 		}
 
+		public override bool catchOceanCrabPotFishFromThisSpot(int x, int y)
+		{
+			return true;
+		}
+
+		public override Object getFish(float millisecondsAfterNibble, int bait, int waterDepth, Farmer who, double baitPotency, Vector2 bobberTile, string locationName = null)
+		{
+			Beach beach = Game1.getLocationFromName("Beach") as Beach;
+			if (beach != null)
+			{
+				return beach.getFish(millisecondsAfterNibble, bait, waterDepth, who, baitPotency, bobberTile, locationName);
+			}
+			return base.getFish(millisecondsAfterNibble, bait, waterDepth, who, baitPotency, bobberTile, locationName);
+		}
+
 		public override bool answerDialogueAction(string questionAndAnswer, string[] questionParams)
 		{
 			if (questionAndAnswer == null)
@@ -200,7 +218,8 @@ namespace StardewValley.Locations
 					Game1.player.Money -= 1200;
 					Game1.activeClickableMenu = null;
 					Game1.player.addItemByMenuIfNecessaryElseHoldUp(new Furniture(1838 + ((getDayOfNightMarket() - 1) * 2 + (Game1.year - 1) % 3 * 6), Vector2.Zero));
-					Game1.multiplayer.broadcastPartyWideMail(paintingMailKey, Multiplayer.PartyWideMessageQueue.SeenMail);
+					Game1.multiplayer.globalChatInfoMessage("Lupini", Game1.player.Name);
+					Game1.multiplayer.broadcastPartyWideMail(paintingMailKey, Multiplayer.PartyWideMessageQueue.SeenMail, no_letter: true);
 				}
 				return base.answerDialogueAction(questionAndAnswer, questionParams);
 			}
@@ -220,7 +239,7 @@ namespace StardewValley.Locations
 
 		public void getFreeGiftPartOne(int extra)
 		{
-			removeTemporarySpritesWithID(777);
+			removeTemporarySpritesWithIDLocal(777f);
 			Game1.soundBank.PlayCue("Milking");
 			temporarySprites.Add(new TemporaryAnimatedSprite
 			{
@@ -259,13 +278,13 @@ namespace StardewValley.Locations
 		public void getFreeGift(int extra)
 		{
 			Game1.player.addItemByMenuIfNecessaryElseHoldUp(new Object(395, 1));
-			removeTemporarySpritesWithID(778);
+			removeTemporarySpritesWithIDLocal(778f);
 		}
 
 		protected override void resetLocalState()
 		{
 			base.resetLocalState();
-			if ((bool)(Game1.getLocationFromName("Beach") as Beach).bridgeFixed)
+			if ((bool)(Game1.getLocationFromName("Beach") as Beach).bridgeFixed || NetWorldState.checkAnywhereForWorldStateID("beachBridgeFixed"))
 			{
 				Beach.fixBridge(this);
 			}
@@ -280,6 +299,10 @@ namespace StardewValley.Locations
 			shopClosedTexture = Game1.temporaryContent.Load<Texture2D>("LooseSprites\\temporary_sprites_1");
 			temporarySprites.Add(new EmilysParrot(new Vector2(2968f, 2056f)));
 			paintingMailKey = "NightMarketYear" + Game1.year + "Day" + getDayOfNightMarket() + "_paintingSold";
+			if (Game1.MasterPlayer.mailReceived.Contains("communityUpgradeShortcuts"))
+			{
+				Beach.showCommunityUpgradeShortcuts(this, ref hasShownCCUpgrade);
+			}
 		}
 
 		public override void performTenMinuteUpdate(int timeOfDay)
@@ -361,6 +384,21 @@ namespace StardewValley.Locations
 			stock.Add(new Object(Vector2.Zero, 44), new int[2]
 			{
 				200,
+				2147483647
+			});
+			stock.Add(new Furniture(2397, Vector2.Zero), new int[2]
+			{
+				800,
+				2147483647
+			});
+			stock.Add(new Furniture(2398, Vector2.Zero), new int[2]
+			{
+				800,
+				2147483647
+			});
+			stock.Add(new Furniture(1975, Vector2.Zero), new int[2]
+			{
+				1000,
 				2147483647
 			});
 			stock.Add(new Object(Vector2.Zero, 48), new int[2]
@@ -642,7 +680,21 @@ namespace StardewValley.Locations
 				});
 				break;
 			}
-			if (Game1.player.mailReceived.Contains("museumCollectedRewardBO_139_1"))
+			int donated_minerals = 0;
+			int donated_artifacts = 0;
+			foreach (KeyValuePair<Vector2, int> v in Game1.netWorldState.Value.MuseumPieces.Pairs)
+			{
+				string obj = Game1.objectInformation[v.Value].Split('/')[3];
+				if (obj.Contains("Arch"))
+				{
+					donated_artifacts++;
+				}
+				if (obj.Contains("Minerals"))
+				{
+					donated_minerals++;
+				}
+			}
+			if (donated_artifacts >= 20)
 			{
 				stock.Add(new Object(Vector2.Zero, 139), new int[2]
 				{
@@ -650,7 +702,7 @@ namespace StardewValley.Locations
 					2147483647
 				});
 			}
-			if (Game1.player.mailReceived.Contains("museumCollectedRewardBO_140_1"))
+			if (donated_minerals + donated_artifacts >= 40)
 			{
 				stock.Add(new Object(Vector2.Zero, 140), new int[2]
 				{

@@ -9,13 +9,13 @@ namespace StardewValley.Menus
 {
 	public class DialogueBox : IClickableMenu
 	{
-		private List<string> dialogues = new List<string>();
+		public List<string> dialogues = new List<string>();
 
-		private Dialogue characterDialogue;
+		public Dialogue characterDialogue;
 
-		private Stack<string> characterDialoguesBrokenUp = new Stack<string>();
+		public Stack<string> characterDialoguesBrokenUp = new Stack<string>();
 
-		private List<Response> responses = new List<Response>();
+		public List<Response> responses = new List<Response>();
 
 		public const int portraitBoxSize = 74;
 
@@ -33,51 +33,53 @@ namespace StardewValley.Menus
 
 		public const int safetyDelay = 750;
 
-		private int questionFinishPauseTimer;
+		public int questionFinishPauseTimer;
 
 		protected bool _showedOptions;
 
-		private Rectangle friendshipJewel = Rectangle.Empty;
+		public Rectangle friendshipJewel = Rectangle.Empty;
 
 		public List<ClickableComponent> responseCC;
 
-		private int x;
+		public int x;
 
-		private int y;
+		public int y;
 
-		private int transitionX = -1;
+		public int transitionX = -1;
 
-		private int transitionY;
+		public int transitionY;
 
-		private int transitionWidth;
+		public int transitionWidth;
 
-		private int transitionHeight;
+		public int transitionHeight;
 
-		private int characterAdvanceTimer;
+		public int characterAdvanceTimer;
 
-		private int characterIndexInDialogue;
+		public int characterIndexInDialogue;
 
-		private int safetyTimer = 750;
+		public int safetyTimer = 750;
 
-		private int heightForQuestions;
+		public int heightForQuestions;
 
-		private int selectedResponse = -1;
+		public int selectedResponse = -1;
 
-		private int newPortaitShakeTimer;
+		public int newPortaitShakeTimer;
 
-		private bool transitionInitialized;
+		public bool transitionInitialized;
 
-		private bool transitioning = true;
+		public bool transitioning = true;
 
-		private bool transitioningBigger = true;
+		public bool transitioningBigger = true;
 
-		private bool dialogueContinuedOnNextPage;
+		public bool dialogueContinuedOnNextPage;
 
-		private bool dialogueFinished;
+		public bool dialogueFinished;
 
-		private bool isQuestion;
+		public bool isQuestion;
 
-		private TemporaryAnimatedSprite dialogueIcon;
+		public TemporaryAnimatedSprite dialogueIcon;
+
+		public TemporaryAnimatedSprite aboveDialogueImage;
 
 		private string hoverText = "";
 
@@ -100,10 +102,10 @@ namespace StardewValley.Menus
 				Game1.mouseCursorTransparency = 0f;
 			}
 			dialogues.AddRange(dialogue.Split('#'));
-			width = Math.Min(1240, SpriteText.getWidthOfString(dialogue) + 64);
-			height = SpriteText.getHeightOfString(dialogue, width - 20) + 4;
+			width = Math.Min(1240, SpriteText.getWidthOfString(dialogues[0]) + 64);
+			height = SpriteText.getHeightOfString(dialogues[0], width - 20) + 4;
 			x = (int)Utility.getTopLeftPositionForCenteringOnScreen(width, height).X;
-			y = Game1.viewport.Height - height - 64;
+			y = Game1.uiViewport.Height - height - 64;
 			setUpIcons();
 		}
 
@@ -120,7 +122,7 @@ namespace StardewValley.Menus
 			setUpQuestions();
 			height = heightForQuestions;
 			x = (int)Utility.getTopLeftPositionForCenteringOnScreen(width, height).X;
-			y = Game1.viewport.Height - height - 64;
+			y = Game1.uiViewport.Height - height - 64;
 			setUpIcons();
 			characterIndexInDialogue = dialogue.Length;
 			if (responses != null)
@@ -152,7 +154,7 @@ namespace StardewValley.Menus
 			width = 1200;
 			height = 384;
 			x = (int)Utility.getTopLeftPositionForCenteringOnScreen(width, height).X;
-			y = Game1.viewport.Height - height - 64;
+			y = Game1.uiViewport.Height - height - 64;
 			friendshipJewel = new Rectangle(x + width - 64, y + 256, 44, 44);
 			dialogue.prepareDialogueForDisplay();
 			characterDialoguesBrokenUp.Push(dialogue.getCurrentDialogue());
@@ -171,7 +173,7 @@ namespace StardewValley.Menus
 			width = Math.Min(1200, SpriteText.getWidthOfString(dialogues[0]) + 64);
 			height = SpriteText.getHeightOfString(dialogues[0], width - 16);
 			x = (int)Utility.getTopLeftPositionForCenteringOnScreen(width, height).X;
-			y = Game1.viewport.Height - height - 64;
+			y = Game1.uiViewport.Height - height - 64;
 			setUpIcons();
 		}
 
@@ -296,7 +298,33 @@ namespace StardewValley.Menus
 			}
 			else if (isQuestion && !Game1.eventUp && characterDialogue == null)
 			{
-				if (Game1.options.doesInputListContain(Game1.options.menuButton, key))
+				if (responses != null)
+				{
+					foreach (Response response2 in responses)
+					{
+						if (response2.hotkey == key && Game1.currentLocation.answerDialogue(response2))
+						{
+							Game1.playSound("smallSelect");
+							selectedResponse = -1;
+							tryOutro();
+							return;
+						}
+					}
+					if (key == Keys.N)
+					{
+						foreach (Response response in responses)
+						{
+							if (response.hotkey == Keys.Escape && Game1.currentLocation.answerDialogue(response))
+							{
+								Game1.playSound("smallSelect");
+								selectedResponse = -1;
+								tryOutro();
+								return;
+							}
+						}
+					}
+				}
+				if (Game1.options.doesInputListContain(Game1.options.menuButton, key) || key == Keys.N)
 				{
 					if (responses != null && responses.Count > 0 && Game1.currentLocation.answerDialogue(responses[responses.Count - 1]))
 					{
@@ -307,6 +335,7 @@ namespace StardewValley.Menus
 				}
 				else if (Game1.options.SnappyMenus)
 				{
+					safetyTimer = 0;
 					base.receiveKeyPress(key);
 				}
 				else if (key == Keys.Y && responses != null && responses.Count > 0 && responses[0].responseKey.Equals("Yes") && Game1.currentLocation.answerDialogue(responses[0]))
@@ -384,7 +413,7 @@ namespace StardewValley.Menus
 						width = Math.Min(1200, SpriteText.getWidthOfString(dialogues[0]) + 64);
 						height = SpriteText.getHeightOfString(dialogues[0], width - 16);
 						this.x = (int)Utility.getTopLeftPositionForCenteringOnScreen(width, height).X;
-						this.y = Game1.viewport.Height - height - 64;
+						this.y = Game1.uiViewport.Height - height - 64;
 						xPositionOnScreen = x;
 						yPositionOnScreen = y;
 						setUpIcons();
@@ -644,13 +673,14 @@ namespace StardewValley.Menus
 				int portraitBoxX = xPositionOfPortraitArea + 76;
 				int portraitBoxY = y + height / 2 - 148 - 36;
 				b.Draw(Game1.mouseCursors, new Vector2(xPositionOfPortraitArea - 8, y), new Rectangle(583, 411, 115, 97), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.88f);
-				Rectangle portraitSource = Game1.getSourceRectForStandardTileSheet(characterDialogue.speaker.Portrait, characterDialogue.getPortraitIndex(), 64, 64);
-				if (!characterDialogue.speaker.Portrait.Bounds.Contains(portraitSource))
+				Texture2D portraitTexture = (characterDialogue.overridePortrait != null) ? characterDialogue.overridePortrait : characterDialogue.speaker.Portrait;
+				Rectangle portraitSource = Game1.getSourceRectForStandardTileSheet(portraitTexture, characterDialogue.getPortraitIndex(), 64, 64);
+				if (!portraitTexture.Bounds.Contains(portraitSource))
 				{
 					portraitSource = new Rectangle(0, 0, 64, 64);
 				}
 				int xOffset = shouldPortraitShake(characterDialogue) ? Game1.random.Next(-1, 2) : 0;
-				b.Draw(characterDialogue.speaker.Portrait, new Vector2(portraitBoxX + 16 + xOffset, portraitBoxY + 24), portraitSource, Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.88f);
+				b.Draw(portraitTexture, new Vector2(portraitBoxX + 16 + xOffset, portraitBoxY + 24), portraitSource, Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.88f);
 				SpriteText.drawStringHorizontallyCenteredAt(b, characterDialogue.speaker.getName(), xPositionOfPortraitArea + widthOfPortraitArea / 2, portraitBoxY + 296 + 16);
 				if (shouldDrawFriendshipJewel())
 				{
@@ -811,7 +841,7 @@ namespace StardewValley.Menus
 			width = 1200;
 			height = 384;
 			x = (int)Utility.getTopLeftPositionForCenteringOnScreen(width, height).X;
-			y = Game1.viewport.Height - height - 64;
+			y = Game1.uiViewport.Height - height - 64;
 			friendshipJewel = new Rectangle(x + width - 64, y + 256, 44, 44);
 			setUpIcons();
 		}
@@ -865,6 +895,11 @@ namespace StardewValley.Menus
 			if (dialogueIcon != null && characterIndexInDialogue >= getCurrentString().Length - 1)
 			{
 				dialogueIcon.draw(b, localPosition: true);
+			}
+			if (aboveDialogueImage != null)
+			{
+				drawBox(b, x + width / 2 - (int)((float)(aboveDialogueImage.sourceRect.Width / 2) * aboveDialogueImage.scale), y - 64 - 4 - (int)((float)aboveDialogueImage.sourceRect.Height * aboveDialogueImage.scale), (int)((float)aboveDialogueImage.sourceRect.Width * aboveDialogueImage.scale), (int)((float)aboveDialogueImage.sourceRect.Height * aboveDialogueImage.scale) + 8);
+				Utility.drawWithShadow(b, aboveDialogueImage.texture, new Vector2((float)(x + width / 2) - (float)(aboveDialogueImage.sourceRect.Width / 2) * aboveDialogueImage.scale, y - 64 - (int)((float)aboveDialogueImage.sourceRect.Height * aboveDialogueImage.scale)), aboveDialogueImage.sourceRect, Color.White, 0f, Vector2.Zero, aboveDialogueImage.scale, flipped: false, 1f);
 			}
 			if (hoverText.Length > 0)
 			{

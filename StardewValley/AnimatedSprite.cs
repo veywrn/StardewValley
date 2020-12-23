@@ -11,9 +11,9 @@ namespace StardewValley
 	{
 		public delegate void endOfAnimationBehavior(Farmer who);
 
-		private Texture2D spriteTexture;
+		public Texture2D spriteTexture;
 
-		private string loadedTexture;
+		public string loadedTexture;
 
 		public readonly NetString textureName = new NetString();
 
@@ -39,7 +39,7 @@ namespace StardewValley
 
 		public bool textureUsesFlippedRightForLeft;
 
-		protected endOfAnimationBehavior endOfAnimationFunction;
+		public endOfAnimationBehavior endOfAnimationFunction;
 
 		public readonly List<FarmerSprite.AnimationFrame> currentAnimation = new List<FarmerSprite.AnimationFrame>(12);
 
@@ -572,9 +572,14 @@ namespace StardewValley
 			}
 		}
 
+		public void drawShadow(SpriteBatch b, Vector2 screenPosition, float scale = 4f, float alpha = 1f)
+		{
+			b.Draw(Game1.shadowTexture, screenPosition + new Vector2((float)(SpriteWidth / 2 * 4) - scale, (float)(SpriteHeight * 4) - scale), Game1.shadowTexture.Bounds, Color.White * alpha, 0f, Utility.PointToVector2(Game1.shadowTexture.Bounds.Center), scale, SpriteEffects.None, 1E-05f);
+		}
+
 		public void drawShadow(SpriteBatch b, Vector2 screenPosition, float scale = 4f)
 		{
-			b.Draw(Game1.shadowTexture, screenPosition + new Vector2((float)(SpriteWidth / 2 * 4) - scale, (float)(SpriteHeight * 4) - scale), Game1.shadowTexture.Bounds, Color.White, 0f, Utility.PointToVector2(Game1.shadowTexture.Bounds.Center), scale, SpriteEffects.None, 1E-05f);
+			drawShadow(b, screenPosition, scale, 1f);
 		}
 
 		public AnimatedSprite Clone()

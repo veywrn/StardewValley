@@ -15,7 +15,9 @@ namespace StardewValley.Tools
 
 		public override Item getOne()
 		{
-			return new Blueprints();
+			Blueprints blueprints = new Blueprints();
+			blueprints._GetOneFrom(this);
+			return blueprints;
 		}
 
 		protected override string loadDisplayName()

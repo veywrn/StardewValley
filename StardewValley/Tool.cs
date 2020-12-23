@@ -5,6 +5,7 @@ using StardewValley.Tools;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using System.Xml.Serialization;
 
 namespace StardewValley
@@ -81,6 +82,12 @@ namespace StardewValley
 		[XmlElement("instantUse")]
 		public readonly NetBool instantUse = new NetBool();
 
+		[XmlElement("isEfficient")]
+		public readonly NetBool isEfficient = new NetBool();
+
+		[XmlElement("animationSpeedModifier")]
+		public readonly NetFloat animationSpeedModifier = new NetFloat(1f);
+
 		[XmlIgnore]
 		private string _description;
 
@@ -104,6 +111,9 @@ namespace StardewValley
 
 		[XmlIgnore]
 		protected string displayName;
+
+		[XmlElement("enchantments")]
+		public readonly NetList<BaseEnchantment, NetRef<BaseEnchantment>> enchantments = new NetList<BaseEnchantment, NetRef<BaseEnchantment>>();
 
 		[XmlIgnore]
 		public string description
@@ -268,6 +278,30 @@ namespace StardewValley
 			}
 		}
 
+		public bool IsEfficient
+		{
+			get
+			{
+				return isEfficient;
+			}
+			set
+			{
+				isEfficient.Value = value;
+			}
+		}
+
+		public float AnimationSpeedModifier
+		{
+			get
+			{
+				return animationSpeedModifier;
+			}
+			set
+			{
+				animationSpeedModifier.Value = value;
+			}
+		}
+
 		public bool Stackable
 		{
 			get
@@ -304,7 +338,7 @@ namespace StardewValley
 
 		protected virtual void initNetFields()
 		{
-			base.NetFields.AddFields(initialParentTileIndex, currentParentTileIndex, indexOfMenuItemView, stackable, instantUse, upgradeLevel, numAttachmentSlots, attachments);
+			base.NetFields.AddFields(initialParentTileIndex, currentParentTileIndex, indexOfMenuItemView, stackable, instantUse, upgradeLevel, numAttachmentSlots, attachments, enchantments, isEfficient, animationSpeedModifier);
 		}
 
 		protected abstract string loadDisplayName();
@@ -334,6 +368,34 @@ namespace StardewValley
 					b.Draw(Game1.mouseCursors, Game1.GlobalToLocal(new Vector2((int)v.X * 64, (int)v.Y * 64)), new Rectangle(194, 388, 16, 16), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.01f);
 				}
 			}
+		}
+
+		public override void drawTooltip(SpriteBatch spriteBatch, ref int x, ref int y, SpriteFont font, float alpha, StringBuilder overrideText)
+		{
+			base.drawTooltip(spriteBatch, ref x, ref y, font, alpha, overrideText);
+			foreach (BaseEnchantment enchantment in enchantments)
+			{
+				if (enchantment.ShouldBeDisplayed())
+				{
+					Utility.drawWithShadow(spriteBatch, Game1.mouseCursors2, new Vector2(x + 16 + 4, y + 16 + 4), new Rectangle(127, 35, 10, 10), Color.White, 0f, Vector2.Zero, 4f, flipped: false, 1f);
+					Utility.drawTextWithShadow(spriteBatch, BaseEnchantment.hideEnchantmentName ? "???" : enchantment.GetDisplayName(), font, new Vector2(x + 16 + 52, y + 16 + 12), new Color(120, 0, 210) * 0.9f * alpha);
+					y += (int)Math.Max(font.MeasureString("TT").Y, 48f);
+				}
+			}
+		}
+
+		public override Point getExtraSpaceNeededForTooltipSpecialIcons(SpriteFont font, int minWidth, int horizontalBuffer, int startingHeight, StringBuilder descriptionText, string boldTitleText, int moneyAmountToDisplayAtBottom)
+		{
+			Point dimensions = base.getExtraSpaceNeededForTooltipSpecialIcons(font, minWidth, horizontalBuffer, startingHeight, descriptionText, boldTitleText, moneyAmountToDisplayAtBottom);
+			dimensions.Y = startingHeight;
+			foreach (BaseEnchantment enchantment in enchantments)
+			{
+				if (enchantment.ShouldBeDisplayed())
+				{
+					dimensions.Y += (int)Math.Max(font.MeasureString("TT").Y, 48f);
+				}
+			}
+			return dimensions;
 		}
 
 		public virtual void tickUpdate(GameTime time, Farmer who)
@@ -488,7 +550,7 @@ namespace StardewValley
 			}
 			else if (this is WateringCan)
 			{
-				if ((this as WateringCan).WaterLeft > 0)
+				if ((this as WateringCan).WaterLeft > 0 && who.ShouldHandleAnimationSound())
 				{
 					who.currentLocation.localSound("wateringCan");
 				}
@@ -517,7 +579,6 @@ namespace StardewValley
 			}
 			else if (!(this is MeleeWeapon) && !(this is Pan) && !(this is Shears) && !(this is MilkPail) && !(this is Slingshot))
 			{
-				who.FarmerSprite.nextOffset = 0;
 				switch (who.FacingDirection)
 				{
 				case 0:
@@ -862,127 +923,167 @@ namespace StardewValley
 			power++;
 			List<Vector2> tileLocations = new List<Vector2>();
 			tileLocations.Add(tileLocation);
+			Vector2 extremePowerPosition = Vector2.Zero;
 			if (who.FacingDirection == 0)
 			{
-				if (power >= 2)
+				if (power >= 6)
 				{
-					tileLocations.Add(tileLocation + new Vector2(0f, -1f));
-					tileLocations.Add(tileLocation + new Vector2(0f, -2f));
+					extremePowerPosition = new Vector2(tileLocation.X, tileLocation.Y - 2f);
 				}
-				if (power >= 3)
+				else
 				{
-					tileLocations.Add(tileLocation + new Vector2(0f, -3f));
-					tileLocations.Add(tileLocation + new Vector2(0f, -4f));
-				}
-				if (power >= 4)
-				{
-					tileLocations.RemoveAt(tileLocations.Count - 1);
-					tileLocations.RemoveAt(tileLocations.Count - 1);
-					tileLocations.Add(tileLocation + new Vector2(1f, -2f));
-					tileLocations.Add(tileLocation + new Vector2(1f, -1f));
-					tileLocations.Add(tileLocation + new Vector2(1f, 0f));
-					tileLocations.Add(tileLocation + new Vector2(-1f, -2f));
-					tileLocations.Add(tileLocation + new Vector2(-1f, -1f));
-					tileLocations.Add(tileLocation + new Vector2(-1f, 0f));
-				}
-				if (power >= 5)
-				{
-					for (int l = tileLocations.Count - 1; l >= 0; l--)
+					if (power >= 2)
 					{
-						tileLocations.Add(tileLocations[l] + new Vector2(0f, -3f));
+						tileLocations.Add(tileLocation + new Vector2(0f, -1f));
+						tileLocations.Add(tileLocation + new Vector2(0f, -2f));
+					}
+					if (power >= 3)
+					{
+						tileLocations.Add(tileLocation + new Vector2(0f, -3f));
+						tileLocations.Add(tileLocation + new Vector2(0f, -4f));
+					}
+					if (power >= 4)
+					{
+						tileLocations.RemoveAt(tileLocations.Count - 1);
+						tileLocations.RemoveAt(tileLocations.Count - 1);
+						tileLocations.Add(tileLocation + new Vector2(1f, -2f));
+						tileLocations.Add(tileLocation + new Vector2(1f, -1f));
+						tileLocations.Add(tileLocation + new Vector2(1f, 0f));
+						tileLocations.Add(tileLocation + new Vector2(-1f, -2f));
+						tileLocations.Add(tileLocation + new Vector2(-1f, -1f));
+						tileLocations.Add(tileLocation + new Vector2(-1f, 0f));
+					}
+					if (power >= 5)
+					{
+						for (int l = tileLocations.Count - 1; l >= 0; l--)
+						{
+							tileLocations.Add(tileLocations[l] + new Vector2(0f, -3f));
+						}
 					}
 				}
 			}
 			else if (who.FacingDirection == 1)
 			{
-				if (power >= 2)
+				if (power >= 6)
 				{
-					tileLocations.Add(tileLocation + new Vector2(1f, 0f));
-					tileLocations.Add(tileLocation + new Vector2(2f, 0f));
+					extremePowerPosition = new Vector2(tileLocation.X + 2f, tileLocation.Y);
 				}
-				if (power >= 3)
+				else
 				{
-					tileLocations.Add(tileLocation + new Vector2(3f, 0f));
-					tileLocations.Add(tileLocation + new Vector2(4f, 0f));
-				}
-				if (power >= 4)
-				{
-					tileLocations.RemoveAt(tileLocations.Count - 1);
-					tileLocations.RemoveAt(tileLocations.Count - 1);
-					tileLocations.Add(tileLocation + new Vector2(0f, -1f));
-					tileLocations.Add(tileLocation + new Vector2(1f, -1f));
-					tileLocations.Add(tileLocation + new Vector2(2f, -1f));
-					tileLocations.Add(tileLocation + new Vector2(0f, 1f));
-					tileLocations.Add(tileLocation + new Vector2(1f, 1f));
-					tileLocations.Add(tileLocation + new Vector2(2f, 1f));
-				}
-				if (power >= 5)
-				{
-					for (int k = tileLocations.Count - 1; k >= 0; k--)
+					if (power >= 2)
 					{
-						tileLocations.Add(tileLocations[k] + new Vector2(3f, 0f));
+						tileLocations.Add(tileLocation + new Vector2(1f, 0f));
+						tileLocations.Add(tileLocation + new Vector2(2f, 0f));
+					}
+					if (power >= 3)
+					{
+						tileLocations.Add(tileLocation + new Vector2(3f, 0f));
+						tileLocations.Add(tileLocation + new Vector2(4f, 0f));
+					}
+					if (power >= 4)
+					{
+						tileLocations.RemoveAt(tileLocations.Count - 1);
+						tileLocations.RemoveAt(tileLocations.Count - 1);
+						tileLocations.Add(tileLocation + new Vector2(0f, -1f));
+						tileLocations.Add(tileLocation + new Vector2(1f, -1f));
+						tileLocations.Add(tileLocation + new Vector2(2f, -1f));
+						tileLocations.Add(tileLocation + new Vector2(0f, 1f));
+						tileLocations.Add(tileLocation + new Vector2(1f, 1f));
+						tileLocations.Add(tileLocation + new Vector2(2f, 1f));
+					}
+					if (power >= 5)
+					{
+						for (int k = tileLocations.Count - 1; k >= 0; k--)
+						{
+							tileLocations.Add(tileLocations[k] + new Vector2(3f, 0f));
+						}
 					}
 				}
 			}
 			else if (who.FacingDirection == 2)
 			{
-				if (power >= 2)
+				if (power >= 6)
 				{
-					tileLocations.Add(tileLocation + new Vector2(0f, 1f));
-					tileLocations.Add(tileLocation + new Vector2(0f, 2f));
+					extremePowerPosition = new Vector2(tileLocation.X, tileLocation.Y + 2f);
 				}
-				if (power >= 3)
+				else
 				{
-					tileLocations.Add(tileLocation + new Vector2(0f, 3f));
-					tileLocations.Add(tileLocation + new Vector2(0f, 4f));
-				}
-				if (power >= 4)
-				{
-					tileLocations.RemoveAt(tileLocations.Count - 1);
-					tileLocations.RemoveAt(tileLocations.Count - 1);
-					tileLocations.Add(tileLocation + new Vector2(1f, 2f));
-					tileLocations.Add(tileLocation + new Vector2(1f, 1f));
-					tileLocations.Add(tileLocation + new Vector2(1f, 0f));
-					tileLocations.Add(tileLocation + new Vector2(-1f, 2f));
-					tileLocations.Add(tileLocation + new Vector2(-1f, 1f));
-					tileLocations.Add(tileLocation + new Vector2(-1f, 0f));
-				}
-				if (power >= 5)
-				{
-					for (int j = tileLocations.Count - 1; j >= 0; j--)
+					if (power >= 2)
 					{
-						tileLocations.Add(tileLocations[j] + new Vector2(0f, 3f));
+						tileLocations.Add(tileLocation + new Vector2(0f, 1f));
+						tileLocations.Add(tileLocation + new Vector2(0f, 2f));
+					}
+					if (power >= 3)
+					{
+						tileLocations.Add(tileLocation + new Vector2(0f, 3f));
+						tileLocations.Add(tileLocation + new Vector2(0f, 4f));
+					}
+					if (power >= 4)
+					{
+						tileLocations.RemoveAt(tileLocations.Count - 1);
+						tileLocations.RemoveAt(tileLocations.Count - 1);
+						tileLocations.Add(tileLocation + new Vector2(1f, 2f));
+						tileLocations.Add(tileLocation + new Vector2(1f, 1f));
+						tileLocations.Add(tileLocation + new Vector2(1f, 0f));
+						tileLocations.Add(tileLocation + new Vector2(-1f, 2f));
+						tileLocations.Add(tileLocation + new Vector2(-1f, 1f));
+						tileLocations.Add(tileLocation + new Vector2(-1f, 0f));
+					}
+					if (power >= 5)
+					{
+						for (int j = tileLocations.Count - 1; j >= 0; j--)
+						{
+							tileLocations.Add(tileLocations[j] + new Vector2(0f, 3f));
+						}
 					}
 				}
 			}
 			else if (who.FacingDirection == 3)
 			{
-				if (power >= 2)
+				if (power >= 6)
 				{
-					tileLocations.Add(tileLocation + new Vector2(-1f, 0f));
-					tileLocations.Add(tileLocation + new Vector2(-2f, 0f));
+					extremePowerPosition = new Vector2(tileLocation.X - 2f, tileLocation.Y);
 				}
-				if (power >= 3)
+				else
 				{
-					tileLocations.Add(tileLocation + new Vector2(-3f, 0f));
-					tileLocations.Add(tileLocation + new Vector2(-4f, 0f));
-				}
-				if (power >= 4)
-				{
-					tileLocations.RemoveAt(tileLocations.Count - 1);
-					tileLocations.RemoveAt(tileLocations.Count - 1);
-					tileLocations.Add(tileLocation + new Vector2(0f, -1f));
-					tileLocations.Add(tileLocation + new Vector2(-1f, -1f));
-					tileLocations.Add(tileLocation + new Vector2(-2f, -1f));
-					tileLocations.Add(tileLocation + new Vector2(0f, 1f));
-					tileLocations.Add(tileLocation + new Vector2(-1f, 1f));
-					tileLocations.Add(tileLocation + new Vector2(-2f, 1f));
-				}
-				if (power >= 5)
-				{
-					for (int i = tileLocations.Count - 1; i >= 0; i--)
+					if (power >= 2)
 					{
-						tileLocations.Add(tileLocations[i] + new Vector2(-3f, 0f));
+						tileLocations.Add(tileLocation + new Vector2(-1f, 0f));
+						tileLocations.Add(tileLocation + new Vector2(-2f, 0f));
+					}
+					if (power >= 3)
+					{
+						tileLocations.Add(tileLocation + new Vector2(-3f, 0f));
+						tileLocations.Add(tileLocation + new Vector2(-4f, 0f));
+					}
+					if (power >= 4)
+					{
+						tileLocations.RemoveAt(tileLocations.Count - 1);
+						tileLocations.RemoveAt(tileLocations.Count - 1);
+						tileLocations.Add(tileLocation + new Vector2(0f, -1f));
+						tileLocations.Add(tileLocation + new Vector2(-1f, -1f));
+						tileLocations.Add(tileLocation + new Vector2(-2f, -1f));
+						tileLocations.Add(tileLocation + new Vector2(0f, 1f));
+						tileLocations.Add(tileLocation + new Vector2(-1f, 1f));
+						tileLocations.Add(tileLocation + new Vector2(-2f, 1f));
+					}
+					if (power >= 5)
+					{
+						for (int i = tileLocations.Count - 1; i >= 0; i--)
+						{
+							tileLocations.Add(tileLocations[i] + new Vector2(-3f, 0f));
+						}
+					}
+				}
+			}
+			if (power >= 6)
+			{
+				tileLocations.Clear();
+				for (int x = (int)extremePowerPosition.X - 2; (float)x <= extremePowerPosition.X + 2f; x++)
+				{
+					for (int y = (int)extremePowerPosition.Y - 2; (float)y <= extremePowerPosition.Y + 2f; y++)
+					{
+						tileLocations.Add(new Vector2(x, y));
 					}
 				}
 			}
@@ -1076,6 +1177,325 @@ namespace StardewValley
 		public override string getDescription()
 		{
 			return Game1.parseText(description, Game1.smallFont, getDescriptionWidth());
+		}
+
+		public virtual void ClearEnchantments()
+		{
+			for (int i = enchantments.Count - 1; i >= 0; i--)
+			{
+				enchantments[i].UnapplyTo(this);
+			}
+			enchantments.Clear();
+		}
+
+		public virtual int GetMaxForges()
+		{
+			return 0;
+		}
+
+		public int GetSecondaryEnchantmentCount()
+		{
+			int total = 0;
+			foreach (BaseEnchantment enchantment in enchantments)
+			{
+				if (enchantment != null && enchantment.IsSecondaryEnchantment())
+				{
+					total++;
+				}
+			}
+			return total;
+		}
+
+		public virtual bool CanAddEnchantment(BaseEnchantment enchantment)
+		{
+			if (!enchantment.IsForge() && !enchantment.IsSecondaryEnchantment())
+			{
+				return true;
+			}
+			if (GetTotalForgeLevels() >= GetMaxForges() && !enchantment.IsSecondaryEnchantment())
+			{
+				return false;
+			}
+			if (enchantment != null)
+			{
+				foreach (BaseEnchantment existing_enchantment in enchantments)
+				{
+					if (enchantment.GetType() == existing_enchantment.GetType())
+					{
+						if (existing_enchantment.GetMaximumLevel() < 0 || existing_enchantment.GetLevel() < existing_enchantment.GetMaximumLevel())
+						{
+							return true;
+						}
+						return false;
+					}
+				}
+				return true;
+			}
+			return false;
+		}
+
+		public virtual void CopyEnchantments(Tool source, Tool destination)
+		{
+			foreach (BaseEnchantment enchantment in enchantments)
+			{
+				destination.enchantments.Add(enchantment.GetOne());
+				enchantment.GetOne().ApplyTo(destination);
+			}
+		}
+
+		public int GetTotalForgeLevels(bool for_unforge = false)
+		{
+			int total = 0;
+			foreach (BaseEnchantment existing_enchantment in enchantments)
+			{
+				if (existing_enchantment is DiamondEnchantment)
+				{
+					if (for_unforge)
+					{
+						return total;
+					}
+				}
+				else if (existing_enchantment.IsForge())
+				{
+					total += existing_enchantment.GetLevel();
+				}
+			}
+			return total;
+		}
+
+		public virtual bool AddEnchantment(BaseEnchantment enchantment)
+		{
+			if (enchantment != null)
+			{
+				if (this is MeleeWeapon && (enchantment.IsForge() || enchantment.IsSecondaryEnchantment()))
+				{
+					foreach (BaseEnchantment existing_enchantment in enchantments)
+					{
+						if (enchantment.GetType() == existing_enchantment.GetType())
+						{
+							if (existing_enchantment.GetMaximumLevel() < 0 || existing_enchantment.GetLevel() < existing_enchantment.GetMaximumLevel())
+							{
+								existing_enchantment.SetLevel(this, existing_enchantment.GetLevel() + 1);
+								return true;
+							}
+							return false;
+						}
+					}
+					enchantments.Add(enchantment);
+					enchantment.ApplyTo(this, lastUser);
+					return true;
+				}
+				for (int i = enchantments.Count - 1; i >= 0; i--)
+				{
+					if (!enchantments[i].IsForge() && !enchantments[i].IsSecondaryEnchantment())
+					{
+						enchantments.ElementAt(i).UnapplyTo(this);
+						enchantments.RemoveAt(i);
+					}
+				}
+				enchantments.Add(enchantment);
+				enchantment.ApplyTo(this, lastUser);
+				return true;
+			}
+			return false;
+		}
+
+		public bool hasEnchantmentOfType<T>()
+		{
+			foreach (BaseEnchantment enchantment in enchantments)
+			{
+				if (enchantment is T)
+				{
+					return true;
+				}
+			}
+			return false;
+		}
+
+		public virtual void RemoveEnchantment(BaseEnchantment enchantment)
+		{
+			if (enchantment != null)
+			{
+				enchantments.Remove(enchantment);
+				enchantment.UnapplyTo(this, lastUser);
+			}
+		}
+
+		public override void actionWhenBeingHeld(Farmer who)
+		{
+			base.actionWhenBeingHeld(who);
+			if (who.IsLocalPlayer)
+			{
+				foreach (BaseEnchantment enchantment in enchantments)
+				{
+					enchantment.OnEquip(who);
+				}
+			}
+		}
+
+		public override void actionWhenStopBeingHeld(Farmer who)
+		{
+			base.actionWhenStopBeingHeld(who);
+			if (who.UsingTool)
+			{
+				who.UsingTool = false;
+				if (who.FarmerSprite.PauseForSingleAnimation)
+				{
+					who.FarmerSprite.PauseForSingleAnimation = false;
+				}
+			}
+			if (who.IsLocalPlayer)
+			{
+				foreach (BaseEnchantment enchantment in enchantments)
+				{
+					enchantment.OnUnequip(who);
+				}
+			}
+		}
+
+		public virtual bool CanUseOnStandingTile()
+		{
+			return false;
+		}
+
+		public virtual bool CanForge(Item item)
+		{
+			BaseEnchantment enchantment = BaseEnchantment.GetEnchantmentFromItem(this, item);
+			if (enchantment != null && CanAddEnchantment(enchantment))
+			{
+				return true;
+			}
+			return false;
+		}
+
+		public T GetEnchantmentOfType<T>() where T : BaseEnchantment
+		{
+			foreach (BaseEnchantment existing_enchantment in enchantments)
+			{
+				if (existing_enchantment.GetType() == typeof(T))
+				{
+					return existing_enchantment as T;
+				}
+			}
+			return null;
+		}
+
+		public int GetEnchantmentLevel<T>() where T : BaseEnchantment
+		{
+			int total = 0;
+			foreach (BaseEnchantment existing_enchantment in enchantments)
+			{
+				if (existing_enchantment.GetType() == typeof(T))
+				{
+					total += existing_enchantment.GetLevel();
+				}
+			}
+			return total;
+		}
+
+		public virtual bool Forge(Item item, bool count_towards_stats = false)
+		{
+			BaseEnchantment enchantment = BaseEnchantment.GetEnchantmentFromItem(this, item);
+			if (enchantment != null && AddEnchantment(enchantment))
+			{
+				if (enchantment is DiamondEnchantment)
+				{
+					int forges_left = GetMaxForges() - GetTotalForgeLevels();
+					List<int> valid_forges = new List<int>();
+					if (!hasEnchantmentOfType<EmeraldEnchantment>())
+					{
+						valid_forges.Add(0);
+					}
+					if (!hasEnchantmentOfType<AquamarineEnchantment>())
+					{
+						valid_forges.Add(1);
+					}
+					if (!hasEnchantmentOfType<RubyEnchantment>())
+					{
+						valid_forges.Add(2);
+					}
+					if (!hasEnchantmentOfType<AmethystEnchantment>())
+					{
+						valid_forges.Add(3);
+					}
+					if (!hasEnchantmentOfType<TopazEnchantment>())
+					{
+						valid_forges.Add(4);
+					}
+					if (!hasEnchantmentOfType<JadeEnchantment>())
+					{
+						valid_forges.Add(5);
+					}
+					for (int i = 0; i < forges_left; i++)
+					{
+						if (valid_forges.Count == 0)
+						{
+							break;
+						}
+						int index = Game1.random.Next(valid_forges.Count);
+						int random_enchant = valid_forges[index];
+						valid_forges.RemoveAt(index);
+						switch (random_enchant)
+						{
+						case 0:
+							AddEnchantment(new EmeraldEnchantment());
+							break;
+						case 1:
+							AddEnchantment(new AquamarineEnchantment());
+							break;
+						case 2:
+							AddEnchantment(new RubyEnchantment());
+							break;
+						case 3:
+							AddEnchantment(new AmethystEnchantment());
+							break;
+						case 4:
+							AddEnchantment(new TopazEnchantment());
+							break;
+						case 5:
+							AddEnchantment(new JadeEnchantment());
+							break;
+						}
+					}
+				}
+				else if (enchantment is GalaxySoulEnchantment && this is MeleeWeapon && (this as MeleeWeapon).isGalaxyWeapon() && (this as MeleeWeapon).GetEnchantmentLevel<GalaxySoulEnchantment>() >= 3)
+				{
+					int current_index = (this as MeleeWeapon).InitialParentTileIndex;
+					int new_index = -1;
+					switch (current_index)
+					{
+					case 4:
+						new_index = 62;
+						break;
+					case 29:
+						new_index = 63;
+						break;
+					case 23:
+						new_index = 64;
+						break;
+					}
+					if (new_index != -1)
+					{
+						(this as MeleeWeapon).transform(new_index);
+						if (count_towards_stats)
+						{
+							DelayedAction.playSoundAfterDelay("discoverMineral", 400);
+							Game1.multiplayer.globalChatInfoMessage("InfinityWeapon", Game1.player.name, DisplayName);
+						}
+					}
+					GalaxySoulEnchantment enchant = GetEnchantmentOfType<GalaxySoulEnchantment>();
+					if (enchant != null)
+					{
+						RemoveEnchantment(enchant);
+					}
+				}
+				if (count_towards_stats && !enchantment.IsForge())
+				{
+					Game1.stats.incrementStat("timesEnchanted", 1);
+				}
+				return true;
+			}
+			return false;
 		}
 	}
 }

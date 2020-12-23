@@ -31,5 +31,10 @@ namespace StardewValley.Network
 		{
 			return field.ToArray();
 		}
+
+		protected override bool[] getFieldTargetValue(NetArray<bool, NetBool> field)
+		{
+			return field.ToArray();
+		}
 	}
 }

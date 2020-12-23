@@ -222,11 +222,9 @@ namespace StardewValley
 
 		public bool loopThisAnimation;
 
-		public bool ignoreDefaultActionThisTime;
-
 		public bool freezeUntilDialogueIsOver;
 
-		private int currentSingleAnimation;
+		private int currentSingleAnimation = -1;
 
 		private int currentAnimationFrames;
 
@@ -237,8 +235,6 @@ namespace StardewValley
 		public string currentStep = "sandyStep";
 
 		private Farmer owner;
-
-		public int nextOffset;
 
 		public bool animatingBackwards;
 
@@ -319,6 +315,7 @@ namespace StardewValley
 
 		public void setCurrentAnimation(AnimationFrame[] animation)
 		{
+			currentSingleAnimation = -1;
 			currentAnimation.Clear();
 			currentAnimation.AddRange(animation);
 			oldFrame = CurrentFrame;
@@ -338,22 +335,158 @@ namespace StardewValley
 			{
 				carrying = owner.IsCarrying();
 			}
+			if (!IsPlayingBasicAnimation(direction, carrying))
+			{
+				switch (direction)
+				{
+				case 0:
+					setCurrentFrame(12, 1, 100, 1, flip: false, carrying);
+					break;
+				case 1:
+					setCurrentFrame(6, 1, 100, 1, flip: false, carrying);
+					break;
+				case 2:
+					setCurrentFrame(0, 1, 100, 1, flip: false, carrying);
+					break;
+				case 3:
+					setCurrentFrame(6, 1, 100, 1, flip: true, carrying);
+					break;
+				}
+				UpdateSourceRect();
+			}
+		}
+
+		public virtual bool IsPlayingBasicAnimation(int direction, bool carrying)
+		{
+			bool moving = false;
+			if (owner != null && owner.CanMove && owner.isMoving())
+			{
+				moving = true;
+			}
 			switch (direction)
 			{
 			case 0:
-				setCurrentFrame(12, 0, 100, 1, flip: false, carrying);
-				break;
-			case 1:
-				setCurrentFrame(6, 0, 100, 1, flip: false, carrying);
+				if (carrying)
+				{
+					if (!moving)
+					{
+						if (CurrentFrame == 113)
+						{
+							return true;
+						}
+						return false;
+					}
+					if (currentSingleAnimation == 112 || currentSingleAnimation == 144)
+					{
+						return true;
+					}
+					break;
+				}
+				if (!moving)
+				{
+					if (CurrentFrame == 17)
+					{
+						return true;
+					}
+					return false;
+				}
+				if (currentSingleAnimation == 16 || currentSingleAnimation == 48)
+				{
+					return true;
+				}
 				break;
 			case 2:
-				setCurrentFrame(0, 0, 100, 1, flip: false, carrying);
+				if (carrying)
+				{
+					if (!moving)
+					{
+						if (CurrentFrame == 97)
+						{
+							return true;
+						}
+						return false;
+					}
+					if (currentSingleAnimation == 96 || currentSingleAnimation == 128)
+					{
+						return true;
+					}
+					break;
+				}
+				if (!moving)
+				{
+					if (CurrentFrame == 1)
+					{
+						return true;
+					}
+					return false;
+				}
+				if (currentSingleAnimation == 0 || currentSingleAnimation == 32)
+				{
+					return true;
+				}
 				break;
 			case 3:
-				setCurrentFrame(6, 0, 100, 1, flip: true, carrying);
+				if (carrying)
+				{
+					if (!moving)
+					{
+						if (CurrentFrame == 121)
+						{
+							return true;
+						}
+						return false;
+					}
+					if (currentSingleAnimation == 120 || currentSingleAnimation == 152)
+					{
+						return true;
+					}
+					break;
+				}
+				if (!moving)
+				{
+					if (CurrentFrame == 25)
+					{
+						return true;
+					}
+					return false;
+				}
+				if (currentSingleAnimation == 24 || currentSingleAnimation == 56)
+				{
+					return true;
+				}
+				break;
+			case 1:
+				if (carrying)
+				{
+					if (!moving)
+					{
+						if (CurrentFrame == 105)
+						{
+							return true;
+						}
+						return false;
+					}
+					if (currentSingleAnimation == 104 || currentSingleAnimation == 136)
+					{
+						return true;
+					}
+					break;
+				}
+				if (!moving)
+				{
+					if (CurrentFrame == 9)
+					{
+						return true;
+					}
+					return false;
+				}
+				if (currentSingleAnimation == 8 || currentSingleAnimation == 40)
+				{
+					return true;
+				}
 				break;
 			}
-			UpdateSourceRect();
+			return false;
 		}
 
 		public void setCurrentSingleFrame(int which, short interval = 32000, bool secondaryArm = false, bool flip = false)
@@ -383,11 +516,6 @@ namespace StardewValley
 
 		public void setCurrentFrame(int which, int offset, int interval, int numFrames, bool flip, bool secondaryArm)
 		{
-			if (nextOffset != 0)
-			{
-				offset = nextOffset;
-				nextOffset = 0;
-			}
 			getAnimationFromIndex(which, this, interval, numFrames, flip, secondaryArm);
 			currentAnimationIndex = Math.Min(base.CurrentAnimation.Count - 1, offset);
 			CurrentFrame = base.CurrentAnimation[currentAnimationIndex].frame;
@@ -470,7 +598,7 @@ namespace StardewValley
 		{
 			if (!PauseForSingleAnimation)
 			{
-				currentSingleAnimation = 0;
+				currentSingleAnimation = -1;
 				CurrentFrame = currentSingleAnimation;
 				PauseForSingleAnimation = true;
 				oldFrame = CurrentFrame;
@@ -611,7 +739,11 @@ namespace StardewValley
 		{
 			if (PauseForSingleAnimation)
 			{
-				return currentSingleAnimation == 293;
+				if (currentSingleAnimation != 293)
+				{
+					return CurrentFrame == 5;
+				}
+				return true;
 			}
 			return false;
 		}
@@ -627,7 +759,6 @@ namespace StardewValley
 			}
 			PauseForSingleAnimation = false;
 			animatingBackwards = false;
-			ignoreDefaultActionThisTime = false;
 		}
 
 		private void currentAnimationTick()
@@ -688,7 +819,7 @@ namespace StardewValley
 					{
 						CurrentAnimationFrame.frameEndBehavior(owner);
 					}
-					if (base.endOfAnimationFunction != null && !ignoreDefaultActionThisTime)
+					if (base.endOfAnimationFunction != null)
 					{
 						endOfAnimationBehavior endOfAnimationFunction = base.endOfAnimationFunction;
 						base.endOfAnimationFunction = null;
@@ -730,7 +861,7 @@ namespace StardewValley
 					}
 					break;
 				}
-				if (CurrentFrame == 109)
+				if (CurrentFrame == 109 && owner.ShouldHandleAnimationSound())
 				{
 					owner.currentLocation.localSound("eat");
 				}
@@ -771,7 +902,7 @@ namespace StardewValley
 							}
 							else
 							{
-								currentStep = (Game1.currentSeason.Equals("winter") ? "snowyStep" : "grassyStep");
+								currentStep = (Game1.currentLocation.GetSeasonForLocation().Equals("winter") ? "snowyStep" : "grassyStep");
 							}
 						}
 						else
@@ -791,32 +922,67 @@ namespace StardewValley
 			}
 			if (((currentSingleAnimation >= 32 && currentSingleAnimation <= 56) || (currentSingleAnimation >= 128 && currentSingleAnimation <= 152)) && currentAnimationIndex % 4 == 0)
 			{
-				string played_step = currentStep;
+				string played_step2 = currentStep;
+				played_step2 = owner.currentLocation.getFootstepSoundReplacement(played_step2);
+				if (owner.onBridge.Value)
+				{
+					if (owner.currentLocation == Game1.currentLocation && Utility.isOnScreen(owner.Position, 384))
+					{
+						played_step2 = "thudStep";
+					}
+					if (owner.bridge != null)
+					{
+						owner.bridge.OnFootstep(owner.Position);
+					}
+				}
 				if (Game1.currentLocation.terrainFeatures.ContainsKey(tileLocationOfPlayer) && Game1.currentLocation.terrainFeatures[tileLocationOfPlayer] is Flooring)
 				{
-					played_step = ((Flooring)Game1.currentLocation.terrainFeatures[tileLocationOfPlayer]).getFootstepSound();
+					played_step2 = ((Flooring)Game1.currentLocation.terrainFeatures[tileLocationOfPlayer]).getFootstepSound();
 				}
-				if (played_step.Equals("sandyStep"))
+				Vector2 owner_position = owner.position;
+				if (owner.shouldShadowBeOffset)
 				{
-					Game1.currentLocation.temporarySprites.Add(new TemporaryAnimatedSprite("TileSheets\\animations", new Rectangle(128, 2948, 64, 64), 80f, 8, 0, new Vector2(owner.position.X + 16f + (float)Game1.random.Next(-8, 8), owner.position.Y + (float)(Game1.random.Next(-3, -1) * 4)), flicker: false, Game1.random.NextDouble() < 0.5, owner.position.Y / 10000f, 0.03f, Color.Khaki * 0.45f, 0.75f + (float)Game1.random.Next(-3, 4) * 0.05f, 0f, 0f, 0f));
-					Game1.currentLocation.temporarySprites.Add(new TemporaryAnimatedSprite("TileSheets\\animations", new Rectangle(128, 2948, 64, 64), 80f, 8, 0, new Vector2(owner.position.X + 16f + (float)Game1.random.Next(-4, 4), owner.position.Y + (float)(Game1.random.Next(-3, -1) * 4)), flicker: false, Game1.random.NextDouble() < 0.5, owner.position.Y / 10000f, 0.03f, Color.Khaki * 0.45f, 0.55f + (float)Game1.random.Next(-3, 4) * 0.05f, 0f, 0f, 0f)
+					owner_position += owner.drawOffset.Value;
+				}
+				if (played_step2.Equals("sandyStep"))
+				{
+					Game1.currentLocation.temporarySprites.Add(new TemporaryAnimatedSprite("TileSheets\\animations", new Rectangle(128, 2948, 64, 64), 80f, 8, 0, new Vector2(owner_position.X + 16f + (float)Game1.random.Next(-8, 8), owner_position.Y + (float)(Game1.random.Next(-3, -1) * 4)), flicker: false, Game1.random.NextDouble() < 0.5, owner_position.Y / 10000f, 0.03f, Color.Khaki * 0.45f, 0.75f + (float)Game1.random.Next(-3, 4) * 0.05f, 0f, 0f, 0f));
+					Game1.currentLocation.temporarySprites.Add(new TemporaryAnimatedSprite("TileSheets\\animations", new Rectangle(128, 2948, 64, 64), 80f, 8, 0, new Vector2(owner_position.X + 16f + (float)Game1.random.Next(-4, 4), owner_position.Y + (float)(Game1.random.Next(-3, -1) * 4)), flicker: false, Game1.random.NextDouble() < 0.5, owner_position.Y / 10000f, 0.03f, Color.Khaki * 0.45f, 0.55f + (float)Game1.random.Next(-3, 4) * 0.05f, 0f, 0f, 0f)
 					{
 						delayBeforeAnimationStart = 20
 					});
 				}
-				else if (played_step.Equals("snowyStep"))
+				else if (played_step2.Equals("snowyStep"))
 				{
-					Game1.currentLocation.temporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Rectangle(247, 407, 6, 6), 2000f, 1, 10000, new Vector2(owner.position.X + 24f + (float)(Game1.random.Next(-4, 4) * 4), owner.position.Y + 8f + (float)(Game1.random.Next(-4, 4) * 4)), flicker: false, flipped: false, owner.position.Y / 1E+07f, 0.01f, Color.White, 3f + (float)Game1.random.NextDouble(), 0f, ((int)owner.facingDirection == 1 || (int)owner.facingDirection == 3) ? (-(float)Math.PI / 4f) : 0f, 0f));
+					Game1.currentLocation.temporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Rectangle(247, 407, 6, 6), 2000f, 1, 10000, new Vector2(owner_position.X + 24f + (float)(Game1.random.Next(-4, 4) * 4), owner_position.Y + 8f + (float)(Game1.random.Next(-4, 4) * 4)), flicker: false, flipped: false, owner_position.Y / 1E+07f, 0.01f, Color.White, 3f + (float)Game1.random.NextDouble(), 0f, ((int)owner.facingDirection == 1 || (int)owner.facingDirection == 3) ? (-(float)Math.PI / 4f) : 0f, 0f));
 				}
-				if (played_step != null && owner.currentLocation == Game1.currentLocation && Utility.isOnScreen(owner.Position, 384))
+				if (played_step2 != null && owner.currentLocation == Game1.currentLocation && Utility.isOnScreen(owner.Position, 384) && (owner == Game1.player || !LocalMultiplayer.IsLocalMultiplayer(is_local_only: true)))
 				{
-					Game1.playSound(played_step);
+					Game1.playSound(played_step2);
 				}
 				Game1.stats.takeStep();
 			}
-			else if (CurrentFrame == 4 || CurrentFrame == 12 || CurrentFrame == 20 || CurrentFrame == 28 || CurrentFrame == 100 || CurrentFrame == 108 || CurrentFrame == 116 || CurrentFrame == 124)
+			else
 			{
-				Game1.stats.takeStep();
+				if ((currentSingleAnimation < 0 || currentSingleAnimation > 24) && (currentSingleAnimation < 96 || currentSingleAnimation > 120))
+				{
+					return;
+				}
+				if (owner.onBridge.Value && currentAnimationIndex % 2 == 0)
+				{
+					if (owner.currentLocation == Game1.currentLocation && Utility.isOnScreen(owner.Position, 384) && (owner == Game1.player || !LocalMultiplayer.IsLocalMultiplayer(is_local_only: true)))
+					{
+						Game1.playSound("thudStep");
+					}
+					if (owner.bridge != null)
+					{
+						owner.bridge.OnFootstep(owner.Position);
+					}
+				}
+				if (currentAnimationIndex == 0)
+				{
+					Game1.stats.takeStep();
+				}
 			}
 		}
 
@@ -945,6 +1111,7 @@ namespace StardewValley
 
 		public override void StopAnimation()
 		{
+			bool animation_dirty = false;
 			if (pauseForSingleAnimation)
 			{
 				return;
@@ -967,11 +1134,14 @@ namespace StardewValley
 					CurrentFrame = 6;
 					break;
 				}
+				animation_dirty = true;
 			}
-			else if (!Game1.pickingTool)
+			else if (!Game1.pickingTool && owner != null)
 			{
-				if (owner != null)
+				bool carrying = owner.ActiveObject != null && Game1.eventUp;
+				if (!IsPlayingBasicAnimation(owner.facingDirection, carrying))
 				{
+					animation_dirty = true;
 					switch (owner.FacingDirection)
 					{
 					case 0:
@@ -1015,11 +1185,14 @@ namespace StardewValley
 						}
 						break;
 					}
+					currentSingleAnimation = -1;
 				}
-				currentSingleAnimation = -1;
 			}
-			currentAnimationIndex = 0;
-			UpdateSourceRect();
+			if (animation_dirty)
+			{
+				currentAnimationIndex = 0;
+				UpdateSourceRect();
+			}
 		}
 
 		public static void getAnimationFromIndex(int index, FarmerSprite requester, int interval, int numberOfFrames, bool flip, bool secondaryArm)
@@ -1037,6 +1210,12 @@ namespace StardewValley
 			}
 			List<AnimationFrame> outFrames = requester.currentAnimation;
 			outFrames.Clear();
+			float toolSpeedModifier = 1f;
+			if (requester.owner != null && requester.owner.CurrentTool != null)
+			{
+				toolSpeedModifier = requester.owner.CurrentTool.AnimationSpeedModifier;
+			}
+			requester.currentSingleAnimation = index;
 			switch (index)
 			{
 			case -1:
@@ -1126,16 +1305,14 @@ namespace StardewValley
 				return;
 			case 160:
 				requester.loopThisAnimation = false;
-				requester.ignoreDefaultActionThisTime = true;
-				outFrames.Add(new AnimationFrame(66, 150, secondaryArm: false, flip: false));
-				outFrames.Add(new AnimationFrame(67, 40, secondaryArm: false, flip: false, Farmer.showToolSwipeEffect));
-				outFrames.Add(new AnimationFrame(68, 40, secondaryArm: false, flip: false, Farmer.useTool));
-				outFrames.Add(new AnimationFrame(69, (short)(170 + requester.owner.toolPower * 30), secondaryArm: false, flip: false));
-				outFrames.Add(new AnimationFrame(70, 75, secondaryArm: false, flip: false, Farmer.canMoveNow, behaviorAtEndOfFrame: true));
+				outFrames.Add(new AnimationFrame(66, (int)(150f * toolSpeedModifier), secondaryArm: false, flip: false));
+				outFrames.Add(new AnimationFrame(67, (int)(40f * toolSpeedModifier), secondaryArm: false, flip: false, Farmer.showToolSwipeEffect));
+				outFrames.Add(new AnimationFrame(68, (int)(40f * toolSpeedModifier), secondaryArm: false, flip: false, Farmer.useTool));
+				outFrames.Add(new AnimationFrame(69, (short)((float)(170 + requester.owner.toolPower * 30) * toolSpeedModifier), secondaryArm: false, flip: false));
+				outFrames.Add(new AnimationFrame(70, (int)(75f * toolSpeedModifier), secondaryArm: false, flip: false, Farmer.canMoveNow, behaviorAtEndOfFrame: true));
 				return;
 			case 297:
 				requester.loopThisAnimation = false;
-				requester.ignoreDefaultActionThisTime = true;
 				outFrames.Add(new AnimationFrame(66, 100, secondaryArm: false, flip: false));
 				outFrames.Add(new AnimationFrame(67, 40, secondaryArm: false, flip: false));
 				outFrames.Add(new AnimationFrame(68, 40, secondaryArm: false, flip: false, Farmer.showToolSwipeEffect));
@@ -1158,16 +1335,14 @@ namespace StardewValley
 				return;
 			case 168:
 				requester.loopThisAnimation = false;
-				requester.ignoreDefaultActionThisTime = true;
-				outFrames.Add(new AnimationFrame(48, 100, secondaryArm: false, flip: false));
-				outFrames.Add(new AnimationFrame(49, 40, secondaryArm: false, flip: false, Farmer.showToolSwipeEffect));
-				outFrames.Add(new AnimationFrame(50, 40, secondaryArm: false, flip: false, Farmer.useTool));
-				outFrames.Add(new AnimationFrame(51, (short)(220 + requester.owner.toolPower * 30), secondaryArm: false, flip: false));
-				outFrames.Add(new AnimationFrame(52, 75, secondaryArm: false, flip: false, Farmer.canMoveNow, behaviorAtEndOfFrame: true));
+				outFrames.Add(new AnimationFrame(48, (int)(100f * toolSpeedModifier), secondaryArm: false, flip: false));
+				outFrames.Add(new AnimationFrame(49, (int)(40f * toolSpeedModifier), secondaryArm: false, flip: false, Farmer.showToolSwipeEffect));
+				outFrames.Add(new AnimationFrame(50, (int)(40f * toolSpeedModifier), secondaryArm: false, flip: false, Farmer.useTool));
+				outFrames.Add(new AnimationFrame(51, (short)((float)(220 + requester.owner.toolPower * 30) * toolSpeedModifier), secondaryArm: false, flip: false));
+				outFrames.Add(new AnimationFrame(52, (int)(75f * toolSpeedModifier), secondaryArm: false, flip: false, Farmer.canMoveNow, behaviorAtEndOfFrame: true));
 				return;
 			case 296:
 				requester.loopThisAnimation = false;
-				requester.ignoreDefaultActionThisTime = true;
 				outFrames.Add(new AnimationFrame(48, 100, secondaryArm: false, flip: false));
 				outFrames.Add(new AnimationFrame(49, 40, secondaryArm: false, flip: false));
 				outFrames.Add(new AnimationFrame(50, 40, secondaryArm: false, flip: false, Farmer.showToolSwipeEffect));
@@ -1190,16 +1365,14 @@ namespace StardewValley
 				return;
 			case 176:
 				requester.loopThisAnimation = false;
-				requester.ignoreDefaultActionThisTime = true;
-				outFrames.Add(new AnimationFrame(36, 100, secondaryArm: false, flip: false));
-				outFrames.Add(new AnimationFrame(37, 40, secondaryArm: false, flip: false, Farmer.showToolSwipeEffect));
-				outFrames.Add(new AnimationFrame(38, 40, secondaryArm: false, flip: false, Farmer.useTool));
-				outFrames.Add(new AnimationFrame(63, (short)(220 + requester.owner.toolPower * 30), secondaryArm: false, flip: false));
-				outFrames.Add(new AnimationFrame(62, 75, secondaryArm: false, flip: false, Farmer.canMoveNow, behaviorAtEndOfFrame: true));
+				outFrames.Add(new AnimationFrame(36, (int)(100f * toolSpeedModifier), secondaryArm: false, flip: false));
+				outFrames.Add(new AnimationFrame(37, (int)(40f * toolSpeedModifier), secondaryArm: false, flip: false, Farmer.showToolSwipeEffect));
+				outFrames.Add(new AnimationFrame(38, (int)(40f * toolSpeedModifier), secondaryArm: false, flip: false, Farmer.useTool));
+				outFrames.Add(new AnimationFrame(63, (short)((float)(220 + requester.owner.toolPower * 30) * toolSpeedModifier), secondaryArm: false, flip: false));
+				outFrames.Add(new AnimationFrame(62, (int)(75f * toolSpeedModifier), secondaryArm: false, flip: false, Farmer.canMoveNow, behaviorAtEndOfFrame: true));
 				return;
 			case 295:
 				requester.loopThisAnimation = false;
-				requester.ignoreDefaultActionThisTime = true;
 				outFrames.Add(new AnimationFrame(76, 100, secondaryArm: false, flip: false));
 				outFrames.Add(new AnimationFrame(38, 40, secondaryArm: false, flip: false));
 				outFrames.Add(new AnimationFrame(63, 40, secondaryArm: false, flip: false, Farmer.showToolSwipeEffect));
@@ -1222,16 +1395,14 @@ namespace StardewValley
 				return;
 			case 184:
 				requester.loopThisAnimation = false;
-				requester.ignoreDefaultActionThisTime = true;
-				outFrames.Add(new AnimationFrame(48, 100, secondaryArm: false, flip: true));
-				outFrames.Add(new AnimationFrame(49, 40, secondaryArm: false, flip: true, Farmer.showToolSwipeEffect));
-				outFrames.Add(new AnimationFrame(50, 40, secondaryArm: false, flip: true, Farmer.useTool));
-				outFrames.Add(new AnimationFrame(51, (short)(220 + requester.owner.toolPower * 30), secondaryArm: false, flip: true));
-				outFrames.Add(new AnimationFrame(52, 75, secondaryArm: false, flip: true, Farmer.canMoveNow, behaviorAtEndOfFrame: true));
+				outFrames.Add(new AnimationFrame(48, (int)(100f * toolSpeedModifier), secondaryArm: false, flip: true));
+				outFrames.Add(new AnimationFrame(49, (int)(40f * toolSpeedModifier), secondaryArm: false, flip: true, Farmer.showToolSwipeEffect));
+				outFrames.Add(new AnimationFrame(50, (int)(40f * toolSpeedModifier), secondaryArm: false, flip: true, Farmer.useTool));
+				outFrames.Add(new AnimationFrame(51, (short)((float)(220 + requester.owner.toolPower * 30) * toolSpeedModifier), secondaryArm: false, flip: true));
+				outFrames.Add(new AnimationFrame(52, (int)(75f * toolSpeedModifier), secondaryArm: false, flip: true, Farmer.canMoveNow, behaviorAtEndOfFrame: true));
 				return;
 			case 298:
 				requester.loopThisAnimation = false;
-				requester.ignoreDefaultActionThisTime = true;
 				outFrames.Add(new AnimationFrame(48, 100, secondaryArm: false, flip: true));
 				outFrames.Add(new AnimationFrame(49, 40, secondaryArm: false, flip: true));
 				outFrames.Add(new AnimationFrame(50, 40, secondaryArm: false, flip: true, Farmer.showToolSwipeEffect));
@@ -1303,7 +1474,6 @@ namespace StardewValley
 			case 180:
 			case 182:
 				requester.loopThisAnimation = false;
-				requester.ignoreDefaultActionThisTime = true;
 				outFrames.Add(new AnimationFrame(62, 0, secondaryArm: false, flip: false));
 				outFrames.Add(new AnimationFrame(62, 75, secondaryArm: false, flip: false, Farmer.showToolSwipeEffect));
 				outFrames.Add(new AnimationFrame(63, 100, secondaryArm: false, flip: false, Farmer.useTool, behaviorAtEndOfFrame: true));
@@ -1312,7 +1482,6 @@ namespace StardewValley
 			case 172:
 			case 174:
 				requester.loopThisAnimation = false;
-				requester.ignoreDefaultActionThisTime = true;
 				outFrames.Add(new AnimationFrame(58, 0, secondaryArm: false, flip: false));
 				outFrames.Add(new AnimationFrame(58, 75, secondaryArm: false, flip: false, Farmer.showToolSwipeEffect));
 				outFrames.Add(new AnimationFrame(59, 100, secondaryArm: false, flip: false, Farmer.useTool, behaviorAtEndOfFrame: true));
@@ -1321,7 +1490,6 @@ namespace StardewValley
 			case 164:
 			case 166:
 				requester.loopThisAnimation = false;
-				requester.ignoreDefaultActionThisTime = true;
 				outFrames.Add(new AnimationFrame(54, 0, secondaryArm: false, flip: false));
 				outFrames.Add(new AnimationFrame(54, 75, secondaryArm: false, flip: false, Farmer.showToolSwipeEffect));
 				outFrames.Add(new AnimationFrame(55, 100, secondaryArm: false, flip: false, Farmer.useTool, behaviorAtEndOfFrame: true));
@@ -1330,7 +1498,6 @@ namespace StardewValley
 			case 188:
 			case 190:
 				requester.loopThisAnimation = false;
-				requester.ignoreDefaultActionThisTime = true;
 				outFrames.Add(new AnimationFrame(58, 0, secondaryArm: false, flip: true));
 				outFrames.Add(new AnimationFrame(58, 75, secondaryArm: false, flip: true, Farmer.showToolSwipeEffect));
 				outFrames.Add(new AnimationFrame(59, 100, secondaryArm: false, flip: true, Farmer.useTool, behaviorAtEndOfFrame: true));

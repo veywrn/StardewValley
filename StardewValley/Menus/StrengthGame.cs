@@ -40,7 +40,6 @@ namespace StardewValley.Menus
 				Game1.player.CurrentToolIndex = 107;
 				Game1.player.FarmerSprite.animateOnce(168, 80f, 8);
 				Game1.player.toolOverrideFunction = afterSwingAnimation;
-				Game1.player.FarmerSprite.ignoreDefaultActionThisTime = false;
 				clicked = true;
 			}
 			if (showedResult && Game1.dialogueTyping)
@@ -337,8 +336,18 @@ namespace StardewValley.Menus
 		{
 		}
 
+		public override void gameWindowSizeChanged(Rectangle oldBounds, Rectangle newBounds)
+		{
+		}
+
 		public override void draw(SpriteBatch b)
 		{
+			if (Game1.IsRenderingNonNativeUIScale())
+			{
+				b.End();
+				Game1.PopUIMode();
+				b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, null);
+			}
 			if (!Game1.dialogueUp)
 			{
 				b.Draw(Game1.staminaRect, Game1.GlobalToLocal(Game1.viewport, new Rectangle(xPositionOnScreen, (int)((float)yPositionOnScreen - power / 100f * (float)height), width, (int)(power / 100f * (float)height))), Game1.staminaRect.Bounds, barColor * transparency, 0f, Vector2.Zero, SpriteEffects.None, 1E-05f);
@@ -346,6 +355,12 @@ namespace StardewValley.Menus
 			if (Game1.player.FarmerSprite.isOnToolAnimation())
 			{
 				Game1.drawTool(Game1.player, Game1.player.CurrentToolIndex);
+			}
+			if (Game1.IsRenderingNonNativeUIScale())
+			{
+				b.End();
+				Game1.PushUIMode();
+				b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, null);
 			}
 		}
 

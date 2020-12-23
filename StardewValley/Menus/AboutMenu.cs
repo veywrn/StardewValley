@@ -37,6 +37,18 @@ namespace StardewValley.Menus
 
 		public AboutMenu()
 		{
+			width = 1280;
+			base.height = 700;
+			SetUpCredits();
+			if (Game1.options.snappyMenus && Game1.options.gamepadControls)
+			{
+				populateClickableComponentList();
+				snapToDefaultClickableComponent();
+			}
+		}
+
+		public void SetUpCredits()
+		{
 			foreach (string s in Game1.temporaryContent.Load<List<string>>("Strings\\credits"))
 			{
 				if (s != "" && s.Length >= 6 && s.Substring(0, 6) == "[image")
@@ -79,8 +91,6 @@ namespace StardewValley.Menus
 					credits.Add(new TextCreditsBlock(s));
 				}
 			}
-			width = 1280;
-			base.height = 700;
 			if (LocalizedContentManager.CurrentLanguageCode != LocalizedContentManager.LanguageCode.de && LocalizedContentManager.CurrentLanguageCode != LocalizedContentManager.LanguageCode.es)
 			{
 				_ = LocalizedContentManager.CurrentLanguageCode;
@@ -103,18 +113,13 @@ namespace StardewValley.Menus
 				rightNeighborID = -99998,
 				leftNeighborID = -99998
 			};
-			backButton = new ClickableComponent(new Rectangle(Game1.viewport.Width + -198 - 48, Game1.viewport.Height - 81 - 24, 198, 81), "")
+			backButton = new ClickableComponent(new Rectangle(Game1.uiViewport.Width + -198 - 48, Game1.uiViewport.Height - 81 - 24, 198, 81), "")
 			{
 				myID = 81114,
 				leftNeighborID = -99998,
 				rightNeighborID = -99998,
 				upNeighborID = 95555
 			};
-			if (Game1.options.snappyMenus && Game1.options.gamepadControls)
-			{
-				populateClickableComponentList();
-				snapToDefaultClickableComponent();
-			}
 		}
 
 		public override void snapToDefaultClickableComponent()
@@ -262,22 +267,18 @@ namespace StardewValley.Menus
 			}
 			if (Game1.activeClickableMenu != null && Game1.activeClickableMenu is TitleMenu && (Game1.activeClickableMenu as TitleMenu).startupMessage.Length > 0)
 			{
-				b.DrawString(Game1.smallFont, Game1.parseText((Game1.activeClickableMenu as TitleMenu).startupMessage, Game1.smallFont, 640), new Vector2(8f, (float)Game1.viewport.Height - Game1.smallFont.MeasureString(Game1.parseText((Game1.activeClickableMenu as TitleMenu).startupMessage, Game1.smallFont, 640)).Y - 4f), Color.White);
+				b.DrawString(Game1.smallFont, Game1.parseText((Game1.activeClickableMenu as TitleMenu).startupMessage, Game1.smallFont, 640), new Vector2(8f, (float)Game1.uiViewport.Height - Game1.smallFont.MeasureString(Game1.parseText((Game1.activeClickableMenu as TitleMenu).startupMessage, Game1.smallFont, 640)).Y - 4f), Color.White);
 			}
 			else
 			{
-				b.DrawString(Game1.smallFont, "v" + Game1.version, new Vector2(16f, (float)Game1.viewport.Height - Game1.smallFont.MeasureString("v" + Game1.version).Y - 8f), Color.White);
+				b.DrawString(Game1.smallFont, "v" + Game1.version, new Vector2(16f, (float)Game1.uiViewport.Height - Game1.smallFont.MeasureString("v" + Game1.version).Y - 8f), Color.White);
 			}
 		}
 
 		public override void gameWindowSizeChanged(Rectangle oldBounds, Rectangle newBounds)
 		{
 			base.gameWindowSizeChanged(oldBounds, newBounds);
-			backButton = new ClickableComponent(new Rectangle(Game1.viewport.Width + -198 - 48, Game1.viewport.Height - 81 - 24, 198, 81), "")
-			{
-				myID = 81114,
-				upNeighborID = 93333
-			};
+			SetUpCredits();
 			if (Game1.options.snappyMenus && Game1.options.gamepadControls)
 			{
 				int id = (currentlySnappedComponent != null) ? currentlySnappedComponent.myID : 81114;

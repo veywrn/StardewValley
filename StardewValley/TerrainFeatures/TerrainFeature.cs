@@ -33,6 +33,22 @@ namespace StardewValley.TerrainFeatures
 		public Vector2 currentTileLocation;
 
 		[XmlIgnore]
+		public ModDataDictionary modData = new ModDataDictionary();
+
+		[XmlElement("modData")]
+		public ModDataDictionary modDataForSerialization
+		{
+			get
+			{
+				return modData.GetForSerialization();
+			}
+			set
+			{
+				modData.SetFromSerialization(value);
+			}
+		}
+
+		[XmlIgnore]
 		public bool NeedsUpdate
 		{
 			get
@@ -61,6 +77,7 @@ namespace StardewValley.TerrainFeatures
 		protected TerrainFeature(bool needsTick)
 		{
 			NeedsTick = needsTick;
+			NetFields.AddField(modData);
 		}
 
 		public virtual Rectangle getBoundingBox(Vector2 tileLocation)
@@ -80,6 +97,10 @@ namespace StardewValley.TerrainFeatures
 		public virtual bool isPassable(Character c = null)
 		{
 			return isTemporarilyInvisible;
+		}
+
+		public virtual void OnAddedToLocation(GameLocation location, Vector2 tile)
+		{
 		}
 
 		public virtual void doCollisionAction(Rectangle positionOfCollider, int speedOfCollision, Vector2 tileLocation, Character who, GameLocation location)

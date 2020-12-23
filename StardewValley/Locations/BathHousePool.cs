@@ -81,14 +81,11 @@ namespace StardewValley.Locations
 				{
 					if ((bool)f.swimming)
 					{
-						b.Draw(swimShadow, Game1.GlobalToLocal(Game1.viewport, f.Position + new Vector2(0f, f.Sprite.SpriteHeight / 3 * 4)), new Rectangle(swimShadowFrame * 16, 0, 16, 16), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0f);
+						b.Draw(swimShadow, Game1.GlobalToLocal(Game1.viewport, f.Position + new Vector2(0f, f.Sprite.SpriteHeight / 4 * 4)), new Rectangle(swimShadowFrame * 16, 0, 16, 16), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0f);
 					}
 				}
 			}
-			if ((bool)Game1.player.swimming)
-			{
-				b.Draw(swimShadow, Game1.GlobalToLocal(Game1.viewport, Game1.player.Position + new Vector2(0f, Game1.player.Sprite.SpriteHeight / 4 * 4)), new Rectangle(swimShadowFrame * 16, 0, 16, 16), Color.Blue * 0.75f, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0f);
-			}
+			_ = (bool)Game1.player.swimming;
 		}
 
 		public override void checkForMusic(GameTime time)

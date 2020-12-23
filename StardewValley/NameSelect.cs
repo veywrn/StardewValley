@@ -5,6 +5,7 @@ using System.Collections.Generic;
 
 namespace StardewValley
 {
+	[InstanceStatics]
 	public class NameSelect
 	{
 		public const int maxNameLength = 9;

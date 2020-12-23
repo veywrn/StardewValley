@@ -4,7 +4,6 @@ using StardewValley.Menus;
 using StardewValley.Objects;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using xTile.Dimensions;
 
 namespace StardewValley.Locations
@@ -55,48 +54,48 @@ namespace StardewValley.Locations
 		public static Dictionary<ISalable, int[]> getDesertMerchantTradeStock(Farmer who)
 		{
 			Dictionary<ISalable, int[]> tradeStock = new Dictionary<ISalable, int[]>();
-			Item i16 = new Object(275, 1);
-			tradeStock.Add(i16, new int[4]
+			Item i17 = new Object(275, 1);
+			tradeStock.Add(i17, new int[4]
 			{
 				0,
 				2147483647,
 				749,
 				5
 			});
-			i16 = new Object(261, 1);
-			tradeStock.Add(i16, new int[4]
+			i17 = new Object(261, 1);
+			tradeStock.Add(i17, new int[4]
 			{
 				0,
 				2147483647,
 				749,
 				3
 			});
-			i16 = new Object(253, 1);
-			tradeStock.Add(i16, new int[4]
+			i17 = new Object(253, 1);
+			tradeStock.Add(i17, new int[4]
 			{
 				0,
 				2147483647,
 				72,
 				1
 			});
-			i16 = new Object(226, 1);
-			tradeStock.Add(i16, new int[4]
+			i17 = new Object(226, 1);
+			tradeStock.Add(i17, new int[4]
 			{
 				0,
 				2147483647,
 				64,
 				1
 			});
-			i16 = new Object(288, 1);
-			tradeStock.Add(i16, new int[4]
+			i17 = new Object(288, 1);
+			tradeStock.Add(i17, new int[4]
 			{
 				0,
 				2147483647,
 				386,
 				5
 			});
-			i16 = new Object(287, 1);
-			tradeStock.Add(i16, new int[4]
+			i17 = new Object(287, 1);
+			tradeStock.Add(i17, new int[4]
 			{
 				0,
 				2147483647,
@@ -105,8 +104,8 @@ namespace StardewValley.Locations
 			});
 			if (Game1.dayOfMonth % 7 == 0)
 			{
-				i16 = new Object(Vector2.Zero, 71);
-				tradeStock.Add(i16, new int[4]
+				i17 = new Object(Vector2.Zero, 71);
+				tradeStock.Add(i17, new int[4]
 				{
 					0,
 					2147483647,
@@ -116,8 +115,8 @@ namespace StardewValley.Locations
 			}
 			if (Game1.dayOfMonth % 7 == 1)
 			{
-				i16 = new Object(178, 3);
-				tradeStock.Add(i16, new int[4]
+				i17 = new Object(178, 3);
+				tradeStock.Add(i17, new int[4]
 				{
 					0,
 					2147483647,
@@ -127,8 +126,8 @@ namespace StardewValley.Locations
 			}
 			if (Game1.dayOfMonth % 7 == 2)
 			{
-				i16 = new Object(771, 1);
-				tradeStock.Add(i16, new int[4]
+				i17 = new Object(771, 1);
+				tradeStock.Add(i17, new int[4]
 				{
 					0,
 					2147483647,
@@ -138,8 +137,8 @@ namespace StardewValley.Locations
 			}
 			if (Game1.dayOfMonth % 7 == 3)
 			{
-				i16 = new Object(428, 1);
-				tradeStock.Add(i16, new int[4]
+				i17 = new Object(428, 1);
+				tradeStock.Add(i17, new int[4]
 				{
 					0,
 					2147483647,
@@ -149,8 +148,8 @@ namespace StardewValley.Locations
 			}
 			if (Game1.dayOfMonth % 7 == 4 && !boughtMagicRockCandy)
 			{
-				i16 = new Object(279, 1);
-				tradeStock.Add(i16, new int[4]
+				i17 = new Object(279, 1);
+				tradeStock.Add(i17, new int[4]
 				{
 					0,
 					1,
@@ -160,8 +159,8 @@ namespace StardewValley.Locations
 			}
 			if (Game1.dayOfMonth % 7 == 5)
 			{
-				i16 = new Object(424, 1);
-				tradeStock.Add(i16, new int[4]
+				i17 = new Object(424, 1);
+				tradeStock.Add(i17, new int[4]
 				{
 					0,
 					2147483647,
@@ -171,32 +170,32 @@ namespace StardewValley.Locations
 			}
 			if (Game1.dayOfMonth % 7 == 6)
 			{
-				i16 = new Object(495, 1);
-				tradeStock.Add(i16, new int[4]
+				i17 = new Object(495, 1);
+				tradeStock.Add(i17, new int[4]
 				{
 					0,
 					2147483647,
 					496,
 					2
 				});
-				i16 = new Object(496, 1);
-				tradeStock.Add(i16, new int[4]
+				i17 = new Object(496, 1);
+				tradeStock.Add(i17, new int[4]
 				{
 					0,
 					2147483647,
 					497,
 					2
 				});
-				i16 = new Object(497, 1);
-				tradeStock.Add(i16, new int[4]
+				i17 = new Object(497, 1);
+				tradeStock.Add(i17, new int[4]
 				{
 					0,
 					2147483647,
 					498,
 					2
 				});
-				i16 = new Object(498, 1);
-				tradeStock.Add(i16, new int[4]
+				i17 = new Object(498, 1);
+				tradeStock.Add(i17, new int[4]
 				{
 					0,
 					2147483647,
@@ -206,8 +205,8 @@ namespace StardewValley.Locations
 			}
 			if (who != null && !who.craftingRecipes.ContainsKey("Warp Totem: Desert"))
 			{
-				i16 = new Object(261, 1, isRecipe: true);
-				tradeStock.Add(i16, new int[4]
+				i17 = new Object(261, 1, isRecipe: true);
+				tradeStock.Add(i17, new int[4]
 				{
 					0,
 					1,
@@ -217,8 +216,8 @@ namespace StardewValley.Locations
 			}
 			if (who != null && who.getFriendshipHeartLevelForNPC("Krobus") >= 10 && (int)who.houseUpgradeLevel >= 1 && !who.isMarried() && !who.isEngaged() && !who.hasItemInInventory(808, 1))
 			{
-				i16 = new Object(808, 1);
-				tradeStock.Add(i16, new int[4]
+				i17 = new Object(808, 1);
+				tradeStock.Add(i17, new int[4]
 				{
 					0,
 					1,
@@ -226,33 +225,41 @@ namespace StardewValley.Locations
 					200
 				});
 			}
-			i16 = new Furniture(1971, Vector2.Zero);
-			tradeStock.Add(i16, new int[4]
+			i17 = new Furniture(1971, Vector2.Zero);
+			tradeStock.Add(i17, new int[4]
 			{
 				0,
 				2147483647,
 				767,
 				200
 			});
-			i16 = new Hat(72);
-			tradeStock.Add(i16, new int[4]
+			i17 = new Hat(72);
+			tradeStock.Add(i17, new int[4]
 			{
 				0,
 				2147483647,
 				749,
 				50
 			});
-			i16 = new Hat(73);
+			i17 = new Hat(73);
 			if (Game1.stats.DaysPlayed % 2u == 0)
 			{
-				i16 = new Hat(74);
+				i17 = new Hat(74);
 			}
-			tradeStock.Add(i16, new int[4]
+			tradeStock.Add(i17, new int[4]
 			{
 				0,
 				2147483647,
 				749,
 				333
+			});
+			i17 = new BedFurniture(2508, Vector2.Zero);
+			tradeStock.Add(i17, new int[4]
+			{
+				0,
+				2147483647,
+				797,
+				1
 			});
 			return tradeStock;
 		}
@@ -319,11 +326,21 @@ namespace StardewValley.Locations
 
 		private void playerReachedBusDoor(Character c, GameLocation l)
 		{
+			Game1.viewportFreeze = true;
 			Game1.player.position.X = -10000f;
 			Game1.freezeControls = true;
 			Game1.player.CanMove = false;
 			busDriveOff();
 			playSound("stoneStep");
+		}
+
+		public override Object getFish(float millisecondsAfterNibble, int bait, int waterDepth, Farmer who, double baitPotency, Vector2 bobberTile, string locationName = null)
+		{
+			if (bobberTile.Y > 55f && Game1.random.NextDouble() < 0.1)
+			{
+				return new Furniture(2334, Vector2.Zero);
+			}
+			return base.getFish(millisecondsAfterNibble, bait, waterDepth, who, baitPotency, bobberTile, locationName);
 		}
 
 		public override bool answerDialogue(Response answer)
@@ -560,7 +577,7 @@ namespace StardewValley.Locations
 		public override void cleanupBeforePlayerExit()
 		{
 			base.cleanupBeforePlayerExit();
-			if (farmers.Count() <= 1)
+			if (farmers.Count <= 1)
 			{
 				busDoor = null;
 			}

@@ -128,6 +128,7 @@ namespace StardewValley.Minigames
 					{
 						Game1.playSound("reward");
 						starTokensWon = (score + 5) / 10 * 6;
+						starTokensWon *= 2;
 						Game1.player.festivalScore += starTokensWon;
 					}
 					else
@@ -355,10 +356,6 @@ namespace StardewValley.Minigames
 				location.draw(b);
 				Game1.player.draw(b);
 				location.Map.GetLayer("Front").Draw(Game1.mapDisplayDevice, Game1.viewport, Location.Origin, wrapAround: false, 4);
-				if (Game1.lastCursorMotionWasMouse && !Game1.options.hardwareCursor)
-				{
-					b.Draw(Game1.mouseCursors, new Vector2(Game1.getMouseX(), Game1.getMouseY()), Game1.getSourceRectForStandardTileSheet(Game1.mouseCursors, 0, 16, 16), Color.White, 0f, Vector2.Zero, 4f + Game1.dialogueButtonScale / 150f, SpriteEffects.None, 1f);
-				}
 				if (Game1.activeClickableMenu != null)
 				{
 					Game1.activeClickableMenu.draw(b);

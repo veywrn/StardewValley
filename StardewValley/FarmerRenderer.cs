@@ -9,6 +9,7 @@ using System.Xml.Serialization;
 
 namespace StardewValley
 {
+	[InstanceStatics]
 	public class FarmerRenderer : INetObject<NetFields>
 	{
 		public const int sleeveDarkestColorIndex = 256;
@@ -742,12 +743,19 @@ namespace StardewValley
 		public void drawMiniPortrat(SpriteBatch b, Vector2 position, float layerDepth, float scale, int facingDirection, Farmer who)
 		{
 			int hair_style = who.getHair(ignore_hat: true);
+			HairStyleMetadata hair_metadata = Farmer.GetHairStyleMetadata(who.hair.Value);
 			executeRecolorActions(who);
 			facingDirection = 2;
 			bool flip = false;
 			int yOffset = 0;
 			int feature_y_offset = 0;
+			Texture2D hair_texture = hairStylesTexture;
 			hairstyleSourceRect = new Rectangle(hair_style * 16 % hairStylesTexture.Width, hair_style * 16 / hairStylesTexture.Width * 96, 16, 15);
+			if (hair_metadata != null)
+			{
+				hair_texture = hair_metadata.texture;
+				hairstyleSourceRect = new Rectangle(hair_metadata.tileX * 16, hair_metadata.tileY * 16, 16, 15);
+			}
 			switch (facingDirection)
 			{
 			case 0:
@@ -756,8 +764,16 @@ namespace StardewValley
 				feature_y_offset = featureYOffsetPerFrame[12];
 				break;
 			case 3:
-				flip = true;
-				yOffset = 32;
+				if (hair_metadata != null && hair_metadata.usesUniqueLeftSprite)
+				{
+					flip = false;
+					yOffset = 96;
+				}
+				else
+				{
+					flip = true;
+					yOffset = 32;
+				}
 				hairstyleSourceRect.Offset(0, 32);
 				feature_y_offset = featureYOffsetPerFrame[6];
 				break;
@@ -774,7 +790,7 @@ namespace StardewValley
 			}
 			b.Draw(baseTexture, position, new Rectangle(0, yOffset, 16, who.isMale ? 15 : 16), Color.White, 0f, Vector2.Zero, scale, flip ? SpriteEffects.FlipHorizontally : SpriteEffects.None, layerDepth);
 			int sort_direction = (!Game1.isUsingBackToFrontSorting) ? 1 : (-1);
-			b.Draw(hairStylesTexture, position + new Vector2(0f, feature_y_offset * 4 + ((who.IsMale && (int)who.hair >= 16) ? (-4) : ((!who.IsMale && (int)who.hair < 16) ? 4 : 0))) * scale / 4f, hairstyleSourceRect, who.hairstyleColor, 0f, Vector2.Zero, scale, flip ? SpriteEffects.FlipHorizontally : SpriteEffects.None, layerDepth + 1.1E-07f * (float)sort_direction);
+			b.Draw(hair_texture, position + new Vector2(0f, feature_y_offset * 4 + ((who.IsMale && (int)who.hair >= 16) ? (-4) : ((!who.IsMale && (int)who.hair < 16) ? 4 : 0))) * scale / 4f, hairstyleSourceRect, who.hairstyleColor, 0f, Vector2.Zero, scale, flip ? SpriteEffects.FlipHorizontally : SpriteEffects.None, layerDepth + 1.1E-07f * (float)sort_direction);
 		}
 
 		public void draw(SpriteBatch b, FarmerSprite.AnimationFrame animationFrame, int currentFrame, Rectangle sourceRect, Vector2 position, Vector2 origin, float layerDepth, Color overrideColor, float rotation, float scale, Farmer who)
@@ -785,9 +801,21 @@ namespace StardewValley
 		public void drawHairAndAccesories(SpriteBatch b, int facingDirection, Farmer who, Vector2 position, Vector2 origin, float scale, int currentFrame, float rotation, Color overrideColor, float layerDepth)
 		{
 			int hair_style = who.getHair();
+			HairStyleMetadata hair_metadata = Farmer.GetHairStyleMetadata(who.hair.Value);
+			if (who != null && who.hat.Value != null && who.hat.Value.hairDrawType.Value == 1 && hair_metadata != null && hair_metadata.coveredIndex != -1)
+			{
+				hair_style = hair_metadata.coveredIndex;
+				hair_metadata = Farmer.GetHairStyleMetadata(hair_style);
+			}
 			executeRecolorActions(who);
 			shirtSourceRect = new Rectangle(ClampShirt(who.GetShirtIndex()) * 8 % 128, ClampShirt(who.GetShirtIndex()) * 8 / 128 * 32, 8, 8);
+			Texture2D hair_texture = hairStylesTexture;
 			hairstyleSourceRect = new Rectangle(hair_style * 16 % hairStylesTexture.Width, hair_style * 16 / hairStylesTexture.Width * 96, 16, 32);
+			if (hair_metadata != null)
+			{
+				hair_texture = hair_metadata.texture;
+				hairstyleSourceRect = new Rectangle(hair_metadata.tileX * 16, hair_metadata.tileY * 16, 16, 32);
+			}
 			if ((int)who.accessory >= 0)
 			{
 				accessorySourceRect = new Rectangle((int)who.accessory * 16 % accessoriesTexture.Width, (int)who.accessory * 16 / accessoriesTexture.Width * 32, 16, 16);
@@ -817,7 +845,7 @@ namespace StardewValley
 				}
 				if (hair_style >= 0)
 				{
-					b.Draw(hairStylesTexture, position + origin + positionOffset + new Vector2(featureXOffsetPerFrame[currentFrame] * 4, featureYOffsetPerFrame[currentFrame] * 4 + 4 + ((who.IsMale && hair_style >= 16) ? (-4) : ((!who.IsMale && hair_style < 16) ? 4 : 0))), hairstyleSourceRect, overrideColor.Equals(Color.White) ? ((Color)who.hairstyleColor) : overrideColor, rotation, origin, 4f * scale, SpriteEffects.None, layerDepth + hair_draw_layer);
+					b.Draw(hair_texture, position + origin + positionOffset + new Vector2(featureXOffsetPerFrame[currentFrame] * 4, featureYOffsetPerFrame[currentFrame] * 4 + 4 + ((who.IsMale && hair_style >= 16) ? (-4) : ((!who.IsMale && hair_style < 16) ? 4 : 0))), hairstyleSourceRect, overrideColor.Equals(Color.White) ? ((Color)who.hairstyleColor) : overrideColor, rotation, origin, 4f * scale, SpriteEffects.None, layerDepth + hair_draw_layer);
 				}
 				break;
 			case 1:
@@ -854,7 +882,7 @@ namespace StardewValley
 				}
 				if (hair_style >= 0)
 				{
-					b.Draw(hairStylesTexture, position + origin + positionOffset + new Vector2(featureXOffsetPerFrame[currentFrame] * 4, featureYOffsetPerFrame[currentFrame] * 4 + ((who.IsMale && (int)who.hair >= 16) ? (-4) : ((!who.IsMale && (int)who.hair < 16) ? 4 : 0))), hairstyleSourceRect, overrideColor.Equals(Color.White) ? ((Color)who.hairstyleColor) : overrideColor, rotation, origin, 4f * scale, SpriteEffects.None, layerDepth + hair_draw_layer);
+					b.Draw(hair_texture, position + origin + positionOffset + new Vector2(featureXOffsetPerFrame[currentFrame] * 4, featureYOffsetPerFrame[currentFrame] * 4 + ((who.IsMale && (int)who.hair >= 16) ? (-4) : ((!who.IsMale && (int)who.hair < 16) ? 4 : 0))), hairstyleSourceRect, overrideColor.Equals(Color.White) ? ((Color)who.hairstyleColor) : overrideColor, rotation, origin, 4f * scale, SpriteEffects.None, layerDepth + hair_draw_layer);
 				}
 				break;
 			case 2:
@@ -871,10 +899,12 @@ namespace StardewValley
 				}
 				if (hair_style >= 0)
 				{
-					b.Draw(hairStylesTexture, position + origin + positionOffset + new Vector2(featureXOffsetPerFrame[currentFrame] * 4, featureYOffsetPerFrame[currentFrame] * 4 + ((who.IsMale && (int)who.hair >= 16) ? (-4) : ((!who.IsMale && (int)who.hair < 16) ? 4 : 0))), hairstyleSourceRect, overrideColor.Equals(Color.White) ? ((Color)who.hairstyleColor) : overrideColor, rotation, origin, 4f * scale, SpriteEffects.None, layerDepth + hair_draw_layer);
+					b.Draw(hair_texture, position + origin + positionOffset + new Vector2(featureXOffsetPerFrame[currentFrame] * 4, featureYOffsetPerFrame[currentFrame] * 4 + ((who.IsMale && (int)who.hair >= 16) ? (-4) : ((!who.IsMale && (int)who.hair < 16) ? 4 : 0))), hairstyleSourceRect, overrideColor.Equals(Color.White) ? ((Color)who.hairstyleColor) : overrideColor, rotation, origin, 4f * scale, SpriteEffects.None, layerDepth + hair_draw_layer);
 				}
 				break;
 			case 3:
+			{
+				bool flip2 = true;
 				shirtSourceRect.Offset(0, 16);
 				dyed_shirt_source_rect5 = shirtSourceRect;
 				dyed_shirt_source_rect5.Offset(128, 0);
@@ -882,7 +912,15 @@ namespace StardewValley
 				{
 					accessorySourceRect.Offset(0, 16);
 				}
-				hairstyleSourceRect.Offset(0, 32);
+				if (hair_metadata != null && hair_metadata.usesUniqueLeftSprite)
+				{
+					flip2 = false;
+					hairstyleSourceRect.Offset(0, 96);
+				}
+				else
+				{
+					hairstyleSourceRect.Offset(0, 32);
+				}
 				if (who.hat.Value != null)
 				{
 					hatSourceRect.Offset(0, 40);
@@ -908,9 +946,10 @@ namespace StardewValley
 				}
 				if (hair_style >= 0)
 				{
-					b.Draw(hairStylesTexture, position + origin + positionOffset + new Vector2(-featureXOffsetPerFrame[currentFrame] * 4, featureYOffsetPerFrame[currentFrame] * 4 + ((who.IsMale && (int)who.hair >= 16) ? (-4) : ((!who.IsMale && (int)who.hair < 16) ? 4 : 0))), hairstyleSourceRect, overrideColor.Equals(Color.White) ? ((Color)who.hairstyleColor) : overrideColor, rotation, origin, 4f * scale, SpriteEffects.FlipHorizontally, layerDepth + hair_draw_layer);
+					b.Draw(hair_texture, position + origin + positionOffset + new Vector2(-featureXOffsetPerFrame[currentFrame] * 4, featureYOffsetPerFrame[currentFrame] * 4 + ((who.IsMale && (int)who.hair >= 16) ? (-4) : ((!who.IsMale && (int)who.hair < 16) ? 4 : 0))), hairstyleSourceRect, overrideColor.Equals(Color.White) ? ((Color)who.hairstyleColor) : overrideColor, rotation, origin, 4f * scale, flip2 ? SpriteEffects.FlipHorizontally : SpriteEffects.None, layerDepth + hair_draw_layer);
 				}
 				break;
+			}
 			}
 			if (who.hat.Value != null && !who.bathingClothes)
 			{
@@ -980,42 +1019,22 @@ namespace StardewValley
 			b.Draw(pantsTexture, position + origin + positionOffset, pants_rect, overrideColor.Equals(Color.White) ? Utility.MakeCompletelyOpaque(who.GetPantsColor()) : overrideColor, rotation, origin, 4f * scale, animationFrame.flip ? SpriteEffects.FlipHorizontally : SpriteEffects.None, layerDepth + ((who.FarmerSprite.CurrentAnimationFrame.frame == 5) ? 0.00092f : 9.2E-08f));
 			sourceRect.Offset(288, 0);
 			FishingRod fishing_rod;
-			if (who.currentEyes != 0 && facingDirection != 0 && !who.isRidingHorse() && (Game1.timeOfDay < 2600 || (who.isInBed.Value && who.timeWentToBed.Value != 0)) && (!who.FarmerSprite.PauseForSingleAnimation || (who.UsingTool && who.CurrentTool is FishingRod)) && (!who.UsingTool || (fishing_rod = (who.CurrentTool as FishingRod)) == null || fishing_rod.isFishing))
+			if (who.currentEyes != 0 && facingDirection != 0 && (Game1.timeOfDay < 2600 || (who.isInBed.Value && who.timeWentToBed.Value != 0)) && (!who.FarmerSprite.PauseForSingleAnimation || (who.UsingTool && who.CurrentTool is FishingRod)) && (!who.UsingTool || (fishing_rod = (who.CurrentTool as FishingRod)) == null || fishing_rod.isFishing))
 			{
-				Texture2D texture = baseTexture;
-				Vector2 value = position + origin + positionOffset;
-				int num = featureXOffsetPerFrame[currentFrame] * 4 + 20;
-				int num2;
+				int x_adjustment3 = 5;
+				x_adjustment3 = (animationFrame.flip ? (x_adjustment3 - featureXOffsetPerFrame[currentFrame]) : (x_adjustment3 + featureXOffsetPerFrame[currentFrame]));
 				switch (facingDirection)
 				{
-				default:
-					num2 = 0;
+				case 1:
+					x_adjustment3 += 3;
 					break;
 				case 3:
-					num2 = 4;
-					break;
-				case 1:
-					num2 = 12;
+					x_adjustment3++;
 					break;
 				}
-				b.Draw(texture, value + new Vector2(num + num2, featureYOffsetPerFrame[currentFrame] * 4 + ((who.IsMale && who.FacingDirection != 2) ? 36 : 40)), new Rectangle(5, 16, (facingDirection == 2) ? 6 : 2, 2), overrideColor, 0f, origin, 4f * scale, SpriteEffects.None, layerDepth + 5E-08f);
-				Texture2D texture2 = baseTexture;
-				Vector2 value2 = position + origin + positionOffset;
-				int num3 = featureXOffsetPerFrame[currentFrame] * 4 + 20;
-				int num4;
-				switch (facingDirection)
-				{
-				default:
-					num4 = 0;
-					break;
-				case 3:
-					num4 = 4;
-					break;
-				case 1:
-					num4 = 12;
-					break;
-				}
-				b.Draw(texture2, value2 + new Vector2(num3 + num4, featureYOffsetPerFrame[currentFrame] * 4 + ((who.FacingDirection == 1 || who.FacingDirection == 3) ? 40 : 44)), new Rectangle(264 + ((facingDirection == 3) ? 4 : 0), 2 + (who.currentEyes - 1) * 2, (facingDirection == 2) ? 6 : 2, 2), overrideColor, 0f, origin, 4f * scale, SpriteEffects.None, layerDepth + 1.2E-07f);
+				x_adjustment3 *= 4;
+				b.Draw(baseTexture, position + origin + positionOffset + new Vector2(x_adjustment3, featureYOffsetPerFrame[currentFrame] * 4 + ((who.IsMale && who.FacingDirection != 2) ? 36 : 40)), new Rectangle(5, 16, (facingDirection == 2) ? 6 : 2, 2), overrideColor, 0f, origin, 4f * scale, SpriteEffects.None, layerDepth + 5E-08f);
+				b.Draw(baseTexture, position + origin + positionOffset + new Vector2(x_adjustment3, featureYOffsetPerFrame[currentFrame] * 4 + ((who.FacingDirection == 1 || who.FacingDirection == 3) ? 40 : 44)), new Rectangle(264 + ((facingDirection == 3) ? 4 : 0), 2 + (who.currentEyes - 1) * 2, (facingDirection == 2) ? 6 : 2, 2), overrideColor, 0f, origin, 4f * scale, SpriteEffects.None, layerDepth + 1.2E-07f);
 			}
 			drawHairAndAccesories(b, facingDirection, who, position, origin, scale, currentFrame, rotation, overrideColor, layerDepth);
 			float arm_layer_offset = 4.9E-05f;
@@ -1025,43 +1044,54 @@ namespace StardewValley
 			}
 			sourceRect.Offset(-288 + (animationFrame.secondaryArm ? 192 : 96), 0);
 			b.Draw(baseTexture, position + origin + positionOffset + who.armOffset, sourceRect, overrideColor, rotation, origin, 4f * scale, animationFrame.flip ? SpriteEffects.FlipHorizontally : SpriteEffects.None, layerDepth + arm_layer_offset);
-			if (who.usingSlingshot && who.CurrentTool is Slingshot)
+			if (!who.usingSlingshot || !(who.CurrentTool is Slingshot))
 			{
-				Point value3 = (who.CurrentTool as Slingshot).aimPos.Value;
-				int mouseX = value3.X;
-				int mouseY = value3.Y;
-				int backArmDistance = Math.Min(20, (int)Vector2.Distance(who.getStandingPosition(), new Vector2(mouseX, mouseY)) / 20);
-				float frontArmRotation = (float)Math.Atan2((float)mouseY - who.getStandingPosition().Y - 64f, (float)mouseX - who.getStandingPosition().X) + (float)Math.PI;
-				switch (facingDirection)
+				return;
+			}
+			Slingshot slingshot = who.CurrentTool as Slingshot;
+			Point point = Utility.Vector2ToPoint(slingshot.AdjustForHeight(Utility.PointToVector2(slingshot.aimPos.Value)));
+			int mouseX = point.X;
+			int y = point.Y;
+			int backArmDistance = slingshot.GetBackArmDistance(who);
+			Vector2 shoot_origin = slingshot.GetShootOrigin(who);
+			float frontArmRotation = (float)Math.Atan2((float)y - shoot_origin.Y, (float)mouseX - shoot_origin.X) + (float)Math.PI;
+			if (!Game1.options.useLegacySlingshotFiring)
+			{
+				frontArmRotation -= (float)Math.PI;
+				if (frontArmRotation < 0f)
 				{
-				case 0:
-					b.Draw(baseTexture, position + new Vector2(4f + frontArmRotation * 8f, -44f), new Rectangle(173, 238, 9, 14), Color.White, 0f, new Vector2(4f, 11f), 4f * scale, SpriteEffects.None, layerDepth + ((facingDirection != 0) ? 5.9E-05f : (-0.0005f)));
-					break;
-				case 1:
-				{
-					b.Draw(baseTexture, position + new Vector2(52 - backArmDistance, -32f), new Rectangle(147, 237, 10, 4), Color.White, 0f, new Vector2(8f, 3f), 4f * scale, SpriteEffects.None, layerDepth + ((facingDirection != 0) ? 5.9E-05f : 0f));
-					b.Draw(baseTexture, position + new Vector2(36f, -44f), new Rectangle(156, 244, 9, 10), Color.White, frontArmRotation, new Vector2(0f, 3f), 4f * scale, SpriteEffects.None, layerDepth + ((facingDirection != 0) ? 1E-08f : 0f));
-					int slingshotAttachX2 = (int)(Math.Cos(frontArmRotation + (float)Math.PI / 2f) * (double)(20 - backArmDistance - 8) - Math.Sin(frontArmRotation + (float)Math.PI / 2f) * -68.0);
-					int slingshotAttachY2 = (int)(Math.Sin(frontArmRotation + (float)Math.PI / 2f) * (double)(20 - backArmDistance - 8) + Math.Cos(frontArmRotation + (float)Math.PI / 2f) * -68.0);
-					Utility.drawLineWithScreenCoordinates((int)(position.X + 52f - (float)backArmDistance), (int)(position.Y - 32f - 4f), (int)(position.X + 32f + (float)(slingshotAttachX2 / 2)), (int)(position.Y - 32f - 12f + (float)(slingshotAttachY2 / 2)), b, Color.White);
-					break;
+					frontArmRotation += (float)Math.PI * 2f;
 				}
-				case 3:
-				{
-					b.Draw(baseTexture, position + new Vector2(40 + backArmDistance, -32f), new Rectangle(147, 237, 10, 4), Color.White, 0f, new Vector2(9f, 4f), 4f * scale, SpriteEffects.FlipHorizontally, layerDepth + ((facingDirection != 0) ? 5.9E-05f : 0f));
-					b.Draw(baseTexture, position + new Vector2(24f, -40f), new Rectangle(156, 244, 9, 10), Color.White, frontArmRotation + (float)Math.PI, new Vector2(8f, 3f), 4f * scale, SpriteEffects.FlipHorizontally, layerDepth + ((facingDirection != 0) ? 1E-08f : 0f));
-					int slingshotAttachX2 = (int)(Math.Cos(frontArmRotation + (float)Math.PI * 2f / 5f) * (double)(20 + backArmDistance - 8) - Math.Sin(frontArmRotation + (float)Math.PI * 2f / 5f) * -68.0);
-					int slingshotAttachY2 = (int)(Math.Sin(frontArmRotation + (float)Math.PI * 2f / 5f) * (double)(20 + backArmDistance - 8) + Math.Cos(frontArmRotation + (float)Math.PI * 2f / 5f) * -68.0);
-					Utility.drawLineWithScreenCoordinates((int)(position.X + 4f + (float)backArmDistance), (int)(position.Y - 32f - 8f), (int)(position.X + 26f + (float)slingshotAttachX2 * 4f / 10f), (int)(position.Y - 32f - 8f + (float)slingshotAttachY2 * 4f / 10f), b, Color.White);
-					break;
-				}
-				case 2:
-					b.Draw(baseTexture, position + new Vector2(4f, -32 - backArmDistance / 2), new Rectangle(148, 244, 4, 4), Color.White, 0f, Vector2.Zero, 4f * scale, SpriteEffects.None, layerDepth + ((facingDirection != 0) ? 5.9E-05f : 0f));
-					Utility.drawLineWithScreenCoordinates((int)(position.X + 16f), (int)(position.Y - 28f - (float)(backArmDistance / 2)), (int)(position.X + 44f - frontArmRotation * 10f), (int)(position.Y - 16f - 8f), b, Color.White);
-					Utility.drawLineWithScreenCoordinates((int)(position.X + 16f), (int)(position.Y - 28f - (float)(backArmDistance / 2)), (int)(position.X + 56f - frontArmRotation * 10f), (int)(position.Y - 16f - 8f), b, Color.White);
-					b.Draw(baseTexture, position + new Vector2(44f - frontArmRotation * 10f, -16f), new Rectangle(167, 235, 7, 9), Color.White, 0f, new Vector2(3f, 5f), 4f * scale, SpriteEffects.None, layerDepth + ((facingDirection != 0) ? 5.9E-05f : 0f));
-					break;
-				}
+			}
+			switch (facingDirection)
+			{
+			case 0:
+				b.Draw(baseTexture, position + new Vector2(4f + frontArmRotation * 8f, -44f), new Rectangle(173, 238, 9, 14), Color.White, 0f, new Vector2(4f, 11f), 4f * scale, SpriteEffects.None, layerDepth + ((facingDirection != 0) ? 5.9E-05f : (-0.0005f)));
+				break;
+			case 1:
+			{
+				b.Draw(baseTexture, position + new Vector2(52 - backArmDistance, -32f), new Rectangle(147, 237, 10, 4), Color.White, 0f, new Vector2(8f, 3f), 4f * scale, SpriteEffects.None, layerDepth + ((facingDirection != 0) ? 5.9E-05f : 0f));
+				b.Draw(baseTexture, position + new Vector2(36f, -44f), new Rectangle(156, 244, 9, 10), Color.White, frontArmRotation, new Vector2(0f, 3f), 4f * scale, SpriteEffects.None, layerDepth + ((facingDirection != 0) ? 1E-08f : 0f));
+				int slingshotAttachX2 = (int)(Math.Cos(frontArmRotation + (float)Math.PI / 2f) * (double)(20 - backArmDistance - 8) - Math.Sin(frontArmRotation + (float)Math.PI / 2f) * -68.0);
+				int slingshotAttachY2 = (int)(Math.Sin(frontArmRotation + (float)Math.PI / 2f) * (double)(20 - backArmDistance - 8) + Math.Cos(frontArmRotation + (float)Math.PI / 2f) * -68.0);
+				Utility.drawLineWithScreenCoordinates((int)(position.X + 52f - (float)backArmDistance), (int)(position.Y - 32f - 4f), (int)(position.X + 32f + (float)(slingshotAttachX2 / 2)), (int)(position.Y - 32f - 12f + (float)(slingshotAttachY2 / 2)), b, Color.White);
+				break;
+			}
+			case 3:
+			{
+				b.Draw(baseTexture, position + new Vector2(40 + backArmDistance, -32f), new Rectangle(147, 237, 10, 4), Color.White, 0f, new Vector2(9f, 4f), 4f * scale, SpriteEffects.FlipHorizontally, layerDepth + ((facingDirection != 0) ? 5.9E-05f : 0f));
+				b.Draw(baseTexture, position + new Vector2(24f, -40f), new Rectangle(156, 244, 9, 10), Color.White, frontArmRotation + (float)Math.PI, new Vector2(8f, 3f), 4f * scale, SpriteEffects.FlipHorizontally, layerDepth + ((facingDirection != 0) ? 1E-08f : 0f));
+				int slingshotAttachX2 = (int)(Math.Cos(frontArmRotation + (float)Math.PI * 2f / 5f) * (double)(20 + backArmDistance - 8) - Math.Sin(frontArmRotation + (float)Math.PI * 2f / 5f) * -68.0);
+				int slingshotAttachY2 = (int)(Math.Sin(frontArmRotation + (float)Math.PI * 2f / 5f) * (double)(20 + backArmDistance - 8) + Math.Cos(frontArmRotation + (float)Math.PI * 2f / 5f) * -68.0);
+				Utility.drawLineWithScreenCoordinates((int)(position.X + 4f + (float)backArmDistance), (int)(position.Y - 32f - 8f), (int)(position.X + 26f + (float)slingshotAttachX2 * 4f / 10f), (int)(position.Y - 32f - 8f + (float)slingshotAttachY2 * 4f / 10f), b, Color.White);
+				break;
+			}
+			case 2:
+				b.Draw(baseTexture, position + new Vector2(4f, -32 - backArmDistance / 2), new Rectangle(148, 244, 4, 4), Color.White, 0f, Vector2.Zero, 4f * scale, SpriteEffects.None, layerDepth + ((facingDirection != 0) ? 5.9E-05f : 0f));
+				Utility.drawLineWithScreenCoordinates((int)(position.X + 16f), (int)(position.Y - 28f - (float)(backArmDistance / 2)), (int)(position.X + 44f - frontArmRotation * 10f), (int)(position.Y - 16f - 8f), b, Color.White);
+				Utility.drawLineWithScreenCoordinates((int)(position.X + 16f), (int)(position.Y - 28f - (float)(backArmDistance / 2)), (int)(position.X + 56f - frontArmRotation * 10f), (int)(position.Y - 16f - 8f), b, Color.White);
+				b.Draw(baseTexture, position + new Vector2(44f - frontArmRotation * 10f, -16f), new Rectangle(167, 235, 7, 9), Color.White, 0f, new Vector2(3f, 5f), 4f * scale, SpriteEffects.None, layerDepth + ((facingDirection != 0) ? 5.9E-05f : 0f));
+				break;
 			}
 		}
 	}

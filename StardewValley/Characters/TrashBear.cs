@@ -222,7 +222,7 @@ namespace StardewValley.Characters
 			base.draw(b);
 			if (showWantBubbleTimer > 0)
 			{
-				float yOffset2 = 2f * (float)Math.Round(Math.Sin(DateTime.UtcNow.TimeOfDay.TotalMilliseconds / 250.0), 2);
+				float yOffset2 = 2f * (float)Math.Round(Math.Sin(Game1.currentGameTime.TotalGameTime.TotalMilliseconds / 250.0), 2);
 				Point mailbox_position = getTileLocationPoint();
 				float draw_layer = (float)((mailbox_position.Y + 1) * 64) / 10000f;
 				yOffset2 -= 40f;

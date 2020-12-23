@@ -40,7 +40,7 @@ namespace StardewValley.Menus
 		{
 			fadeTimer = 800;
 			fadeIntoBlack = true;
-			movePosition(0, Game1.viewport.Height - yPositionOnScreen - height);
+			movePosition(0, Game1.uiViewport.Height - yPositionOnScreen - height);
 			Game1.player.forceCanMove();
 			if (Game1.options.SnappyMenus)
 			{
@@ -55,17 +55,32 @@ namespace StardewValley.Menus
 			Game1.displayHUD = false;
 		}
 
+		public override bool shouldClampGamePadCursor()
+		{
+			return true;
+		}
+
 		public override void receiveKeyPress(Keys key)
 		{
 			if (fadeTimer > 0)
 			{
 				return;
 			}
-			if (Game1.options.doesInputListContain(Game1.options.menuButton, key) && readyToClose())
+			if (Game1.options.doesInputListContain(Game1.options.menuButton, key) && !Game1.isOneOfTheseKeysDown(Game1.oldKBState, Game1.options.menuButton) && readyToClose())
 			{
 				state = 2;
 				fadeTimer = 500;
 				fadeIntoBlack = true;
+			}
+			else if (Game1.options.doesInputListContain(Game1.options.menuButton, key) && !Game1.isOneOfTheseKeysDown(Game1.oldKBState, Game1.options.menuButton) && !holdingMuseumPiece && menuMovingDown)
+			{
+				if (heldItem != null)
+				{
+					Game1.playSound("bigDeSelect");
+					Utility.CollectOrDrop(heldItem);
+					heldItem = null;
+				}
+				ReturnToDonatableItems();
 			}
 			else if (Game1.options.SnappyMenus && heldItem == null && !reOrganizing)
 			{
@@ -97,12 +112,11 @@ namespace StardewValley.Menus
 					return;
 				}
 				LibraryMuseum museum = Game1.currentLocation as LibraryMuseum;
-				int y = Game1.getMouseY();
-				Vector2 newCursorPositionTile2 = new Vector2((Game1.getMouseX() + Game1.viewport.X) / 64, (y + Game1.viewport.Y) / 64);
+				Vector2 newCursorPositionTile2 = new Vector2((int)((Utility.ModifyCoordinateFromUIScale(Game1.getMouseX()) + (float)Game1.viewport.X) / 64f), (int)((Utility.ModifyCoordinateFromUIScale(Game1.getMouseY()) + (float)Game1.viewport.Y) / 64f));
 				if (!museum.isTileSuitableForMuseumPiece((int)newCursorPositionTile2.X, (int)newCursorPositionTile2.Y) && (!reOrganizing || !museum.museumPieces.ContainsKey(newCursorPositionTile2)))
 				{
 					newCursorPositionTile2 = museum.getFreeDonationSpot();
-					Game1.setMousePosition((int)(newCursorPositionTile2.X * 64f - (float)Game1.viewport.X + 32f), (int)(newCursorPositionTile2.Y * 64f - (float)Game1.viewport.Y + 32f));
+					Game1.setMousePosition((int)Utility.ModifyCoordinateForUIScale(newCursorPositionTile2.X * 64f - (float)Game1.viewport.X + 32f), (int)Utility.ModifyCoordinateForUIScale(newCursorPositionTile2.Y * 64f - (float)Game1.viewport.Y + 32f));
 					return;
 				}
 				if (key == Game1.options.getFirstKeyboardKeyFromInputButtonList(Game1.options.moveUpButton))
@@ -129,7 +143,7 @@ namespace StardewValley.Menus
 				{
 					Game1.panScreen(0, (int)(newCursorPositionTile2.Y * 64f - (float)Game1.viewport.Y));
 				}
-				Game1.setMousePosition((int)newCursorPositionTile2.X * 64 - Game1.viewport.X + 32, (int)newCursorPositionTile2.Y * 64 - Game1.viewport.Y + 32);
+				Game1.setMousePosition((int)Utility.ModifyCoordinateForUIScale((int)newCursorPositionTile2.X * 64 - Game1.viewport.X + 32), (int)Utility.ModifyCoordinateForUIScale((int)newCursorPositionTile2.Y * 64 - Game1.viewport.Y + 32));
 			}
 		}
 
@@ -142,9 +156,10 @@ namespace StardewValley.Menus
 		{
 			if (b == Buttons.B)
 			{
-				if (!holdingMuseumPiece && fadeTimer <= 0)
+				if (!holdingMuseumPiece)
 				{
-					Game1.playSound("bigDeSelect");
+					_ = fadeTimer;
+					_ = 0;
 				}
 			}
 			else if (!menuMovingDown && (b == Buttons.DPadUp || b == Buttons.LeftThumbstickUp) && Game1.options.SnappyMenus && currentlySnappedComponent != null && currentlySnappedComponent.myID < 12)
@@ -164,7 +179,23 @@ namespace StardewValley.Menus
 			Item oldItem = heldItem;
 			if (!holdingMuseumPiece)
 			{
-				heldItem = inventory.leftClick(x, y, heldItem);
+				int inventory_index = inventory.getInventoryPositionOfClick(x, y);
+				if (heldItem == null)
+				{
+					if (inventory_index >= 0 && inventory_index < inventory.actualInventory.Count && inventory.highlightMethod(inventory.actualInventory[inventory_index]))
+					{
+						heldItem = inventory.actualInventory[inventory_index].getOne();
+						inventory.actualInventory[inventory_index].Stack--;
+						if (inventory.actualInventory[inventory_index].Stack <= 0)
+						{
+							inventory.actualInventory[inventory_index] = null;
+						}
+					}
+				}
+				else
+				{
+					heldItem = inventory.leftClick(x, y, heldItem);
+				}
 			}
 			if (oldItem == null && heldItem != null && Game1.isAnyGamePadButtonBeingPressed())
 			{
@@ -172,8 +203,8 @@ namespace StardewValley.Menus
 			}
 			if (oldItem != null && heldItem != null && (y < Game1.viewport.Height - (height - (IClickableMenu.borderWidth + IClickableMenu.spaceToClearTopBorder + 192)) || menuMovingDown))
 			{
-				int mapXTile2 = (x + Game1.viewport.X) / 64;
-				int mapYTile2 = (y + Game1.viewport.Y) / 64;
+				int mapXTile2 = (int)(Utility.ModifyCoordinateFromUIScale(x) + (float)Game1.viewport.X) / 64;
+				int mapYTile2 = (int)(Utility.ModifyCoordinateFromUIScale(y) + (float)Game1.viewport.Y) / 64;
 				if ((Game1.currentLocation as LibraryMuseum).isTileSuitableForMuseumPiece(mapXTile2, mapYTile2) && (Game1.currentLocation as LibraryMuseum).isItemSuitableForDonation(heldItem))
 				{
 					int objectID = heldItem.parentSheetIndex;
@@ -196,7 +227,6 @@ namespace StardewValley.Menus
 					{
 						heldItem = null;
 					}
-					menuMovingDown = false;
 					int pieces = (Game1.currentLocation as LibraryMuseum).museumPieces.Count();
 					if (!holdingMuseumPiece)
 					{
@@ -214,20 +244,13 @@ namespace StardewValley.Menus
 							break;
 						}
 					}
-					holdingMuseumPiece = false;
-					reOrganizing = false;
-					if (Game1.isAnyGamePadButtonBeingPressed())
-					{
-						movePosition(0, -menuPositionOffset);
-						menuPositionOffset = 0;
-						base.snapCursorToCurrentSnappedComponent();
-					}
+					ReturnToDonatableItems();
 				}
 			}
 			else if (heldItem == null && !inventory.isWithinBounds(x, y))
 			{
-				int mapXTile = (x + Game1.viewport.X) / 64;
-				int mapYTile = (y + Game1.viewport.Y) / 64;
+				int mapXTile = (int)(Utility.ModifyCoordinateFromUIScale(x) + (float)Game1.viewport.X) / 64;
+				int mapYTile = (int)(Utility.ModifyCoordinateFromUIScale(y) + (float)Game1.viewport.Y) / 64;
 				Vector2 v = new Vector2(mapXTile, mapYTile);
 				LibraryMuseum location = Game1.currentLocation as LibraryMuseum;
 				if (location.museumPieces.ContainsKey(v))
@@ -254,9 +277,26 @@ namespace StardewValley.Menus
 			}
 		}
 
+		public virtual void ReturnToDonatableItems()
+		{
+			menuMovingDown = false;
+			holdingMuseumPiece = false;
+			reOrganizing = false;
+			if (Game1.options.SnappyMenus)
+			{
+				movePosition(0, -menuPositionOffset);
+				menuPositionOffset = 0;
+				base.snapCursorToCurrentSnappedComponent();
+			}
+		}
+
 		public override bool readyToClose()
 		{
-			return !holdingMuseumPiece;
+			if (!holdingMuseumPiece && heldItem == null)
+			{
+				return !menuMovingDown;
+			}
+			return false;
 		}
 
 		protected override void cleanupBeforeExit()
@@ -338,36 +378,36 @@ namespace StardewValley.Menus
 				menuPositionOffset -= 8;
 				movePosition(0, -8);
 			}
-			int mouseX = Game1.getOldMouseX() + Game1.viewport.X;
-			int mouseY = Game1.getOldMouseY() + Game1.viewport.Y;
-			if ((!Game1.options.SnappyMenus && Game1.lastCursorMotionWasMouse && mouseX - Game1.viewport.X < 64) || GamePad.GetState(PlayerIndex.One).ThumbSticks.Right.X < 0f)
+			int mouseX = Game1.getOldMouseX(ui_scale: false) + Game1.viewport.X;
+			int mouseY = Game1.getOldMouseY(ui_scale: false) + Game1.viewport.Y;
+			if ((!Game1.options.SnappyMenus && Game1.lastCursorMotionWasMouse && mouseX - Game1.viewport.X < 64) || Game1.input.GetGamePadState().ThumbSticks.Right.X < 0f)
 			{
 				Game1.panScreen(-4, 0);
-				if (GamePad.GetState(PlayerIndex.One).ThumbSticks.Right.X < 0f)
+				if (Game1.input.GetGamePadState().ThumbSticks.Right.X < 0f)
 				{
 					snapCursorToCurrentMuseumSpot();
 				}
 			}
-			else if ((!Game1.options.SnappyMenus && Game1.lastCursorMotionWasMouse && mouseX - (Game1.viewport.X + Game1.viewport.Width) >= -64) || GamePad.GetState(PlayerIndex.One).ThumbSticks.Right.X > 0f)
+			else if ((!Game1.options.SnappyMenus && Game1.lastCursorMotionWasMouse && mouseX - (Game1.viewport.X + Game1.viewport.Width) >= -64) || Game1.input.GetGamePadState().ThumbSticks.Right.X > 0f)
 			{
 				Game1.panScreen(4, 0);
-				if (GamePad.GetState(PlayerIndex.One).ThumbSticks.Right.X > 0f)
+				if (Game1.input.GetGamePadState().ThumbSticks.Right.X > 0f)
 				{
 					snapCursorToCurrentMuseumSpot();
 				}
 			}
-			if ((!Game1.options.SnappyMenus && Game1.lastCursorMotionWasMouse && mouseY - Game1.viewport.Y < 64) || GamePad.GetState(PlayerIndex.One).ThumbSticks.Right.Y > 0f)
+			if ((!Game1.options.SnappyMenus && Game1.lastCursorMotionWasMouse && mouseY - Game1.viewport.Y < 64) || Game1.input.GetGamePadState().ThumbSticks.Right.Y > 0f)
 			{
 				Game1.panScreen(0, -4);
-				if (GamePad.GetState(PlayerIndex.One).ThumbSticks.Right.Y > 0f)
+				if (Game1.input.GetGamePadState().ThumbSticks.Right.Y > 0f)
 				{
 					snapCursorToCurrentMuseumSpot();
 				}
 			}
-			else if ((!Game1.options.SnappyMenus && Game1.lastCursorMotionWasMouse && mouseY - (Game1.viewport.Y + Game1.viewport.Height) >= -64) || GamePad.GetState(PlayerIndex.One).ThumbSticks.Right.Y < 0f)
+			else if ((!Game1.options.SnappyMenus && Game1.lastCursorMotionWasMouse && mouseY - (Game1.viewport.Y + Game1.viewport.Height) >= -64) || Game1.input.GetGamePadState().ThumbSticks.Right.Y < 0f)
 			{
 				Game1.panScreen(0, 4);
-				if (GamePad.GetState(PlayerIndex.One).ThumbSticks.Right.Y < 0f)
+				if (Game1.input.GetGamePadState().ThumbSticks.Right.Y < 0f)
 				{
 					snapCursorToCurrentMuseumSpot();
 				}
@@ -383,8 +423,8 @@ namespace StardewValley.Menus
 		{
 			if (menuMovingDown)
 			{
-				Vector2 newCursorPositionTile = new Vector2((Game1.getMouseX() + Game1.viewport.X) / 64, (Game1.getMouseY() + Game1.viewport.Y) / 64);
-				Game1.setMousePosition((int)newCursorPositionTile.X * 64 - Game1.viewport.X + 32, (int)newCursorPositionTile.Y * 64 - Game1.viewport.Y + 32);
+				Vector2 newCursorPositionTile = new Vector2((Game1.getMouseX(ui_scale: false) + Game1.viewport.X) / 64, (Game1.getMouseY(ui_scale: false) + Game1.viewport.Y) / 64);
+				Game1.setMousePosition((int)newCursorPositionTile.X * 64 - Game1.viewport.X + 32, (int)newCursorPositionTile.Y * 64 - Game1.viewport.Y + 32, ui_scale: false);
 			}
 		}
 
@@ -401,6 +441,7 @@ namespace StardewValley.Menus
 			{
 				if (heldItem != null)
 				{
+					Game1.StartWorldDrawInUI(b);
 					for (int y = Game1.viewport.Y / 64 - 1; y < (Game1.viewport.Y + Game1.viewport.Height) / 64 + 2; y++)
 					{
 						for (int x = Game1.viewport.X / 64 - 1; x < (Game1.viewport.X + Game1.viewport.Width) / 64 + 1; x++)
@@ -411,6 +452,7 @@ namespace StardewValley.Menus
 							}
 						}
 					}
+					Game1.EndWorldDrawInUI(b);
 				}
 				if (!holdingMuseumPiece)
 				{
@@ -427,10 +469,10 @@ namespace StardewValley.Menus
 				drawMouse(b);
 				if (sparkleText != null)
 				{
-					sparkleText.draw(b, Game1.GlobalToLocal(Game1.viewport, globalLocationOfSparklingArtifact));
+					sparkleText.draw(b, Utility.ModifyCoordinatesForUIScale(Game1.GlobalToLocal(Game1.viewport, globalLocationOfSparklingArtifact)));
 				}
 			}
-			b.Draw(Game1.fadeToBlackRect, new Microsoft.Xna.Framework.Rectangle(0, 0, Game1.viewport.Width, Game1.viewport.Height), Color.Black * blackFadeAlpha);
+			b.Draw(Game1.fadeToBlackRect, new Microsoft.Xna.Framework.Rectangle(0, 0, Game1.uiViewport.Width, Game1.uiViewport.Height), Color.Black * blackFadeAlpha);
 		}
 	}
 }

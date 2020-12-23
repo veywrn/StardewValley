@@ -25,6 +25,8 @@ namespace StardewValley
 
 		public const int projectorLight = 7;
 
+		public const int fishTankLight = 8;
+
 		public const int maxLightsOnScreenBeforeReduction = 8;
 
 		public const float reductionPerExtraLightSource = 0.03f;
@@ -143,6 +145,9 @@ namespace StardewValley
 				break;
 			case 7:
 				lightTexture = Game1.temporaryContent.Load<Texture2D>("LooseSprites\\Lighting\\projectorLight");
+				break;
+			case 8:
+				lightTexture = Game1.content.Load<Texture2D>("LooseSprites\\Lighting\\fishTankLight");
 				break;
 			}
 		}

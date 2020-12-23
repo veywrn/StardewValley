@@ -4,6 +4,7 @@ using System.Collections.Generic;
 
 namespace StardewValley.BellsAndWhistles
 {
+	[InstanceStatics]
 	public class AmbientLocationSounds
 	{
 		public const int sound_babblingBrook = 0;

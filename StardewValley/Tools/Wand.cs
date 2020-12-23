@@ -1,4 +1,5 @@
 using Microsoft.Xna.Framework;
+using StardewValley.Locations;
 
 namespace StardewValley.Tools
 {
@@ -16,7 +17,10 @@ namespace StardewValley.Tools
 
 		public override Item getOne()
 		{
-			return new Wand();
+			Wand wand = new Wand();
+			CopyEnchantments(this, wand);
+			wand._GetOneFrom(this);
+			return wand;
 		}
 
 		protected override string loadDisplayName()
@@ -31,7 +35,7 @@ namespace StardewValley.Tools
 
 		public override void DoFunction(GameLocation location, int x, int y, int power, Farmer who)
 		{
-			if (!who.bathingClothes && who.IsLocalPlayer)
+			if (!who.bathingClothes && who.IsLocalPlayer && !who.onBridge.Value)
 			{
 				indexOfMenuItemView.Value = 2;
 				base.CurrentParentTileIndex = 2;
@@ -45,7 +49,7 @@ namespace StardewValley.Tools
 				who.temporaryInvincibilityTimer = -2000;
 				who.Halt();
 				who.faceDirection(2);
-				who.freezePause = 1000;
+				who.CanMove = false;
 				Game1.flashAlpha = 1f;
 				DelayedAction.fadeAfterDelay(wandWarpForReal, 1000);
 				new Rectangle(who.GetBoundingBox().X, who.GetBoundingBox().Y, 64, 64).Inflate(192, 192);
@@ -72,20 +76,26 @@ namespace StardewValley.Tools
 
 		private void wandWarpForReal()
 		{
-			Game1.warpFarmer("Farm", 64, 15, flip: false);
-			if (!Game1.isStartingToGetDarkOut() && !Game1.isRaining)
+			FarmHouse home = Utility.getHomeOfFarmer(Game1.player);
+			if (home != null)
 			{
-				Game1.playMorningSong();
+				Point position = home.getFrontDoorSpot();
+				Game1.warpFarmer("Farm", position.X, position.Y, flip: false);
+				if (!Game1.isStartingToGetDarkOut() && !Game1.isRaining)
+				{
+					Game1.playMorningSong();
+				}
+				else
+				{
+					Game1.changeMusicTrack("none");
+				}
+				Game1.fadeToBlackAlpha = 0.99f;
+				Game1.screenGlow = false;
+				lastUser.temporarilyInvincible = false;
+				lastUser.temporaryInvincibilityTimer = 0;
+				Game1.displayFarmer = true;
+				lastUser.CanMove = true;
 			}
-			else
-			{
-				Game1.changeMusicTrack("none");
-			}
-			Game1.fadeToBlackAlpha = 0.99f;
-			Game1.screenGlow = false;
-			lastUser.temporarilyInvincible = false;
-			lastUser.temporaryInvincibilityTimer = 0;
-			Game1.displayFarmer = true;
 		}
 	}
 }

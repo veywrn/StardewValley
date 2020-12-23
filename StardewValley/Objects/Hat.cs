@@ -205,7 +205,9 @@ namespace StardewValley.Objects
 
 		public override Item getOne()
 		{
-			return new Hat(which);
+			Hat hat = new Hat(which);
+			hat._GetOneFrom(this);
+			return hat;
 		}
 
 		private bool loadDisplayFields()

@@ -69,22 +69,31 @@ namespace StardewValley.Characters
 				reloadSprite();
 			};
 			setStateEvent.onEvent += doSetState;
+			name.FilterStringEvent += Utility.FilterDirtyWords;
 		}
 
 		public override void reloadSprite()
 		{
-			if (Game1.IsMasterGame && idOfParent.Value == 0L)
+			if (Game1.IsMasterGame)
 			{
-				int parent_unique_id = (int)Game1.MasterPlayer.UniqueMultiplayerID;
-				if (Game1.currentLocation is FarmHouse)
+				Farmer parent = Game1.getFarmerMaybeOffline(idOfParent.Value);
+				if (idOfParent.Value == 0L || parent == null)
 				{
-					FarmHouse farm_house = Game1.currentLocation as FarmHouse;
-					if (farm_house.owner != null)
+					long parent_unique_id = Game1.MasterPlayer.UniqueMultiplayerID;
+					if (base.currentLocation is FarmHouse)
 					{
-						parent_unique_id = (int)farm_house.owner.UniqueMultiplayerID;
+						_ = base.currentLocation;
+						foreach (Farmer farmer in Game1.getAllFarmers())
+						{
+							if (Utility.getHomeOfFarmer(farmer) == base.currentLocation)
+							{
+								parent_unique_id = farmer.UniqueMultiplayerID;
+								break;
+							}
+						}
 					}
+					idOfParent.Value = parent_unique_id;
 				}
-				idOfParent.Value = parent_unique_id;
 			}
 			if (Sprite == null)
 			{
@@ -120,7 +129,7 @@ namespace StardewValley.Characters
 
 		protected override void updateSlaveAnimation(GameTime time)
 		{
-			if (base.Age >= 2)
+			if (base.Age >= 2 && (Sprite.currentFrame > 7 || Sprite.SpriteHeight != 16))
 			{
 				base.updateSlaveAnimation(time);
 			}
@@ -128,12 +137,17 @@ namespace StardewValley.Characters
 
 		public override void MovePosition(GameTime time, xTile.Dimensions.Rectangle viewport, GameLocation currentLocation)
 		{
+			if (Game1.eventUp && Game1.CurrentEvent != null && Game1.CurrentEvent.isFestival)
+			{
+				base.MovePosition(time, viewport, currentLocation);
+				return;
+			}
 			if (!Game1.IsMasterGame)
 			{
-				moveLeft = (position.Field.IsInterpolating() && base.FacingDirection == 3);
-				moveRight = (position.Field.IsInterpolating() && base.FacingDirection == 1);
-				moveUp = (position.Field.IsInterpolating() && base.FacingDirection == 0);
-				moveDown = (position.Field.IsInterpolating() && base.FacingDirection == 2);
+				moveLeft = (IsRemoteMoving() && FacingDirection == 3);
+				moveRight = (IsRemoteMoving() && FacingDirection == 1);
+				moveUp = (IsRemoteMoving() && FacingDirection == 0);
+				moveDown = (IsRemoteMoving() && FacingDirection == 2);
 			}
 			if (moveUp)
 			{
@@ -146,7 +160,7 @@ namespace StardewValley.Characters
 					if (base.Age == 3)
 					{
 						Sprite.AnimateUp(time);
-						base.FacingDirection = 0;
+						FacingDirection = 0;
 					}
 				}
 				else if (!currentLocation.isTilePassable(nextPosition(0), viewport) || !base.willDestroyObjectsUnderfoot)
@@ -171,7 +185,7 @@ namespace StardewValley.Characters
 					if (base.Age == 3)
 					{
 						Sprite.AnimateRight(time);
-						base.FacingDirection = 1;
+						FacingDirection = 1;
 					}
 				}
 				else if (!currentLocation.isTilePassable(nextPosition(1), viewport) || !base.willDestroyObjectsUnderfoot)
@@ -196,7 +210,7 @@ namespace StardewValley.Characters
 					if (base.Age == 3)
 					{
 						Sprite.AnimateDown(time);
-						base.FacingDirection = 2;
+						FacingDirection = 2;
 					}
 				}
 				else if (!currentLocation.isTilePassable(nextPosition(2), viewport) || !base.willDestroyObjectsUnderfoot)
@@ -221,7 +235,7 @@ namespace StardewValley.Characters
 					if (base.Age == 3)
 					{
 						Sprite.AnimateLeft(time);
-						base.FacingDirection = 3;
+						FacingDirection = 3;
 					}
 				}
 				else if (!currentLocation.isTilePassable(nextPosition(3), viewport) || !base.willDestroyObjectsUnderfoot)
@@ -253,6 +267,15 @@ namespace StardewValley.Characters
 			return false;
 		}
 
+		public override void resetForNewDay(int dayOfMonth)
+		{
+			base.resetForNewDay(dayOfMonth);
+			if (base.currentLocation is FarmHouse && (base.currentLocation as FarmHouse).GetChildBed(GetChildIndex()) == null)
+			{
+				sleptInBed.Value = false;
+			}
+		}
+
 		public override void dayUpdate(int dayOfMonth)
 		{
 			resetForNewDay(dayOfMonth);
@@ -264,10 +287,10 @@ namespace StardewValley.Characters
 			int parent_unique_id = (int)Game1.MasterPlayer.UniqueMultiplayerID;
 			if (Game1.currentLocation is FarmHouse)
 			{
-				FarmHouse farm_house2 = Game1.currentLocation as FarmHouse;
-				if (farm_house2.owner != null)
+				FarmHouse farm_house = Game1.currentLocation as FarmHouse;
+				if (farm_house.owner != null)
 				{
-					parent_unique_id = (int)farm_house2.owner.UniqueMultiplayerID;
+					parent_unique_id = (int)farm_house.owner.UniqueMultiplayerID;
 				}
 			}
 			Random r = new Random(Game1.Date.TotalDays + (int)Game1.uniqueIDForThisGame / 2 + parent_unique_id * 2);
@@ -292,10 +315,10 @@ namespace StardewValley.Characters
 			if (base.Age == 2)
 			{
 				base.speed = 1;
-				Point p2 = (base.currentLocation as FarmHouse).getRandomOpenPointInHouse(r, 1, 60);
-				if (!p2.Equals(Point.Zero))
+				Point p3 = (base.currentLocation as FarmHouse).getRandomOpenPointInHouse(r, 1, 200);
+				if (!p3.Equals(Point.Zero))
 				{
-					setTilePosition(p2);
+					setTilePosition(p3);
 				}
 				else
 				{
@@ -305,15 +328,20 @@ namespace StardewValley.Characters
 			}
 			if (base.Age == 3)
 			{
-				Point p = (base.currentLocation as FarmHouse).getRandomOpenPointInHouse(r, 1, 60);
-				if (!p.Equals(Point.Zero))
+				Point p2 = (base.currentLocation as FarmHouse).getRandomOpenPointInHouse(r, 1, 200);
+				if (!p2.Equals(Point.Zero))
 				{
-					setTilePosition(p);
+					setTilePosition(p2);
 				}
 				else
 				{
-					FarmHouse farm_house = base.currentLocation as FarmHouse;
-					setTilePosition(farm_house.getChildBed(base.Gender));
+					FarmHouse obj = base.currentLocation as FarmHouse;
+					obj.GetChildBed(GetChildIndex());
+					p2 = obj.GetChildBedSpot(GetChildIndex());
+					if (!p2.Equals(Point.Zero))
+					{
+						setTilePosition(p2);
+					}
 				}
 				Sprite.CurrentAnimation = null;
 			}
@@ -556,15 +584,39 @@ namespace StardewValley.Characters
 				base.IsWalkingInSquare = false;
 				Halt();
 				FarmHouse farmHouse = base.currentLocation as FarmHouse;
-				if (farmHouse.characters.Contains(this))
+				if (!farmHouse.characters.Contains(this))
 				{
-					controller = new PathFindController(this, farmHouse, farmHouse.getChildBed(base.Gender), -1, toddlerReachedDestination);
+					return;
+				}
+				int child_index = GetChildIndex();
+				BedFurniture bed = farmHouse.GetChildBed(child_index);
+				Point bed_point = farmHouse.GetChildBedSpot(child_index);
+				if (!bed_point.Equals(Point.Zero))
+				{
+					controller = new PathFindController(this, farmHouse, bed_point, -1, toddlerReachedDestination);
 					if (controller.pathToEndPoint == null || !farmHouse.isTileOnMap(controller.pathToEndPoint.Last().X, controller.pathToEndPoint.Last().Y))
 					{
 						controller = null;
 					}
+					else
+					{
+						bed?.ReserveForNPC();
+					}
 				}
 			}
+		}
+
+		public virtual int GetChildIndex()
+		{
+			Farmer parent = Game1.getFarmerMaybeOffline(idOfParent.Value);
+			if (parent != null)
+			{
+				List<Child> children = parent.getChildren();
+				children.Sort((Child a, Child b) => a.daysOld.Value.CompareTo(b.daysOld.Value));
+				children.Reverse();
+				return children.IndexOf(this);
+			}
+			return base.Gender;
 		}
 
 		public void toddlerReachedDestination(Character c, GameLocation l)
@@ -646,6 +698,10 @@ namespace StardewValley.Characters
 					faceTowardFarmerForPeriod(4000, 3, faceAway: false, who);
 				}
 				return true;
+			}
+			if (Game1.CurrentEvent != null)
+			{
+				return false;
 			}
 			if (base.Age >= 3 && who.items.Count > who.CurrentToolIndex && who.items[who.CurrentToolIndex] != null && who.Items[who.CurrentToolIndex] is Hat)
 			{

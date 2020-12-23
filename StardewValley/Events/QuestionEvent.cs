@@ -67,7 +67,7 @@ namespace StardewValley.Events
 						break;
 					}
 				}
-				if (a != null && !a.isBaby() && (bool)a.allowReproduction)
+				if (a != null && !a.isBaby() && (bool)a.allowReproduction && a.CanHavePregnancy())
 				{
 					Game1.drawObjectDialogue(Game1.content.LoadString("Strings\\Events:AnimalBirth", a.displayName, a.shortDisplayType()));
 					Game1.messagePause = true;

@@ -217,26 +217,10 @@ namespace StardewValley.Objects
 			spriteBatch.Draw(Game1.bigCraftableSpriteSheet, destination, Object.getSourceRectForBigCraftable(showNextIndex ? (base.ParentSheetIndex + 1) : base.ParentSheetIndex), Color.White * alpha, 0f, Vector2.Zero, SpriteEffects.None, Math.Max(0f, (float)((y + 1) * 64 - 24) / 10000f) + (((int)parentSheetIndex == 105) ? 0.0035f : 0f) + (float)x * 1E-05f);
 			if ((int)hoeDirt.Value.fertilizer != 0)
 			{
-				int fertilizerIndex = 0;
-				switch ((int)hoeDirt.Value.fertilizer)
-				{
-				case 369:
-					fertilizerIndex = 1;
-					break;
-				case 370:
-					fertilizerIndex = 2;
-					break;
-				case 371:
-					fertilizerIndex = 3;
-					break;
-				case 465:
-					fertilizerIndex = 4;
-					break;
-				case 466:
-					fertilizerIndex = 5;
-					break;
-				}
-				spriteBatch.Draw(Game1.mouseCursors, Game1.GlobalToLocal(Game1.viewport, new Vector2(tileLocation.X * 64f + 4f, tileLocation.Y * 64f - 12f)), new Rectangle(173 + fertilizerIndex / 2 * 16, 466 + fertilizerIndex % 2 * 16, 13, 13), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, (tileLocation.Y + 0.65f) * 64f / 10000f + (float)x * 1E-05f);
+				Rectangle fertilizer_rect = hoeDirt.Value.GetFertilizerSourceRect(hoeDirt.Value.fertilizer);
+				fertilizer_rect.Width = 13;
+				fertilizer_rect.Height = 13;
+				spriteBatch.Draw(Game1.mouseCursors, Game1.GlobalToLocal(Game1.viewport, new Vector2(tileLocation.X * 64f + 4f, tileLocation.Y * 64f - 12f)), fertilizer_rect, Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, (tileLocation.Y + 0.65f) * 64f / 10000f + (float)x * 1E-05f);
 			}
 			if (hoeDirt.Value.crop != null)
 			{

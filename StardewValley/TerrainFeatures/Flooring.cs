@@ -5,7 +5,6 @@ using StardewValley.Network;
 using StardewValley.Tools;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Xml.Serialization;
 
 namespace StardewValley.TerrainFeatures
@@ -100,11 +99,19 @@ namespace StardewValley.TerrainFeatures
 
 		public const int brick = 10;
 
+		public const int plankFlooring = 11;
+
+		public const int townFlooring = 12;
+
 		public static Texture2D floorsTexture;
 
 		public static Texture2D floorsTextureWinter;
 
+		[InstancedStatic]
 		public static Dictionary<byte, int> drawGuide;
+
+		[InstancedStatic]
+		public static List<int> drawGuideList;
 
 		[XmlElement("whichFloor")]
 		public readonly NetInt whichFloor = new NetInt();
@@ -113,10 +120,16 @@ namespace StardewValley.TerrainFeatures
 		public readonly NetInt whichView = new NetInt();
 
 		[XmlElement("isPathway")]
-		private readonly NetBool isPathway = new NetBool();
+		public readonly NetBool isPathway = new NetBool();
 
 		[XmlElement("isSteppingStone")]
-		private readonly NetBool isSteppingStone = new NetBool();
+		public readonly NetBool isSteppingStone = new NetBool();
+
+		[XmlElement("drawContouredShadow")]
+		public readonly NetBool drawContouredShadow = new NetBool();
+
+		[XmlElement("cornerDecoratedBorders")]
+		public readonly NetBool cornerDecoratedBorders = new NetBool();
 
 		private byte neighborMask;
 
@@ -137,7 +150,7 @@ namespace StardewValley.TerrainFeatures
 		public Flooring()
 			: base(needsTick: false)
 		{
-			base.NetFields.AddFields(whichFloor, whichView, isPathway, isSteppingStone);
+			base.NetFields.AddFields(whichFloor, whichView, isPathway, isSteppingStone, drawContouredShadow, cornerDecoratedBorders);
 			loadSprite();
 			if (drawGuide == null)
 			{
@@ -149,9 +162,22 @@ namespace StardewValley.TerrainFeatures
 			: this()
 		{
 			whichFloor.Value = which;
-			if ((int)whichFloor == 5 || (int)whichFloor == 6 || (int)whichFloor == 8 || (int)whichFloor == 7)
+			ApplyFlooringFlags();
+		}
+
+		public virtual void ApplyFlooringFlags()
+		{
+			if ((int)whichFloor == 5 || (int)whichFloor == 6 || (int)whichFloor == 8 || (int)whichFloor == 7 || (int)whichFloor == 11)
 			{
 				isPathway.Value = true;
+			}
+			if ((int)whichFloor == 11 || (int)whichFloor == 12)
+			{
+				drawContouredShadow.Value = true;
+			}
+			if ((int)whichFloor == 12)
+			{
+				cornerDecoratedBorders.Value = true;
 			}
 			if ((int)whichFloor == 9)
 			{
@@ -185,6 +211,11 @@ namespace StardewValley.TerrainFeatures
 			drawGuide.Add(2, 49);
 			drawGuide.Add(10, 50);
 			drawGuide.Add(8, 51);
+			drawGuideList = new List<int>(drawGuide.Count);
+			foreach (KeyValuePair<byte, int> pair in drawGuide)
+			{
+				drawGuideList.Add(pair.Value);
+			}
 		}
 
 		public override void loadSprite()
@@ -242,12 +273,14 @@ namespace StardewValley.TerrainFeatures
 			case 0:
 			case 2:
 			case 4:
+			case 11:
 				return "woodyStep";
 			case 3:
 			case 6:
 				return "thudStep";
 			case 1:
 			case 10:
+			case 12:
 				return "stoneStep";
 			default:
 				return "stoneStep";
@@ -256,7 +289,7 @@ namespace StardewValley.TerrainFeatures
 
 		private Texture2D getTexture()
 		{
-			if (Game1.currentSeason[0] == 'w' && (currentLocation == null || !currentLocation.isGreenhouse))
+			if (Game1.GetSeasonForLocation(currentLocation)[0] == 'w' && (currentLocation == null || !currentLocation.isGreenhouse))
 			{
 				return floorsTextureWinter;
 			}
@@ -286,6 +319,10 @@ namespace StardewValley.TerrainFeatures
 				case 6:
 					location.playSound("axchop");
 					item = 405;
+					break;
+				case 11:
+					location.playSound("axchop");
+					item = 840;
 					break;
 				case 0:
 					location.playSound("axchop");
@@ -318,6 +355,10 @@ namespace StardewValley.TerrainFeatures
 				case 1:
 					location.playSound("hammer");
 					item = 329;
+					break;
+				case 12:
+					location.playSound("hammer");
+					item = 841;
 					break;
 				}
 				location.debris.Add(new Debris(new Object(item, 1), tileLocation * 64f + new Vector2(32f, 32f)));
@@ -360,7 +401,27 @@ namespace StardewValley.TerrainFeatures
 
 		public override void draw(SpriteBatch spriteBatch, Vector2 tileLocation)
 		{
-			if (!isPathway)
+			if (cornerDecoratedBorders.Value)
+			{
+				int border_size = 6;
+				if ((neighborMask & 9) == 9 && (neighborMask & 0x20) == 0)
+				{
+					spriteBatch.Draw(getTexture(), Game1.GlobalToLocal(Game1.viewport, new Vector2(tileLocation.X * 64f, tileLocation.Y * 64f)), new Rectangle(64 - border_size + 64 * ((int)whichFloor % 4), 48 - border_size + (int)whichFloor / 4 * 64, border_size, border_size), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, (tileLocation.Y * 64f + 2f + tileLocation.X / 10000f) / 20000f);
+				}
+				if ((neighborMask & 3) == 3 && (neighborMask & 0x10) == 0)
+				{
+					spriteBatch.Draw(getTexture(), Game1.GlobalToLocal(Game1.viewport, new Vector2(tileLocation.X * 64f + 64f - (float)(border_size * 4), tileLocation.Y * 64f)), new Rectangle(16 + 64 * ((int)whichFloor % 4), 48 - border_size + (int)whichFloor / 4 * 64, border_size, border_size), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, (tileLocation.Y * 64f + 2f + tileLocation.X / 10000f + (float)(int)whichFloor) / 20000f);
+				}
+				if ((neighborMask & 6) == 6 && (neighborMask & 0x40) == 0)
+				{
+					spriteBatch.Draw(getTexture(), Game1.GlobalToLocal(Game1.viewport, new Vector2(tileLocation.X * 64f + 64f - (float)(border_size * 4), tileLocation.Y * 64f + 64f - (float)(border_size * 4))), new Rectangle(16 + 64 * ((int)whichFloor % 4), (int)whichFloor / 4 * 64, border_size, border_size), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, (tileLocation.Y * 64f + 2f + tileLocation.X / 10000f) / 20000f);
+				}
+				if ((neighborMask & 0xC) == 12 && (neighborMask & 0x80) == 0)
+				{
+					spriteBatch.Draw(getTexture(), Game1.GlobalToLocal(Game1.viewport, new Vector2(tileLocation.X * 64f, tileLocation.Y * 64f + 64f - (float)(border_size * 4))), new Rectangle(64 - border_size + 64 * ((int)whichFloor % 4), (int)whichFloor / 4 * 64, border_size, border_size), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, (tileLocation.Y * 64f + 2f + tileLocation.X / 10000f) / 20000f);
+				}
+			}
+			else if (!isPathway)
 			{
 				if ((neighborMask & 9) == 9 && (neighborMask & 0x20) == 0)
 				{
@@ -378,13 +439,22 @@ namespace StardewValley.TerrainFeatures
 				{
 					spriteBatch.Draw(getTexture(), Game1.GlobalToLocal(Game1.viewport, new Vector2(tileLocation.X * 64f, tileLocation.Y * 64f + 48f)), new Rectangle(60 + 64 * ((int)whichFloor % 4), (int)whichFloor / 4 * 64, 4, 4), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, (tileLocation.Y * 64f + 2f + tileLocation.X / 10000f) / 20000f);
 				}
-				spriteBatch.Draw(Game1.staminaRect, new Rectangle((int)(tileLocation.X * 64f) - 4 - Game1.viewport.X, (int)(tileLocation.Y * 64f) + 4 - Game1.viewport.Y, 64, 64), Color.Black * 0.33f);
+				if (!drawContouredShadow.Value)
+				{
+					spriteBatch.Draw(Game1.staminaRect, new Rectangle((int)(tileLocation.X * 64f) - 4 - Game1.viewport.X, (int)(tileLocation.Y * 64f) + 4 - Game1.viewport.Y, 64, 64), Color.Black * 0.33f);
+				}
 			}
 			byte drawSum = (byte)(neighborMask & 0xF);
 			int sourceRectPosition = drawGuide[drawSum];
 			if ((bool)isSteppingStone)
 			{
-				sourceRectPosition = drawGuide.ElementAt(whichView).Value;
+				sourceRectPosition = drawGuideList[whichView.Value];
+			}
+			if ((bool)drawContouredShadow)
+			{
+				Color shadow_color = Color.Black;
+				shadow_color.A = (byte)((float)(int)shadow_color.A * 0.33f);
+				spriteBatch.Draw(getTexture(), Game1.GlobalToLocal(Game1.viewport, new Vector2(tileLocation.X * 64f, tileLocation.Y * 64f)) + new Vector2(-4f, 4f), new Rectangle((int)whichFloor % 4 * 64 + sourceRectPosition * 16 % 256, sourceRectPosition / 16 * 16 + (int)whichFloor / 4 * 64, 16, 16), shadow_color, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1E-10f);
 			}
 			spriteBatch.Draw(getTexture(), Game1.GlobalToLocal(Game1.viewport, new Vector2(tileLocation.X * 64f, tileLocation.Y * 64f)), new Rectangle((int)whichFloor % 4 * 64 + sourceRectPosition * 16 % 256, sourceRectPosition / 16 * 16 + (int)whichFloor / 4 * 64, 16, 16), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1E-09f);
 		}
@@ -412,11 +482,16 @@ namespace StardewValley.TerrainFeatures
 			Flooring flooring2 = null;
 			NetVector2Dictionary<TerrainFeature, NetRef<TerrainFeature>> terrainFeatures = loc.terrainFeatures;
 			NeighborLoc[] offsets = _offsets;
-			for (int j = 0; j < offsets.Length; j++)
+			for (int k = 0; k < offsets.Length; k++)
 			{
-				NeighborLoc item = offsets[j];
+				NeighborLoc item = offsets[k];
 				Vector2 tile = tilePos + item.Offset;
-				if (terrainFeatures.TryGetValue(tile, out feature) && feature != null)
+				if (loc.map != null && !loc.isTileOnMap(tile))
+				{
+					Neighbor j = new Neighbor(null, item.Direction, item.InvDirection);
+					results.Add(j);
+				}
+				else if (terrainFeatures.TryGetValue(tile, out feature) && feature != null)
 				{
 					flooring2 = (feature as Flooring);
 					if (flooring2 != null && flooring2.whichFloor == whichFloor)
@@ -436,7 +511,10 @@ namespace StardewValley.TerrainFeatures
 			foreach (Neighbor i in list)
 			{
 				neighborMask |= i.direction;
-				i.feature.OnNeighborAdded(i.invDirection);
+				if (i.feature != null)
+				{
+					i.feature.OnNeighborAdded(i.invDirection);
+				}
 			}
 		}
 
@@ -446,7 +524,10 @@ namespace StardewValley.TerrainFeatures
 			neighborMask = 0;
 			foreach (Neighbor i in list)
 			{
-				i.feature.OnNeighborRemoved(i.invDirection);
+				if (i.feature != null)
+				{
+					i.feature.OnNeighborRemoved(i.invDirection);
+				}
 			}
 		}
 

@@ -1,6 +1,7 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using StardewValley.BellsAndWhistles;
+using StardewValley.Menus;
 using System;
 
 namespace StardewValley
@@ -16,6 +17,8 @@ namespace StardewValley
 		private float color;
 
 		private Vector2[] ashes = new Vector2[3];
+
+		private float smokePuffTimer;
 
 		public Torch()
 		{
@@ -48,10 +51,10 @@ namespace StardewValley
 					IsRecipe = isRecipe
 				};
 			}
-			return new Torch(tileLocation, 1)
-			{
-				IsRecipe = isRecipe
-			};
+			Torch torch = new Torch(tileLocation, 1);
+			torch.IsRecipe = isRecipe;
+			torch._GetOneFrom(this);
+			return torch;
 		}
 
 		public override void actionOnPlayerEntry()
@@ -69,6 +72,12 @@ namespace StardewValley
 			{
 				if (justCheckingForActivity)
 				{
+					return true;
+				}
+				if ((int)parentSheetIndex == 278)
+				{
+					Vector2 center = Utility.getTopLeftPositionForCenteringOnScreen(800 + IClickableMenu.borderWidth * 2, 600 + IClickableMenu.borderWidth * 2);
+					Game1.activeClickableMenu = new CraftingPage((int)center.X, (int)center.Y, 800 + IClickableMenu.borderWidth * 2, 600 + IClickableMenu.borderWidth * 2, cooking: true, standalone_menu: true);
 					return true;
 				}
 				isOn.Value = !isOn;
@@ -129,6 +138,15 @@ namespace StardewValley
 		{
 			base.updateWhenCurrentLocation(time, environment);
 			updateAshes((int)(tileLocation.X * 2000f + tileLocation.Y));
+			smokePuffTimer -= (float)time.ElapsedGameTime.TotalMilliseconds;
+			if (smokePuffTimer <= 0f)
+			{
+				smokePuffTimer = 1000f;
+				if ((int)parentSheetIndex == 278)
+				{
+					Utility.addSmokePuff(environment, tileLocation.Value * 64f + new Vector2(32f, -32f));
+				}
+			}
 		}
 
 		public override void actionWhenBeingHeld(Farmer who)
@@ -185,7 +203,7 @@ namespace StardewValley
 
 		public override void draw(SpriteBatch spriteBatch, int x, int y, float alpha = 1f)
 		{
-			if (Game1.eventUp && !Game1.currentLocation.IsFarm)
+			if (Game1.eventUp && (Game1.currentLocation == null || Game1.currentLocation.currentEvent == null || !Game1.currentLocation.currentEvent.showGroundObjects) && !Game1.currentLocation.IsFarm)
 			{
 				return;
 			}
@@ -195,12 +213,12 @@ namespace StardewValley
 				sourceRect.Y += 8;
 				sourceRect.Height /= 2;
 				Texture2D objectSpriteSheet = Game1.objectSpriteSheet;
-				Vector2 position = Game1.GlobalToLocal(Game1.viewport, new Vector2(x * 64, y * 64 + 32));
+				Vector2 position2 = Game1.GlobalToLocal(Game1.viewport, new Vector2(x * 64, y * 64 + 32));
 				Rectangle? sourceRectangle = sourceRect;
 				Color white = Color.White;
 				Vector2 zero = Vector2.Zero;
 				_ = scale;
-				spriteBatch.Draw(objectSpriteSheet, position, sourceRectangle, white, 0f, zero, (scale.Y > 1f) ? getScale().Y : 4f, SpriteEffects.None, (float)getBoundingBox(new Vector2(x, y)).Bottom / 10000f);
+				spriteBatch.Draw(objectSpriteSheet, position2, sourceRectangle, white, 0f, zero, (scale.Y > 1f) ? getScale().Y : 4f, SpriteEffects.None, (float)getBoundingBox(new Vector2(x, y)).Bottom / 10000f);
 				spriteBatch.Draw(Game1.mouseCursors, Game1.GlobalToLocal(Game1.viewport, new Vector2(x * 64 + 32 + 2, y * 64 + 16)), new Rectangle(88, 1779, 30, 30), Color.PaleGoldenrod * (Game1.currentLocation.IsOutdoors ? 0.35f : 0.43f), 0f, new Vector2(15f, 15f), 4f + (float)(64.0 * Math.Sin((Game1.currentGameTime.TotalGameTime.TotalMilliseconds + (double)(x * 64 * 777) + (double)(y * 64 * 9746)) % 3140.0 / 1000.0) / 50.0), SpriteEffects.None, 1f);
 				sourceRect.X = 276 + (int)((Game1.currentGameTime.TotalGameTime.TotalMilliseconds + (double)(x * 3204) + (double)(y * 49)) % 700.0 / 100.0) * 8;
 				sourceRect.Y = 1965;
@@ -214,18 +232,30 @@ namespace StardewValley
 				return;
 			}
 			base.draw(spriteBatch, x, y, alpha);
-			if ((bool)isOn)
+			float draw_layer = Math.Max(0f, (float)((y + 1) * 64 - 24) / 10000f) + (float)x * 1E-05f;
+			if (!isOn)
 			{
-				if ((int)parentSheetIndex == 146)
+				return;
+			}
+			if ((int)parentSheetIndex == 146 || (int)parentSheetIndex == 278)
+			{
+				spriteBatch.Draw(Game1.mouseCursors, Game1.GlobalToLocal(Game1.viewport, new Vector2(x * 64 + 16 - 4, y * 64 - 8)), new Rectangle(276 + (int)((Game1.currentGameTime.TotalGameTime.TotalMilliseconds + (double)(x * 3047) + (double)(y * 88)) % 400.0 / 100.0) * 12, 1985, 12, 11), Color.White, 0f, Vector2.Zero, 3f, SpriteEffects.None, draw_layer + 0.0008f);
+				spriteBatch.Draw(Game1.mouseCursors, Game1.GlobalToLocal(Game1.viewport, new Vector2(x * 64 + 32 - 12, y * 64)), new Rectangle(276 + (int)((Game1.currentGameTime.TotalGameTime.TotalMilliseconds + (double)(x * 2047) + (double)(y * 98)) % 400.0 / 100.0) * 12, 1985, 12, 11), Color.White, 0f, Vector2.Zero, 3f, SpriteEffects.None, draw_layer + 0.0009f);
+				spriteBatch.Draw(Game1.mouseCursors, Game1.GlobalToLocal(Game1.viewport, new Vector2(x * 64 + 32 - 20, y * 64 + 12)), new Rectangle(276 + (int)((Game1.currentGameTime.TotalGameTime.TotalMilliseconds + (double)(x * 2077) + (double)(y * 98)) % 400.0 / 100.0) * 12, 1985, 12, 11), Color.White, 0f, Vector2.Zero, 3f, SpriteEffects.None, draw_layer + 0.001f);
+				if ((int)parentSheetIndex == 278)
 				{
-					spriteBatch.Draw(Game1.mouseCursors, Game1.GlobalToLocal(Game1.viewport, new Vector2(x * 64 + 16 - 4, y * 64 - 8)), new Rectangle(276 + (int)((Game1.currentGameTime.TotalGameTime.TotalMilliseconds + (double)(x * 3047) + (double)(y * 88)) % 400.0 / 100.0) * 12, 1985, 12, 11), Color.White, 0f, Vector2.Zero, 3f, SpriteEffects.None, (float)(getBoundingBox(new Vector2(x, y)).Bottom - 16) / 10000f);
-					spriteBatch.Draw(Game1.mouseCursors, Game1.GlobalToLocal(Game1.viewport, new Vector2(x * 64 + 32 - 12, y * 64)), new Rectangle(276 + (int)((Game1.currentGameTime.TotalGameTime.TotalMilliseconds + (double)(x * 2047) + (double)(y * 98)) % 400.0 / 100.0) * 12, 1985, 12, 11), Color.White, 0f, Vector2.Zero, 3f, SpriteEffects.None, (float)(getBoundingBox(new Vector2(x, y)).Bottom - 15) / 10000f);
-					spriteBatch.Draw(Game1.mouseCursors, Game1.GlobalToLocal(Game1.viewport, new Vector2(x * 64 + 32 - 20, y * 64 + 12)), new Rectangle(276 + (int)((Game1.currentGameTime.TotalGameTime.TotalMilliseconds + (double)(x * 2077) + (double)(y * 98)) % 400.0 / 100.0) * 12, 1985, 12, 11), Color.White, 0f, Vector2.Zero, 3f, SpriteEffects.None, (float)(getBoundingBox(new Vector2(x, y)).Bottom - 14) / 10000f);
+					Rectangle r = Object.getSourceRectForBigCraftable(base.ParentSheetIndex + 1);
+					r.Height -= 16;
+					Vector2 scaleFactor = getScale();
+					scaleFactor *= 4f;
+					Vector2 position = Game1.GlobalToLocal(Game1.viewport, new Vector2(x * 64, y * 64 - 64 + 12));
+					Rectangle destination = new Rectangle((int)(position.X - scaleFactor.X / 2f) + ((shakeTimer > 0) ? Game1.random.Next(-1, 2) : 0), (int)(position.Y - scaleFactor.Y / 2f) + ((shakeTimer > 0) ? Game1.random.Next(-1, 2) : 0), (int)(64f + scaleFactor.X), (int)(64f + scaleFactor.Y / 2f));
+					spriteBatch.Draw(Game1.bigCraftableSpriteSheet, destination, r, Color.White * alpha, 0f, Vector2.Zero, SpriteEffects.None, draw_layer + 0.0028f);
 				}
-				else
-				{
-					spriteBatch.Draw(Game1.mouseCursors, Game1.GlobalToLocal(Game1.viewport, new Vector2(x * 64 + 16 - 8, y * 64 - 64 + 8)), new Rectangle(276 + (int)((Game1.currentGameTime.TotalGameTime.TotalMilliseconds + (double)(x * 3047) + (double)(y * 88)) % 400.0 / 100.0) * 12, 1985, 12, 11), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, (float)(getBoundingBox(new Vector2(x, y)).Bottom - 16) / 10000f);
-				}
+			}
+			else
+			{
+				spriteBatch.Draw(Game1.mouseCursors, Game1.GlobalToLocal(Game1.viewport, new Vector2(x * 64 + 16 - 8, y * 64 - 64 + 8)), new Rectangle(276 + (int)((Game1.currentGameTime.TotalGameTime.TotalMilliseconds + (double)(x * 3047) + (double)(y * 88)) % 400.0 / 100.0) * 12, 1985, 12, 11), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, draw_layer + 0.0008f);
 			}
 		}
 	}

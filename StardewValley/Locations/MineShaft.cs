@@ -1,6 +1,8 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Audio;
+using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
+using Microsoft.Xna.Framework.Input;
 using Netcode;
 using StardewValley.BellsAndWhistles;
 using StardewValley.Menus;
@@ -90,8 +92,6 @@ namespace StardewValley.Locations
 
 		public readonly NetString mapImageSource = new NetString();
 
-		public readonly NetObjectList<ResourceClump> resourceClumps = new NetObjectList<ResourceClump>();
-
 		private readonly NetInt netMineLevel = new NetInt();
 
 		private readonly NetIntDelta netStonesLeftOnThisLevel = new NetIntDelta();
@@ -149,11 +149,22 @@ namespace StardewValley.Locations
 		{
 			get
 			{
+				if (Game1.netWorldState.Value.LowestMineLevelForOrder >= 0)
+				{
+					return Game1.netWorldState.Value.LowestMineLevelForOrder;
+				}
 				return Game1.netWorldState.Value.LowestMineLevel;
 			}
 			set
 			{
-				Game1.netWorldState.Value.LowestMineLevel = value;
+				if (Game1.netWorldState.Value.LowestMineLevelForOrder >= 0)
+				{
+					Game1.netWorldState.Value.LowestMineLevelForOrder = value;
+				}
+				else
+				{
+					Game1.netWorldState.Value.LowestMineLevel = value;
+				}
 			}
 		}
 
@@ -309,6 +320,11 @@ namespace StardewValley.Locations
 			mapContent = Game1.game1.xTileContent.CreateTemporary();
 		}
 
+		public override bool CanPlaceThisFurnitureHere(Furniture furniture)
+		{
+			return false;
+		}
+
 		public MineShaft(int level)
 			: this()
 		{
@@ -319,7 +335,7 @@ namespace StardewValley.Locations
 		protected override void initNetFields()
 		{
 			base.initNetFields();
-			base.NetFields.AddFields(netMineLevel, netStonesLeftOnThisLevel, netTileBeneathLadder, netTileBeneathElevator, netElevatorLightSpot, netIsSlimeArea, netIsMonsterArea, netIsTreasureRoom, netIsDinoArea, netIsQuarryArea, netAmbientFog, netLighting, netFogColor, resourceClumps, createLadderAtEvent, createLadderDownEvent, mapImageSource, rainbowLights, isLightingDark, elevatorShouldDing, isFogUp);
+			base.NetFields.AddFields(netMineLevel, netStonesLeftOnThisLevel, netTileBeneathLadder, netTileBeneathElevator, netElevatorLightSpot, netIsSlimeArea, netIsMonsterArea, netIsTreasureRoom, netIsDinoArea, netIsQuarryArea, netAmbientFog, netLighting, netFogColor, createLadderAtEvent, createLadderDownEvent, mapImageSource, rainbowLights, isLightingDark, elevatorShouldDing, isFogUp);
 			isFogUp.fieldChangeEvent += delegate(NetBool field, bool oldValue, bool newValue)
 			{
 				if (!oldValue && newValue)
@@ -370,11 +386,7 @@ namespace StardewValley.Locations
 
 		public override void UpdateWhenCurrentLocation(GameTime time)
 		{
-			bool isCurrentLocation = Game1.currentLocation == this;
-			foreach (ResourceClump r in resourceClumps)
-			{
-				r.tickUpdate(time, r.tile, this);
-			}
+			bool num = Game1.currentLocation == this;
 			if ((Game1.isMusicContextActiveButNotPlaying() || Game1.getMusicTrackName().Contains("Ambient")) && Game1.random.NextDouble() < 0.00195)
 			{
 				localSound("cavedrip");
@@ -388,7 +400,7 @@ namespace StardewValley.Locations
 					setElevatorLit();
 				}
 			}
-			if (isCurrentLocation)
+			if (num)
 			{
 				if ((bool)isFogUp && Game1.shouldTimePass())
 				{
@@ -414,9 +426,6 @@ namespace StardewValley.Locations
 						float f = (float)Math.Max(0.0, Math.Min(100.0, Math.Sin((double)((float)fogTime / 10000f) % (Math.PI * 200.0))));
 						bugLevelLoop.SetVariable("Frequency", Math.Max(0f, Math.Min(100f, fogAlpha * 25f + f * 10f)));
 					}
-					fogPos = Game1.updateFloatingObjectPositionForMovement(current: new Vector2(Game1.viewport.X, Game1.viewport.Y), w: fogPos, previous: Game1.previousViewportPosition, speed: -1f);
-					fogPos.X = (fogPos.X + 0.5f) % 256f;
-					fogPos.Y = (fogPos.Y + 0.5f) % 256f;
 				}
 				else if (fogAlpha > 0f)
 				{
@@ -435,7 +444,11 @@ namespace StardewValley.Locations
 						}
 					}
 				}
-				else if (ambientFog)
+				else
+				{
+					_ = ambientFog;
+				}
+				if (fogAlpha > 0f || ambientFog)
 				{
 					fogPos = Game1.updateFloatingObjectPositionForMovement(current: new Vector2(Game1.viewport.X, Game1.viewport.Y), w: fogPos, previous: Game1.previousViewportPosition, speed: -1f);
 					fogPos.X = (fogPos.X + 0.5f) % 256f;
@@ -507,13 +520,27 @@ namespace StardewValley.Locations
 			{
 				lighting = new Color(100, 100, 50);
 			}
-			if (r.NextDouble() < 0.3 && mineLevel > 2)
+			if (GetAdditionalDifficulty() > 0)
+			{
+				if (getMineArea() == 40)
+				{
+					lighting = new Color(230, 200, 90);
+					ambientFog = true;
+					fogColor = new Color(0, 80, 255) * 0.55f;
+					if (mineLevel < 50)
+					{
+						lighting = new Color(100, 80, 40);
+						ambientFog = false;
+					}
+				}
+			}
+			else if (r.NextDouble() < 0.3 && mineLevel > 2)
 			{
 				isLightingDark.Value = true;
-				lighting = new Color(120, 120, 60);
+				lighting = new Color(120, 120, 40);
 				if (r.NextDouble() < 0.3)
 				{
-					lighting = new Color(150, 150, 120);
+					lighting = new Color(150, 150, 60);
 				}
 			}
 			if (r.NextDouble() < 0.15 && mineLevel > 5 && mineLevel != 120)
@@ -527,6 +554,10 @@ namespace StardewValley.Locations
 					break;
 				case 40:
 					lighting = Color.Black;
+					if (GetAdditionalDifficulty() > 0)
+					{
+						lighting = new Color(237, 212, 185);
+					}
 					break;
 				case 80:
 					lighting = new Color(90, 130, 70);
@@ -704,18 +735,6 @@ namespace StardewValley.Locations
 			isFallingDownShaft = false;
 		}
 
-		public override bool isTileOccupiedForPlacement(Vector2 tileLocation, Object toPlace = null)
-		{
-			foreach (ResourceClump resourceClump in resourceClumps)
-			{
-				if (resourceClump.occupiesTile((int)tileLocation.X, (int)tileLocation.Y))
-				{
-					return true;
-				}
-			}
-			return base.isTileOccupiedForPlacement(tileLocation, toPlace);
-		}
-
 		public override void performTenMinuteUpdate(int timeOfDay)
 		{
 			base.performTenMinuteUpdate(timeOfDay);
@@ -731,7 +750,7 @@ namespace StardewValley.Locations
 					}
 				}
 			}
-			if ((bool)isFogUp || map == null || mineLevel % 5 == 0 || !(Game1.random.NextDouble() < 0.1) || Game1.player.hasBuff(23))
+			if ((bool)isFogUp || map == null || mineLevel % 5 == 0 || !(Game1.random.NextDouble() < 0.1) || AnyOnlineFarmerHasBuff(23))
 			{
 				return;
 			}
@@ -746,7 +765,14 @@ namespace StardewValley.Locations
 					break;
 				case 0:
 				case 10:
-					fogColor = (isDarkArea() ? Color.Khaki : (Color.Green * 0.75f));
+					if (GetAdditionalDifficulty() > 0)
+					{
+						fogColor = (isDarkArea() ? new Color(255, 150, 0) : (Color.Cyan * 0.75f));
+					}
+					else
+					{
+						fogColor = (isDarkArea() ? Color.Khaki : (Color.Green * 0.75f));
+					}
 					break;
 				case 40:
 					fogColor = Color.Blue * 0.75f;
@@ -791,48 +817,61 @@ namespace StardewValley.Locations
 			case 0:
 				if (mineLevel > 10 && isDarkArea())
 				{
-					characters.Add(new Bat(spawnLocation * 64f, mineLevel)
+					characters.Add(BuffMonsterIfNecessary(new Bat(spawnLocation * 64f, mineLevel)
 					{
 						focusedOnFarmers = true
-					});
+					}));
 					playSound("batScreech");
 				}
 				break;
 			case 10:
-				characters.Add(new Fly(spawnLocation * 64f)
+				if (GetAdditionalDifficulty() > 0)
 				{
-					focusedOnFarmers = true
-				});
+					characters.Add(BuffMonsterIfNecessary(new BlueSquid(spawnLocation * 64f)
+					{
+						focusedOnFarmers = true
+					}));
+				}
+				else
+				{
+					characters.Add(BuffMonsterIfNecessary(new Fly(spawnLocation * 64f)
+					{
+						focusedOnFarmers = true
+					}));
+				}
 				break;
 			case 40:
-				characters.Add(new Bat(spawnLocation * 64f, mineLevel)
+				characters.Add(BuffMonsterIfNecessary(new Bat(spawnLocation * 64f, mineLevel)
 				{
 					focusedOnFarmers = true
-				});
+				}));
 				playSound("batScreech");
 				break;
 			case 80:
-				characters.Add(new Bat(spawnLocation * 64f, mineLevel)
+				characters.Add(BuffMonsterIfNecessary(new Bat(spawnLocation * 64f, mineLevel)
 				{
 					focusedOnFarmers = true
-				});
+				}));
 				playSound("batScreech");
 				break;
 			case 121:
 				if (mineLevel < 171 || Game1.random.NextDouble() < 0.5)
 				{
-					characters.Add(new Serpent(spawnLocation * 64f)
+					characters.Add(BuffMonsterIfNecessary((GetAdditionalDifficulty() > 0) ? new Serpent(spawnLocation * 64f, "Royal Serpent")
 					{
 						focusedOnFarmers = true
-					});
+					} : new Serpent(spawnLocation * 64f)
+					{
+						focusedOnFarmers = true
+					}));
 					playSound("serpentDie");
 				}
 				else
 				{
-					characters.Add(new Bat(spawnLocation * 64f, mineLevel)
+					characters.Add(BuffMonsterIfNecessary(new Bat(spawnLocation * 64f, mineLevel)
 					{
 						focusedOnFarmers = true
-					});
+					}));
 					playSound("batScreech");
 				}
 				break;
@@ -859,6 +898,10 @@ namespace StardewValley.Locations
 				break;
 			case 40:
 				c = Color.White * 0.65f;
+				if (GetAdditionalDifficulty() > 0)
+				{
+					c = ((mineLevel % 40 >= 30) ? (new Color(220, 240, 255) * 0.8f) : (new Color(230, 225, 100) * 0.8f));
+				}
 				break;
 			case 121:
 				c = Color.White * 0.8f;
@@ -895,12 +938,58 @@ namespace StardewValley.Locations
 			}
 		}
 
+		public Monster BuffMonsterIfNecessary(Monster monster)
+		{
+			if (monster != null && monster.GetBaseDifficultyLevel() < GetAdditionalDifficulty())
+			{
+				monster.BuffForAdditionalDifficulty(GetAdditionalDifficulty() - monster.GetBaseDifficultyLevel());
+				if (monster is GreenSlime)
+				{
+					if (mineLevel < 40)
+					{
+						(monster as GreenSlime).color.Value = new Color(Game1.random.Next(40, 70), Game1.random.Next(100, 190), 255);
+					}
+					else if (mineLevel < 80)
+					{
+						(monster as GreenSlime).color.Value = new Color(0, 180, 120);
+					}
+					else if (mineLevel < 120)
+					{
+						(monster as GreenSlime).color.Value = new Color(Game1.random.Next(180, 250), 20, 120);
+					}
+					else
+					{
+						(monster as GreenSlime).color.Value = new Color(Game1.random.Next(120, 180), 20, 255);
+					}
+				}
+				try
+				{
+					string dangerous_texture_name = monster.Sprite.textureName + "_dangerous";
+					if (Game1.content.Load<Texture2D>(dangerous_texture_name) == null)
+					{
+						return monster;
+					}
+					monster.Sprite.LoadTexture(dangerous_texture_name);
+					return monster;
+				}
+				catch (Exception)
+				{
+					return monster;
+				}
+			}
+			return monster;
+		}
+
 		public override Object getFish(float millisecondsAfterNibble, int bait, int waterDepth, Farmer who, double baitPotency, Vector2 bobberTile, string locationName = null)
 		{
 			int fish = -1;
 			double chanceMultiplier6 = 1.0;
 			chanceMultiplier6 += 0.4 * (double)who.FishingLevel;
 			chanceMultiplier6 += (double)waterDepth * 0.1;
+			if (who != null && who.CurrentTool is FishingRod && (who.CurrentTool as FishingRod).getBobberAttachmentIndex() == 856)
+			{
+				chanceMultiplier6 += 5.0;
+			}
 			switch (getMineArea())
 			{
 			case 0:
@@ -974,9 +1063,20 @@ namespace StardewValley.Locations
 					itemChance *= 4.0;
 				}
 			}
-			if (Game1.player.hasBuff(23) && getMineArea() != 121)
+			monsterChance += 0.02 * (double)GetAdditionalDifficulty();
+			bool has_spawn_monsters_buff2 = false;
+			bool num = AnyOnlineFarmerHasBuff(23);
+			has_spawn_monsters_buff2 = AnyOnlineFarmerHasBuff(24);
+			if (num && getMineArea() != 121)
 			{
-				monsterChance = 0.0;
+				if (!has_spawn_monsters_buff2)
+				{
+					monsterChance = 0.0;
+				}
+			}
+			else if (has_spawn_monsters_buff2)
+			{
+				monsterChance *= 2.0;
 			}
 			gemStoneChance /= 2.0;
 			if (isQuarryArea || getMineArea() == 77377)
@@ -986,6 +1086,26 @@ namespace StardewValley.Locations
 				stoneChance *= 2.0;
 				monsterChance = 0.02;
 			}
+			if (GetAdditionalDifficulty() > 0 && getMineArea() == 40)
+			{
+				monsterChance *= 0.6600000262260437;
+			}
+		}
+
+		public bool AnyOnlineFarmerHasBuff(int which_buff)
+		{
+			if (which_buff == 23 && GetAdditionalDifficulty() > 0)
+			{
+				return false;
+			}
+			foreach (Farmer onlineFarmer in Game1.getOnlineFarmers())
+			{
+				if (onlineFarmer.hasBuff(which_buff))
+				{
+					return true;
+				}
+			}
+			return false;
 		}
 
 		private void populateLevel()
@@ -1004,9 +1124,13 @@ namespace StardewValley.Locations
 			adjustLevelChances(ref stoneChance, ref monsterChance, ref itemChance, ref gemStoneChance);
 			int barrelsAdded = 0;
 			bool firstTime = !permanentMineChanges.ContainsKey(mineLevel);
-			if (mineLevel > 1 && mineLevel % 5 != 0 && mineRandom.NextDouble() < 0.5 && !mustKillAllMonstersToAdvance())
+			if (mineLevel > 1 && mineLevel % 5 != 0 && (mineRandom.NextDouble() < 0.5 || isDinoArea))
 			{
 				int numBarrels = mineRandom.Next(5) + (int)(Game1.player.team.AverageDailyLuck(Game1.currentLocation) * 20.0);
+				if (isDinoArea)
+				{
+					numBarrels += map.Layers[0].LayerWidth * map.Layers[0].LayerHeight / 40;
+				}
 				for (int l = 0; l < numBarrels; l++)
 				{
 					Point p;
@@ -1033,12 +1157,20 @@ namespace StardewValley.Locations
 						if (isTileClearForMineObjects(p.X, p.Y))
 						{
 							Vector2 objectPos5 = new Vector2(p.X, p.Y);
-							objects.Add(objectPos5, new BreakableContainer(objectPos5, 118, this));
+							if (isDinoArea)
+							{
+								terrainFeatures.Add(objectPos5, new CosmeticPlant(mineRandom.Next(3)));
+							}
+							else if (!mustKillAllMonstersToAdvance())
+							{
+								objects.Add(objectPos5, new BreakableContainer(objectPos5, 118, this));
+							}
 							break;
 						}
 					}
 				}
 			}
+			bool spawned_prismatic_jelly = false;
 			if (mineLevel % 10 != 0 || (getMineArea() == 121 && mineLevel != 220 && !netIsTreasureRoom.Value))
 			{
 				for (int k = 0; k < map.GetLayer("Back").LayerWidth; k++)
@@ -1057,7 +1189,12 @@ namespace StardewValley.Locations
 								}
 								if (getMineArea() == 40 && mineRandom.NextDouble() < 0.15)
 								{
-									base.Objects.Add(objectPos4, new Object(objectPos4, mineRandom.Next(319, 322), "Weeds", canBeSetDown: true, canBeGrabbed: false, isHoedirt: false, isSpawnedObject: false)
+									int which2 = mineRandom.Next(319, 322);
+									if (GetAdditionalDifficulty() > 0 && mineLevel % 40 < 30)
+									{
+										which2 = mineRandom.Next(313, 316);
+									}
+									base.Objects.Add(objectPos4, new Object(objectPos4, which2, "Weeds", canBeSetDown: true, canBeGrabbed: false, isHoedirt: false, isSpawnedObject: false)
 									{
 										Fragility = 2,
 										CanBeGrabbed = true
@@ -1104,43 +1241,79 @@ namespace StardewValley.Locations
 							}
 							else if (mineRandom.NextDouble() <= monsterChance && getDistanceFromStart(k, i) > 5f)
 							{
-								Monster monsterToAdd2 = getMonsterForThisLevel(mineLevel, k, i);
+								Monster monsterToAdd2 = BuffMonsterIfNecessary(getMonsterForThisLevel(mineLevel, k, i));
+								if (monsterToAdd2 is GreenSlime && !spawned_prismatic_jelly && Game1.random.NextDouble() <= 0.008 && Game1.player.team.SpecialOrderActive("Wizard2"))
+								{
+									(monsterToAdd2 as GreenSlime).makePrismatic();
+									spawned_prismatic_jelly = true;
+								}
+								if (monsterToAdd2 is GreenSlime && GetAdditionalDifficulty() > 0 && mineRandom.NextDouble() < (double)Math.Min((float)GetAdditionalDifficulty() * 0.1f, 0.5f))
+								{
+									if (mineRandom.NextDouble() < 0.0099999997764825821)
+									{
+										(monsterToAdd2 as GreenSlime).stackedSlimes.Value = 4;
+									}
+									else
+									{
+										(monsterToAdd2 as GreenSlime).stackedSlimes.Value = 2;
+									}
+								}
+								if (monsterToAdd2 is Leaper)
+								{
+									float partner_chance = (float)(GetAdditionalDifficulty() + 1) * 0.3f;
+									if (mineRandom.NextDouble() < (double)partner_chance)
+									{
+										tryToAddMonster(BuffMonsterIfNecessary(new Leaper(Vector2.Zero)), k - 1, i);
+									}
+									if (mineRandom.NextDouble() < (double)partner_chance)
+									{
+										tryToAddMonster(BuffMonsterIfNecessary(new Leaper(Vector2.Zero)), k + 1, i);
+									}
+									if (mineRandom.NextDouble() < (double)partner_chance)
+									{
+										tryToAddMonster(BuffMonsterIfNecessary(new Leaper(Vector2.Zero)), k, i - 1);
+									}
+									if (mineRandom.NextDouble() < (double)partner_chance)
+									{
+										tryToAddMonster(BuffMonsterIfNecessary(new Leaper(Vector2.Zero)), k, i + 1);
+									}
+								}
 								if (monsterToAdd2 is Grub)
 								{
 									if (mineRandom.NextDouble() < 0.4)
 									{
-										tryToAddMonster(new Grub(Vector2.Zero), k - 1, i);
+										tryToAddMonster(BuffMonsterIfNecessary(new Grub(Vector2.Zero)), k - 1, i);
 									}
 									if (mineRandom.NextDouble() < 0.4)
 									{
-										tryToAddMonster(new Grub(Vector2.Zero), k + 1, i);
+										tryToAddMonster(BuffMonsterIfNecessary(new Grub(Vector2.Zero)), k + 1, i);
 									}
 									if (mineRandom.NextDouble() < 0.4)
 									{
-										tryToAddMonster(new Grub(Vector2.Zero), k, i - 1);
+										tryToAddMonster(BuffMonsterIfNecessary(new Grub(Vector2.Zero)), k, i - 1);
 									}
 									if (mineRandom.NextDouble() < 0.4)
 									{
-										tryToAddMonster(new Grub(Vector2.Zero), k, i + 1);
+										tryToAddMonster(BuffMonsterIfNecessary(new Grub(Vector2.Zero)), k, i + 1);
 									}
 								}
 								else if (monsterToAdd2 is DustSpirit)
 								{
 									if (mineRandom.NextDouble() < 0.6)
 									{
-										tryToAddMonster(new DustSpirit(Vector2.Zero), k - 1, i);
+										tryToAddMonster(BuffMonsterIfNecessary(new DustSpirit(Vector2.Zero)), k - 1, i);
 									}
 									if (mineRandom.NextDouble() < 0.6)
 									{
-										tryToAddMonster(new DustSpirit(Vector2.Zero), k + 1, i);
+										tryToAddMonster(BuffMonsterIfNecessary(new DustSpirit(Vector2.Zero)), k + 1, i);
 									}
 									if (mineRandom.NextDouble() < 0.6)
 									{
-										tryToAddMonster(new DustSpirit(Vector2.Zero), k, i - 1);
+										tryToAddMonster(BuffMonsterIfNecessary(new DustSpirit(Vector2.Zero)), k, i - 1);
 									}
 									if (mineRandom.NextDouble() < 0.6)
 									{
-										tryToAddMonster(new DustSpirit(Vector2.Zero), k, i + 1);
+										tryToAddMonster(BuffMonsterIfNecessary(new DustSpirit(Vector2.Zero)), k, i + 1);
 									}
 								}
 								if (mineRandom.NextDouble() < 0.00175)
@@ -1149,6 +1322,16 @@ namespace StardewValley.Locations
 								}
 								if (monsterToAdd2.GetBoundingBox().Width <= 64 || isTileClearForMineObjects(k + 1, i))
 								{
+									if (monsterToAdd2 != null && monsterToAdd2 is GreenSlime && (bool)(monsterToAdd2 as GreenSlime).prismatic)
+									{
+										foreach (NPC c in characters)
+										{
+											if (c is GreenSlime && (bool)(c as GreenSlime).prismatic)
+											{
+												break;
+											}
+										}
+									}
 									characters.Add(monsterToAdd2);
 								}
 							}
@@ -1157,16 +1340,46 @@ namespace StardewValley.Locations
 								Vector2 objectPos3 = new Vector2(k, i);
 								base.Objects.Add(objectPos3, getRandomItemForThisLevel(mineLevel));
 							}
-							else if (mineRandom.NextDouble() <= 0.005 && !isDarkArea() && !mustKillAllMonstersToAdvance() && isTileClearForMineObjects(k + 1, i) && isTileClearForMineObjects(k, i + 1) && isTileClearForMineObjects(k + 1, i + 1))
+							else if (mineRandom.NextDouble() <= 0.005 && !isDarkArea() && !mustKillAllMonstersToAdvance() && (GetAdditionalDifficulty() <= 0 || (getMineArea() == 40 && mineLevel % 40 < 30)))
 							{
+								if (!isTileClearForMineObjects(k + 1, i) || !isTileClearForMineObjects(k, i + 1) || !isTileClearForMineObjects(k + 1, i + 1))
+								{
+									continue;
+								}
 								Vector2 objectPos2 = new Vector2(k, i);
 								int whichClump = (mineRandom.NextDouble() < 0.5) ? 752 : 754;
 								int mineArea = getMineArea();
 								if (mineArea == 40)
 								{
-									whichClump = ((mineRandom.NextDouble() < 0.5) ? 756 : 758);
+									if (GetAdditionalDifficulty() > 0)
+									{
+										whichClump = 600;
+										if (mineRandom.NextDouble() < 0.1)
+										{
+											whichClump = 602;
+										}
+									}
+									else
+									{
+										whichClump = ((mineRandom.NextDouble() < 0.5) ? 756 : 758);
+									}
 								}
 								resourceClumps.Add(new ResourceClump(whichClump, 2, 2, objectPos2));
+							}
+							else if (GetAdditionalDifficulty() > 0)
+							{
+								if (getMineArea() == 40 && mineLevel % 40 < 30 && mineRandom.NextDouble() < 0.01 && getTileIndexAt(k, i - 1, "Buildings") != -1)
+								{
+									terrainFeatures.Add(new Vector2(k, i), new Tree(8, 5));
+								}
+								else if (getMineArea() == 40 && mineLevel % 40 < 30 && mineRandom.NextDouble() < 0.1 && (getTileIndexAt(k, i - 1, "Buildings") != -1 || getTileIndexAt(k - 1, i, "Buildings") != -1 || getTileIndexAt(k, i + 1, "Buildings") != -1 || getTileIndexAt(k + 1, i, "Buildings") != -1 || terrainFeatures.ContainsKey(new Vector2(k - 1, i)) || terrainFeatures.ContainsKey(new Vector2(k + 1, i)) || terrainFeatures.ContainsKey(new Vector2(k, i - 1)) || terrainFeatures.ContainsKey(new Vector2(k, i + 1))))
+								{
+									terrainFeatures.Add(new Vector2(k, i), new Grass((mineLevel >= 50) ? 6 : 5, (mineLevel >= 50) ? 1 : mineRandom.Next(1, 5)));
+								}
+								else if (getMineArea() == 80 && !isDarkArea() && mineRandom.NextDouble() < 0.1 && (getTileIndexAt(k, i - 1, "Buildings") != -1 || getTileIndexAt(k - 1, i, "Buildings") != -1 || getTileIndexAt(k, i + 1, "Buildings") != -1 || getTileIndexAt(k + 1, i, "Buildings") != -1 || terrainFeatures.ContainsKey(new Vector2(k - 1, i)) || terrainFeatures.ContainsKey(new Vector2(k + 1, i)) || terrainFeatures.ContainsKey(new Vector2(k, i - 1)) || terrainFeatures.ContainsKey(new Vector2(k, i + 1))))
+								{
+									terrainFeatures.Add(new Vector2(k, i), new Grass(4, mineRandom.Next(1, 5)));
+								}
 							}
 						}
 						else if (isContainerPlatform(k, i) && isTileLocationTotallyClearAndPlaceable(k, i) && mineRandom.NextDouble() < 0.4 && (firstTime || canAdd(0, barrelsAdded)))
@@ -1179,9 +1392,9 @@ namespace StardewValley.Locations
 								updateMineLevelData(0);
 							}
 						}
-						else if (mineRandom.NextDouble() <= monsterChance && isTileLocationTotallyClearAndPlaceable(k, i) && isTileOnClearAndSolidGround(k, i) && getDistanceFromStart(k, i) > 5f && (!Game1.player.hasBuff(23) || getMineArea() == 121))
+						else if (mineRandom.NextDouble() <= monsterChance && isTileLocationTotallyClearAndPlaceable(k, i) && isTileOnClearAndSolidGround(k, i) && getDistanceFromStart(k, i) > 5f && (!AnyOnlineFarmerHasBuff(23) || getMineArea() == 121))
 						{
-							Monster monsterToAdd = getMonsterForThisLevel(mineLevel, k, i);
+							Monster monsterToAdd = BuffMonsterIfNecessary(getMonsterForThisLevel(mineLevel, k, i));
 							if (mineRandom.NextDouble() < 0.01)
 							{
 								monsterToAdd.hasSpecialItem.Value = true;
@@ -1211,9 +1424,10 @@ namespace StardewValley.Locations
 								{
 									objects.Remove(tile);
 									stonesLeftOnThisLevel--;
-									if (monsterSpot && mineRandom.NextDouble() < 0.12)
+									if (getDistanceFromStart(x, y) > 5f && monsterSpot && mineRandom.NextDouble() < 0.12)
 									{
-										characters.Add(getMonsterForThisLevel(mineLevel, x, y));
+										Monster monster = BuffMonsterIfNecessary(getMonsterForThisLevel(mineLevel, x, y));
+										characters.Add(monster);
 									}
 								}
 							}
@@ -1258,8 +1472,28 @@ namespace StardewValley.Locations
 			ore.minutesUntilReady.Value = 3;
 			switch (getMineArea())
 			{
+			case 0:
+			case 10:
+				if (GetAdditionalDifficulty() > 0)
+				{
+					ore.parentSheetIndex.Value = 849;
+					ore.minutesUntilReady.Value = 6;
+				}
+				break;
 			case 40:
-				if (mineRandom.NextDouble() < 0.8)
+				if (GetAdditionalDifficulty() > 0)
+				{
+					ore = new ColoredObject(290, 1, new Color(150, 225, 160))
+					{
+						MinutesUntilReady = 6,
+						CanBeSetDown = true,
+						name = "Stone",
+						TileLocation = tile,
+						ColorSameIndexAsParentSheetIndex = true,
+						Flipped = (mineRandom.NextDouble() < 0.5)
+					};
+				}
+				else if (mineRandom.NextDouble() < 0.8)
 				{
 					ore = new Object(tile, 290, "Stone", canBeSetDown: true, canBeGrabbed: false, isHoedirt: false, isSpawnedObject: false);
 					ore.minutesUntilReady.Value = 4;
@@ -1282,7 +1516,7 @@ namespace StardewValley.Locations
 				}
 				break;
 			}
-			if (mineRandom.NextDouble() < 0.25 && getMineArea() != 40)
+			if (mineRandom.NextDouble() < 0.25 && getMineArea() != 40 && GetAdditionalDifficulty() <= 0)
 			{
 				ore = new Object(tile, (mineRandom.NextDouble() < 0.5) ? 668 : 670, "Stone", canBeSetDown: true, canBeGrabbed: false, isHoedirt: false, isSpawnedObject: false);
 				ore.minutesUntilReady.Value = 2;
@@ -1356,18 +1590,60 @@ namespace StardewValley.Locations
 
 		public void tryToAddAreaUniques()
 		{
-			if ((getMineArea() == 10 || getMineArea() == 80 || (getMineArea() == 40 && mineRandom.NextDouble() < 0.1)) && !isDarkArea() && !mustKillAllMonstersToAdvance())
+			if ((getMineArea() != 10 && getMineArea() != 80 && (getMineArea() != 40 || !(mineRandom.NextDouble() < 0.1))) || isDarkArea() || mustKillAllMonstersToAdvance())
 			{
-				int tries = mineRandom.Next(7, 24);
-				int baseWeedIndex = (getMineArea() == 80) ? 316 : ((getMineArea() == 40) ? 319 : 313);
-				for (int i = 0; i < tries; i++)
+				return;
+			}
+			int tries = mineRandom.Next(7, 24);
+			int baseWeedIndex = (getMineArea() == 80) ? 316 : ((getMineArea() == 40) ? 319 : 313);
+			Color tintColor = Color.White;
+			int indexRandomizeRange = 2;
+			if (GetAdditionalDifficulty() > 0)
+			{
+				if (getMineArea() == 10)
 				{
-					Vector2 tile = new Vector2(mineRandom.Next(map.GetLayer("Back").LayerWidth), mineRandom.Next(map.GetLayer("Back").LayerHeight));
+					baseWeedIndex = 674;
+					tintColor = new Color(30, 120, 255);
+				}
+				else if (getMineArea() == 40)
+				{
+					if (mineLevel % 40 >= 30)
+					{
+						baseWeedIndex = 319;
+					}
+					else
+					{
+						baseWeedIndex = 882;
+						tintColor = new Color(100, 180, 220);
+					}
+				}
+				else if (getMineArea() == 80)
+				{
+					return;
+				}
+			}
+			for (int i = 0; i < tries; i++)
+			{
+				Vector2 tile = new Vector2(mineRandom.Next(map.GetLayer("Back").LayerWidth), mineRandom.Next(map.GetLayer("Back").LayerHeight));
+				if (tintColor.Equals(Color.White))
+				{
 					Utility.recursiveObjectPlacement(new Object(tile, baseWeedIndex, "Weeds", canBeSetDown: true, canBeGrabbed: false, isHoedirt: false, isSpawnedObject: false)
 					{
 						Fragility = 2,
 						CanBeGrabbed = true
-					}, (int)tile.X, (int)tile.Y, 1.0, (float)mineRandom.Next(10, 40) / 100f, this, "Dirt", 2, 0.29);
+					}, (int)tile.X, (int)tile.Y, 1.0, (float)mineRandom.Next(10, 40) / 100f, this, "Dirt", indexRandomizeRange, 0.29);
+				}
+				else
+				{
+					Utility.recursiveObjectPlacement(new ColoredObject(baseWeedIndex, 1, tintColor)
+					{
+						Fragility = 2,
+						CanBeGrabbed = true,
+						CanBeSetDown = true,
+						Name = "Weeds",
+						TileLocation = tile,
+						ColorSameIndexAsParentSheetIndex = true
+					}, (int)tile.X, (int)tile.Y, 1.0, (float)mineRandom.Next(10, 40) / 100f, this, "Dirt", indexRandomizeRange, 0.29);
 				}
 			}
 		}
@@ -1529,20 +1805,72 @@ namespace StardewValley.Locations
 			}
 		}
 
-		public override bool performToolAction(Tool t, int tileX, int tileY)
+		public Item GetReplacementChestItem(int floor)
 		{
-			for (int i = resourceClumps.Count - 1; i >= 0; i--)
+			List<Item> valid_items = null;
+			if (Game1.netWorldState.Value.ShuffleMineChests == Game1.MineChestType.Remixed)
 			{
-				if (resourceClumps[i] != null && resourceClumps[i].getBoundingBox(resourceClumps[i].tile).Contains(tileX * 64, tileY * 64))
+				valid_items = new List<Item>();
+				switch (floor)
 				{
-					if (resourceClumps[i].performToolAction(t, 1, resourceClumps[i].tile, this))
-					{
-						resourceClumps.RemoveAt(i);
-					}
-					return true;
+				case 10:
+					valid_items.Add(new Boots(506));
+					valid_items.Add(new Boots(507));
+					valid_items.Add(new MeleeWeapon(12));
+					valid_items.Add(new MeleeWeapon(17));
+					valid_items.Add(new MeleeWeapon(22));
+					valid_items.Add(new MeleeWeapon(31));
+					break;
+				case 20:
+					valid_items.Add(new MeleeWeapon(11));
+					valid_items.Add(new MeleeWeapon(24));
+					valid_items.Add(new MeleeWeapon(20));
+					valid_items.Add(new Ring(517));
+					valid_items.Add(new Ring(519));
+					break;
+				case 50:
+					valid_items.Add(new Boots(509));
+					valid_items.Add(new Boots(510));
+					valid_items.Add(new Boots(508));
+					valid_items.Add(new MeleeWeapon(1));
+					valid_items.Add(new MeleeWeapon(43));
+					break;
+				case 60:
+					valid_items.Add(new MeleeWeapon(21));
+					valid_items.Add(new MeleeWeapon(44));
+					valid_items.Add(new MeleeWeapon(6));
+					valid_items.Add(new MeleeWeapon(18));
+					valid_items.Add(new MeleeWeapon(27));
+					break;
+				case 80:
+					valid_items.Add(new Boots(512));
+					valid_items.Add(new Boots(511));
+					valid_items.Add(new MeleeWeapon(10));
+					valid_items.Add(new MeleeWeapon(7));
+					valid_items.Add(new MeleeWeapon(46));
+					valid_items.Add(new MeleeWeapon(19));
+					break;
+				case 90:
+					valid_items.Add(new MeleeWeapon(8));
+					valid_items.Add(new MeleeWeapon(52));
+					valid_items.Add(new MeleeWeapon(45));
+					valid_items.Add(new MeleeWeapon(5));
+					valid_items.Add(new MeleeWeapon(60));
+					break;
+				case 110:
+					valid_items.Add(new Boots(514));
+					valid_items.Add(new Boots(878));
+					valid_items.Add(new MeleeWeapon(50));
+					valid_items.Add(new MeleeWeapon(28));
+					break;
 				}
 			}
-			return base.performToolAction(t, tileX, tileY);
+			if (valid_items != null && valid_items.Count > 0)
+			{
+				Random r = new Random((int)(Game1.uniqueIDForThisGame * 512) + floor);
+				return Utility.GetRandom(valid_items, r);
+			}
+			return null;
 		}
 
 		private void addLevelChests()
@@ -1550,70 +1878,78 @@ namespace StardewValley.Locations
 			List<Item> chestItem = new List<Item>();
 			Vector2 chestSpot = new Vector2(9f, 9f);
 			Color tint = Color.White;
-			if (mineLevel % 20 == 0 && mineLevel % 40 != 0)
+			if (mineLevel < 121 && mineLevel % 20 == 0 && mineLevel % 40 != 0)
 			{
 				chestSpot.Y += 4f;
 			}
-			switch (mineLevel)
+			Item replacement_item = GetReplacementChestItem(mineLevel);
+			if (replacement_item != null)
 			{
-			case 5:
-				Game1.player.completeQuest(14);
-				if (!Game1.player.hasOrWillReceiveMail("guildQuest"))
+				chestItem.Add(replacement_item);
+			}
+			else
+			{
+				switch (mineLevel)
 				{
-					Game1.addMailForTomorrow("guildQuest");
+				case 5:
+					Game1.player.completeQuest(14);
+					if (!Game1.player.hasOrWillReceiveMail("guildQuest"))
+					{
+						Game1.addMailForTomorrow("guildQuest");
+					}
+					break;
+				case 10:
+					chestItem.Add(new Boots(506));
+					break;
+				case 20:
+					chestItem.Add(new MeleeWeapon(11));
+					break;
+				case 40:
+					Game1.player.completeQuest(17);
+					chestItem.Add(new Slingshot());
+					break;
+				case 50:
+					chestItem.Add(new Boots(509));
+					break;
+				case 60:
+					chestItem.Add(new MeleeWeapon(21));
+					break;
+				case 70:
+					chestItem.Add(new Slingshot(33));
+					break;
+				case 80:
+					chestItem.Add(new Boots(512));
+					break;
+				case 90:
+					chestItem.Add(new MeleeWeapon(8));
+					break;
+				case 100:
+					chestItem.Add(new Object(434, 1));
+					break;
+				case 110:
+					chestItem.Add(new Boots(514));
+					break;
+				case 120:
+					Game1.player.completeQuest(18);
+					Game1.getSteamAchievement("Achievement_TheBottom");
+					if (!Game1.player.hasSkullKey)
+					{
+						chestItem.Add(new SpecialItem(4));
+					}
+					tint = Color.Pink;
+					break;
+				case 220:
+					if (Game1.player.secretNotesSeen.Contains(10) && !Game1.player.mailReceived.Contains("qiCave"))
+					{
+						Game1.eventUp = true;
+						Game1.displayHUD = false;
+						Game1.player.CanMove = false;
+						Game1.player.showNotCarrying();
+						currentEvent = new Event(Game1.content.LoadString((numberOfCraftedStairsUsedThisRun <= 10) ? "Data\\ExtraDialogue:SkullCavern_100_event_honorable" : "Data\\ExtraDialogue:SkullCavern_100_event"));
+						currentEvent.exitLocation = new LocationRequest(base.Name, isStructure: false, this);
+					}
+					break;
 				}
-				break;
-			case 10:
-				chestItem.Add(new Boots(506));
-				break;
-			case 20:
-				chestItem.Add(new MeleeWeapon(11));
-				break;
-			case 40:
-				Game1.player.completeQuest(17);
-				chestItem.Add(new Slingshot());
-				break;
-			case 50:
-				chestItem.Add(new Boots(509));
-				break;
-			case 60:
-				chestItem.Add(new MeleeWeapon(21));
-				break;
-			case 70:
-				chestItem.Add(new Slingshot(33));
-				break;
-			case 80:
-				chestItem.Add(new Boots(512));
-				break;
-			case 90:
-				chestItem.Add(new MeleeWeapon(8));
-				break;
-			case 100:
-				chestItem.Add(new Object(434, 1));
-				break;
-			case 110:
-				chestItem.Add(new Boots(514));
-				break;
-			case 120:
-				Game1.player.completeQuest(18);
-				Game1.getSteamAchievement("Achievement_TheBottom");
-				if (!Game1.player.hasSkullKey)
-				{
-					chestItem.Add(new SpecialItem(4));
-				}
-				tint = Color.Pink;
-				break;
-			case 220:
-				if (Game1.player.secretNotesSeen.Contains(10) && !Game1.player.mailReceived.Contains("qiCave"))
-				{
-					Game1.eventUp = true;
-					Game1.displayHUD = false;
-					Game1.player.CanMove = false;
-					Game1.player.showNotCarrying();
-					currentEvent = new Event(Game1.content.LoadString((numberOfCraftedStairsUsedThisRun <= 10) ? "Data\\ExtraDialogue:SkullCavern_100_event_honorable" : "Data\\ExtraDialogue:SkullCavern_100_event"));
-					currentEvent.exitLocation = new LocationRequest(base.Name, isStructure: false, this);
-				}
-				break;
 			}
 			if (netIsTreasureRoom.Value)
 			{
@@ -1630,7 +1966,7 @@ namespace StardewValley.Locations
 
 		public static Item getTreasureRoomItem()
 		{
-			switch (Game1.random.Next(24))
+			switch (Game1.random.Next(25))
 			{
 			case 0:
 				return new Object(288, 5);
@@ -1680,6 +2016,8 @@ namespace StardewValley.Locations
 				return new Hat(38);
 			case 23:
 				return new Hat(65);
+			case 24:
+				return new Object(Vector2.Zero, 272);
 			default:
 				return new Object(288, 5);
 			}
@@ -1688,6 +2026,34 @@ namespace StardewValley.Locations
 		public static Item getSpecialItemForThisMineLevel(int level, int x, int y)
 		{
 			Random r = new Random(level + (int)Game1.stats.DaysPlayed + x + y * 10000);
+			if (Game1.mine.GetAdditionalDifficulty() > 0)
+			{
+				if (r.NextDouble() < 0.02)
+				{
+					return new Object(Vector2.Zero, 272);
+				}
+				switch (r.Next(7))
+				{
+				case 0:
+					return new MeleeWeapon(61);
+				case 1:
+					return new Object(910, 1);
+				case 2:
+					return new Object(913, 1);
+				case 3:
+					return new Object(915, 1);
+				case 4:
+					return new Ring(527);
+				case 5:
+					return new Object(858, 1);
+				case 6:
+				{
+					Item treasureRoomItem = getTreasureRoomItem();
+					treasureRoomItem.Stack = 1;
+					return treasureRoomItem;
+				}
+				}
+			}
 			if (level < 20)
 			{
 				switch (r.Next(6))
@@ -1746,14 +2112,14 @@ namespace StardewValley.Locations
 					return new MeleeWeapon(27);
 				}
 			}
-			else if (level < 160)
+			else if (level < 80)
 			{
 				switch (r.Next(7))
 				{
 				case 0:
 					return new MeleeWeapon(26);
 				case 1:
-					return new MeleeWeapon(26);
+					return new MeleeWeapon(27);
 				case 2:
 					return new Boots(508);
 				case 3:
@@ -1763,7 +2129,7 @@ namespace StardewValley.Locations
 				case 5:
 					return new Ring(519);
 				case 6:
-					return new MeleeWeapon(26);
+					return new MeleeWeapon(19);
 				}
 			}
 			else if (level < 100)
@@ -1788,7 +2154,7 @@ namespace StardewValley.Locations
 			}
 			else if (level < 120)
 			{
-				switch (r.Next(6))
+				switch (r.Next(7))
 				{
 				case 0:
 					return new MeleeWeapon(19);
@@ -1802,11 +2168,13 @@ namespace StardewValley.Locations
 					return new MeleeWeapon(18);
 				case 5:
 					return new MeleeWeapon(46);
+				case 6:
+					return new Ring(887);
 				}
 			}
 			else
 			{
-				switch (r.Next(8))
+				switch (r.Next(12))
 				{
 				case 0:
 					return new MeleeWeapon(45);
@@ -1824,6 +2192,14 @@ namespace StardewValley.Locations
 					return new MeleeWeapon(52);
 				case 7:
 					return new Object(787, 1);
+				case 8:
+					return new Boots(878);
+				case 9:
+					return new Object(856, 1);
+				case 10:
+					return new Ring(859);
+				case 11:
+					return new Ring(887);
 				}
 			}
 			return new Object(78, 1);
@@ -1831,13 +2207,6 @@ namespace StardewValley.Locations
 
 		public override bool isTileOccupied(Vector2 tileLocation, string characterToIgnore = "", bool ignoreAllCharacters = false)
 		{
-			foreach (ResourceClump resourceClump in resourceClumps)
-			{
-				if (resourceClump.occupiesTile((int)tileLocation.X, (int)tileLocation.Y))
-				{
-					return true;
-				}
-			}
 			if (tileBeneathLadder.Equals(tileLocation))
 			{
 				return true;
@@ -1882,6 +2251,15 @@ namespace StardewValley.Locations
 				return false;
 			}
 			return true;
+		}
+
+		public override string getFootstepSoundReplacement(string footstep)
+		{
+			if (GetAdditionalDifficulty() > 0 && getMineArea() == 40 && mineLevel % 40 < 30 && footstep == "stoneStep")
+			{
+				return "grassyStep";
+			}
+			return base.getFootstepSoundReplacement(footstep);
 		}
 
 		public bool isTileOnClearAndSolidGround(Vector2 v)
@@ -1981,7 +2359,7 @@ namespace StardewValley.Locations
 			loadedMapNumber = mapNumberToLoad2;
 			updateMap();
 			Random r = new Random((int)Game1.stats.DaysPlayed + level * 100 + (int)Game1.uniqueIDForThisGame / 2);
-			if ((!Game1.player.hasBuff(23) || getMineArea() == 121) && r.NextDouble() < 0.044 && mapNumberToLoad2 % 5 != 0 && mapNumberToLoad2 % 40 > 5 && mapNumberToLoad2 % 40 < 30 && mapNumberToLoad2 % 40 != 19)
+			if ((!AnyOnlineFarmerHasBuff(23) || getMineArea() == 121) && r.NextDouble() < 0.044 && mapNumberToLoad2 % 5 != 0 && mapNumberToLoad2 % 40 > 5 && mapNumberToLoad2 % 40 < 30 && mapNumberToLoad2 % 40 != 19)
 			{
 				if (r.NextDouble() < 0.5)
 				{
@@ -1998,7 +2376,7 @@ namespace StardewValley.Locations
 					isMonsterArea = false;
 				}
 			}
-			else if (mineLevel < 121 && r.NextDouble() < 0.044 && Utility.doesMasterPlayerHaveMailReceivedButNotMailForTomorrow("ccCraftsRoom") && mapNumberToLoad2 % 40 > 1 && mapNumberToLoad2 % 5 != 0)
+			else if (mineLevel < 121 && r.NextDouble() < 0.044 && Utility.doesMasterPlayerHaveMailReceivedButNotMailForTomorrow("ccCraftsRoom") && Game1.MasterPlayer.hasOrWillReceiveMail("VisitedQuarryMine") && mapNumberToLoad2 % 40 > 1 && mapNumberToLoad2 % 5 != 0)
 			{
 				isQuarryArea = true;
 				if (r.NextDouble() < 0.25)
@@ -2012,6 +2390,7 @@ namespace StardewValley.Locations
 				int numBrownSpots = map.Layers[0].LayerWidth * map.Layers[0].LayerHeight / 100;
 				isQuarryArea = true;
 				isSlimeArea = false;
+				isMonsterArea = false;
 				isDinoArea = false;
 				for (int i = 0; i < numBrownSpots; i++)
 				{
@@ -2056,18 +2435,60 @@ namespace StardewValley.Locations
 					}
 				}
 			}
-			if (!map.TileSheets[0].TileIndexProperties[165].ContainsKey("Diggable"))
+			if (GetAdditionalDifficulty() > 0)
 			{
-				map.TileSheets[0].TileIndexProperties[165].Add("Diggable", new PropertyValue("true"));
+				string map_image_source4 = "Maps\\Mines\\mine";
+				if (mapImageSource.Value != null)
+				{
+					map_image_source4 = mapImageSource.Value;
+				}
+				if (map_image_source4.EndsWith("_dark"))
+				{
+					map_image_source4 = map_image_source4.Remove(map_image_source4.Length - "_dark".Length);
+				}
+				string base_map_image_source = map_image_source4;
+				if (level % 40 >= 30)
+				{
+					loadedDarkArea = true;
+				}
+				if (loadedDarkArea)
+				{
+					map_image_source4 += "_dark";
+				}
+				map_image_source4 += "_dangerous";
+				try
+				{
+					mapImageSource.Value = map_image_source4;
+					Game1.temporaryContent.Load<Texture2D>(mapImageSource.Value);
+				}
+				catch (ContentLoadException)
+				{
+					map_image_source4 = base_map_image_source + "_dangerous";
+					try
+					{
+						mapImageSource.Value = map_image_source4;
+						Game1.temporaryContent.Load<Texture2D>(mapImageSource.Value);
+					}
+					catch (ContentLoadException)
+					{
+						map_image_source4 = base_map_image_source;
+						if (loadedDarkArea)
+						{
+							map_image_source4 += "_dark";
+						}
+						try
+						{
+							mapImageSource.Value = map_image_source4;
+							Game1.temporaryContent.Load<Texture2D>(mapImageSource.Value);
+						}
+						catch (ContentLoadException)
+						{
+							mapImageSource.Value = base_map_image_source;
+						}
+					}
+				}
 			}
-			if (!map.TileSheets[0].TileIndexProperties[181].ContainsKey("Diggable"))
-			{
-				map.TileSheets[0].TileIndexProperties[181].Add("Diggable", new PropertyValue("true"));
-			}
-			if (!map.TileSheets[0].TileIndexProperties[183].ContainsKey("Diggable"))
-			{
-				map.TileSheets[0].TileIndexProperties[183].Add("Diggable", new PropertyValue("true"));
-			}
+			ApplyDiggableTileFixes();
 			if (!isSideBranch())
 			{
 				lowestLevelReached = Math.Max(lowestLevelReached, level);
@@ -2076,6 +2497,43 @@ namespace StardewValley.Locations
 					prepareElevator();
 				}
 			}
+		}
+
+		private void addBlueFlamesToChallengeShrine()
+		{
+			temporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(536, 1945, 8, 8), new Vector2(8.75f, 5.8f) * 64f + new Vector2(32f, -32f), flipped: false, 0f, Color.White)
+			{
+				interval = 50f,
+				totalNumberOfLoops = 99999,
+				animationLength = 4,
+				light = true,
+				lightID = 888,
+				id = 888f,
+				lightRadius = 2f,
+				scale = 4f,
+				yPeriodic = true,
+				lightcolor = new Color(100, 0, 0),
+				yPeriodicLoopTime = 1000f,
+				yPeriodicRange = 4f,
+				layerDepth = 0.04544f
+			});
+			temporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(536, 1945, 8, 8), new Vector2(10.75f, 5.8f) * 64f + new Vector2(32f, -32f), flipped: false, 0f, Color.White)
+			{
+				interval = 50f,
+				totalNumberOfLoops = 99999,
+				animationLength = 4,
+				light = true,
+				lightID = 889,
+				id = 889f,
+				lightRadius = 2f,
+				scale = 4f,
+				lightcolor = new Color(100, 0, 0),
+				yPeriodic = true,
+				yPeriodicLoopTime = 1100f,
+				yPeriodicRange = 4f,
+				layerDepth = 0.04544f
+			});
+			Game1.playSound("fireball");
 		}
 
 		public static void CheckForQiChallengeCompletion()
@@ -2154,8 +2612,8 @@ namespace StardewValley.Locations
 				{
 					Response[] options2 = new Response[2]
 					{
-						new Response("Leave", Game1.content.LoadString("Strings\\Locations:Mines_LeaveMine")),
-						new Response("Do", Game1.content.LoadString("Strings\\Locations:Mines_DoNothing"))
+						new Response("Leave", Game1.content.LoadString("Strings\\Locations:Mines_LeaveMine")).SetHotKey(Keys.Y),
+						new Response("Do", Game1.content.LoadString("Strings\\Locations:Mines_DoNothing")).SetHotKey(Keys.Escape)
 					};
 					createQuestionDialogue(" ", options2, "ExitMine");
 					return true;
@@ -2168,8 +2626,8 @@ namespace StardewValley.Locations
 				{
 					Response[] options = new Response[2]
 					{
-						new Response("Jump", Game1.content.LoadString("Strings\\Locations:Mines_ShaftJumpIn")),
-						new Response("Do", Game1.content.LoadString("Strings\\Locations:Mines_DoNothing"))
+						new Response("Jump", Game1.content.LoadString("Strings\\Locations:Mines_ShaftJumpIn")).SetHotKey(Keys.Y),
+						new Response("Do", Game1.content.LoadString("Strings\\Locations:Mines_DoNothing")).SetHotKey(Keys.Escape)
 					};
 					createQuestionDialogue(Game1.content.LoadString("Strings\\Locations:Mines_Shaft"), options, "Shaft");
 					return true;
@@ -2182,6 +2640,22 @@ namespace StardewValley.Locations
 					Game1.createRadialDebris(this, 382, tileLocation.X, tileLocation.Y, 6, resource: false, -1, item: true);
 					updateMineLevelData(2, -1);
 					return true;
+				case 315:
+				case 316:
+				case 317:
+					if (Game1.player.team.SpecialOrderRuleActive("MINE_HARD") || Game1.player.team.specialRulesRemovedToday.Contains("MINE_HARD"))
+					{
+						Game1.drawObjectDialogue(Game1.content.LoadString("Strings\\Locations:ChallengeShrine_OnQiChallenge"));
+					}
+					else if (Game1.player.team.toggleMineShrineOvernight.Value)
+					{
+						Game1.drawObjectDialogue(Game1.content.LoadString("Strings\\Locations:ChallengeShrine_AlreadyActive"));
+					}
+					else
+					{
+						createQuestionDialogue(Game1.player.team.mineShrineActivated.Value ? Game1.content.LoadString("Strings\\Locations:ChallengeShrine_AlreadyHard") : Game1.content.LoadString("Strings\\Locations:ChallengeShrine_NotYetHard"), createYesNoResponses(), "ShrineOfChallenge");
+					}
+					break;
 				}
 			}
 			return base.checkAction(tileLocation, viewport, who);
@@ -2280,6 +2754,12 @@ namespace StardewValley.Locations
 					}
 				}
 				Game1.createObjectDebris(objectIndex, xLocation, yLocation, who.UniqueMultiplayerID, this);
+				bool num = who != null && who.CurrentTool != null && who.CurrentTool is Hoe && who.CurrentTool.hasEnchantmentOfType<GenerousEnchantment>();
+				float generousChance = 0.25f;
+				if (num && Game1.random.NextDouble() < (double)generousChance)
+				{
+					Game1.createObjectDebris(objectIndex, xLocation, yLocation, who.UniqueMultiplayerID, this);
+				}
 				return "";
 			}
 			return "";
@@ -2287,19 +2767,14 @@ namespace StardewValley.Locations
 
 		public override bool isCollidingPosition(Microsoft.Xna.Framework.Rectangle position, xTile.Dimensions.Rectangle viewport, bool isFarmer, int damagesFarmer, bool glider, Character character)
 		{
-			foreach (ResourceClump r in resourceClumps)
-			{
-				if (!glider && r.getBoundingBox(r.tile).Intersects(position))
-				{
-					return true;
-				}
-			}
 			return base.isCollidingPosition(position, viewport, isFarmer, damagesFarmer, glider, character);
 		}
 
 		public override void drawAboveAlwaysFrontLayer(SpriteBatch b)
 		{
 			base.drawAboveAlwaysFrontLayer(b);
+			b.End();
+			b.Begin(SpriteSortMode.FrontToBack, BlendState.AlphaBlend, SamplerState.PointClamp, null, null);
 			foreach (NPC i in characters)
 			{
 				if (i is Monster)
@@ -2307,6 +2782,8 @@ namespace StardewValley.Locations
 					(i as Monster).drawAboveAllLayers(b);
 				}
 			}
+			b.End();
+			b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, null);
 			if (fogAlpha > 0f || ambientFog)
 			{
 				Vector2 v = default(Vector2);
@@ -2322,15 +2799,15 @@ namespace StardewValley.Locations
 			}
 			if (!Game1.game1.takingMapScreenshot && !isSideBranch())
 			{
-				if (mustKillAllMonstersToAdvance())
-				{
-					b.Draw(Game1.mouseCursors, new Vector2(16f, 16f), new Microsoft.Xna.Framework.Rectangle(193, 324, 7, 10), Color.White, 0f, Vector2.Zero, 4f + Game1.dialogueButtonScale / 25f, SpriteEffects.None, 1f);
-					return;
-				}
 				int col = (getMineArea() == 0 || (isDarkArea() && getMineArea() != 121)) ? 4 : ((getMineArea() == 10) ? 6 : ((getMineArea() == 40) ? 7 : ((getMineArea() == 80) ? 2 : 3)));
 				string txt = string.Concat(mineLevel + ((getMineArea() == 121) ? (-120) : 0));
 				Microsoft.Xna.Framework.Rectangle tsarea = Game1.game1.GraphicsDevice.Viewport.GetTitleSafeArea();
 				SpriteText.drawString(b, txt, tsarea.Left + 16, tsarea.Top + 16, 999999, -1, 999999, 1f, 1f, junimoText: false, 2, "", col);
+				int text_width = SpriteText.getWidthOfString(txt);
+				if (mustKillAllMonstersToAdvance())
+				{
+					b.Draw(Game1.mouseCursors, new Vector2(tsarea.Left + 16 + text_width + 16, tsarea.Top + 16) + new Vector2(4f, 6f) * 4f, new Microsoft.Xna.Framework.Rectangle(192, 324, 7, 10), Color.White, 0f, new Vector2(3f, 5f), 4f + Game1.dialogueButtonScale / 25f, SpriteEffects.None, 1f);
+				}
 			}
 		}
 
@@ -2355,6 +2832,10 @@ namespace StardewValley.Locations
 					break;
 				}
 				trackName += "_Ambient";
+				if (GetAdditionalDifficulty() > 0 && getMineArea() == 40 && mineLevel < 70)
+				{
+					trackName = "jungle_ambience";
+				}
 				if (Game1.getMusicTrackName() == "none" || Game1.isMusicContextActiveButNotPlaying() || (Game1.getMusicTrackName().EndsWith("_Ambient") && Game1.getMusicTrackName() != trackName))
 				{
 					Game1.changeMusicTrack(trackName);
@@ -2374,6 +2855,19 @@ namespace StardewValley.Locations
 				return "FrostMine";
 			}
 			return "LavaMine";
+		}
+
+		public int GetAdditionalDifficulty()
+		{
+			if (mineLevel == 77377)
+			{
+				return 0;
+			}
+			if (mineLevel > 120)
+			{
+				return Game1.netWorldState.Value.SkullCavesDifficulty;
+			}
+			return Game1.netWorldState.Value.MinesDifficulty;
 		}
 
 		public bool isPlayingSongFromDifferentArea()
@@ -2410,6 +2904,20 @@ namespace StardewValley.Locations
 			if (!isSideBranch(mineLevel))
 			{
 				Game1.player.deepestMineLevel = Math.Max(Game1.player.deepestMineLevel, mineLevel);
+				if (Game1.player.team.specialOrders != null)
+				{
+					foreach (SpecialOrder order in Game1.player.team.specialOrders)
+					{
+						if (order.onMineFloorReached != null)
+						{
+							order.onMineFloorReached(Game1.player, mineLevel);
+						}
+					}
+				}
+			}
+			if (mineLevel == 77377)
+			{
+				Game1.addMailForTomorrow("VisitedQuarryMine", noLetter: true, sendToEveryone: true);
 			}
 			CheckForQiChallengeCompletion();
 			if (mineLevel == 120)
@@ -2422,18 +2930,6 @@ namespace StardewValley.Locations
 			if (Game1.IsClient)
 			{
 				Game1.player.Position = new Vector2(Game1.xLocationAfterWarp * 64, Game1.yLocationAfterWarp * 64 - (Game1.player.Sprite.getHeight() - 32) + 16);
-				if (!map.TileSheets[0].TileIndexProperties[165].ContainsKey("Diggable"))
-				{
-					map.TileSheets[0].TileIndexProperties[165].Add("Diggable", new PropertyValue("true"));
-				}
-				if (!map.TileSheets[0].TileIndexProperties[181].ContainsKey("Diggable"))
-				{
-					map.TileSheets[0].TileIndexProperties[181].Add("Diggable", new PropertyValue("true"));
-				}
-				if (!map.TileSheets[0].TileIndexProperties[183].ContainsKey("Diggable"))
-				{
-					map.TileSheets[0].TileIndexProperties[183].Add("Diggable", new PropertyValue("true"));
-				}
 			}
 			forceViewportPlayerFollow = true;
 			if (mineLevel == 20 && !Game1.IsMultiplayer && Game1.isRaining && Game1.player.eventsSeen.Contains(901756) && !Game1.IsMultiplayer)
@@ -2480,6 +2976,30 @@ namespace StardewValley.Locations
 				}
 				characters.Add(a);
 			}
+			if (mineLevel == 120 && GetAdditionalDifficulty() > 0 && !Game1.player.hasOrWillReceiveMail("reachedBottomOfHardMines"))
+			{
+				Game1.addMailForTomorrow("reachedBottomOfHardMines", noLetter: true, sendToEveryone: true);
+			}
+			if (mineLevel == 120 && Game1.player.hasOrWillReceiveMail("reachedBottomOfHardMines"))
+			{
+				setMapTileIndex(9, 6, 315, "Buildings");
+				setMapTileIndex(10, 6, 316, "Buildings");
+				setMapTileIndex(11, 6, 317, "Buildings");
+				setTileProperty(9, 6, "Buildings", "Action", "");
+				setTileProperty(10, 6, "Buildings", "Action", "");
+				setTileProperty(11, 6, "Buildings", "Action", "");
+				setMapTileIndex(9, 5, 299, "Front");
+				setMapTileIndex(10, 5, 300, "Front");
+				setMapTileIndex(11, 5, 301, "Front");
+				if ((Game1.player.team.mineShrineActivated.Value && !Game1.player.team.toggleMineShrineOvernight.Value) || (!Game1.player.team.mineShrineActivated.Value && Game1.player.team.toggleMineShrineOvernight.Value))
+				{
+					DelayedAction.functionAfterDelay(delegate
+					{
+						addBlueFlamesToChallengeShrine();
+					}, 1000);
+				}
+			}
+			ApplyDiggableTileFixes();
 			if (isMonsterArea || isSlimeArea)
 			{
 				Random r = new Random((int)Game1.stats.DaysPlayed);
@@ -2515,6 +3035,10 @@ namespace StardewValley.Locations
 			{
 				Game1.changeMusicTrack("none");
 			}
+			if (GetAdditionalDifficulty() > 0 && mineLevel == 70)
+			{
+				Game1.changeMusicTrack("none");
+			}
 			if (mineLevel == 77377 && Game1.player.mailReceived.Contains("gotGoldenScythe"))
 			{
 				setMapTileIndex(29, 4, 245, "Front");
@@ -2527,6 +3051,25 @@ namespace StardewValley.Locations
 			if (mineLevel > 1 && (mineLevel == 2 || (mineLevel % 5 != 0 && timeSinceLastMusic > 150000 && Game1.random.NextDouble() < 0.5)))
 			{
 				playMineSong();
+			}
+		}
+
+		public virtual void ApplyDiggableTileFixes()
+		{
+			if (map != null && (GetAdditionalDifficulty() <= 0 || getMineArea() == 40 || !isDarkArea()))
+			{
+				if (!map.TileSheets[0].TileIndexProperties[165].ContainsKey("Diggable"))
+				{
+					map.TileSheets[0].TileIndexProperties[165].Add("Diggable", new PropertyValue("true"));
+				}
+				if (!map.TileSheets[0].TileIndexProperties[181].ContainsKey("Diggable"))
+				{
+					map.TileSheets[0].TileIndexProperties[181].Add("Diggable", new PropertyValue("true"));
+				}
+				if (!map.TileSheets[0].TileIndexProperties[183].ContainsKey("Diggable"))
+				{
+					map.TileSheets[0].TileIndexProperties[183].Add("Diggable", new PropertyValue("true"));
+				}
 			}
 		}
 
@@ -2697,6 +3240,23 @@ namespace StardewValley.Locations
 			return 384;
 		}
 
+		public bool shouldUseSnowTextureHoeDirt()
+		{
+			if (isSlimeArea)
+			{
+				return false;
+			}
+			if (GetAdditionalDifficulty() > 0 && (mineLevel < 40 || (mineLevel >= 70 && mineLevel < 80)))
+			{
+				return true;
+			}
+			if (GetAdditionalDifficulty() <= 0 && getMineArea() == 40)
+			{
+				return true;
+			}
+			return false;
+		}
+
 		public int getMineArea(int level = -1)
 		{
 			if (level == -1)
@@ -2800,16 +3360,72 @@ namespace StardewValley.Locations
 			{
 				index = 420;
 			}
-			else if (mineRandom.NextDouble() < 0.25)
+			else if (mineRandom.NextDouble() < 0.25 || GetAdditionalDifficulty() > 0)
 			{
 				switch (getMineArea())
 				{
 				case 0:
 				case 10:
-					index = 86;
+					if (GetAdditionalDifficulty() > 0 && !isDarkArea())
+					{
+						switch (mineRandom.Next(6))
+						{
+						case 0:
+						case 6:
+							index = 152;
+							break;
+						case 1:
+							index = 393;
+							break;
+						case 2:
+							index = 397;
+							break;
+						case 3:
+							index = 372;
+							break;
+						case 4:
+							index = 392;
+							break;
+						}
+						if (mineRandom.NextDouble() < 0.005)
+						{
+							index = 797;
+						}
+						else if (mineRandom.NextDouble() < 0.08)
+						{
+							index = 394;
+						}
+					}
+					else
+					{
+						index = 86;
+					}
 					break;
 				case 40:
-					index = 84;
+					if (GetAdditionalDifficulty() > 0 && mineLevel % 40 < 30)
+					{
+						switch (mineRandom.Next(4))
+						{
+						case 0:
+						case 3:
+							index = 259;
+							break;
+						case 1:
+							index = 404;
+							break;
+						case 2:
+							index = 420;
+							break;
+						}
+						if (mineRandom.NextDouble() < 0.08)
+						{
+							index = 422;
+						}
+					}
+					else
+					{
+						index = 84;
+					}
 					break;
 				case 80:
 					index = 82;
@@ -2896,13 +3512,40 @@ namespace StardewValley.Locations
 			float distanceFromLadder = getDistanceFromStart(xTile, yTile);
 			if (isSlimeArea)
 			{
-				if (mineRandom.NextDouble() < 0.2)
+				if (GetAdditionalDifficulty() <= 0)
 				{
-					return new BigSlime(position, getMineArea());
+					if (mineRandom.NextDouble() < 0.2)
+					{
+						return new BigSlime(position, getMineArea());
+					}
+					return new GreenSlime(position, mineLevel);
 				}
-				return new GreenSlime(position, mineLevel);
+				if (mineLevel < 20)
+				{
+					return new GreenSlime(position, mineLevel);
+				}
+				if (mineLevel < 30)
+				{
+					return new BlueSquid(position);
+				}
+				if (mineLevel < 40)
+				{
+					return new RockGolem(position, this);
+				}
+				if (mineLevel < 50)
+				{
+					if (mineRandom.NextDouble() < 0.15 && distanceFromLadder >= 10f)
+					{
+						return new Fly(position);
+					}
+					return new Grub(position);
+				}
+				if (mineLevel < 70)
+				{
+					return new Leaper(position);
+				}
 			}
-			if (isDinoArea)
+			else if (isDinoArea)
 			{
 				if (mineRandom.NextDouble() < 0.1)
 				{
@@ -2942,7 +3585,7 @@ namespace StardewValley.Locations
 					{
 						return new RockCrab(position);
 					}
-					if (mineRandom.NextDouble() < 0.05 && distanceFromLadder > 10f)
+					if (mineRandom.NextDouble() < 0.05 && distanceFromLadder > 10f && GetAdditionalDifficulty() <= 0)
 					{
 						return new Fly(position);
 					}
@@ -2950,7 +3593,19 @@ namespace StardewValley.Locations
 					{
 						return new GreenSlime(position, level);
 					}
-					return new Grub(position);
+					if (GetAdditionalDifficulty() <= 0)
+					{
+						return new Grub(position);
+					}
+					if (distanceFromLadder > 9f)
+					{
+						return new BlueSquid(position);
+					}
+					if (mineRandom.NextDouble() < 0.01)
+					{
+						return new RockGolem(position, this);
+					}
+					return new GreenSlime(position, level);
 				}
 				if (level <= 40)
 				{
@@ -2958,14 +3613,22 @@ namespace StardewValley.Locations
 					{
 						return new Bat(position, level);
 					}
+					if (GetAdditionalDifficulty() > 0 && mineRandom.NextDouble() < 0.1)
+					{
+						return new Ghost(position, "Carbon Ghost");
+					}
 					return new RockGolem(position, this);
 				}
 			}
 			else if (getMineArea() == 40)
 			{
-				if (mineLevel >= 70 && mineRandom.NextDouble() < 0.75)
+				if (mineLevel >= 70 && (mineRandom.NextDouble() < 0.75 || GetAdditionalDifficulty() > 0))
 				{
-					return new Skeleton(position);
+					if (mineRandom.NextDouble() < 0.75 || GetAdditionalDifficulty() <= 0)
+					{
+						return new Skeleton(position, GetAdditionalDifficulty() > 0 && mineRandom.NextDouble() < 0.5);
+					}
+					return new Bat(position, 77377);
 				}
 				if (mineRandom.NextDouble() < 0.3)
 				{
@@ -2978,7 +3641,29 @@ namespace StardewValley.Locations
 				if (!ghostAdded && mineLevel > 50 && mineRandom.NextDouble() < 0.3 && distanceFromLadder > 10f)
 				{
 					ghostAdded = true;
+					if (GetAdditionalDifficulty() > 0)
+					{
+						return new Ghost(position, "Putrid Ghost");
+					}
 					return new Ghost(position);
+				}
+				if (GetAdditionalDifficulty() > 0)
+				{
+					if (mineRandom.NextDouble() < 0.01)
+					{
+						RockCrab rockCrab = new RockCrab(position);
+						rockCrab.makeStickBug();
+						return rockCrab;
+					}
+					if (mineLevel >= 50)
+					{
+						return new Leaper(position);
+					}
+					if (mineRandom.NextDouble() < 0.7)
+					{
+						return new Grub(position);
+					}
+					return new GreenSlime(position, mineLevel);
 				}
 			}
 			else if (getMineArea() == 80)
@@ -2987,7 +3672,7 @@ namespace StardewValley.Locations
 				{
 					return new Bat(position, mineLevel);
 				}
-				if (mineRandom.NextDouble() < 0.15)
+				if (mineRandom.NextDouble() < ((GetAdditionalDifficulty() > 0) ? 0.05 : 0.15))
 				{
 					return new GreenSlime(position, getMineArea());
 				}
@@ -2999,6 +3684,10 @@ namespace StardewValley.Locations
 				{
 					return new ShadowBrute(position);
 				}
+				if (GetAdditionalDifficulty() > 0 && mineRandom.NextDouble() < 0.25)
+				{
+					return new Shooter(position, "Shadow Sniper");
+				}
 				if (mineRandom.NextDouble() < 0.25)
 				{
 					return new ShadowShaman(position);
@@ -3007,7 +3696,7 @@ namespace StardewValley.Locations
 				{
 					return new RockCrab(position, "Lava Crab");
 				}
-				if (mineRandom.NextDouble() < 0.2 && distanceFromLadder > 8f && mineLevel >= 90)
+				if (mineRandom.NextDouble() < 0.2 && distanceFromLadder > 8f && mineLevel >= 90 && getTileIndexAt(xTile, yTile, "Back") != -1 && getTileIndexAt(xTile, yTile, "Front") == -1)
 				{
 					return new SquidKid(position);
 				}
@@ -3034,7 +3723,11 @@ namespace StardewValley.Locations
 					}
 					if (mineRandom.NextDouble() < 0.33 && distanceFromLadder > 10f)
 					{
-						return new Serpent(position);
+						if (GetAdditionalDifficulty() <= 0)
+						{
+							return new Serpent(position);
+						}
+						return new Serpent(position, "Royal Serpent");
 					}
 					if (mineRandom.NextDouble() < 0.33 && distanceFromLadder > 10f && mineLevel >= 171)
 					{
@@ -3055,6 +3748,10 @@ namespace StardewValley.Locations
 					if (mineLevel >= 146 && mineRandom.NextDouble() < 0.25)
 					{
 						return new RockCrab(position, "Iridium Crab");
+					}
+					if (GetAdditionalDifficulty() > 0 && mineRandom.NextDouble() < 0.2 && distanceFromLadder > 8f && getTileIndexAt(xTile, yTile, "Back") != -1 && getTileIndexAt(xTile, yTile, "Front") == -1)
+					{
+						return new SquidKid(position);
 					}
 					return new BigSlime(position, this);
 				}
@@ -3166,8 +3863,16 @@ namespace StardewValley.Locations
 
 		private Object chooseStoneType(double chanceForPurpleStone, double chanceForMysticStone, double gemStoneChance, Vector2 tile)
 		{
+			Color stoneColor = Color.White;
 			int whichStone4 = 32;
 			int stoneHealth2 = 1;
+			if (GetAdditionalDifficulty() > 0 && mineLevel % 5 != 0 && mineRandom.NextDouble() < (double)GetAdditionalDifficulty() * 0.001 + (double)((float)mineLevel / 100000f) + Game1.player.team.AverageDailyLuck() / 13.0 + Game1.player.team.AverageLuckLevel() * 0.0001500000071246177)
+			{
+				return new Object(tile, 95, "Stone", canBeSetDown: true, canBeGrabbed: false, isHoedirt: false, isSpawnedObject: false)
+				{
+					MinutesUntilReady = 25
+				};
+			}
 			if (getMineArea() == 0 || getMineArea() == 10)
 			{
 				whichStone4 = mineRandom.Next(31, 42);
@@ -3179,7 +3884,40 @@ namespace StardewValley.Locations
 				{
 					whichStone4 = ((mineRandom.NextDouble() < 0.5) ? 34 : 36);
 				}
-				if (mineLevel != 1 && mineLevel % 5 != 0 && mineRandom.NextDouble() < 0.029)
+				if (GetAdditionalDifficulty() > 0)
+				{
+					whichStone4 = mineRandom.Next(33, 37);
+					stoneHealth2 = 5;
+					if (!(Game1.random.NextDouble() < 0.33))
+					{
+						stoneColor = new Color(Game1.random.Next(60, 90), Game1.random.Next(150, 200), Game1.random.Next(190, 240));
+					}
+					else
+					{
+						whichStone4 = 846;
+					}
+					if (isDarkArea())
+					{
+						whichStone4 = mineRandom.Next(32, 39);
+						int tone = Game1.random.Next(130, 160);
+						stoneColor = new Color(tone, tone, tone);
+					}
+					if (mineLevel != 1 && mineLevel % 5 != 0 && mineRandom.NextDouble() < 0.029)
+					{
+						return new Object(tile, 849, "Stone", canBeSetDown: true, canBeGrabbed: false, isHoedirt: false, isSpawnedObject: false)
+						{
+							MinutesUntilReady = 6
+						};
+					}
+					if (stoneColor.Equals(Color.White))
+					{
+						return new Object(tile, whichStone4, "Stone", canBeSetDown: true, canBeGrabbed: false, isHoedirt: false, isSpawnedObject: false)
+						{
+							MinutesUntilReady = stoneHealth2
+						};
+					}
+				}
+				else if (mineLevel != 1 && mineLevel % 5 != 0 && mineRandom.NextDouble() < 0.029)
 				{
 					return new Object(tile, 751, "Stone", canBeSetDown: true, canBeGrabbed: false, isHoedirt: false, isSpawnedObject: false)
 					{
@@ -3191,7 +3929,50 @@ namespace StardewValley.Locations
 			{
 				whichStone4 = mineRandom.Next(47, 54);
 				stoneHealth2 = 3;
-				if (mineLevel % 5 != 0 && mineRandom.NextDouble() < 0.029)
+				if (GetAdditionalDifficulty() > 0 && mineLevel % 40 < 30)
+				{
+					whichStone4 = mineRandom.Next(39, 42);
+					stoneHealth2 = 5;
+					stoneColor = new Color(170, 255, 160);
+					if (isDarkArea())
+					{
+						whichStone4 = mineRandom.Next(32, 39);
+						int tone3 = Game1.random.Next(130, 160);
+						stoneColor = new Color(tone3, tone3, tone3);
+					}
+					if (mineRandom.NextDouble() < 0.15)
+					{
+						return new ColoredObject(294 + ((mineRandom.NextDouble() < 0.5) ? 1 : 0), 1, new Color(170, 140, 155))
+						{
+							MinutesUntilReady = 6,
+							CanBeSetDown = true,
+							name = "Twig",
+							TileLocation = tile,
+							ColorSameIndexAsParentSheetIndex = true,
+							Flipped = (mineRandom.NextDouble() < 0.5)
+						};
+					}
+					if (mineLevel != 1 && mineLevel % 5 != 0 && mineRandom.NextDouble() < 0.029)
+					{
+						return new ColoredObject(290, 1, new Color(150, 225, 160))
+						{
+							MinutesUntilReady = 6,
+							CanBeSetDown = true,
+							name = "Stone",
+							TileLocation = tile,
+							ColorSameIndexAsParentSheetIndex = true,
+							Flipped = (mineRandom.NextDouble() < 0.5)
+						};
+					}
+					if (stoneColor.Equals(Color.White))
+					{
+						return new Object(tile, whichStone4, "Stone", canBeSetDown: true, canBeGrabbed: false, isHoedirt: false, isSpawnedObject: false)
+						{
+							MinutesUntilReady = stoneHealth2
+						};
+					}
+				}
+				else if (mineLevel % 5 != 0 && mineRandom.NextDouble() < 0.029)
 				{
 					return new Object(tile, 290, "Stone", canBeSetDown: true, canBeGrabbed: false, isHoedirt: false, isSpawnedObject: false)
 					{
@@ -3203,7 +3984,33 @@ namespace StardewValley.Locations
 			{
 				stoneHealth2 = 4;
 				whichStone4 = ((mineRandom.NextDouble() < 0.3 && !isDarkArea()) ? ((!(mineRandom.NextDouble() < 0.5)) ? 32 : 38) : ((mineRandom.NextDouble() < 0.3) ? mineRandom.Next(55, 58) : ((!(mineRandom.NextDouble() < 0.5)) ? 762 : 760)));
-				if (mineLevel % 5 != 0 && mineRandom.NextDouble() < 0.029)
+				if (GetAdditionalDifficulty() > 0)
+				{
+					whichStone4 = ((!(mineRandom.NextDouble() < 0.5)) ? 32 : 38);
+					stoneHealth2 = 5;
+					stoneColor = new Color(Game1.random.Next(140, 190), Game1.random.Next(90, 120), Game1.random.Next(210, 255));
+					if (isDarkArea())
+					{
+						whichStone4 = mineRandom.Next(32, 39);
+						int tone2 = Game1.random.Next(130, 160);
+						stoneColor = new Color(tone2, tone2, tone2);
+					}
+					if (mineLevel != 1 && mineLevel % 5 != 0 && mineRandom.NextDouble() < 0.029)
+					{
+						return new Object(tile, 764, "Stone", canBeSetDown: true, canBeGrabbed: false, isHoedirt: false, isSpawnedObject: false)
+						{
+							MinutesUntilReady = 7
+						};
+					}
+					if (stoneColor.Equals(Color.White))
+					{
+						return new Object(tile, whichStone4, "Stone", canBeSetDown: true, canBeGrabbed: false, isHoedirt: false, isSpawnedObject: false)
+						{
+							MinutesUntilReady = stoneHealth2
+						};
+					}
+				}
+				else if (mineLevel % 5 != 0 && mineRandom.NextDouble() < 0.029)
 				{
 					return new Object(tile, 764, "Stone", canBeSetDown: true, canBeGrabbed: false, isHoedirt: false, isSpawnedObject: false)
 					{
@@ -3345,9 +4152,33 @@ namespace StardewValley.Locations
 			whichStone4 += whichStone4 % 2;
 			if (mineRandom.NextDouble() < 0.1 && getMineArea() != 40)
 			{
+				if (!stoneColor.Equals(Color.White))
+				{
+					return new ColoredObject((mineRandom.NextDouble() < 0.5) ? 668 : 670, 1, stoneColor)
+					{
+						MinutesUntilReady = 2,
+						CanBeSetDown = true,
+						name = "Stone",
+						TileLocation = tile,
+						ColorSameIndexAsParentSheetIndex = true,
+						Flipped = (mineRandom.NextDouble() < 0.5)
+					};
+				}
 				return new Object(tile, (mineRandom.NextDouble() < 0.5) ? 668 : 670, "Stone", canBeSetDown: true, canBeGrabbed: false, isHoedirt: false, isSpawnedObject: false)
 				{
 					MinutesUntilReady = 2,
+					Flipped = (mineRandom.NextDouble() < 0.5)
+				};
+			}
+			if (!stoneColor.Equals(Color.White))
+			{
+				return new ColoredObject(whichStone4, 1, stoneColor)
+				{
+					MinutesUntilReady = stoneHealth2,
+					CanBeSetDown = true,
+					name = "Stone",
+					TileLocation = tile,
+					ColorSameIndexAsParentSheetIndex = true,
 					Flipped = (mineRandom.NextDouble() < 0.5)
 				};
 			}
@@ -3355,15 +4186,6 @@ namespace StardewValley.Locations
 			{
 				MinutesUntilReady = stoneHealth2
 			};
-		}
-
-		public override void draw(SpriteBatch b)
-		{
-			foreach (ResourceClump r in resourceClumps)
-			{
-				r.draw(b, r.tile);
-			}
-			base.draw(b);
 		}
 
 		public static void OnLeftMines()
@@ -3387,9 +4209,27 @@ namespace StardewValley.Locations
 		{
 			int maxMineLevel = -1;
 			int maxSkullLevel = -1;
+			foreach (Farmer farmer in Game1.getAllFarmers())
+			{
+				if (farmer.locationBeforeForcedEvent.Value != null && farmer.locationBeforeForcedEvent.Value.StartsWith("UndergroundMine"))
+				{
+					int player_mine_level = Convert.ToInt32(farmer.locationBeforeForcedEvent.Value.Substring("UndergroundMine".Length));
+					if (player_mine_level > 120)
+					{
+						if (player_mine_level < 77377)
+						{
+							maxSkullLevel = Math.Max(maxSkullLevel, player_mine_level);
+						}
+					}
+					else
+					{
+						maxMineLevel = Math.Max(maxMineLevel, player_mine_level);
+					}
+				}
+			}
 			foreach (MineShaft mine2 in activeMines)
 			{
-				if (mine2.farmers.Count() > 0)
+				if (mine2.farmers.Any())
 				{
 					if (mine2.mineLevel > 120)
 					{
@@ -3437,7 +4277,7 @@ namespace StardewValley.Locations
 			{
 				foreach (MineShaft mine in activeMines)
 				{
-					if (mine.farmers.Count() > 0)
+					if (mine.farmers.Any())
 					{
 						mine.performTenMinuteUpdate(timeOfDay);
 					}
@@ -3448,7 +4288,7 @@ namespace StardewValley.Locations
 
 		protected override void updateCharacters(GameTime time)
 		{
-			if (farmers.Count() != 0)
+			if (farmers.Any())
 			{
 				base.updateCharacters(time);
 			}
@@ -3463,15 +4303,24 @@ namespace StardewValley.Locations
 			}
 			int oldTime = fogTime;
 			fogTime -= (int)time.ElapsedGameTime.TotalMilliseconds;
-			if (Game1.IsMasterGame)
+			if (!Game1.IsMasterGame)
 			{
-				if (fogTime > 5000 && oldTime % 4000 < fogTime % 4000)
+				return;
+			}
+			if (fogTime > 5000 && oldTime % 4000 < fogTime % 4000)
+			{
+				spawnFlyingMonsterOffScreen();
+			}
+			if (fogTime <= 0)
+			{
+				isFogUp.Value = false;
+				if (isDarkArea())
 				{
-					spawnFlyingMonsterOffScreen();
+					netFogColor.Value = Color.Black;
 				}
-				if (fogTime <= 0)
+				else if (GetAdditionalDifficulty() > 0 && getMineArea() == 40 && !isDarkArea())
 				{
-					isFogUp.Value = false;
+					netFogColor.Value = default(Color);
 				}
 			}
 		}
@@ -3480,7 +4329,7 @@ namespace StardewValley.Locations
 		{
 			foreach (MineShaft mine in activeMines)
 			{
-				if (mine.farmers.Count() > 0)
+				if (mine.farmers.Any())
 				{
 					mine.UpdateWhenCurrentLocation(time);
 				}

@@ -46,7 +46,7 @@ namespace StardewValley.Network
 				if (_done == 2)
 				{
 					_done = 1;
-					if (_locationFilter == null || object.Equals(_player.currentLocation, _locationFilter))
+					if (_locationFilter == null || (_player.currentLocation != null && _locationFilter.Equals(_player.currentLocation)))
 					{
 						_current = _player;
 						return true;
@@ -55,7 +55,7 @@ namespace StardewValley.Network
 				while (_enumerator.MoveNext())
 				{
 					Farmer player = _enumerator.Current.Value.Value;
-					if (player != _player && (_locationFilter == null || object.Equals(player.currentLocation, _locationFilter)))
+					if (player != _player && (_locationFilter == null || (player.currentLocation != null && _locationFilter.Equals(player.currentLocation))))
 					{
 						_current = player;
 						return true;

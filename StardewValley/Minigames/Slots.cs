@@ -63,11 +63,11 @@ namespace StardewValley.Minigames
 			slotResults.Add(0f);
 			Game1.playSound("newArtifact");
 			setSlotResults(slots);
-			Vector2 pos3 = Utility.getTopLeftPositionForCenteringOnScreen(104, 52, -16, 32);
+			Vector2 pos3 = Utility.getTopLeftPositionForCenteringOnScreen(Game1.viewport, 104, 52, -16, 32);
 			spinButton10 = new ClickableComponent(new Rectangle((int)pos3.X, (int)pos3.Y, 104, 52), Game1.content.LoadString("Strings\\StringsFromCSFiles:Slots.cs.12117"));
-			pos3 = Utility.getTopLeftPositionForCenteringOnScreen(124, 52, -16, 96);
+			pos3 = Utility.getTopLeftPositionForCenteringOnScreen(Game1.viewport, 124, 52, -16, 96);
 			spinButton100 = new ClickableComponent(new Rectangle((int)pos3.X, (int)pos3.Y, 124, 52), Game1.content.LoadString("Strings\\StringsFromCSFiles:Slots.cs.12118"));
-			pos3 = Utility.getTopLeftPositionForCenteringOnScreen(96, 52, -16, 160);
+			pos3 = Utility.getTopLeftPositionForCenteringOnScreen(Game1.viewport, 96, 52, -16, 160);
 			doneButton = new ClickableComponent(new Rectangle((int)pos3.X, (int)pos3.Y, 96, 52), Game1.content.LoadString("Strings\\StringsFromCSFiles:NameSelect.cs.3864"));
 			if (Game1.isAnyGamePadButtonBeingPressed())
 			{
@@ -365,7 +365,7 @@ namespace StardewValley.Minigames
 		{
 			b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, null);
 			b.Draw(Game1.staminaRect, new Rectangle(0, 0, Game1.graphics.GraphicsDevice.Viewport.Width, Game1.graphics.GraphicsDevice.Viewport.Height), new Color(38, 0, 7));
-			b.Draw(Game1.mouseCursors, Utility.getTopLeftPositionForCenteringOnScreen(228, 52, 0, -256), new Rectangle(441, 424, 57, 13), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.99f);
+			b.Draw(Game1.mouseCursors, Utility.getTopLeftPositionForCenteringOnScreen(Game1.viewport, 228, 52, 0, -256), new Rectangle(441, 424, 57, 13), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.99f);
 			for (int i = 0; i < 3; i++)
 			{
 				b.Draw(Game1.mouseCursors, new Vector2(Game1.graphics.GraphicsDevice.Viewport.Width / 2 - 112 + i * 26 * 4, Game1.graphics.GraphicsDevice.Viewport.Height / 2 - 128), new Rectangle(306, 320, 16, 16), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.99f);

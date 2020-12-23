@@ -27,5 +27,11 @@ namespace StardewValley.SDKs
 		object GetLobbyFromInviteCode(string inviteCode);
 
 		void ShowInviteDialog(object lobby);
+
+		void MutePlayer(string userId, bool mute);
+
+		bool IsPlayerMuted(string userId);
+
+		void ShowProfile(string userId);
 	}
 }

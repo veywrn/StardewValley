@@ -21,6 +21,8 @@ namespace StardewValley
 			set;
 		}
 
+		bool ShouldDrawIcon();
+
 		void drawInMenu(SpriteBatch spriteBatch, Vector2 location, float scaleSize, float transparency, float layerDepth, StackDrawType drawStackNumber, Color color, bool drawShadow);
 
 		string getDescription();

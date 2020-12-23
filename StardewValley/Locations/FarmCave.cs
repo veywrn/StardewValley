@@ -191,48 +191,77 @@ namespace StardewValley.Locations
 		{
 		}
 
+		public override void performTenMinuteUpdate(int timeOfDay)
+		{
+			if (Game1.currentLocation == this)
+			{
+				UpdateReadyFlag();
+			}
+			base.performTenMinuteUpdate(timeOfDay);
+		}
+
 		public override void cleanupBeforePlayerExit()
 		{
 			base.cleanupBeforePlayerExit();
+			UpdateReadyFlag();
 		}
 
 		public override void DayUpdate(int dayOfMonth)
 		{
 			base.DayUpdate(dayOfMonth);
-			if ((int)Game1.MasterPlayer.caveChoice != 1)
+			if ((int)Game1.MasterPlayer.caveChoice == 1)
 			{
-				return;
-			}
-			while (Game1.random.NextDouble() < 0.66)
-			{
-				int whichFruit = 410;
-				switch (Game1.random.Next(5))
+				while (Game1.random.NextDouble() < 0.66)
 				{
-				case 0:
-					whichFruit = 296;
-					break;
-				case 1:
-					whichFruit = 396;
-					break;
-				case 2:
-					whichFruit = 406;
-					break;
-				case 3:
-					whichFruit = 410;
-					break;
-				case 4:
-					whichFruit = ((Game1.random.NextDouble() < 0.1) ? 613 : Game1.random.Next(634, 639));
-					break;
-				}
-				Vector2 v = new Vector2(Game1.random.Next(1, map.Layers[0].LayerWidth - 1), Game1.random.Next(1, map.Layers[0].LayerHeight - 4));
-				if (isTileLocationTotallyClearAndPlaceable(v))
-				{
-					setObject(v, new Object(whichFruit, 1)
+					int whichFruit = 410;
+					switch (Game1.random.Next(5))
 					{
-						IsSpawnedObject = true
-					});
+					case 0:
+						whichFruit = 296;
+						break;
+					case 1:
+						whichFruit = 396;
+						break;
+					case 2:
+						whichFruit = 406;
+						break;
+					case 3:
+						whichFruit = 410;
+						break;
+					case 4:
+						whichFruit = ((Game1.random.NextDouble() < 0.1) ? 613 : Game1.random.Next(634, 639));
+						break;
+					}
+					Vector2 v = new Vector2(Game1.random.Next(1, map.Layers[0].LayerWidth - 1), Game1.random.Next(1, map.Layers[0].LayerHeight - 4));
+					if (isTileLocationTotallyClearAndPlaceable(v))
+					{
+						setObject(v, new Object(whichFruit, 1)
+						{
+							IsSpawnedObject = true
+						});
+					}
 				}
 			}
+			UpdateReadyFlag();
+		}
+
+		public virtual void UpdateReadyFlag()
+		{
+			bool flag_value = false;
+			foreach (Object o in objects.Values)
+			{
+				if ((bool)o.isSpawnedObject)
+				{
+					flag_value = true;
+					break;
+				}
+				if ((bool)o.bigCraftable && o.heldObject.Value != null && (int)o.minutesUntilReady <= 0 && o.ParentSheetIndex == 128)
+				{
+					flag_value = true;
+					break;
+				}
+			}
+			Game1.getFarm().farmCaveReady.Value = flag_value;
 		}
 
 		public void setUpMushroomHouse()

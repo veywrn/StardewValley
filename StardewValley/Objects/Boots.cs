@@ -3,6 +3,7 @@ using Microsoft.Xna.Framework.Graphics;
 using Netcode;
 using System;
 using System.Collections.Generic;
+using System.Text;
 using System.Xml.Serialization;
 
 namespace StardewValley.Objects
@@ -140,7 +141,7 @@ namespace StardewValley.Objects
 			return 1;
 		}
 
-		public override void drawTooltip(SpriteBatch spriteBatch, ref int x, ref int y, SpriteFont font, float alpha, string overrideText)
+		public override void drawTooltip(SpriteBatch spriteBatch, ref int x, ref int y, SpriteFont font, float alpha, StringBuilder overrideText)
 		{
 			Utility.drawTextWithShadow(spriteBatch, Game1.parseText(description, Game1.smallFont, getDescriptionWidth()), font, new Vector2(x + 16, y + 16 + 4), Game1.textColor);
 			y += (int)font.MeasureString(Game1.parseText(description, Game1.smallFont, getDescriptionWidth())).Y;
@@ -158,7 +159,7 @@ namespace StardewValley.Objects
 			}
 		}
 
-		public override Point getExtraSpaceNeededForTooltipSpecialIcons(SpriteFont font, int minWidth, int horizontalBuffer, int startingHeight, string descriptionText, string boldTitleText, int moneyAmountToDisplayAtBottom)
+		public override Point getExtraSpaceNeededForTooltipSpecialIcons(SpriteFont font, int minWidth, int horizontalBuffer, int startingHeight, StringBuilder descriptionText, string boldTitleText, int moneyAmountToDisplayAtBottom)
 		{
 			int maxStat = 9999;
 			Point dimensions = new Point(0, startingHeight);
@@ -210,6 +211,7 @@ namespace StardewValley.Objects
 			boots.defenseBonus.Value = defenseBonus.Value;
 			boots.immunityBonus.Value = immunityBonus.Value;
 			boots.loadDisplayFields();
+			boots._GetOneFrom(this);
 			return boots;
 		}
 

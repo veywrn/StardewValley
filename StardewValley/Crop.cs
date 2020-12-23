@@ -2,6 +2,7 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Netcode;
 using StardewValley.Characters;
+using StardewValley.Locations;
 using StardewValley.Objects;
 using StardewValley.TerrainFeatures;
 using System;
@@ -25,6 +26,8 @@ namespace StardewValley
 		public const int finalPhaseLength = 99999;
 
 		public const int forageCrop_springOnion = 1;
+
+		public const int forageCrop_ginger = 2;
 
 		public readonly NetIntList phaseDays = new NetIntList();
 
@@ -144,6 +147,24 @@ namespace StardewValley
 				if (seedIndex == 473)
 				{
 					seedIndex--;
+				}
+				if (Game1.currentLocation is IslandLocation)
+				{
+					switch (Game1.random.Next(4))
+					{
+					case 0:
+						seedIndex = 479;
+						break;
+					case 1:
+						seedIndex = 833;
+						break;
+					case 2:
+						seedIndex = 481;
+						break;
+					case 3:
+						seedIndex = 478;
+						break;
+					}
 				}
 			}
 			if (cropData.ContainsKey(seedIndex))
@@ -299,6 +320,20 @@ namespace StardewValley
 			updateDrawMath(tilePosition);
 		}
 
+		public bool hitWithHoe(int xTile, int yTile, GameLocation location, HoeDirt dirt)
+		{
+			if ((bool)forageCrop && (int)whichForageCrop == 2)
+			{
+				dirt.state.Value = (Game1.IsRainingHere(location) ? 1 : 0);
+				Object harvestedItem = new Object(829, 1);
+				Game1.multiplayer.broadcastSprites(location, new TemporaryAnimatedSprite(12, new Vector2(xTile * 64, yTile * 64), Color.White, 8, Game1.random.NextDouble() < 0.5, 50f));
+				location.playSound("dirtyHit");
+				Game1.createItemDebris(harvestedItem.getOne(), new Vector2(xTile * 64 + 32, yTile * 64 + 32), -1);
+				return true;
+			}
+			return false;
+		}
+
 		public bool harvest(int xTile, int yTile, HoeDirt soil, JunimoHarvester junimoHarvester = null)
 		{
 			if ((bool)dead)
@@ -315,10 +350,14 @@ namespace StardewValley
 				Object o = null;
 				int experience2 = 3;
 				Random r2 = new Random((int)Game1.stats.DaysPlayed + (int)Game1.uniqueIDForThisGame / 2 + xTile * 1000 + yTile * 2000);
-				int num = whichForageCrop;
-				if (num == 1)
+				switch ((int)whichForageCrop)
 				{
+				case 1:
 					o = new Object(399, 1);
+					break;
+				case 2:
+					soil.shake((float)Math.PI / 48f, (float)Math.PI / 40f, (float)(xTile * 64) < Game1.player.Position.X);
+					return false;
 				}
 				if (Game1.player.professions.Contains(16))
 				{
@@ -373,14 +412,21 @@ namespace StardewValley
 				case 369:
 					fertilizerQualityLevel = 2;
 					break;
+				case 919:
+					fertilizerQualityLevel = 3;
+					break;
 				}
 				double chanceForGoldQuality = 0.2 * ((double)Game1.player.FarmingLevel / 10.0) + 0.2 * (double)fertilizerQualityLevel * (((double)Game1.player.FarmingLevel + 2.0) / 12.0) + 0.01;
 				double chanceForSilverQuality = Math.Min(0.75, chanceForGoldQuality * 2.0);
-				if (r.NextDouble() < chanceForGoldQuality)
+				if (fertilizerQualityLevel >= 3 && r.NextDouble() < chanceForGoldQuality / 2.0)
+				{
+					cropQuality = 4;
+				}
+				else if (r.NextDouble() < chanceForGoldQuality)
 				{
 					cropQuality = 2;
 				}
-				else if (r.NextDouble() < chanceForSilverQuality)
+				else if (r.NextDouble() < chanceForSilverQuality || fertilizerQualityLevel >= 3)
 				{
 					cropQuality = 1;
 				}
@@ -399,6 +445,10 @@ namespace StardewValley
 					{
 						numToHarvest++;
 					}
+				}
+				if ((int)indexOfHarvest == 771 || (int)indexOfHarvest == 889)
+				{
+					cropQuality = 0;
 				}
 				Object harvestedItem2 = programColored ? new ColoredObject(indexOfHarvest, 1, tintColor)
 				{
@@ -519,6 +569,22 @@ namespace StardewValley
 							junimoHarvester.tryToAddItemToHut(hay_item.getOne());
 						}
 					}
+					else if ((int)indexOfHarvest == 771)
+					{
+						Game1.player.currentLocation.playSound("cut");
+						if (r.NextDouble() < 0.1)
+						{
+							Object mixedSeeds_item = new Object(770, 1);
+							if (junimoHarvester == null)
+							{
+								Game1.createItemDebris(mixedSeeds_item.getOne(), new Vector2(xTile * 64 + 32, yTile * 64 + 32), -1);
+							}
+							else
+							{
+								junimoHarvester.tryToAddItemToHut(mixedSeeds_item.getOne());
+							}
+						}
+					}
 					if ((int)regrowAfterHarvest == -1)
 					{
 						return true;
@@ -569,7 +635,19 @@ namespace StardewValley
 			{
 				return new Rectangle(192 + number % 4 * 16, 384, 16, 32);
 			}
-			return new Rectangle(Math.Min(240, ((!fullyGrown) ? ((int)(((int)phaseToShow != -1) ? phaseToShow : currentPhase) + (((int)(((int)phaseToShow != -1) ? phaseToShow : currentPhase) == 0 && number % 2 == 0) ? (-1) : 0) + 1) : (((int)dayOfCurrentPhase <= 0) ? 6 : 7)) * 16 + (((int)rowInSpriteSheet % 2 != 0) ? 128 : 0)), (int)rowInSpriteSheet / 2 * 16 * 2, 16, 32);
+			int effectiveRow = rowInSpriteSheet;
+			if ((int)indexOfHarvest == 771)
+			{
+				if (Game1.currentSeason == "fall")
+				{
+					effectiveRow = (int)rowInSpriteSheet + 1;
+				}
+				else if (Game1.currentSeason == "winter")
+				{
+					effectiveRow = (int)rowInSpriteSheet + 2;
+				}
+			}
+			return new Rectangle(Math.Min(240, ((!fullyGrown) ? ((int)(((int)phaseToShow != -1) ? phaseToShow : currentPhase) + (((int)(((int)phaseToShow != -1) ? phaseToShow : currentPhase) == 0 && number % 2 == 0) ? (-1) : 0) + 1) : (((int)dayOfCurrentPhase <= 0) ? 6 : 7)) * 16 + ((effectiveRow % 2 != 0) ? 128 : 0)), effectiveRow / 2 * 16 * 2, 16, 32);
 		}
 
 		public void Kill()
@@ -580,12 +658,12 @@ namespace StardewValley
 
 		public void newDay(int state, int fertilizer, int xTile, int yTile, GameLocation environment)
 		{
-			if ((bool)environment.isOutdoors && ((bool)dead || (!environment.IsGreenhouse && !seasonsToGrowIn.Contains(Game1.currentSeason)) || (int)indexOfHarvest == 90))
+			if ((bool)environment.isOutdoors && ((bool)dead || (!environment.SeedsIgnoreSeasonsHere() && !seasonsToGrowIn.Contains(environment.GetSeasonForLocation())) || (!environment.SeedsIgnoreSeasonsHere() && (int)indexOfHarvest == 90)))
 			{
 				Kill();
 				return;
 			}
-			if (state == 1)
+			if (state == 1 || (int)indexOfHarvest == 771)
 			{
 				if (!fullyGrown)
 				{
@@ -681,7 +759,7 @@ namespace StardewValley
 
 		public virtual bool isPaddyCrop()
 		{
-			if (indexOfHarvest.Value == 271)
+			if (indexOfHarvest.Value == 271 || indexOfHarvest.Value == 830)
 			{
 				return true;
 			}
@@ -726,15 +804,26 @@ namespace StardewValley
 
 		public void draw(SpriteBatch b, Vector2 tileLocation, Color toTint, float rotation)
 		{
+			Vector2 position = Game1.GlobalToLocal(Game1.viewport, drawPosition);
 			if ((bool)forageCrop)
 			{
-				b.Draw(Game1.mouseCursors, Game1.GlobalToLocal(Game1.viewport, drawPosition), sourceRect, Color.White, 0f, new Vector2(8f, 8f), 4f, SpriteEffects.None, layerDepth);
+				if ((int)whichForageCrop == 2)
+				{
+					b.Draw(Game1.mouseCursors, Game1.GlobalToLocal(Game1.viewport, new Vector2(tileLocation.X * 64f + ((tileLocation.X * 11f + tileLocation.Y * 7f) % 10f - 5f) + 32f, tileLocation.Y * 64f + ((tileLocation.Y * 11f + tileLocation.X * 7f) % 10f - 5f) + 64f)), new Rectangle(128 + (int)((Game1.currentGameTime.TotalGameTime.TotalMilliseconds + (double)(tileLocation.X * 111f + tileLocation.Y * 77f)) % 800.0 / 200.0) * 16, 128, 16, 16), Color.White, rotation, new Vector2(8f, 16f), 4f, SpriteEffects.None, (tileLocation.Y * 64f + 32f + ((tileLocation.Y * 11f + tileLocation.X * 7f) % 10f - 5f)) / 10000f);
+				}
+				else
+				{
+					b.Draw(Game1.mouseCursors, position, sourceRect, Color.White, 0f, new Vector2(8f, 8f), 4f, SpriteEffects.None, layerDepth);
+				}
 				return;
 			}
-			b.Draw(Game1.cropSpriteSheet, Game1.GlobalToLocal(Game1.viewport, drawPosition), sourceRect, toTint, rotation, new Vector2(8f, 24f), 4f, flip ? SpriteEffects.FlipHorizontally : SpriteEffects.None, layerDepth);
+			Vector2 origin = new Vector2(8f, 24f);
+			SpriteEffects effect = flip ? SpriteEffects.FlipHorizontally : SpriteEffects.None;
+			b.Draw(Game1.cropSpriteSheet, position, sourceRect, toTint, rotation, origin, 4f, effect, layerDepth);
+			Color tintColor = this.tintColor.Value;
 			if (!tintColor.Equals(Color.White) && (int)currentPhase == phaseDays.Count - 1 && !dead)
 			{
-				b.Draw(Game1.cropSpriteSheet, Game1.GlobalToLocal(Game1.viewport, drawPosition), coloredSourceRect, tintColor, rotation, new Vector2(8f, 24f), 4f, flip ? SpriteEffects.FlipHorizontally : SpriteEffects.None, coloredLayerDepth);
+				b.Draw(Game1.cropSpriteSheet, position, coloredSourceRect, tintColor, rotation, origin, 4f, effect, coloredLayerDepth);
 			}
 		}
 

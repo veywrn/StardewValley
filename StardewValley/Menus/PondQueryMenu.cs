@@ -52,7 +52,7 @@ namespace StardewValley.Menus
 		private string hoverText = "";
 
 		public PondQueryMenu(FishPond fish_pond)
-			: base(Game1.viewport.Width / 2 - width / 2, Game1.viewport.Height / 2 - height / 2, width, height)
+			: base(Game1.uiViewport.Width / 2 - width / 2, Game1.uiViewport.Height / 2 - height / 2, width, height)
 		{
 			Game1.player.Halt();
 			width = 384;
@@ -81,7 +81,7 @@ namespace StardewValley.Menus
 				snapToDefaultClickableComponent();
 			}
 			UpdateState();
-			yPositionOnScreen = Game1.viewport.Height / 2 - measureTotalHeight() / 2;
+			yPositionOnScreen = Game1.uiViewport.Height / 2 - measureTotalHeight() / 2;
 		}
 
 		public override void snapToDefaultClickableComponent()
@@ -172,19 +172,19 @@ namespace StardewValley.Menus
 			else if (emptyButton.containsPoint(x, y))
 			{
 				_confirmationBoxRectangle = new Rectangle(0, 0, 400, 100);
-				_confirmationBoxRectangle.X = Game1.viewport.Width / 2 - _confirmationBoxRectangle.Width / 2;
+				_confirmationBoxRectangle.X = Game1.uiViewport.Width / 2 - _confirmationBoxRectangle.Width / 2;
 				_confirmationText = Game1.content.LoadString("Strings\\UI:PondQuery_ConfirmEmpty");
 				_confirmationText = Game1.parseText(_confirmationText, Game1.smallFont, _confirmationBoxRectangle.Width);
 				Vector2 text_size = Game1.smallFont.MeasureString(_confirmationText);
 				_confirmationBoxRectangle.Height = (int)text_size.Y;
-				_confirmationBoxRectangle.Y = Game1.viewport.Height / 2 - _confirmationBoxRectangle.Height / 2;
+				_confirmationBoxRectangle.Y = Game1.uiViewport.Height / 2 - _confirmationBoxRectangle.Height / 2;
 				confirmingEmpty = true;
-				yesButton = new ClickableTextureComponent(new Rectangle(Game1.viewport.Width / 2 - 64 - 4, _confirmationBoxRectangle.Bottom + 32, 64, 64), Game1.mouseCursors, Game1.getSourceRectForStandardTileSheet(Game1.mouseCursors, 46), 1f)
+				yesButton = new ClickableTextureComponent(new Rectangle(Game1.uiViewport.Width / 2 - 64 - 4, _confirmationBoxRectangle.Bottom + 32, 64, 64), Game1.mouseCursors, Game1.getSourceRectForStandardTileSheet(Game1.mouseCursors, 46), 1f)
 				{
 					myID = 111,
 					rightNeighborID = 105
 				};
-				noButton = new ClickableTextureComponent(new Rectangle(Game1.viewport.Width / 2 + 4, _confirmationBoxRectangle.Bottom + 32, 64, 64), Game1.mouseCursors, Game1.getSourceRectForStandardTileSheet(Game1.mouseCursors, 47), 1f)
+				noButton = new ClickableTextureComponent(new Rectangle(Game1.uiViewport.Width / 2 + 4, _confirmationBoxRectangle.Bottom + 32, 64, 64), Game1.mouseCursors, Game1.getSourceRectForStandardTileSheet(Game1.mouseCursors, 47), 1f)
 				{
 					myID = 105,
 					leftNeighborID = 111
@@ -416,8 +416,8 @@ namespace StardewValley.Menus
 				bool has_unresolved_needs = _pond.neededItem.Value != null && _pond.HasUnresolvedNeeds() && !_pond.hasCompletedRequest;
 				string pond_name_text = Game1.content.LoadString("Strings\\UI:PondQuery_Name", _fishItem.DisplayName);
 				Vector2 text_size4 = Game1.smallFont.MeasureString(pond_name_text);
-				Game1.DrawBox((int)((float)(Game1.viewport.Width / 2) - (text_size4.X + 64f) * 0.5f), yPositionOnScreen - 4 + 128, (int)(text_size4.X + 64f), 64);
-				Utility.drawTextWithShadow(b, pond_name_text, Game1.smallFont, new Vector2((float)(Game1.viewport.Width / 2) - text_size4.X * 0.5f, (float)(yPositionOnScreen - 4) + 160f - text_size4.Y * 0.5f), Color.Black);
+				Game1.DrawBox((int)((float)(Game1.uiViewport.Width / 2) - (text_size4.X + 64f) * 0.5f), yPositionOnScreen - 4 + 128, (int)(text_size4.X + 64f), 64);
+				Utility.drawTextWithShadow(b, pond_name_text, Game1.smallFont, new Vector2((float)(Game1.uiViewport.Width / 2) - text_size4.X * 0.5f, (float)(yPositionOnScreen - 4) + 160f - text_size4.Y * 0.5f), Color.Black);
 				string displayed_text = getDisplayedText();
 				int extraHeight = 0;
 				if (has_unresolved_needs)

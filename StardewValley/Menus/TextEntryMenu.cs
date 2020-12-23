@@ -352,10 +352,7 @@ namespace StardewValley.Menus
 				_target.Y = y;
 			}
 			base.draw(b);
-			if (!Game1.options.hardwareCursor)
-			{
-				b.Draw(Game1.mouseCursors, new Vector2(Game1.getMouseX(), Game1.getMouseY()), Game1.getSourceRectForStandardTileSheet(Game1.mouseCursors, Game1.options.SnappyMenus ? 44 : 0, 16, 16), Color.White, 0f, Vector2.Zero, 4f + Game1.dialogueButtonScale / 150f, SpriteEffects.None, 1f);
-			}
+			drawMouse(b, ignore_transparency: true);
 		}
 
 		public override void update(GameTime time)

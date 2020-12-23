@@ -52,6 +52,19 @@ namespace StardewValley.Buildings
 			base.load();
 		}
 
+		public override void resetLocalState()
+		{
+			base.resetLocalState();
+			if (shippingBinLid != null)
+			{
+				_ = shippingBinLidOpenArea;
+			}
+			else
+			{
+				initLid();
+			}
+		}
+
 		public override void Update(GameTime time)
 		{
 			base.Update(time);
@@ -147,7 +160,7 @@ namespace StardewValley.Buildings
 				}
 				if (i is Object && farm != null)
 				{
-					farm.showShipment(i as Object, playThrowSound: false);
+					showShipment(i as Object, playThrowSound: false);
 				}
 				farm.lastItemShipped = i;
 				if (Game1.player.ActiveObject == null)
@@ -158,9 +171,17 @@ namespace StardewValley.Buildings
 			}
 		}
 
+		public override bool CanLeftClick(int x, int y)
+		{
+			Rectangle hit_rect = new Rectangle((int)tileX * 64, (int)tileY * 64, (int)tilesWide * 64, (int)tilesHigh * 64);
+			hit_rect.Y -= 64;
+			hit_rect.Height += 64;
+			return hit_rect.Contains(x, y);
+		}
+
 		public override bool leftClicked()
 		{
-			if (farm != null && Game1.player.ActiveObject != null && Game1.player.ActiveObject.canBeShipped() && Vector2.Distance(Game1.player.getTileLocation(), new Vector2((float)(int)tileX + 0.5f, (float)(int)tileY + 0.5f)) <= 2.25f)
+			if (farm != null && Game1.player.ActiveObject != null && Game1.player.ActiveObject.canBeShipped() && Vector2.Distance(Game1.player.getTileLocation(), new Vector2((float)(int)tileX + 0.5f, (int)tileY)) <= 2f)
 			{
 				farm.getShippingBin(Game1.player).Add(Game1.player.ActiveObject);
 				farm.lastItemShipped = Game1.player.ActiveObject;
@@ -224,6 +245,10 @@ namespace StardewValley.Buildings
 		{
 			if ((int)daysOfConstructionLeft <= 0 && tileLocation.X >= (float)(int)tileX && tileLocation.X <= (float)((int)tileX + 1) && tileLocation.Y == (float)(int)tileY)
 			{
+				if (!Game1.didPlayerJustRightClick(ignoreNonMouseHeldInput: true))
+				{
+					return false;
+				}
 				ItemGrabMenu itemGrabMenu = new ItemGrabMenu(null, reverseGrab: true, showReceivingMenu: false, Utility.highlightShippableObjects, shipItem, "", null, snapToBottom: true, canBeExitedWithKey: true, playRightClickSound: false, allowRightClick: true, showOrganizeButton: false, 0, null, -1, this);
 				itemGrabMenu.initializeUpperRightCloseButton();
 				itemGrabMenu.setBackgroundTransparency(b: false);
@@ -257,6 +282,7 @@ namespace StardewValley.Buildings
 				base.draw(b);
 				if (shippingBinLid != null && (int)daysOfConstructionLeft <= 0)
 				{
+					shippingBinLid.color = color;
 					shippingBinLid.draw(b, localPosition: false, 0, 0, (float)alpha * (((int)newConstructionTimer > 0) ? ((1000f - (float)(int)newConstructionTimer) / 1000f) : 1f));
 				}
 			}

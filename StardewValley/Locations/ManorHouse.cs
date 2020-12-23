@@ -1,3 +1,5 @@
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 using StardewValley.Menus;
 using System;
 using System.Collections.Generic;
@@ -29,6 +31,9 @@ namespace StardewValley.Locations
 			{
 				switch (action.Split(' ')[0])
 				{
+				case "LostAndFound":
+					CheckLostAndFound();
+					break;
 				case "MayorFridge":
 				{
 					int numberFound = 0;
@@ -116,6 +121,83 @@ namespace StardewValley.Locations
 			return base.performAction(action, who, tileLocation);
 		}
 
+		protected override void resetLocalState()
+		{
+			base.resetLocalState();
+			if (Game1.eventUp)
+			{
+				removeTile(4, 5, "Buildings");
+				removeTile(4, 4, "Front");
+				removeTile(4, 3, "Front");
+				setMapTile(4, 6, 635, "Back", null);
+			}
+			else
+			{
+				setMapTile(4, 5, 109, "Buildings", "LostAndFound", 2);
+				setMapTile(4, 4, 77, "Front", null, 2);
+				setMapTile(4, 3, 110, "Front", null, 2);
+				setMapTile(4, 6, 604, "Back", null);
+			}
+		}
+
+		public void CheckLostAndFound()
+		{
+			string prompt2 = "";
+			prompt2 = ((!SpecialOrder.IsSpecialOrdersBoardUnlocked()) ? Game1.content.LoadString("Strings\\Locations:ManorHouse_LAF_Check") : Game1.content.LoadString("Strings\\Locations:ManorHouse_LAF_Check_OrdersUnlocked"));
+			List<Response> choices = new List<Response>();
+			if (Game1.player.team.returnedDonations.Count > 0 && !Game1.player.team.returnedDonationsMutex.IsLocked())
+			{
+				choices.Add(new Response("CheckDonations", Game1.content.LoadString("Strings\\Locations:ManorHouse_LAF_DonationItems")));
+			}
+			if (GetRetrievableFarmers().Count > 0)
+			{
+				choices.Add(new Response("RetrieveFarmhandItems", Game1.content.LoadString("Strings\\Locations:ManorHouse_LAF_FarmhandItems")));
+			}
+			if (choices.Count > 0)
+			{
+				choices.Add(new Response("Cancel", Game1.content.LoadString("Strings\\Locations:ManorHouse_LedgerBook_TransferCancel")));
+			}
+			if (choices.Count > 0)
+			{
+				createQuestionDialogue(prompt2, choices.ToArray(), "lostAndFound");
+			}
+			else
+			{
+				Game1.drawObjectDialogue(prompt2);
+			}
+		}
+
+		public List<Farmer> GetRetrievableFarmers()
+		{
+			List<Farmer> offline_farmers = new List<Farmer>(Game1.getAllFarmers());
+			foreach (Farmer online_farmer in Game1.getOnlineFarmers())
+			{
+				offline_farmers.Remove(online_farmer);
+			}
+			for (int i = 0; i < offline_farmers.Count; i++)
+			{
+				Farmer farmer = offline_farmers[i];
+				Cabin home = Utility.getHomeOfFarmer(farmer) as Cabin;
+				if (home != null && (farmer.isUnclaimedFarmhand || home.inventoryMutex.IsLocked()))
+				{
+					offline_farmers.RemoveAt(i);
+					i--;
+				}
+			}
+			return offline_farmers;
+		}
+
+		public override void draw(SpriteBatch b)
+		{
+			base.draw(b);
+			if (Game1.player.team.returnedDonations.Count > 0 && !Game1.eventUp)
+			{
+				float yOffset = 4f * (float)Math.Round(Math.Sin(Game1.currentGameTime.ElapsedGameTime.TotalMilliseconds / 250.0), 2);
+				Vector2 lost_and_found_indicator_position = new Vector2(4f, 4f) * 64f + new Vector2(7f, 0f) * 4f;
+				b.Draw(Game1.mouseCursors2, Game1.GlobalToLocal(Game1.viewport, new Vector2(lost_and_found_indicator_position.X, lost_and_found_indicator_position.Y + yOffset)), new Microsoft.Xna.Framework.Rectangle(114, 53, 6, 10), Color.White, 0f, new Vector2(1f, 4f), 4f, SpriteEffects.None, 1f);
+			}
+		}
+
 		private void readLedgerBook()
 		{
 			if (Game1.player.useSeparateWallets)
@@ -161,6 +243,23 @@ namespace StardewValley.Locations
 			{
 				Game1.drawObjectDialogue(Game1.content.LoadString("Strings\\Locations:ManorHouse_LedgerBook_SharedWallets_Client"));
 			}
+		}
+
+		public void ShowOfflineFarmhandItemList()
+		{
+			List<Response> choices = new List<Response>();
+			foreach (Farmer retrievableFarmer in GetRetrievableFarmers())
+			{
+				string key = string.Concat(retrievableFarmer.UniqueMultiplayerID);
+				string name = retrievableFarmer.Name;
+				if (retrievableFarmer.Name == "")
+				{
+					name = Game1.content.LoadString("Strings\\UI:Chat_PlayerJoinedNewName");
+				}
+				choices.Add(new Response(key, name));
+			}
+			choices.Add(new Response("Cancel", Game1.content.LoadString("Strings\\Locations:ManorHouse_LedgerBook_TransferCancel")));
+			Game1.currentLocation.createQuestionDialogue(Game1.content.LoadString("Strings\\Locations:ManorHouse_LAF_FarmhandItemsQuestion"), choices.ToArray(), "CheckItems");
 		}
 
 		public void ChooseRecipient()
@@ -352,6 +451,30 @@ namespace StardewValley.Locations
 				s5 = Game1.content.LoadString("Strings\\Locations:ManorHouse_LedgerBook_SeparateWallets_CancelQuestion");
 				createQuestionDialogue(s5, createYesNoResponses(), "cancelMergeWallets");
 				break;
+			case "lostAndFound_RetrieveFarmhandItems":
+				ShowOfflineFarmhandItemList();
+				return true;
+			case "lostAndFound_CheckDonations":
+				Game1.player.team.CheckReturnedDonations();
+				return true;
+			}
+			if (questionAndAnswer.StartsWith("CheckItems"))
+			{
+				string s6 = questionAndAnswer.Split('_')[1];
+				long id = 0L;
+				if (long.TryParse(s6, out id))
+				{
+					Farmer farmhand = Game1.getFarmerMaybeOffline(id);
+					Cabin home = Utility.getHomeOfFarmer(farmhand) as Cabin;
+					if (farmhand != null && home != null && !farmhand.isActive())
+					{
+						home.inventoryMutex.RequestLock(delegate
+						{
+							home.openFarmhandInventory();
+						});
+					}
+				}
+				return true;
 			}
 			if (questionAndAnswer.Contains("Transfer"))
 			{

@@ -7,6 +7,8 @@ namespace StardewValley.Menus
 	{
 		public const int pixelsWide = 9;
 
+		public static OptionsCheckbox selected;
+
 		public bool isChecked;
 
 		public static Rectangle sourceRectUnchecked = new Rectangle(227, 425, 9, 9);
@@ -24,16 +26,18 @@ namespace StardewValley.Menus
 			if (!greyedOut)
 			{
 				Game1.playSound("drumkit6");
+				selected = this;
 				base.receiveLeftClick(x, y);
 				isChecked = !isChecked;
 				Game1.options.changeCheckBoxOption(whichOption, isChecked);
+				selected = null;
 			}
 		}
 
-		public override void draw(SpriteBatch b, int slotX, int slotY)
+		public override void draw(SpriteBatch b, int slotX, int slotY, IClickableMenu context = null)
 		{
 			b.Draw(Game1.mouseCursors, new Vector2(slotX + bounds.X, slotY + bounds.Y), isChecked ? sourceRectChecked : sourceRectUnchecked, Color.White * (greyedOut ? 0.33f : 1f), 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.4f);
-			base.draw(b, slotX, slotY);
+			base.draw(b, slotX, slotY, context);
 		}
 	}
 }

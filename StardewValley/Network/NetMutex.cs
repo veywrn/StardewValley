@@ -97,7 +97,7 @@ namespace StardewValley.Network
 				onLockFailed = null;
 				prevOwner = owner.Value;
 			}
-			if (Game1.IsMasterGame && owner.Value != -1 && farmers.FirstOrDefault((Farmer f) => f.UniqueMultiplayerID == owner.Value) == null)
+			if (Game1.IsMasterGame && owner.Value != -1 && farmers.FirstOrDefault((Farmer f) => f.UniqueMultiplayerID == owner.Value && f.locationBeforeForcedEvent.Value == null) == null)
 			{
 				ReleaseLock();
 			}

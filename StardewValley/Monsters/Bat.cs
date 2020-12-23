@@ -20,15 +20,33 @@ namespace StardewValley.Monsters
 
 		private readonly NetBool seenPlayer = new NetBool();
 
-		private readonly NetBool cursedDoll = new NetBool();
+		public readonly NetBool cursedDoll = new NetBool();
 
-		private readonly NetBool hauntedSkull = new NetBool();
+		public readonly NetBool hauntedSkull = new NetBool();
+
+		public readonly NetBool magmaSprite = new NetBool();
+
+		public readonly NetBool canLunge = new NetBool();
 
 		private ICue batFlap;
 
 		private float extraVelocity;
 
 		private float maxSpeed = 5f;
+
+		public int lungeFrequency = 3000;
+
+		public int lungeChargeTime = 500;
+
+		public int lungeSpeed = 30;
+
+		public int lungeDecelerationTicks = 60;
+
+		public int nextLunge = -1;
+
+		public int lungeTimer;
+
+		public Vector2 lungeVelocity = Vector2.Zero;
 
 		private List<Vector2> previousPositions = new List<Vector2>();
 
@@ -62,6 +80,29 @@ namespace StardewValley.Monsters
 				cursedDoll.Value = true;
 				hauntedSkull.Value = true;
 				objectsToDrop.Clear();
+				break;
+			case -555:
+				parseMonsterInfo("Magma Sprite");
+				base.Name = "Magma Sprite";
+				reloadSprite();
+				base.Slipperiness *= 2;
+				extraVelocity = 2f;
+				maxSpeed = Game1.random.Next(6, 9);
+				shakeTimer = 100;
+				cursedDoll.Value = true;
+				magmaSprite.Value = true;
+				break;
+			case -556:
+				parseMonsterInfo("Magma Sparker");
+				base.Name = "Magma Sparker";
+				reloadSprite();
+				extraVelocity = 2f;
+				base.Slipperiness += 3;
+				maxSpeed = Game1.random.Next(6, 8);
+				shakeTimer = 100;
+				cursedDoll.Value = true;
+				magmaSprite.Value = true;
+				canLunge.Value = true;
 				break;
 			case -666:
 				parseMonsterInfo("Iridium Bat");
@@ -141,6 +182,10 @@ namespace StardewValley.Monsters
 				base.Health *= 2;
 				shakeTimer = 999999;
 			}
+			if (canLunge.Value)
+			{
+				nextLunge = lungeFrequency;
+			}
 			Halt();
 			base.IsWalkingTowardPlayer = false;
 			base.HideShadow = true;
@@ -149,7 +194,7 @@ namespace StardewValley.Monsters
 		protected override void initNetFields()
 		{
 			base.initNetFields();
-			base.NetFields.AddFields(wasHitCounter, turningRight, seenPlayer, cursedDoll, hauntedSkull);
+			base.NetFields.AddFields(wasHitCounter, turningRight, seenPlayer, cursedDoll, hauntedSkull, magmaSprite, canLunge);
 		}
 
 		public override void reloadSprite()
@@ -163,6 +208,15 @@ namespace StardewValley.Monsters
 				Sprite.textureName.Value = "Characters\\Monsters\\" + base.Name;
 			}
 			base.HideShadow = true;
+		}
+
+		public override Debris ModifyMonsterLoot(Debris debris)
+		{
+			if (debris != null && magmaSprite.Value)
+			{
+				debris.chunksMoveTowardPlayer = true;
+			}
+			return debris;
 		}
 
 		public override List<Item> getExtraDropItems()
@@ -204,8 +258,12 @@ namespace StardewValley.Monsters
 					}
 					break;
 				case 1:
-					extraDrops.Add(new MeleeWeapon(2));
+				{
+					MeleeWeapon weapon = new MeleeWeapon(2);
+					weapon.AddEnchantment(new VampiricEnchantment());
+					extraDrops.Add(weapon);
 					break;
+				}
 				case 2:
 					extraDrops.Add(new Object(288, 1));
 					break;
@@ -269,6 +327,16 @@ namespace StardewValley.Monsters
 
 		public override int takeDamage(int damage, int xTrajectory, int yTrajectory, bool isBomb, double addedPrecision, Farmer who)
 		{
+			lungeVelocity = Vector2.Zero;
+			if (lungeTimer > 0)
+			{
+				nextLunge = lungeFrequency;
+				lungeTimer = 0;
+			}
+			else if (nextLunge < 1000)
+			{
+				nextLunge = 1000;
+			}
 			int actualDamage = Math.Max(1, damage - (int)resilience);
 			seenPlayer.Value = true;
 			if (Game1.random.NextDouble() < (double)missChance - (double)missChance * addedPrecision)
@@ -280,14 +348,54 @@ namespace StardewValley.Monsters
 				base.Health -= actualDamage;
 				setTrajectory(xTrajectory / 3, yTrajectory / 3);
 				wasHitCounter.Value = 500;
-				base.currentLocation.playSound("hitEnemy");
+				if ((bool)magmaSprite)
+				{
+					base.currentLocation.playSound("magma_sprite_hit");
+				}
+				else
+				{
+					base.currentLocation.playSound("hitEnemy");
+				}
 				if (base.Health <= 0)
 				{
 					deathAnimation();
-					Game1.multiplayer.broadcastSprites(base.currentLocation, new TemporaryAnimatedSprite(44, base.Position, Color.DarkMagenta, 10));
+					if (!magmaSprite)
+					{
+						Game1.multiplayer.broadcastSprites(base.currentLocation, new TemporaryAnimatedSprite(44, base.Position, Color.DarkMagenta, 10));
+					}
 					if ((bool)cursedDoll)
 					{
-						base.currentLocation.playSound("rockGolemHit");
+						if ((bool)magmaSprite)
+						{
+							base.currentLocation.playSound("magma_sprite_die");
+							for (int i = 0; i < 20; i++)
+							{
+								base.currentLocation.temporarySprites.Add(new TemporaryAnimatedSprite("Characters\\Monsters\\Magma Sprite", new Rectangle(0, 64, 8, 8), position + new Vector2(Game1.random.Next(64), Game1.random.Next(64)), flipped: false, 0f, Color.White)
+								{
+									scale = 4f,
+									scaleChange = 0f,
+									motion = new Vector2((float)Game1.random.Next(-30, 31) / 10f, -6f),
+									acceleration = new Vector2(0f, 0.25f),
+									layerDepth = 0.9f,
+									animationLength = 6,
+									totalNumberOfLoops = 2,
+									interval = 60f,
+									delayBeforeAnimationStart = i * 10
+								});
+							}
+							Utility.addSmokePuff(base.currentLocation, position, 0, 4f, 0.01f, 1f, 0.01f);
+							Utility.addSmokePuff(base.currentLocation, position + new Vector2(32f, 16f), 400, 4f, 0.01f, 1f, 0.02f);
+							Utility.addSmokePuff(base.currentLocation, position + new Vector2(-32f, -16f), 200, 4f, 0.01f, 1f, 0.02f);
+							Utility.addSmokePuff(base.currentLocation, position + new Vector2(0f, 32f), 200, 4f, 0.01f, 1f, 0.01f);
+							Utility.addSmokePuff(base.currentLocation, position, 0, 3f, 0.01f, 1f, 0.02f);
+							Utility.addSmokePuff(base.currentLocation, position + new Vector2(21f, 16f), 500, 3f, 0.01f, 1f, 0.01f);
+							Utility.addSmokePuff(base.currentLocation, position + new Vector2(-32f, -21f), 100, 3f, 0.01f, 1f, 0.02f);
+							Utility.addSmokePuff(base.currentLocation, position + new Vector2(0f, 32f), 250, 3f, 0.01f, 1f, 0.01f);
+						}
+						else
+						{
+							base.currentLocation.playSound("rockGolemHit");
+						}
 						if ((bool)hauntedSkull)
 						{
 							Game1.multiplayer.broadcastSprites(who.currentLocation, new TemporaryAnimatedSprite(Sprite.textureName, new Rectangle(0, 32, 16, 16), 2000f, 1, 9999, position, flicker: false, flipped: false, 1f, 0.02f, Color.White, 4f, 0f, 0f, 0f)
@@ -297,7 +405,7 @@ namespace StardewValley.Monsters
 								rotationChange = (float)Game1.random.Next(-200, 200) / 1000f
 							});
 						}
-						else if (who != null)
+						else if (who != null && !magmaSprite)
 						{
 							Game1.multiplayer.broadcastSprites(who.currentLocation, new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Rectangle(388, 1894, 24, 22), 40f, 6, 9999, position, flicker: false, flipped: true, 1f, 0f, Color.Black * 0.67f, 4f, 0f, 0f, 0f)
 							{
@@ -327,6 +435,15 @@ namespace StardewValley.Monsters
 			}
 		}
 
+		public override void onDealContactDamage(Farmer who)
+		{
+			base.onDealContactDamage(who);
+			if (magmaSprite.Value && Game1.random.NextDouble() < 5.0 && name.Equals("Magma Sparker") && Game1.random.Next(11) >= who.immunity)
+			{
+				Game1.buffsDisplay.addOtherBuff(new Buff(12));
+			}
+		}
+
 		public override void drawAboveAllLayers(SpriteBatch b)
 		{
 			if (!Utility.isOnScreen(base.Position, 128))
@@ -351,11 +468,36 @@ namespace StardewValley.Monsters
 					b.Draw(Game1.shadowTexture, getLocalPosition(Game1.viewport) + new Vector2(32f, 64f), Game1.shadowTexture.Bounds, Color.White, 0f, new Vector2(Game1.shadowTexture.Bounds.Center.X, Game1.shadowTexture.Bounds.Center.Y), 3f + offset.Y / 20f, SpriteEffects.None, 0.0001f);
 					b.Draw(Sprite.Texture, getLocalPosition(Game1.viewport) + new Vector2(32 + Game1.random.Next(-6, 7), 32 + Game1.random.Next(-6, 7)) + offset, Game1.getSourceRectForStandardTileSheet(Sprite.Texture, direction * 2 + (((bool)seenPlayer && Game1.currentGameTime.TotalGameTime.TotalMilliseconds % 500.0 < 250.0) ? 1 : 0), 16, 16), Color.Red * 0.44f, 0f, new Vector2(8f, 16f), Math.Max(0.2f, scale) * 4f, flip ? SpriteEffects.FlipHorizontally : SpriteEffects.None, (position.Y + 128f - 1f) / 10000f);
 					b.Draw(Sprite.Texture, getLocalPosition(Game1.viewport) + new Vector2(32 + Game1.random.Next(-6, 7), 32 + Game1.random.Next(-6, 7)) + offset, Game1.getSourceRectForStandardTileSheet(Sprite.Texture, direction * 2 + (((bool)seenPlayer && Game1.currentGameTime.TotalGameTime.TotalMilliseconds % 500.0 < 250.0) ? 1 : 0), 16, 16), Color.Yellow * 0.44f, 0f, new Vector2(8f, 16f), Math.Max(0.2f, scale) * 4f, flip ? SpriteEffects.FlipHorizontally : SpriteEffects.None, (position.Y + 128f) / 10000f);
-					for (int i = previousPositions.Count - 1; i >= 0; i -= 2)
+					if ((bool)seenPlayer)
 					{
-						b.Draw(Sprite.Texture, new Vector2(previousPositions[i].X - (float)Game1.viewport.X, previousPositions[i].Y - (float)Game1.viewport.Y + (float)yJumpOffset) + drawOffset + new Vector2(32f, 32f) + offset, Game1.getSourceRectForStandardTileSheet(Sprite.Texture, direction * 2 + (((bool)seenPlayer && Game1.currentGameTime.TotalGameTime.TotalMilliseconds % 500.0 < 250.0) ? 1 : 0), 16, 16), Color.White * (0f + 0.125f * (float)i), 0f, new Vector2(8f, 16f), Math.Max(0.2f, scale) * 4f, flip ? SpriteEffects.FlipHorizontally : SpriteEffects.None, (position.Y + 128f - (float)i) / 10000f);
+						for (int i = previousPositions.Count - 1; i >= 0; i -= 2)
+						{
+							b.Draw(Sprite.Texture, new Vector2(previousPositions[i].X - (float)Game1.viewport.X, previousPositions[i].Y - (float)Game1.viewport.Y + (float)yJumpOffset) + drawOffset + new Vector2(32f, 32f) + offset, Game1.getSourceRectForStandardTileSheet(Sprite.Texture, direction * 2 + (((bool)seenPlayer && Game1.currentGameTime.TotalGameTime.TotalMilliseconds % 500.0 < 250.0) ? 1 : 0), 16, 16), Color.White * (0f + 0.125f * (float)i), 0f, new Vector2(8f, 16f), Math.Max(0.2f, scale) * 4f, flip ? SpriteEffects.FlipHorizontally : SpriteEffects.None, (position.Y + 128f - (float)i) / 10000f);
+						}
 					}
 					b.Draw(Sprite.Texture, getLocalPosition(Game1.viewport) + new Vector2(32f, 32f) + offset, Game1.getSourceRectForStandardTileSheet(Sprite.Texture, direction * 2 + (((bool)seenPlayer && Game1.currentGameTime.TotalGameTime.TotalMilliseconds % 500.0 < 250.0) ? 1 : 0), 16, 16), Color.White, 0f, new Vector2(8f, 16f), Math.Max(0.2f, scale) * 4f, flip ? SpriteEffects.FlipHorizontally : SpriteEffects.None, (position.Y + 128f + 1f) / 10000f);
+				}
+				else if ((bool)magmaSprite)
+				{
+					Vector2 pos_offset2 = Vector2.Zero;
+					if (previousPositions.Count > 2)
+					{
+						pos_offset2 = base.Position - previousPositions[1];
+					}
+					int direction2 = (!(Math.Abs(pos_offset2.X) > Math.Abs(pos_offset2.Y))) ? ((!(pos_offset2.Y < 0f)) ? 2 : 0) : ((pos_offset2.X > 0f) ? 1 : 3);
+					if (direction2 == -1)
+					{
+						direction2 = 2;
+					}
+					Vector2 offset3 = new Vector2(0f, 8f * (float)Math.Sin(Game1.currentGameTime.TotalGameTime.TotalMilliseconds / (Math.PI * 60.0)));
+					b.Draw(Game1.shadowTexture, getLocalPosition(Game1.viewport) + new Vector2(32f, 64f), Game1.shadowTexture.Bounds, Color.White, 0f, new Vector2(Game1.shadowTexture.Bounds.Center.X, Game1.shadowTexture.Bounds.Center.Y), 3f + offset3.Y / 20f, SpriteEffects.None, 0.0001f);
+					b.Draw(Sprite.Texture, getLocalPosition(Game1.viewport) + new Vector2(32 + Game1.random.Next(-6, 7), 32 + Game1.random.Next(-6, 7)) + offset3, Game1.getSourceRectForStandardTileSheet(Sprite.Texture, direction2 * 7 + (int)(Game1.currentGameTime.TotalGameTime.TotalMilliseconds % 490.0 / 70.0), 16, 16), Color.Red * 0.44f, 0f, new Vector2(8f, 16f), Math.Max(0.2f, scale) * 4f, flip ? SpriteEffects.FlipHorizontally : SpriteEffects.None, 0.9955f);
+					b.Draw(Sprite.Texture, getLocalPosition(Game1.viewport) + new Vector2(32 + Game1.random.Next(-6, 7), 32 + Game1.random.Next(-6, 7)) + offset3, Game1.getSourceRectForStandardTileSheet(Sprite.Texture, direction2 * 7 + (int)(Game1.currentGameTime.TotalGameTime.TotalMilliseconds % 490.0 / 70.0), 16, 16), Color.Yellow * 0.44f, 0f, new Vector2(8f, 16f), Math.Max(0.2f, scale) * 4f, flip ? SpriteEffects.FlipHorizontally : SpriteEffects.None, 0.9975f);
+					for (int j = previousPositions.Count - 1; j >= 0; j -= 2)
+					{
+						b.Draw(Sprite.Texture, new Vector2(previousPositions[j].X - (float)Game1.viewport.X, previousPositions[j].Y - (float)Game1.viewport.Y + (float)yJumpOffset) + drawOffset + new Vector2(32f, 32f) + offset3, Game1.getSourceRectForStandardTileSheet(Sprite.Texture, direction2 * 7 + (int)(Game1.currentGameTime.TotalGameTime.TotalMilliseconds % 490.0 / 70.0), 16, 16), Color.White * (0f + 0.125f * (float)j), 0f, new Vector2(8f, 16f), Math.Max(0.2f, scale) * 4f, flip ? SpriteEffects.FlipHorizontally : SpriteEffects.None, 0.9985f);
+					}
+					b.Draw(Sprite.Texture, getLocalPosition(Game1.viewport) + new Vector2(32f, 32f) + offset3, Game1.getSourceRectForStandardTileSheet(Sprite.Texture, direction2 * 7 + (int)(Game1.currentGameTime.TotalGameTime.TotalMilliseconds % 490.0 / 70.0), 16, 16), Color.White, 0f, new Vector2(8f, 16f), Math.Max(0.2f, scale) * 4f, flip ? SpriteEffects.FlipHorizontally : SpriteEffects.None, 1f);
 				}
 				else
 				{
@@ -397,9 +539,62 @@ namespace StardewValley.Monsters
 			{
 				base.Health = -500;
 			}
+			if (canLunge.Value)
+			{
+				if (nextLunge == -1)
+				{
+					nextLunge = lungeFrequency;
+				}
+				if (lungeVelocity.LengthSquared() > 0f)
+				{
+					float decel = (float)lungeSpeed / (float)lungeDecelerationTicks;
+					lungeVelocity = new Vector2(Utility.MoveTowards(lungeVelocity.X, 0f, decel), Utility.MoveTowards(lungeVelocity.Y, 0f, decel));
+					xVelocity = lungeVelocity.X;
+					yVelocity = 0f - lungeVelocity.Y;
+					if (lungeVelocity.LengthSquared() == 0f)
+					{
+						xVelocity = 0f;
+						yVelocity = 0f;
+					}
+					return;
+				}
+				if (lungeTimer > 0)
+				{
+					lungeTimer -= (int)time.ElapsedGameTime.TotalMilliseconds;
+					Vector2 offset = Utility.PointToVector2(base.Player.GetBoundingBox().Center) - Utility.PointToVector2(GetBoundingBox().Center);
+					if (offset.LengthSquared() == 0f)
+					{
+						offset = new Vector2(1f, 0f);
+					}
+					offset.Normalize();
+					if (lungeTimer < 0)
+					{
+						lungeVelocity = offset * 25f;
+						lungeTimer = 0;
+						nextLunge = lungeFrequency;
+					}
+					xVelocity = offset.X * 0.5f;
+					yVelocity = (0f - offset.Y) * 0.5f;
+				}
+				else if (nextLunge > 0 && withinPlayerThreshold(6))
+				{
+					nextLunge -= (int)time.ElapsedGameTime.TotalMilliseconds;
+					if (nextLunge < 0)
+					{
+						base.currentLocation.playSound("magma_sprite_spot");
+						nextLunge = 0;
+						lungeTimer = lungeChargeTime;
+						return;
+					}
+				}
+			}
 			if (!base.focusedOnFarmers && !withinPlayerThreshold(6) && !seenPlayer)
 			{
 				return;
+			}
+			if ((bool)magmaSprite && !seenPlayer)
+			{
+				base.currentLocation.playSound("magma_sprite_spot");
 			}
 			seenPlayer.Value = true;
 			if (invincibleCountdown > 0)
@@ -459,7 +654,7 @@ namespace StardewValley.Monsters
 
 		protected override void updateAnimation(GameTime time)
 		{
-			if (base.focusedOnFarmers || withinPlayerThreshold(6) || (bool)seenPlayer)
+			if (base.focusedOnFarmers || withinPlayerThreshold(6) || (bool)seenPlayer || magmaSprite.Value)
 			{
 				Sprite.Animate(time, 0, 4, 80f);
 				if (Sprite.currentFrame % 3 == 0 && Utility.isOnScreen(base.Position, 512) && (batFlap == null || !batFlap.IsPlaying) && Game1.soundBank != null && base.currentLocation == Game1.currentLocation && !cursedDoll)
@@ -472,14 +667,31 @@ namespace StardewValley.Monsters
 					shakeTimer -= time.ElapsedGameTime.Milliseconds;
 					if (shakeTimer < 0)
 					{
-						if (!hauntedSkull.Value)
+						shakeTimer = 50;
+						if (magmaSprite.Value)
+						{
+							shakeTimer = ((lungeTimer > 0) ? 50 : 100);
+							base.currentLocation.temporarySprites.Add(new TemporaryAnimatedSprite("Characters\\Monsters\\Magma Sprite", new Rectangle(0, 64, 8, 8), position + new Vector2(Game1.random.Next(32), -16 - Game1.random.Next(32)), flipped: false, 0f, Color.White)
+							{
+								scale = 4f,
+								scaleChange = -0.05f,
+								motion = new Vector2((lungeTimer > 0) ? ((float)Game1.random.Next(-30, 31) / 10f) : 0f, (0f - maxSpeed) / ((lungeTimer > 0) ? 2f : 8f)),
+								layerDepth = 0.9f,
+								animationLength = 6,
+								totalNumberOfLoops = 1,
+								interval = 50f,
+								xPeriodic = (lungeTimer <= 0),
+								xPeriodicLoopTime = Game1.random.Next(500, 800),
+								xPeriodicRange = 4 * ((lungeTimer <= 0) ? 1 : 2)
+							});
+						}
+						else if (!hauntedSkull.Value)
 						{
 							base.currentLocation.temporarySprites.Add(new TemporaryAnimatedSprite("Maps\\springobjects", Game1.getSourceRectForStandardTileSheet(Game1.objectSpriteSheet, 103, 16, 16), position + new Vector2(0f, -32f), flipped: false, 0.1f, new Color(255, 50, 255) * 0.8f)
 							{
 								scale = 4f
 							});
 						}
-						shakeTimer = 50;
 					}
 					previousPositions.Add(base.Position);
 					if (previousPositions.Count > 8)

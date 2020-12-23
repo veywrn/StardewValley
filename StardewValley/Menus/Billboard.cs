@@ -87,7 +87,19 @@ namespace StardewValley.Menus
 							festival = nightMarketLocalized;
 						}
 					}
-					ClickableTextureComponent calendar_day = new ClickableTextureComponent(festival, new Rectangle(xPositionOnScreen + 152 + (j - 1) % 7 * 32 * 4, yPositionOnScreen + 200 + (j - 1) / 7 * 32 * 4, 124, 124), festival, birthday, i?.Sprite.Texture, (i != null) ? new Rectangle(0, 0, 16, 24) : Rectangle.Empty, 1f)
+					Texture2D character_texture = null;
+					if (i != null)
+					{
+						try
+						{
+							character_texture = Game1.content.Load<Texture2D>("Characters\\" + i.getTextureName());
+						}
+						catch (Exception)
+						{
+							character_texture = i.Sprite.Texture;
+						}
+					}
+					ClickableTextureComponent calendar_day = new ClickableTextureComponent(festival, new Rectangle(xPositionOnScreen + 152 + (j - 1) % 7 * 32 * 4, yPositionOnScreen + 200 + (j - 1) / 7 * 32 * 4, 124, 124), festival, birthday, character_texture, (i != null) ? new Rectangle(0, 0, 16, 24) : Rectangle.Empty, 1f)
 					{
 						myID = j,
 						rightNeighborID = ((j % 7 != 0) ? (j + 1) : (-1)),
@@ -232,6 +244,7 @@ namespace StardewValley.Menus
 
 		public override void draw(SpriteBatch b)
 		{
+			bool hide_mouse = false;
 			b.Draw(Game1.fadeToBlackRect, Game1.graphics.GraphicsDevice.Viewport.Bounds, Color.Black * 0.75f);
 			b.Draw(billboardTexture, new Vector2(xPositionOnScreen, yPositionOnScreen), dailyQuestBoard ? new Rectangle(0, 0, 338, 198) : new Rectangle(0, 198, 301, 198), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
 			if (!dailyQuestBoard)
@@ -260,7 +273,7 @@ namespace StardewValley.Menus
 						foreach (string item in _upcomingWeddings[calendarDays[i]])
 						{
 							_ = item;
-							b.Draw(Game1.mouseCursors2, new Vector2(calendarDays[i].bounds.Right - 56, calendarDays[i].bounds.Top - 12), new Rectangle(112, 32, 16, 16), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
+							b.Draw(Game1.mouseCursors2, new Vector2(calendarDays[i].bounds.Right - 56, calendarDays[i].bounds.Top - 12), new Rectangle(112, 32, 16, 14), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
 						}
 					}
 					if (Game1.dayOfMonth > i + 1)
@@ -274,27 +287,38 @@ namespace StardewValley.Menus
 					}
 				}
 			}
-			else if (Game1.questOfTheDay == null || Game1.questOfTheDay.currentObjective == null || Game1.questOfTheDay.currentObjective.Length == 0)
-			{
-				b.DrawString(Game1.dialogueFont, Game1.content.LoadString("Strings\\UI:Billboard_NothingPosted"), new Vector2(xPositionOnScreen + 384, yPositionOnScreen + 320), Game1.textColor);
-			}
 			else
 			{
-				SpriteFont font = (LocalizedContentManager.CurrentLanguageCode == LocalizedContentManager.LanguageCode.ko) ? Game1.smallFont : Game1.dialogueFont;
-				string description = Game1.parseText(Game1.questOfTheDay.questDescription, font, 640);
-				Utility.drawTextWithShadow(b, description, font, new Vector2(xPositionOnScreen + 320 + 32, yPositionOnScreen + 256), Game1.textColor, 1f, -1f, -1, -1, 0.5f);
-				if (acceptQuestButton.visible)
+				if (Game1.options.SnappyMenus)
 				{
-					IClickableMenu.drawTextureBox(b, Game1.mouseCursors, new Rectangle(403, 373, 9, 9), acceptQuestButton.bounds.X, acceptQuestButton.bounds.Y, acceptQuestButton.bounds.Width, acceptQuestButton.bounds.Height, (acceptQuestButton.scale > 1f) ? Color.LightPink : Color.White, 4f * acceptQuestButton.scale);
-					Utility.drawTextWithShadow(b, Game1.content.LoadString("Strings\\UI:AcceptQuest"), Game1.dialogueFont, new Vector2(acceptQuestButton.bounds.X + 12, acceptQuestButton.bounds.Y + (LocalizedContentManager.CurrentLanguageLatin ? 16 : 12)), Game1.textColor);
+					hide_mouse = true;
+				}
+				if (Game1.questOfTheDay == null || Game1.questOfTheDay.currentObjective == null || Game1.questOfTheDay.currentObjective.Length == 0)
+				{
+					b.DrawString(Game1.dialogueFont, Game1.content.LoadString("Strings\\UI:Billboard_NothingPosted"), new Vector2(xPositionOnScreen + 384, yPositionOnScreen + 320), Game1.textColor);
+				}
+				else
+				{
+					SpriteFont font = (LocalizedContentManager.CurrentLanguageCode == LocalizedContentManager.LanguageCode.ko) ? Game1.smallFont : Game1.dialogueFont;
+					string description = Game1.parseText(Game1.questOfTheDay.questDescription, font, 640);
+					Utility.drawTextWithShadow(b, description, font, new Vector2(xPositionOnScreen + 320 + 32, yPositionOnScreen + 256), Game1.textColor, 1f, -1f, -1, -1, 0.5f);
+					if (acceptQuestButton.visible)
+					{
+						hide_mouse = false;
+						IClickableMenu.drawTextureBox(b, Game1.mouseCursors, new Rectangle(403, 373, 9, 9), acceptQuestButton.bounds.X, acceptQuestButton.bounds.Y, acceptQuestButton.bounds.Width, acceptQuestButton.bounds.Height, (acceptQuestButton.scale > 1f) ? Color.LightPink : Color.White, 4f * acceptQuestButton.scale);
+						Utility.drawTextWithShadow(b, Game1.content.LoadString("Strings\\UI:AcceptQuest"), Game1.dialogueFont, new Vector2(acceptQuestButton.bounds.X + 12, acceptQuestButton.bounds.Y + (LocalizedContentManager.CurrentLanguageLatin ? 16 : 12)), Game1.textColor);
+					}
 				}
 			}
 			base.draw(b);
-			Game1.mouseCursorTransparency = 1f;
-			drawMouse(b);
-			if (hoverText.Length > 0)
+			if (!hide_mouse)
 			{
-				IClickableMenu.drawHoverText(b, hoverText, Game1.dialogueFont);
+				Game1.mouseCursorTransparency = 1f;
+				drawMouse(b);
+				if (hoverText.Length > 0)
+				{
+					IClickableMenu.drawHoverText(b, hoverText, Game1.dialogueFont);
+				}
 			}
 		}
 

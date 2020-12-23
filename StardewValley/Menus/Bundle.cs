@@ -46,6 +46,10 @@ namespace StardewValley.Menus
 
 		public bool depositsAllowed = true;
 
+		public Texture2D bundleTextureOverride;
+
+		public int bundleTextureIndexOverride = -1;
+
 		public TemporaryAnimatedSprite sprite;
 
 		private float maxShake;
@@ -68,6 +72,28 @@ namespace StardewValley.Menus
 				label = split[split.Length - 1];
 			}
 			rewardDescription = split[1];
+			if (split.Length > 5 && (LocalizedContentManager.CurrentLanguageCode == LocalizedContentManager.LanguageCode.en || split.Length > 6))
+			{
+				string bundle_image_override = split[5];
+				try
+				{
+					if (bundle_image_override.IndexOf(':') >= 0)
+					{
+						string[] bundle_image_parts = bundle_image_override.Split(':');
+						bundleTextureOverride = Game1.content.Load<Texture2D>(bundle_image_parts[0]);
+						bundleTextureIndexOverride = int.Parse(bundle_image_parts[1]);
+					}
+					else
+					{
+						bundleTextureIndexOverride = int.Parse(bundle_image_override);
+					}
+				}
+				catch (Exception)
+				{
+					bundleTextureOverride = null;
+					bundleTextureIndexOverride = -1;
+				}
+			}
 			string[] ingredientsSplit = split[2].Split(' ');
 			complete = true;
 			ingredients = new List<BundleIngredientDescription>();
@@ -170,7 +196,53 @@ namespace StardewValley.Menus
 			}
 		}
 
+		public bool IsValidItemForThisIngredientDescription(Item item, BundleIngredientDescription ingredient)
+		{
+			if (item is Object)
+			{
+				Object o = item as Object;
+				if (!ingredient.completed && ingredient.quality <= (int)o.quality)
+				{
+					if (ingredient.index < 0)
+					{
+						if (item.Category == ingredient.index)
+						{
+							return true;
+						}
+					}
+					else if (ingredient.index == (int)item.parentSheetIndex)
+					{
+						return true;
+					}
+				}
+				return false;
+			}
+			return false;
+		}
+
+		public int GetBundleIngredientDescriptionIndexForItem(Item item)
+		{
+			if (item is Object)
+			{
+				Object o = item as Object;
+				for (int i = 0; i < ingredients.Count; i++)
+				{
+					if (IsValidItemForThisIngredientDescription(o, ingredients[i]))
+					{
+						return i;
+					}
+				}
+				return -1;
+			}
+			return -1;
+		}
+
 		public bool canAcceptThisItem(Item item, ClickableTextureComponent slot)
+		{
+			return canAcceptThisItem(item, slot, ignore_stack_count: false);
+		}
+
+		public bool canAcceptThisItem(Item item, ClickableTextureComponent slot, bool ignore_stack_count = false)
 		{
 			if (!depositsAllowed)
 			{
@@ -181,7 +253,7 @@ namespace StardewValley.Menus
 				Object o = item as Object;
 				for (int i = 0; i < ingredients.Count; i++)
 				{
-					if (!ingredients[i].completed && ingredients[i].index == (int)item.parentSheetIndex && ingredients[i].stack <= item.Stack && ingredients[i].quality <= (int)o.quality && slot.item == null)
+					if (IsValidItemForThisIngredientDescription(o, ingredients[i]) && (ignore_stack_count || ingredients[i].stack <= item.Stack) && (slot == null || slot.item == null))
 					{
 						return true;
 					}
@@ -205,47 +277,50 @@ namespace StardewValley.Menus
 				}
 				return item;
 			}
-			if (item is Object && !(item is Furniture))
+			if (!(item is Object) || item is Furniture)
 			{
-				Object o = item as Object;
-				for (int i = 0; i < ingredients.Count; i++)
-				{
-					if (!ingredients[i].completed && ingredients[i].index == (int)item.parentSheetIndex && item.Stack >= ingredients[i].stack && (int)o.quality >= ingredients[i].quality && slot.item == null)
-					{
-						item.Stack -= ingredients[i].stack;
-						ingredients[i] = new BundleIngredientDescription(ingredients[i].index, ingredients[i].stack, ingredients[i].quality, completed: true);
-						ingredientDepositAnimation(slot, noteTextureName);
-						slot.item = new Object(ingredients[i].index, ingredients[i].stack, isRecipe: false, -1, ingredients[i].quality);
-						Game1.playSound("newArtifact");
-						(Game1.getLocationFromName("CommunityCenter") as CommunityCenter).bundles.FieldDict[bundleIndex][i] = true;
-						slot.sourceRect.X = 512;
-						slot.sourceRect.Y = 244;
-						Game1.multiplayer.globalChatInfoMessage("BundleDonate", Game1.player.displayName, slot.item.DisplayName);
-						break;
-					}
-				}
-				if (item.Stack > 0)
-				{
-					return item;
-				}
-				return null;
+				return item;
 			}
-			return item;
+			for (int i = 0; i < ingredients.Count; i++)
+			{
+				if (IsValidItemForThisIngredientDescription(item, ingredients[i]) && slot.item == null)
+				{
+					item.Stack -= ingredients[i].stack;
+					ingredients[i] = new BundleIngredientDescription(ingredients[i].index, ingredients[i].stack, ingredients[i].quality, completed: true);
+					ingredientDepositAnimation(slot, noteTextureName);
+					int index = ingredients[i].index;
+					if (index < 0)
+					{
+						index = JunimoNoteMenu.GetObjectOrCategoryIndex(index);
+					}
+					slot.item = new Object(index, ingredients[i].stack, isRecipe: false, -1, ingredients[i].quality);
+					Game1.playSound("newArtifact");
+					(Game1.getLocationFromName("CommunityCenter") as CommunityCenter).bundles.FieldDict[bundleIndex][i] = true;
+					slot.sourceRect.X = 512;
+					slot.sourceRect.Y = 244;
+					Game1.multiplayer.globalChatInfoMessage("BundleDonate", Game1.player.displayName, slot.item.DisplayName);
+					break;
+				}
+			}
+			if (item.Stack > 0)
+			{
+				return item;
+			}
+			return null;
 		}
 
 		public bool couldThisItemBeDeposited(Item item)
 		{
-			if (item is Object && !(item is Furniture))
+			if (!(item is Object) || item is Furniture)
 			{
-				Object o = item as Object;
-				for (int i = 0; i < ingredients.Count; i++)
-				{
-					if (!ingredients[i].completed && ingredients[i].index == (int)item.parentSheetIndex && (int)o.quality >= ingredients[i].quality)
-					{
-						return true;
-					}
-				}
 				return false;
+			}
+			for (int i = 0; i < ingredients.Count; i++)
+			{
+				if (!IsValidItemForThisIngredientDescription(item, ingredients[i]))
+				{
+					return true;
+				}
 			}
 			return false;
 		}

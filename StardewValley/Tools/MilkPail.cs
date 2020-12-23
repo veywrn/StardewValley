@@ -19,7 +19,10 @@ namespace StardewValley.Tools
 
 		public override Item getOne()
 		{
-			return new MilkPail();
+			MilkPail pail = new MilkPail();
+			CopyEnchantments(this, pail);
+			pail._GetOneFrom(this);
+			return pail;
 		}
 
 		protected override string loadDisplayName()

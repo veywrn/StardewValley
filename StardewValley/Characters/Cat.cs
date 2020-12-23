@@ -188,7 +188,7 @@ namespace StardewValley.Characters
 				{
 					return;
 				}
-				switch (base.FacingDirection)
+				switch (FacingDirection)
 				{
 				case 0:
 				case 2:
@@ -225,11 +225,11 @@ namespace StardewValley.Characters
 				}
 				if (base.CurrentBehavior == 56 && yJumpOffset != 0)
 				{
-					if (base.FacingDirection == 1)
+					if (FacingDirection == 1)
 					{
 						xVelocity = 4f;
 					}
-					else if (base.FacingDirection == 3)
+					else if (FacingDirection == 3)
 					{
 						xVelocity = -4f;
 					}
@@ -272,7 +272,7 @@ namespace StardewValley.Characters
 
 		public override void playContentSound()
 		{
-			if (Utility.isOnScreen(getTileLocationPoint(), 128, base.currentLocation))
+			if (Utility.isOnScreen(getTileLocationPoint(), 128, base.currentLocation) && !Game1.options.muteAnimalSounds)
 			{
 				Game1.playSound("cat");
 			}

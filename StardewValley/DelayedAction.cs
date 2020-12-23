@@ -228,20 +228,28 @@ namespace StardewValley
 
 		public void playSound()
 		{
-			if (stringData != null)
+			if (stringData == null)
 			{
-				if (location == null)
+				return;
+			}
+			if (location == null)
+			{
+				if (floatData != -1f)
 				{
-					Game1.playSound(stringData);
-				}
-				else if (floatData != -1f)
-				{
-					location.playSoundPitched(stringData, (int)floatData);
+					Game1.playSoundPitched(stringData, (int)floatData);
 				}
 				else
 				{
-					location.playSound(stringData);
+					Game1.playSound(stringData);
 				}
+			}
+			else if (floatData != -1f)
+			{
+				location.playSoundPitched(stringData, (int)floatData);
+			}
+			else
+			{
+				location.playSound(stringData);
 			}
 		}
 

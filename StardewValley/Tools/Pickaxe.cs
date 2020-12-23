@@ -1,4 +1,5 @@
 using Microsoft.Xna.Framework;
+using Netcode;
 using System;
 
 namespace StardewValley.Tools
@@ -15,18 +16,28 @@ namespace StardewValley.Tools
 
 		private int hitsToBoulder;
 
+		public NetInt additionalPower = new NetInt(0);
+
 		public Pickaxe()
 			: base("Pickaxe", 0, 105, 131, stackable: false)
 		{
 			base.UpgradeLevel = 0;
 		}
 
+		protected override void initNetFields()
+		{
+			base.initNetFields();
+			base.NetFields.AddFields(additionalPower);
+		}
+
 		public override Item getOne()
 		{
-			return new Pickaxe
-			{
-				UpgradeLevel = base.UpgradeLevel
-			};
+			Pickaxe result = new Pickaxe();
+			result.UpgradeLevel = base.UpgradeLevel;
+			result.additionalPower.Value = additionalPower.Value;
+			CopyEnchantments(this, result);
+			result._GetOneFrom(this);
+			return result;
 		}
 
 		protected override string loadDisplayName()
@@ -50,7 +61,10 @@ namespace StardewValley.Tools
 		{
 			base.DoFunction(location, x, y, power, who);
 			power = who.toolPower;
-			who.Stamina -= (float)(2 * (power + 1)) - (float)who.MiningLevel * 0.1f;
+			if (!isEfficient)
+			{
+				who.Stamina -= (float)(2 * (power + 1)) - (float)who.MiningLevel * 0.1f;
+			}
 			Utility.clampToTile(new Vector2(x, y));
 			int tileX = x / 64;
 			int tileY = y / 64;
@@ -98,7 +112,7 @@ namespace StardewValley.Tools
 					location.playSound("hammer");
 					if ((int)o.minutesUntilReady > 0)
 					{
-						int damage = Math.Max(1, (int)upgradeLevel + 1);
+						int damage = Math.Max(1, (int)upgradeLevel + 1) + additionalPower.Value;
 						o.minutesUntilReady.Value -= damage;
 						o.shakeTimer = 200;
 						if ((int)o.minutesUntilReady > 0)
@@ -107,7 +121,7 @@ namespace StardewValley.Tools
 							return;
 						}
 					}
-					if (o.ParentSheetIndex < 200 && !Game1.objectInformation.ContainsKey(o.ParentSheetIndex + 1))
+					if (o.ParentSheetIndex < 200 && !Game1.objectInformation.ContainsKey(o.ParentSheetIndex + 1) && (int)o.parentSheetIndex != 25)
 					{
 						Game1.multiplayer.broadcastSprites(location, new TemporaryAnimatedSprite(o.ParentSheetIndex + 1, 300f, 1, 2, new Vector2(x - x % 64, y - y % 64), flicker: true, o.flipped)
 						{
@@ -128,6 +142,7 @@ namespace StardewValley.Tools
 					location.OnStoneDestroyed(o.parentSheetIndex, tileX, tileY, getLastFarmerToUse());
 					if ((int)o.minutesUntilReady <= 0)
 					{
+						o.performRemoveAction(new Vector2(tileX, tileY), location);
 						location.Objects.Remove(new Vector2(tileX, tileY));
 						location.playSound("stoneCrack");
 						Game1.stats.RocksCrushed++;

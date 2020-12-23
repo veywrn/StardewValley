@@ -7,11 +7,13 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Xml.Serialization;
 
 namespace StardewValley.Minigames
 {
 	public class MineCart : IMinigame
 	{
+		[XmlType("MineCart.GameStates")]
 		public enum GameStates
 		{
 			Title,
@@ -4904,7 +4906,7 @@ namespace StardewValley.Minigames
 				{
 					button_pressed = true;
 				}
-				if (Game1.isOneOfTheseKeysDown(Game1.oldKBState, Game1.options.useToolButton) || Game1.isOneOfTheseKeysDown(Game1.oldKBState, Game1.options.actionButton) || Game1.input.GetKeyboardState().IsKeyDown(Keys.Space) || Game1.input.GetKeyboardState().IsKeyDown(Keys.LeftShift))
+				if (Game1.isOneOfTheseKeysDown(Game1.input.GetKeyboardState(), Game1.options.useToolButton) || Game1.isOneOfTheseKeysDown(Game1.input.GetKeyboardState(), Game1.options.actionButton) || Game1.input.GetKeyboardState().IsKeyDown(Keys.Space) || Game1.input.GetKeyboardState().IsKeyDown(Keys.LeftShift))
 				{
 					button_pressed = true;
 				}
@@ -5191,6 +5193,10 @@ namespace StardewValley.Minigames
 					}
 					else if (screenLeftBound <= Math.Max(minimum_left_bound, player.position.X - 96f))
 					{
+						if (!player.enabled)
+						{
+							Utility.CollectGarbage();
+						}
 						player.enabled = true;
 						respawnCounter -= delta_ms;
 					}
@@ -5431,6 +5437,16 @@ namespace StardewValley.Minigames
 						Game1.multiplayer.globalChatInfoMessage("JunimoKartHighScore", Game1.player.Name);
 					}
 					Game1.player.team.junimoKartScores.AddScore(Game1.player.name, score);
+					if (Game1.player.team.specialOrders != null)
+					{
+						foreach (SpecialOrder order in Game1.player.team.specialOrders)
+						{
+							if (order.onJKScoreAchieved != null)
+							{
+								order.onJKScoreAchieved(Game1.player, score);
+							}
+						}
+					}
 					RefreshHighScore();
 				}
 				return;
@@ -5802,6 +5818,7 @@ namespace StardewValley.Minigames
 				minecartLoop.Pause();
 			}
 			gameState = GameStates.Ingame;
+			Utility.CollectGarbage();
 			ResetState();
 			setUpTheme(currentTheme);
 			PlayLevelMusic();
@@ -6373,10 +6390,7 @@ namespace StardewValley.Minigames
 			}
 			Rectangle cached_scissor_rect = b.GraphicsDevice.ScissorRectangle;
 			Game1.isUsingBackToFrontSorting = true;
-			b.Begin(SpriteSortMode.BackToFront, BlendState.AlphaBlend, SamplerState.PointClamp, null, new RasterizerState
-			{
-				ScissorTestEnable = true
-			});
+			b.Begin(SpriteSortMode.BackToFront, BlendState.AlphaBlend, SamplerState.PointClamp, null, Utility.ScissorEnabled);
 			Rectangle scissor_rect = new Rectangle((int)upperLeft.X, (int)upperLeft.Y, (int)((float)screenWidth * pixelScale), (int)((float)screenHeight * pixelScale));
 			scissor_rect = Utility.ConstrainScissorRectToScreen(scissor_rect);
 			b.GraphicsDevice.ScissorRectangle = scissor_rect;
@@ -6551,7 +6565,8 @@ namespace StardewValley.Minigames
 				}
 				if (Game1.IsMultiplayer)
 				{
-					draw_position2 = new Vector2((float)screenWidth - Game1.dialogueFont.MeasureString(Game1.getTimeOfDayString(Game1.timeOfDay)).X / 4f - 4f, 4f);
+					string time_of_day_string = Game1.getTimeOfDayString(Game1.timeOfDay);
+					draw_position2 = new Vector2((float)screenWidth - Game1.dialogueFont.MeasureString(time_of_day_string).X / 4f - 4f, 4f);
 					Color timeColor = Color.White;
 					b.DrawString(Game1.dialogueFont, Game1.getTimeOfDayString(Game1.timeOfDay), TransformDraw(draw_position2), timeColor, 0f, Vector2.Zero, GetPixelScale() / 4f, SpriteEffects.None, 0.01f);
 					b.DrawString(Game1.dialogueFont, Game1.getTimeOfDayString(Game1.timeOfDay), TransformDraw(draw_position2 + new Vector2(1f, 1f)) + new Vector2(-3f, -3f), Color.Black, 0f, Vector2.Zero, GetPixelScale() / 4f, SpriteEffects.None, 0.02f);
@@ -6622,7 +6637,7 @@ namespace StardewValley.Minigames
 			}
 			if (!Game1.options.hardwareCursor && !Game1.options.gamepadControls)
 			{
-				b.Draw(Game1.mouseCursors, new Vector2(Game1.getOldMouseX(), Game1.getOldMouseY()), Game1.getSourceRectForStandardTileSheet(Game1.mouseCursors, Game1.options.gamepadControls ? 44 : 0, 16, 16), Color.White, 0f, Vector2.Zero, 4f + Game1.dialogueButtonScale / 150f, SpriteEffects.None, 0.0001f);
+				b.Draw(Game1.mouseCursors, new Vector2(Game1.getMouseX(), Game1.getMouseY()), Game1.getSourceRectForStandardTileSheet(Game1.mouseCursors, Game1.options.gamepadControls ? 44 : 0, 16, 16), Color.White, 0f, Vector2.Zero, 4f + Game1.dialogueButtonScale / 150f, SpriteEffects.None, 0.0001f);
 			}
 			b.End();
 			Game1.isUsingBackToFrontSorting = false;

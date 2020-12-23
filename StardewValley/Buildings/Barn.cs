@@ -71,7 +71,7 @@ namespace StardewValley.Buildings
 
 		public override bool doAction(Vector2 tileLocation, Farmer who)
 		{
-			if ((int)daysOfConstructionLeft <= 0 && (tileLocation.X == (float)((int)tileX + animalDoor.X) || tileLocation.X == (float)((int)tileX + animalDoor.X + 1)) && tileLocation.Y == (float)((int)tileY + animalDoor.Y))
+			if ((int)daysOfConstructionLeft <= 0 && (tileLocation.X == (float)((int)tileX + animalDoor.X) || tileLocation.X == (float)((int)tileX + animalDoor.X + 1)) && tileLocation.Y == (float)((int)tileY + animalDoor.Y) && Game1.didPlayerJustRightClick(ignoreNonMouseHeldInput: true))
 			{
 				if (!animalDoorOpen)
 				{

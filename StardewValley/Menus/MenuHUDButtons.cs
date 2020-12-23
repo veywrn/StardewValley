@@ -21,11 +21,11 @@ namespace StardewValley.Menus
 		private Rectangle sourceRect;
 
 		public MenuHUDButtons()
-			: base(Game1.viewport.Width / 2 + 384 + 64, Game1.viewport.Height - 84 - 16, 280, 84)
+			: base(Game1.uiViewport.Width / 2 + 384 + 64, Game1.uiViewport.Height - 84 - 16, 280, 84)
 		{
 			for (int i = 0; i < 7; i++)
 			{
-				buttons.Add(new ClickableComponent(new Rectangle(Game1.viewport.Width / 2 + 384 + 16 + i * 9 * 4, yPositionOnScreen + 20, 36, 44), string.Concat(i)));
+				buttons.Add(new ClickableComponent(new Rectangle(Game1.uiViewport.Width / 2 + 384 + 16 + i * 9 * 4, yPositionOnScreen + 20, 36, 44), string.Concat(i)));
 			}
 			position = new Vector2(xPositionOnScreen, yPositionOnScreen);
 			sourceRect = new Rectangle(221, 362, 70, 21);
@@ -70,11 +70,11 @@ namespace StardewValley.Menus
 
 		public override void gameWindowSizeChanged(Rectangle oldBounds, Rectangle newBounds)
 		{
-			xPositionOnScreen = Game1.viewport.Width / 2 + 384 + 64;
-			yPositionOnScreen = Game1.viewport.Height - 84 - 16;
+			xPositionOnScreen = Game1.uiViewport.Width / 2 + 384 + 64;
+			yPositionOnScreen = Game1.uiViewport.Height - 84 - 16;
 			for (int i = 0; i < 7; i++)
 			{
-				buttons[i].bounds = new Rectangle(Game1.viewport.Width / 2 + 384 + 16 + i * 9 * 4, yPositionOnScreen + 20, 36, 44);
+				buttons[i].bounds = new Rectangle(Game1.uiViewport.Width / 2 + 384 + 16 + i * 9 * 4, yPositionOnScreen + 20, 36, 44);
 			}
 			position = new Vector2(xPositionOnScreen, yPositionOnScreen);
 		}

@@ -34,7 +34,7 @@ namespace StardewValley.Menus
 		private List<ClickableTextureComponent> icons = new List<ClickableTextureComponent>();
 
 		public TutorialMenu()
-			: base(Game1.viewport.Width / 2 - (600 + IClickableMenu.borderWidth * 2) / 2, Game1.viewport.Height / 2 - (600 + IClickableMenu.borderWidth * 2) / 2 - 192, 600 + IClickableMenu.borderWidth * 2, 600 + IClickableMenu.borderWidth * 2 + 192)
+			: base(Game1.uiViewport.Width / 2 - (600 + IClickableMenu.borderWidth * 2) / 2, Game1.uiViewport.Height / 2 - (600 + IClickableMenu.borderWidth * 2) / 2 - 192, 600 + IClickableMenu.borderWidth * 2, 600 + IClickableMenu.borderWidth * 2 + 192)
 		{
 			int xPos = xPositionOnScreen + 64 + 42 - 2;
 			int yPos9 = yPositionOnScreen + IClickableMenu.borderWidth + IClickableMenu.spaceToClearTopBorder - 16;
