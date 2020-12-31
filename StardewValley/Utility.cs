@@ -2585,19 +2585,31 @@ namespace StardewValley
 			Game1.activeClickableMenu = new ItemGrabMenu(chest.items, reverseGrab: false, showReceivingMenu: true, InventoryMenu.highlightAllItems, chest.grabItemFromInventory, null, chest.grabItemFromChest, snapToBottom: false, canBeExitedWithKey: true, playRightClickSound: true, allowRightClick: true, showOrganizeButton: true, 1, null, -1, context);
 		}
 
-		public static bool CollectOrDrop(Item item)
+		public static bool CollectOrDrop(Item item, int direction)
 		{
 			if (item != null)
 			{
 				item = Game1.player.addItemToInventory(item);
 				if (item != null)
 				{
-					Game1.createItemDebris(item, Game1.player.getStandingPosition(), Game1.player.FacingDirection);
+					if (direction != -1)
+					{
+						Game1.createItemDebris(item, Game1.player.getStandingPosition(), direction);
+					}
+					else
+					{
+						Game1.createItemDebris(item, Game1.player.getStandingPosition(), Game1.player.FacingDirection);
+					}
 					return false;
 				}
 				return true;
 			}
 			return true;
+		}
+
+		public static bool CollectOrDrop(Item item)
+		{
+			return CollectOrDrop(item, -1);
 		}
 
 		public static void perpareDayForStardewCelebration(int finalFarmerScore)
@@ -6932,6 +6944,57 @@ namespace StardewValley
 			return list;
 		}
 
+		public static void FixChildNameCollisions()
+		{
+			List<NPC> all_characters = new List<NPC>();
+			getAllCharacters(all_characters);
+			bool collision_found2 = false;
+			Dictionary<string, string> dispositions = Game1.content.Load<Dictionary<string, string>>("Data\\NPCDispositions");
+			foreach (NPC character in all_characters)
+			{
+				if (character is Child)
+				{
+					string old_character_name = character.Name;
+					string character_name = character.Name;
+					do
+					{
+						collision_found2 = false;
+						if (dispositions.ContainsKey(character_name))
+						{
+							character_name += " ";
+							collision_found2 = true;
+						}
+						else
+						{
+							foreach (NPC i in all_characters)
+							{
+								if (i != character && i.name.Equals(character_name))
+								{
+									character_name += " ";
+									collision_found2 = true;
+								}
+							}
+						}
+					}
+					while (collision_found2);
+					if (character_name != character.Name)
+					{
+						character.Name = character_name;
+						character.displayName = null;
+						_ = character.displayName;
+						foreach (Farmer farmer in Game1.getAllFarmers())
+						{
+							if (farmer.friendshipData != null && farmer.friendshipData.ContainsKey(old_character_name))
+							{
+								farmer.friendshipData[character_name] = farmer.friendshipData[old_character_name];
+								farmer.friendshipData.Remove(old_character_name);
+							}
+						}
+					}
+				}
+			}
+		}
+
 		public static List<Item> getShopStock(bool Pierres)
 		{
 			List<Item> stock = new List<Item>();
@@ -8411,7 +8474,7 @@ namespace StardewValley
 			Dictionary<string, string> giftTastes = Game1.content.Load<Dictionary<string, string>>("Data\\NPCDispositions");
 			int index = r.Next(giftTastes.Count);
 			NPC i = Game1.getCharacterFromName(giftTastes.ElementAt(index).Key);
-			while (giftTastes.ElementAt(index).Key.Equals("Wizard") || giftTastes.ElementAt(index).Key.Equals("Krobus") || giftTastes.ElementAt(index).Key.Equals("Sandy") || giftTastes.ElementAt(index).Key.Equals("Dwarf") || giftTastes.ElementAt(index).Key.Equals("Marlon") || i == null)
+			while (giftTastes.ElementAt(index).Key.Equals("Wizard") || giftTastes.ElementAt(index).Key.Equals("Krobus") || giftTastes.ElementAt(index).Key.Equals("Sandy") || giftTastes.ElementAt(index).Key.Equals("Dwarf") || giftTastes.ElementAt(index).Key.Equals("Marlon") || (giftTastes.ElementAt(index).Key.Equals("Leo") && !Game1.MasterPlayer.mailReceived.Contains("addedParrotBoy")) || i == null)
 			{
 				index = r.Next(giftTastes.Count);
 				i = Game1.getCharacterFromName(giftTastes.ElementAt(index).Key);

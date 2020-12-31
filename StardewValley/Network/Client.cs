@@ -80,7 +80,7 @@ namespace StardewValley.Network
 
 		public virtual void connect()
 		{
-			Console.WriteLine("Starting client. Protocol version: 1.5");
+			Console.WriteLine("Starting client. Protocol version: 1.5.1");
 			connectionMessage = null;
 			if (!connectionStarted)
 			{

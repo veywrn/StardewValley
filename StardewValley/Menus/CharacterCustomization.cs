@@ -2695,6 +2695,10 @@ namespace StardewValley.Menus
 			{
 				return false;
 			}
+			if (advancedOptionsButton != null && backButton != null && a == advancedOptionsButton && b == backButton)
+			{
+				return false;
+			}
 			if (source == Source.Wizard)
 			{
 				if (a == favThingBoxCC && b.myID >= 522 && b.myID <= 530)

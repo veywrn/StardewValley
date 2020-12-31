@@ -939,8 +939,13 @@ namespace StardewValley.Menus
 			}
 			if (subMenu != null)
 			{
+				bool should_ignore_back_button_press = false;
+				if (Game1.options.SnappyMenus && subMenu.currentlySnappedComponent != null && subMenu.currentlySnappedComponent.myID != 81114)
+				{
+					should_ignore_back_button_press = true;
+				}
 				bool handled_submenu_close = false;
-				if (subMenu.readyToClose() && backButton.containsPoint(x, y))
+				if (subMenu.readyToClose() && backButton.containsPoint(x, y) && !should_ignore_back_button_press)
 				{
 					backButtonPressed();
 					handled_submenu_close = true;
@@ -949,7 +954,7 @@ namespace StardewValley.Menus
 				{
 					subMenu.receiveLeftClick(x, y);
 				}
-				if (handled_submenu_close || subMenu == null || !subMenu.readyToClose() || (!(subMenu is TooManyFarmsMenu) && !(subMenu is LanguageSelectionMenu) && (backButton == null || !backButton.containsPoint(x, y))))
+				if (handled_submenu_close || subMenu == null || !subMenu.readyToClose() || (!(subMenu is TooManyFarmsMenu) && !(subMenu is LanguageSelectionMenu) && (backButton == null || !backButton.containsPoint(x, y))) || should_ignore_back_button_press)
 				{
 					return;
 				}

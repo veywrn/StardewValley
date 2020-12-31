@@ -7,6 +7,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "StardewValley", "StardewVal
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "StardewValley.GameData", "StardewValley.GameData\StardewValley.GameData.csproj", "{37282048-0EAF-4DE3-A7C8-0DEF3FECB704}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Netcode", "Netcode\Netcode.csproj", "{4EC221F1-FC32-4025-9A8B-A746B780A098}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x86 = Debug|x86
@@ -21,6 +23,10 @@ Global
 		{37282048-0EAF-4DE3-A7C8-0DEF3FECB704}.Debug|x86.Build.0 = Debug|x86
 		{37282048-0EAF-4DE3-A7C8-0DEF3FECB704}.Release|x86.ActiveCfg = Release|x86
 		{37282048-0EAF-4DE3-A7C8-0DEF3FECB704}.Release|x86.Build.0 = Release|x86
+		{4EC221F1-FC32-4025-9A8B-A746B780A098}.Debug|x86.ActiveCfg = Debug|x86
+		{4EC221F1-FC32-4025-9A8B-A746B780A098}.Debug|x86.Build.0 = Debug|x86
+		{4EC221F1-FC32-4025-9A8B-A746B780A098}.Release|x86.ActiveCfg = Release|x86
+		{4EC221F1-FC32-4025-9A8B-A746B780A098}.Release|x86.Build.0 = Release|x86
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -1270,19 +1270,19 @@ namespace StardewValley.Menus
 		{
 			if (!Game1.player.IsEquippedItem(heldItem))
 			{
-				Utility.CollectOrDrop(heldItem);
+				Utility.CollectOrDrop(heldItem, 2);
 			}
 			if (!Game1.player.IsEquippedItem(leftIngredientSpot.item))
 			{
-				Utility.CollectOrDrop(leftIngredientSpot.item);
+				Utility.CollectOrDrop(leftIngredientSpot.item, 2);
 			}
 			if (!Game1.player.IsEquippedItem(rightIngredientSpot.item))
 			{
-				Utility.CollectOrDrop(rightIngredientSpot.item);
+				Utility.CollectOrDrop(rightIngredientSpot.item, 2);
 			}
 			if (!Game1.player.IsEquippedItem(startTailoringButton.item))
 			{
-				Utility.CollectOrDrop(startTailoringButton.item);
+				Utility.CollectOrDrop(startTailoringButton.item, 2);
 			}
 			heldItem = null;
 			leftIngredientSpot.item = null;

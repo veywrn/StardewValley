@@ -1,6 +1,7 @@
 using StardewValley.SDKs;
 using System;
 using System.IO;
+using System.Text;
 
 namespace StardewValley
 {
@@ -119,7 +120,51 @@ namespace StardewValley
 			Game1.gameMode = 11;
 			handlingException = true;
 			Exception e = (Exception)args.ExceptionObject;
-			Game1.errorMessage = "Message: " + e.Message + Environment.NewLine + "InnerException: " + e.InnerException + Environment.NewLine + "Stack Trace: " + e.StackTrace;
+			StringBuilder sb = new StringBuilder();
+			sb.AppendLine("Message: " + e.Message);
+			sb.AppendLine("InnerException: " + e.InnerException);
+			sb.AppendLine("Stack Trace: " + e.StackTrace);
+			sb.AppendLine("");
+			sb.AppendLine("Game Version: " + Game1.version);
+			try
+			{
+				if (sdk != null)
+				{
+					sb.AppendLine("SDK Helper: " + sdk.GetType().Name);
+				}
+				sb.AppendLine("Game Language: " + LocalizedContentManager.CurrentLanguageCode.ToString());
+				sb.AppendLine("GPU: " + Game1.graphics.GraphicsDevice.Adapter.Description);
+				sb.AppendLine("OS: " + Environment.OSVersion.Platform + " " + Environment.OSVersion.VersionString);
+				if (GameRunner.instance != null && GameRunner.instance.GetType().FullName.StartsWith("StardewModdingAPI."))
+				{
+					sb.AppendLine("Running SMAPI");
+				}
+				if (Game1.IsMultiplayer)
+				{
+					if (LocalMultiplayer.IsLocalMultiplayer())
+					{
+						sb.AppendLine("Multiplayer (Split Screen)");
+					}
+					else if (Game1.IsMasterGame)
+					{
+						sb.AppendLine("Multiplayer (Host)");
+					}
+					else
+					{
+						sb.AppendLine("Multiplayer (Client)");
+					}
+				}
+				if (Game1.options.gamepadControls)
+				{
+					sb.AppendLine("Playing on Controller");
+				}
+				sb.AppendLine("In-game Date: " + Game1.currentSeason + " " + Game1.dayOfMonth + " Y" + Game1.year + " Time of Day: " + Game1.timeOfDay);
+				sb.AppendLine("Game Location: " + ((Game1.currentLocation == null) ? "null" : Game1.currentLocation.NameOrUniqueName));
+			}
+			catch (Exception)
+			{
+			}
+			Game1.errorMessage = sb.ToString();
 			long targetTime = DateTime.Now.Ticks / 10000 + 25000;
 			if (!hasTriedToPrintLog)
 			{

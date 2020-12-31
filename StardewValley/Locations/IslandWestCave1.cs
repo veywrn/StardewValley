@@ -104,6 +104,9 @@ namespace StardewValley.Locations
 		public int currentPlaybackCrystalSequenceIndex;
 
 		[XmlIgnore]
+		public NetInt timesFailed = new NetInt(0);
+
+		[XmlIgnore]
 		public NetList<int, NetInt> currentCrystalSequence = new NetList<int, NetInt>();
 
 		[XmlIgnore]
@@ -116,7 +119,7 @@ namespace StardewValley.Locations
 		protected override void initNetFields()
 		{
 			base.initNetFields();
-			base.NetFields.AddFields(netPhase, isActivated, currentDifficulty, currentCrystalSequenceIndex, currentCrystalSequence, enterValueEvent.NetFields, netPhaseTimer, completed);
+			base.NetFields.AddFields(netPhase, isActivated, currentDifficulty, currentCrystalSequenceIndex, currentCrystalSequence, enterValueEvent.NetFields, netPhaseTimer, completed, timesFailed);
 			enterValueEvent.onEvent += enterValue;
 			isActivated.fieldChangeVisibleEvent += onActivationChanged;
 		}
@@ -247,6 +250,7 @@ namespace StardewValley.Locations
 				{
 					playSound("cancel");
 					resetPuzzle();
+					timesFailed.Value++;
 					return;
 				}
 				currentCrystalSequenceIndex.Value++;
@@ -299,14 +303,13 @@ namespace StardewValley.Locations
 					{
 					case 0:
 					case 4:
-					{
 						currentPlaybackCrystalSequenceIndex = 0;
 						if (Game1.IsMasterGame)
 						{
 							currentDifficulty.Value++;
 							currentCrystalSequence.Clear();
 							currentCrystalSequenceIndex.Value = 0;
-							if ((int)currentDifficulty > 7)
+							if ((int)currentDifficulty > (((int)timesFailed < 8) ? 7 : 6))
 							{
 								netPhaseTimer.Value = 10f;
 								netPhase.Value = 5;
@@ -318,14 +321,8 @@ namespace StardewValley.Locations
 							}
 							netPhase.Value = 1;
 						}
-						int betweenNotesDivisor = currentDifficulty;
-						if ((int)currentDifficulty > 5)
-						{
-							betweenNotesDivisor--;
-						}
-						betweenNotesTimer = 2000f / (float)betweenNotesDivisor;
+						betweenNotesTimer = 600f;
 						break;
-					}
 					case 5:
 						if (Game1.currentLocation == this)
 						{
@@ -366,8 +363,29 @@ namespace StardewValley.Locations
 				crystals[which].activate();
 			}
 			currentPlaybackCrystalSequenceIndex++;
-			betweenNotesTimer = 1500f / (float)(int)currentDifficulty;
-			if ((int)currentDifficulty > 7)
+			int betweenNotesDivisor = currentDifficulty;
+			if ((int)currentDifficulty > 5)
+			{
+				betweenNotesDivisor--;
+				if ((int)timesFailed >= 4)
+				{
+					betweenNotesDivisor--;
+				}
+				if ((int)timesFailed >= 6)
+				{
+					betweenNotesDivisor--;
+				}
+				if ((int)timesFailed >= 8)
+				{
+					betweenNotesDivisor = 3;
+				}
+			}
+			else if ((int)timesFailed >= 4 && (int)currentDifficulty > 4)
+			{
+				betweenNotesDivisor--;
+			}
+			betweenNotesTimer = 1500f / (float)betweenNotesDivisor;
+			if ((int)currentDifficulty > (((int)timesFailed < 8) ? 7 : 6))
 			{
 				betweenNotesTimer = 100f;
 			}
@@ -376,7 +394,7 @@ namespace StardewValley.Locations
 				return;
 			}
 			currentPlaybackCrystalSequenceIndex = -1;
-			if ((int)currentDifficulty > 7)
+			if ((int)currentDifficulty > (((int)timesFailed < 8) ? 7 : 6))
 			{
 				if (Game1.IsMasterGame)
 				{

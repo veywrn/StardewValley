@@ -373,6 +373,20 @@ namespace StardewValley.Locations
 			return base.isCollidingPosition(position, viewport, isFarmer, damagesFarmer, glider, character);
 		}
 
+		public override bool isTilePlaceable(Vector2 tile_location, Item item = null)
+		{
+			Point non_tile_position = Utility.Vector2ToPoint((tile_location + new Vector2(0.5f, 0.5f)) * 64f);
+			if ((bool)landslide && landSlideRect.Contains(non_tile_position))
+			{
+				return false;
+			}
+			if ((bool)railroadAreaBlocked && railroadBlockRect.Contains(non_tile_position))
+			{
+				return false;
+			}
+			return base.isTilePlaceable(tile_location, item);
+		}
+
 		public override void draw(SpriteBatch spriteBatch)
 		{
 			base.draw(spriteBatch);

@@ -276,6 +276,11 @@ namespace StardewValley.Characters
 			}
 		}
 
+		protected override string translateName(string name)
+		{
+			return name.TrimEnd();
+		}
+
 		public override void dayUpdate(int dayOfMonth)
 		{
 			resetForNewDay(dayOfMonth);

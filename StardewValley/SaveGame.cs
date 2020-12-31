@@ -59,6 +59,7 @@ namespace StardewValley
 			Level9PuddingFishingRecipe3,
 			OstrichIncubatorFragility,
 			FixBotchedBundleData,
+			LeoChildrenFix,
 			MAX
 		}
 
@@ -1266,7 +1267,7 @@ namespace StardewValley
 				Game1.doMorningStuff();
 			}
 			int current_save_fix = (int)Game1.lastAppliedSaveFix;
-			while (current_save_fix < 31)
+			while (current_save_fix < 32)
 			{
 				if (Enum.IsDefined(typeof(SaveFixes), current_save_fix))
 				{

@@ -48,6 +48,8 @@ namespace StardewValley.Menus
 
 		public const int WINDOW_HEIGHT = 500;
 
+		public bool initialMonsterSpawnAtValue;
+
 		private int optionsSlotHeld = -1;
 
 		public AdvancedGameOptions()
@@ -143,9 +145,21 @@ namespace StardewValley.Menus
 			{
 				Game1.game1.SetNewGameOption("MineChests", val);
 			}, new KeyValuePair<string, Game1.MineChestType>(Game1.content.LoadString("Strings\\UI:AGO_CCB_Normal"), Game1.MineChestType.Default), new KeyValuePair<string, Game1.MineChestType>(Game1.content.LoadString("Strings\\UI:AGO_CCB_Remixed"), Game1.MineChestType.Remixed));
-			AddCheckbox(Game1.content.LoadString("Strings\\UI:AGO_FarmMonsters"), Game1.content.LoadString("Strings\\UI:AGO_FarmMonsters_Tooltip"), () => Game1.spawnMonstersAtNight, delegate(bool val)
+			AddCheckbox(Game1.content.LoadString("Strings\\UI:AGO_FarmMonsters"), Game1.content.LoadString("Strings\\UI:AGO_FarmMonsters_Tooltip"), delegate
 			{
-				Game1.spawnMonstersAtNight = val;
+				bool result2 = Game1.spawnMonstersAtNight;
+				if (Game1.game1.newGameSetupOptions.ContainsKey("SpawnMonstersAtNight"))
+				{
+					result2 = Game1.game1.GetNewGameOption<bool>("SpawnMonstersAtNight");
+				}
+				initialMonsterSpawnAtValue = result2;
+				return result2;
+			}, delegate(bool val)
+			{
+				if (initialMonsterSpawnAtValue != val)
+				{
+					Game1.game1.SetNewGameOption("SpawnMonstersAtNight", val);
+				}
 			});
 			AddDropdown(Game1.content.LoadString("Strings\\UI:Character_Difficulty"), Game1.content.LoadString("Strings\\UI:AGO_ProfitMargin_Tooltip"), () => Game1.player.difficultyModifier, delegate(float val)
 			{

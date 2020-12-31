@@ -2809,7 +2809,10 @@ namespace StardewValley
 				extraDrops2 = monster.getExtraDropItems();
 				for (int i = 0; i < extraDrops2.Count; i++)
 				{
-					debris.Add(monster.ModifyMonsterLoot(new Debris(extraDrops2[i], new Vector2(x, y), playerPosition)));
+					Item tmp = extraDrops2[i].getOne();
+					tmp.Stack = extraDrops2[i].Stack;
+					tmp.HasBeenInInventory = false;
+					debris.Add(monster.ModifyMonsterLoot(new Debris(tmp, new Vector2(x, y), playerPosition)));
 				}
 			}
 			if (HasUnlockedAreaSecretNotes(Game1.player) && Game1.random.NextDouble() < 0.033)

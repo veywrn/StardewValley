@@ -388,7 +388,7 @@ namespace StardewValley.Locations
 					who.Halt();
 					Game1.globalFadeToBlack(delegate
 					{
-						who.ActiveObject = null;
+						who.reduceActiveItemByOne();
 						startEvent(new Event(Game1.content.LoadString("Strings\\Locations:IslandSecret_Event_BirdieFinished"), -666777));
 					});
 					who.mailReceived.Add("birdieQuestFinished");

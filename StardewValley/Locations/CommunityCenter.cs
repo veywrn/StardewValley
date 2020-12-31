@@ -795,7 +795,7 @@ namespace StardewValley.Locations
 					{
 						map.GetLayer("Buildings").Tiles[x, y] = new StaticTile(map.GetLayer("Buildings"), map.TileSheets[0], BlendMode.Alpha, refurbishedMap.GetLayer("Buildings").Tiles[x, y].TileIndex);
 						adjustMapLightPropertiesForLamp(refurbishedMap.GetLayer("Buildings").Tiles[x, y].TileIndex, x, y, "Buildings");
-						if (Game1.player.getTileX() == x && Game1.player.getTileY() == y)
+						if (Game1.player.currentLocation == this && Game1.player.getTileX() == x && Game1.player.getTileY() == y)
 						{
 							Game1.player.Position = new Vector2(2080f, 576f);
 						}

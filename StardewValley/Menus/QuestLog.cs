@@ -583,7 +583,7 @@ namespace StardewValley.Menus
 				if (_shownQuest.IsTimedQuest() && _shownQuest.GetDaysLeft() > 0)
 				{
 					Utility.drawWithShadow(b, Game1.mouseCursors, new Vector2(xPositionOnScreen + 32, yPositionOnScreen + 48 - 8), new Rectangle(410, 501, 9, 9), Color.White, 0f, Vector2.Zero, 4f, flipped: false, 0.99f);
-					Utility.drawTextWithShadow(b, Game1.parseText((pages[currentPage][questPage].GetDaysLeft() > 1) ? Game1.content.LoadString("Strings\\StringsFromCSFiles:QuestLog.cs.11374", pages[currentPage][questPage].GetDaysLeft()) : (Game1.IsEnglish() ? "Final Day" : Game1.content.LoadString("Strings\\StringsFromCSFiles:QuestLog.cs.11375", pages[currentPage][questPage].GetDaysLeft())), Game1.dialogueFont, base.width - 128), Game1.dialogueFont, new Vector2(xPositionOnScreen + 80, yPositionOnScreen + 48 - 8), Game1.textColor);
+					Utility.drawTextWithShadow(b, Game1.parseText((pages[currentPage][questPage].GetDaysLeft() > 1) ? Game1.content.LoadString("Strings\\StringsFromCSFiles:QuestLog.cs.11374", pages[currentPage][questPage].GetDaysLeft()) : Game1.content.LoadString("Strings\\StringsFromCSFiles:Quest_FinalDay"), Game1.dialogueFont, base.width - 128), Game1.dialogueFont, new Vector2(xPositionOnScreen + 80, yPositionOnScreen + 48 - 8), Game1.textColor);
 				}
 				string description = Game1.parseText(_shownQuest.GetDescription(), Game1.dialogueFont, base.width - 128);
 				Rectangle cached_scissor_rect = b.GraphicsDevice.ScissorRectangle;

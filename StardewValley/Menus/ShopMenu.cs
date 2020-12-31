@@ -1252,7 +1252,7 @@ namespace StardewValley.Menus
 				{
 					heldItem = item.GetSalableInstance();
 					heldItem.Stack = numberToBuy;
-					if (storeContext == "QiGemShop")
+					if (storeContext == "QiGemShop" || storeContext == "StardewFair")
 					{
 						heldItem.Stack *= item.Stack;
 					}

@@ -80,7 +80,7 @@ namespace StardewValley.Menus
 					if (Game1.player.friendshipData.ContainsKey(l.Name) && l is Child)
 					{
 						kidsNames.Add(l.Name);
-						npcNames[l.Name] = l.Name;
+						npcNames[l.Name] = l.Name.Trim();
 					}
 					else if (Game1.player.friendshipData.ContainsKey(l.Name))
 					{
