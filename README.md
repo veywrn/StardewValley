@@ -19,7 +19,6 @@ Community edition. Different steps may be necessary for other environments.
     - GalaxyCSharp.dll
     - GalaxyCSharpGlue.dll
     - Lidgren.Network.dll
-    - Netcode.dll
     - steam_api.dll
     - Steamworks.NET.dll
     - xTile.dll
