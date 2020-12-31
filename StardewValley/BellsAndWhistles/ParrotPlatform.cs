@@ -369,7 +369,7 @@ namespace StardewValley.BellsAndWhistles
 				}
 			}
 			responses.Add(new Response("Cancel", Game1.content.LoadString("Strings\\Locations:MineCart_Destination_Cancel")));
-			Game1.currentLocation.createQuestionDialogue("Take Parrot Express?", responses.ToArray(), "ParrotPlatform");
+			Game1.currentLocation.createQuestionDialogue(Game1.content.LoadString("Strings\\UI:ParrotPlatform_Question"), responses.ToArray(), "ParrotPlatform");
 			activePlatform = this;
 		}
 

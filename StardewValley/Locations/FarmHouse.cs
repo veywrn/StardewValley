@@ -217,7 +217,7 @@ namespace StardewValley.Locations
 					{
 						return new Point(warp.TargetX, warp.TargetY);
 					}
-					if (warp.X == 64 && warp.Y == 15)
+					if (warp.TargetX == 64 && warp.TargetY == 15)
 					{
 						return Game1.getFarm().GetMainFarmHouseEntry();
 					}
@@ -354,6 +354,15 @@ namespace StardewValley.Locations
 		public Point GetChildBedSpot(int index)
 		{
 			return GetChildBed(index)?.GetBedSpot() ?? Point.Zero;
+		}
+
+		public override bool isTilePlaceable(Vector2 v, Item item = null)
+		{
+			if (isTileOnMap(v) && getTileIndexAt((int)v.X, (int)v.Y, "Back") == 0 && getTileSheetIDAt((int)v.X, (int)v.Y, "Back") == "indoor")
+			{
+				return false;
+			}
+			return base.isTilePlaceable(v, item);
 		}
 
 		public Point getRandomOpenPointInHouse(Random r, int buffer = 0, int tries = 30)
@@ -603,12 +612,12 @@ namespace StardewValley.Locations
 					if (spouse_farmer != null && spouse_farmer == owner)
 					{
 						NPC spouse = npc;
-						if (spouse != null && Game1.timeOfDay < 1500 && Game1.random.NextDouble() < 0.0006 && spouse.controller == null && spouse.Schedule == null && !spouse.getTileLocation().Equals(Utility.PointToVector2(getSpouseBedSpot(Game1.player.spouse))) && base.furniture.Count > 0)
+						if (spouse != null && Game1.timeOfDay < 1500 && Game1.random.NextDouble() < 0.0006 && spouse.controller == null && spouse.Schedule == null && !spouse.getTileLocation().Equals(Utility.PointToVector2(getSpouseBedSpot(Game1.player.spouse))) && furniture.Count > 0)
 						{
-							Furniture furniture = base.furniture[Game1.random.Next(base.furniture.Count)];
-							Microsoft.Xna.Framework.Rectangle b = furniture.boundingBox;
+							Furniture f = furniture[Game1.random.Next(furniture.Count)];
+							Microsoft.Xna.Framework.Rectangle b = f.boundingBox;
 							Vector2 possibleLocation = new Vector2(b.X / 64, b.Y / 64);
-							if (furniture.furniture_type.Value != 15)
+							if (f.furniture_type.Value != 15 && f.furniture_type.Value != 12)
 							{
 								int tries = 0;
 								int facingDirection = -3;

@@ -4750,6 +4750,7 @@ namespace StardewValley
 			{
 				(item as Object).reloadSprite();
 			}
+			bool showHUDNotification = true;
 			if (Utility.IsNormalObjectAtParentSheetIndex(item, 73))
 			{
 				success = true;
@@ -4825,6 +4826,7 @@ namespace StardewValley
 							base.currentLocation.debris.Add(new Debris(amount, new Vector2(Game1.player.getStandingX(), Game1.player.getStandingY()), Color.Lime, 1f, this));
 							Game1.playSound("healSound");
 							removeItemFromInventory(item);
+							showHUDNotification = false;
 						}
 						if (Utility.IsNormalObjectAtParentSheetIndex(item, 102))
 						{
@@ -4878,7 +4880,7 @@ namespace StardewValley
 							break;
 						}
 					}
-					if (Game1.activeClickableMenu == null || !(Game1.activeClickableMenu is ItemGrabMenu))
+					if (showHUDNotification && (Game1.activeClickableMenu == null || !(Game1.activeClickableMenu is ItemGrabMenu)))
 					{
 						Game1.addHUDMessage(new HUDMessage(name, Math.Max(1, item.Stack), add: true, fontColor, item));
 					}
@@ -5212,7 +5214,7 @@ namespace StardewValley
 			}
 			GetHairStyleMetadataFile();
 			allHairStyleIndices = new List<int>();
-			int highest_hair = FarmerRenderer.hairStylesTexture.Height / 96 * 8 - 1;
+			int highest_hair = FarmerRenderer.hairStylesTexture.Height / 96 * 8;
 			for (int i = 0; i < highest_hair; i++)
 			{
 				allHairStyleIndices.Add(i);
@@ -7290,7 +7292,7 @@ namespace StardewValley
 					isSitting.Value = false;
 				}
 			}
-			if ((bool)isInBed && Game1.IsMultiplayer)
+			if ((bool)isInBed && Game1.IsMultiplayer && Game1.shouldTimePass())
 			{
 				regenTimer -= time.ElapsedGameTime.Milliseconds;
 				if (regenTimer < 0)

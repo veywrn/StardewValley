@@ -5,6 +5,7 @@ using StardewValley.BellsAndWhistles;
 using StardewValley.Characters;
 using StardewValley.Menus;
 using System;
+using System.Collections.Generic;
 
 namespace StardewValley.Events
 {
@@ -112,18 +113,26 @@ namespace StardewValley.Events
 					chance2 += (Game1.player.hasDarkSkin() ? 0.5 : 0.0);
 					bool isDarkSkinned = new Random((int)Game1.uniqueIDForThisGame + (int)Game1.stats.DaysPlayed).NextDouble() < chance2;
 					string newBabyName = babyName;
+					Dictionary<string, string> dispositions = Game1.content.Load<Dictionary<string, string>>("Data\\NPCDispositions");
 					DisposableList<NPC> all_characters = Utility.getAllCharacters();
 					bool collision_found2 = false;
 					do
 					{
 						collision_found2 = false;
-						foreach (NPC item in all_characters)
+						if (dispositions.ContainsKey(newBabyName))
 						{
-							if (item.name.Equals(newBabyName))
+							newBabyName += " ";
+							collision_found2 = true;
+						}
+						else
+						{
+							foreach (NPC item in all_characters)
 							{
-								newBabyName += " ";
-								collision_found2 = true;
-								break;
+								if (item.name.Equals(newBabyName))
+								{
+									newBabyName += " ";
+									collision_found2 = true;
+								}
 							}
 						}
 					}

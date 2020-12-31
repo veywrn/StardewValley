@@ -682,9 +682,9 @@ namespace StardewValley.Menus
 						{
 							if (destroyed.indoors.Value != null && destroyed.indoors.Value is Cabin)
 							{
-								foreach (Farmer allFarmer in Game1.getAllFarmers())
+								foreach (Farmer current in Game1.getAllFarmers())
 								{
-									if (allFarmer.currentLocation.Name == (destroyed.indoors.Value as Cabin).GetCellarName())
+									if (current.currentLocation != null && current.currentLocation.Name == (destroyed.indoors.Value as Cabin).GetCellarName())
 									{
 										Game1.addHUDMessage(new HUDMessage(Game1.content.LoadString("Strings\\UI:Carpenter_CantDemolish_PlayerHere"), Color.Red, 3500f));
 										return;

@@ -63,7 +63,7 @@ namespace StardewValley.Tools
 
 		public override Item getOne()
 		{
-			Slingshot slingshot = new Slingshot();
+			Slingshot slingshot = new Slingshot(base.InitialParentTileIndex);
 			CopyEnchantments(this, slingshot);
 			slingshot._GetOneFrom(this);
 			return slingshot;

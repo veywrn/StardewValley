@@ -503,7 +503,7 @@ namespace StardewValley.Menus
 			{
 				return false;
 			}
-			if (farm.ProtocolVersion != "1.5")
+			if (farm.ProtocolVersion != "1.5.1")
 			{
 				return false;
 			}
@@ -515,7 +515,7 @@ namespace StardewValley.Menus
 			try
 			{
 				string protocolVersion = Program.sdk.Networking.GetLobbyData(lobby, "protocolVersion");
-				if (!(protocolVersion != "1.5"))
+				if (!(protocolVersion != "1.5.1"))
 				{
 					Console.WriteLine("Receiving friend lobby data...");
 					Console.WriteLine("Owner: " + Program.sdk.Networking.GetLobbyOwnerName(lobby));

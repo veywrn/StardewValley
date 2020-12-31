@@ -10006,7 +10006,7 @@ namespace StardewValley
 					}
 					else
 					{
-						Game1.activeClickableMenu = new ShopMenu(festivalShops["starTokenShop"], 1);
+						Game1.activeClickableMenu = new ShopMenu(festivalShops["starTokenShop"], 1, null, null, null, "StardewFair");
 					}
 				}
 				break;

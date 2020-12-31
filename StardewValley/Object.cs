@@ -1616,9 +1616,12 @@ namespace StardewValley
 					readyForHarvest.Value = true;
 					break;
 				case 272:
-					foreach (KeyValuePair<long, FarmAnimal> pair in (location as AnimalHouse).animals.Pairs)
+					if (location is AnimalHouse)
 					{
-						pair.Value.pet(Game1.player, is_auto_pet: true);
+						foreach (KeyValuePair<long, FarmAnimal> pair in (location as AnimalHouse).animals.Pairs)
+						{
+							pair.Value.pet(Game1.player, is_auto_pet: true);
+						}
 					}
 					break;
 				case 165:

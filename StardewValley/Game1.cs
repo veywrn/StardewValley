@@ -164,7 +164,7 @@ namespace StardewValley
 
 		public const byte errorLogMode = 11;
 
-		public static readonly string version = "1.5";
+		public static readonly string version = "1.5.1";
 
 		public const float keyPollingThreshold = 650f;
 
@@ -3259,6 +3259,9 @@ namespace StardewValley
 				netWorldState.Value.SetBundleData(new_dictionary);
 				break;
 			}
+			case SaveGame.SaveFixes.LeoChildrenFix:
+				Utility.FixChildNameCollisions();
+				break;
 			}
 		}
 
@@ -3629,7 +3632,7 @@ namespace StardewValley
 			currentCursorTile = Vector2.Zero;
 			if (!loadedGame)
 			{
-				lastAppliedSaveFix = SaveGame.SaveFixes.FixBotchedBundleData;
+				lastAppliedSaveFix = SaveGame.SaveFixes.LeoChildrenFix;
 			}
 			resetVariables();
 			chanceToRainTomorrow = 0.0;
@@ -3827,6 +3830,10 @@ namespace StardewValley
 					}
 				}
 				netWorldState.Value.ShuffleMineChests = game1.GetNewGameOption<MineChestType>("MineChests");
+				if (game1.newGameSetupOptions.ContainsKey("SpawnMonstersAtNight"))
+				{
+					spawnMonstersAtNight = game1.GetNewGameOption<bool>("SpawnMonstersAtNight");
+				}
 			}
 			player.ConvertClothingOverrideToClothesItems();
 			player.addQuest(9);
@@ -7784,7 +7791,7 @@ namespace StardewValley
 				foreach (string s in NPCDispositions.Keys)
 				{
 					bool found = false;
-					if ((!(s == "Kent") || player.friendshipData.ContainsKey(s)) && (!(s == "Leo") || player.friendshipData.ContainsKey(s)))
+					if ((!(s == "Kent") || year > 1) && (!(s == "Leo") || MasterPlayer.hasOrWillReceiveMail("addedParrotBoy")))
 					{
 						foreach (NPC n2 in allCharacters2)
 						{
@@ -15704,7 +15711,7 @@ namespace StardewValley
 			{
 				responses.Add(new Response("AdventureGuild", getCharacterFromName("Marlon").displayName));
 			}
-			responses.Add(new Response("HangUp", content.LoadString("Strings\\StringsFromCSFiles:TV.cs.13118")));
+			responses.Add(new Response("HangUp", content.LoadString("Strings\\Locations:MineCart_Destination_Cancel")));
 			currentLocation.createQuestionDialogue(content.LoadString("Strings\\Characters:Phone_SelectNumber"), responses.ToArray(), "telephone");
 		}
 
