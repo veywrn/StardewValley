@@ -27,6 +27,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Netcode\Netcode.csproj" />
     <ProjectReference Include="..\StardewValley.GameData\StardewValley.GameData.csproj" />
   </ItemGroup>
 
@@ -56,9 +57,6 @@
     </Reference>
     <Reference Include="Steamworks.NET">
       <HintPath>..\lib\Steamworks.NET.dll</HintPath>
-    </Reference>
-    <Reference Include="Netcode">
-      <HintPath>..\lib\Netcode.dll</HintPath>
     </Reference>
     <Reference Include="xTile">
       <HintPath>..\lib\xTile.dll</HintPath>
