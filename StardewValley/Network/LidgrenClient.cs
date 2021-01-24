@@ -89,7 +89,7 @@ namespace StardewValley.Network
 
 		protected virtual bool validateProtocol(string version)
 		{
-			return version == "1.5.1";
+			return version == "1.5.4";
 		}
 
 		protected override void receiveMessagesImpl()

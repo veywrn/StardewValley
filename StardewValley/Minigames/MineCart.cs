@@ -6675,8 +6675,10 @@ namespace StardewValley.Minigames
 			screenWidth = 400;
 			screenHeight = 220;
 			float pixel_zoom_adjustment = 1f / Game1.options.zoomLevel;
-			pixelScale = Math.Min(5, (int)Math.Floor(Math.Min((float)(Game1.graphics.GraphicsDevice.Viewport.Width / screenWidth) * pixel_zoom_adjustment, (float)(Game1.graphics.GraphicsDevice.Viewport.Height / screenHeight) * pixel_zoom_adjustment)));
-			upperLeft = new Vector2((float)(Game1.graphics.GraphicsDevice.Viewport.Width / 2) * pixel_zoom_adjustment, (float)(Game1.graphics.GraphicsDevice.Viewport.Height / 2) * pixel_zoom_adjustment);
+			int viewport_width = Game1.game1.localMultiplayerWindow.Width;
+			int viewport_height = Game1.game1.localMultiplayerWindow.Height;
+			pixelScale = Math.Min(5, (int)Math.Floor(Math.Min((float)(viewport_width / screenWidth) * pixel_zoom_adjustment, (float)(viewport_height / screenHeight) * pixel_zoom_adjustment)));
+			upperLeft = new Vector2((float)(viewport_width / 2) * pixel_zoom_adjustment, (float)(viewport_height / 2) * pixel_zoom_adjustment);
 			upperLeft.X -= (float)(screenWidth / 2) * pixelScale;
 			upperLeft.Y -= (float)(screenHeight / 2) * pixelScale;
 			tileSize = 16;

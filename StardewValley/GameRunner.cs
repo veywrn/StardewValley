@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
+using System.Reflection;
 using System.Threading;
 
 namespace StardewValley
@@ -32,6 +33,8 @@ namespace StardewValley
 
 		public int nextInstanceId;
 
+		public static int MaxTextureSize = 4096;
+
 		public GameRunner()
 		{
 			Program.sdk.EarlyInitialize();
@@ -48,6 +51,52 @@ namespace StardewValley
 			Game1.graphics.PreferredBackBufferHeight = 720;
 			base.Content.RootDirectory = "Content";
 			LocalMultiplayer.Initialize();
+			bool first_attempt = true;
+			MaxTextureSize = 65536;
+			try
+			{
+				do
+				{
+					if (!first_attempt)
+					{
+						MaxTextureSize /= 2;
+					}
+					first_attempt = false;
+					Type profile_capabilities2 = Assembly.GetAssembly(typeof(GraphicsProfile)).GetType("Microsoft.Xna.Framework.Graphics.ProfileCapabilities", throwOnError: true);
+					if (profile_capabilities2 != null)
+					{
+						FieldInfo max_texture_size2 = profile_capabilities2.GetField("MaxTextureSize", BindingFlags.Instance | BindingFlags.NonPublic);
+						FieldInfo hidef_profile2 = profile_capabilities2.GetField("HiDef", BindingFlags.Static | BindingFlags.NonPublic);
+						if (max_texture_size2 != null && hidef_profile2 != null)
+						{
+							hidef_profile2.GetValue(null);
+							max_texture_size2.SetValue(hidef_profile2.GetValue(null), MaxTextureSize);
+						}
+					}
+				}
+				while (MaxTextureSize > 4096 && !GraphicsAdapter.DefaultAdapter.IsProfileSupported(GraphicsProfile.HiDef));
+			}
+			catch (Exception)
+			{
+				MaxTextureSize = 4096;
+				try
+				{
+					Type profile_capabilities = Assembly.GetAssembly(typeof(GraphicsProfile)).GetType("Microsoft.Xna.Framework.Graphics.ProfileCapabilities", throwOnError: true);
+					if (profile_capabilities != null)
+					{
+						FieldInfo max_texture_size = profile_capabilities.GetField("MaxTextureSize", BindingFlags.Instance | BindingFlags.NonPublic);
+						FieldInfo hidef_profile = profile_capabilities.GetField("HiDef", BindingFlags.Static | BindingFlags.NonPublic);
+						if (max_texture_size != null && hidef_profile != null)
+						{
+							hidef_profile.GetValue(null);
+							max_texture_size.SetValue(hidef_profile.GetValue(null), MaxTextureSize);
+						}
+					}
+				}
+				catch (Exception)
+				{
+				}
+			}
 			base.Window.AllowUserResizing = true;
 			SubscribeClientSizeChange();
 			base.Exiting += delegate(object sender, EventArgs args)
@@ -128,10 +177,21 @@ namespace StardewValley
 				base.GraphicsDevice.Clear(Game1.bgColor);
 				foreach (Game1 gameInstance in gameInstances)
 				{
-					gameInstance.isRenderingScreenBuffer = true;
+					Game1.isRenderingScreenBuffer = true;
 					gameInstance.DrawSplitScreenWindow();
-					gameInstance.isRenderingScreenBuffer = false;
+					Game1.isRenderingScreenBuffer = false;
 				}
+			}
+			if (Game1.shouldDrawSafeAreaBounds)
+			{
+				SpriteBatch spriteBatch = Game1.spriteBatch;
+				spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, null);
+				Rectangle safe_area = Game1.safeAreaBounds;
+				spriteBatch.Draw(Game1.staminaRect, new Rectangle(safe_area.X, safe_area.Y, safe_area.Width, 2), Color.White);
+				spriteBatch.Draw(Game1.staminaRect, new Rectangle(safe_area.X, safe_area.Y + safe_area.Height - 2, safe_area.Width, 2), Color.White);
+				spriteBatch.Draw(Game1.staminaRect, new Rectangle(safe_area.X, safe_area.Y, 2, safe_area.Height), Color.White);
+				spriteBatch.Draw(Game1.staminaRect, new Rectangle(safe_area.X + safe_area.Width - 2, safe_area.Y, 2, safe_area.Height), Color.White);
+				spriteBatch.End();
 			}
 			base.Draw(gameTime);
 		}

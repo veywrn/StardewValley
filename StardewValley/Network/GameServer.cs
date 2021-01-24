@@ -349,7 +349,7 @@ namespace StardewValley.Network
 		public void startServer()
 		{
 			_wasConnected = false;
-			Console.WriteLine("Starting server. Protocol version: 1.5.1");
+			Console.WriteLine("Starting server. Protocol version: 1.5.4");
 			initialize();
 			if (Game1.netWorldState == null)
 			{

@@ -148,6 +148,21 @@ namespace StardewValley
 					item_enchantments.Add(enchantment);
 				}
 			}
+			foreach (string previous_enchantment in item.previousEnchantments)
+			{
+				if (item_enchantments.Count <= 1)
+				{
+					return item_enchantments;
+				}
+				for (int i = 0; i < item_enchantments.Count; i++)
+				{
+					if (item_enchantments[i].GetName() == previous_enchantment)
+					{
+						item_enchantments.RemoveAt(i);
+						break;
+					}
+				}
+			}
 			return item_enchantments;
 		}
 

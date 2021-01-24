@@ -492,7 +492,7 @@ namespace StardewValley.TerrainFeatures
 						{
 							Game1.createObjectDebris(seedIndex, (int)tileLocation.X, (int)tileLocation.Y - 3, ((int)tileLocation.Y + 1) * 64, 0, 1f, location);
 						}
-						if (seedIndex == 88 && new Random((int)Game1.uniqueIDForThisGame + (int)Game1.stats.DaysPlayed + (int)tileLocation.X * 13 + (int)tileLocation.Y * 54).NextDouble() < 0.1)
+						if (seedIndex == 88 && new Random((int)Game1.uniqueIDForThisGame + (int)Game1.stats.DaysPlayed + (int)tileLocation.X * 13 + (int)tileLocation.Y * 54).NextDouble() < 0.1 && location != null && location is IslandLocation)
 						{
 							Game1.createObjectDebris(791, (int)tileLocation.X, (int)tileLocation.Y - 3, ((int)tileLocation.Y + 1) * 64, 0, 1f, location);
 						}

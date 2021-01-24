@@ -3,6 +3,7 @@ using Microsoft.Xna.Framework.Graphics;
 using Netcode;
 using StardewValley.BellsAndWhistles;
 using StardewValley.Characters;
+using StardewValley.Locations;
 using StardewValley.Menus;
 using StardewValley.Objects;
 using StardewValley.TerrainFeatures;
@@ -35,6 +36,9 @@ namespace StardewValley.Buildings
 		[XmlIgnore]
 		public Point lastKnownCropLocation = Point.Zero;
 
+		[XmlElement("shouldSendOutJunimos")]
+		public NetBool shouldSendOutJunimos = new NetBool(value: false);
+
 		private Rectangle lightInteriorRect = new Rectangle(195, 0, 18, 17);
 
 		private Rectangle bagRect = new Rectangle(208, 51, 15, 13);
@@ -54,7 +58,7 @@ namespace StardewValley.Buildings
 		protected override void initNetFields()
 		{
 			base.initNetFields();
-			base.NetFields.AddFields(output, noHarvest, wasLit);
+			base.NetFields.AddFields(output, noHarvest, wasLit, shouldSendOutJunimos);
 			wasLit.fieldChangeVisibleEvent += delegate
 			{
 				updateLightState();
@@ -85,6 +89,14 @@ namespace StardewValley.Buildings
 			sourceRect = getSourceRectForMenu();
 			myJunimos.Clear();
 			wasLit.Value = false;
+			shouldSendOutJunimos.Value = true;
+			foreach (Farmer f in Game1.getAllFarmers())
+			{
+				if (f.isActive() && f.currentLocation != null && (f.currentLocation is FarmHouse || f.currentLocation.isStructure.Value))
+				{
+					shouldSendOutJunimos.Value = false;
+				}
+			}
 		}
 
 		public void sendOutJunimos()
@@ -153,15 +165,15 @@ namespace StardewValley.Buildings
 			return 2;
 		}
 
-		public override void Update(GameTime time)
+		public override void updateWhenFarmNotCurrentLocation(GameTime time)
 		{
-			base.Update(time);
+			base.updateWhenFarmNotCurrentLocation(time);
 			output.Value.mutex.Update(Game1.getFarm());
 			if (output.Value.mutex.IsLockHeld() && Game1.activeClickableMenu == null)
 			{
 				output.Value.mutex.ReleaseLock();
 			}
-			if (!Game1.IsMasterGame || junimoSendOutTimer <= 0)
+			if (!Game1.IsMasterGame || junimoSendOutTimer <= 0 || !shouldSendOutJunimos.Value)
 			{
 				return;
 			}
@@ -187,6 +199,15 @@ namespace StardewValley.Buildings
 					}
 				}
 			}
+		}
+
+		public override void Update(GameTime time)
+		{
+			if (!shouldSendOutJunimos.Value)
+			{
+				shouldSendOutJunimos.Value = true;
+			}
+			base.Update(time);
 		}
 
 		private Color? getGemColor(ref bool isPrismatic)

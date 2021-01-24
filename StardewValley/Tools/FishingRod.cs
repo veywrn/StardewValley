@@ -279,15 +279,26 @@ namespace StardewValley.Tools
 			fromFishPond = false;
 			caughtDoubleFish = false;
 			fishingBiteAccumulator = 0f;
+			showingTreasure = false;
 			fishingNibbleAccumulator = 0f;
 			timeUntilFishingBite = -1f;
 			timeUntilFishingNibbleDone = -1f;
 			bobberTimeAccumulator = 0f;
 			castingChosenCountdown = 0f;
 			_totalMotionBufferIndex = 0;
-			for (int i = 0; i < _totalMotionBuffer.Length; i++)
+			for (int j = 0; j < _totalMotionBuffer.Length; j++)
 			{
-				_totalMotionBuffer[i] = Vector2.Zero;
+				_totalMotionBuffer[j] = Vector2.Zero;
+			}
+			if (lastUser != null && Game1.player == lastUser)
+			{
+				for (int i = Game1.screenOverlayTempSprites.Count - 1; i >= 0; i--)
+				{
+					if (Game1.screenOverlayTempSprites[i].id == 987654336f)
+					{
+						Game1.screenOverlayTempSprites.RemoveAt(i);
+					}
+				}
 			}
 			_totalMotion.Value = Vector2.Zero;
 			_lastAppliedMotion = Vector2.Zero;
@@ -536,7 +547,8 @@ namespace StardewValley.Tools
 							scaleChangeChange = -0.005f,
 							motion = new Vector2(0f, -0.1f),
 							endFunction = startMinigameEndFunction,
-							extraInfoForEndBehavior = o.ParentSheetIndex
+							extraInfoForEndBehavior = o.ParentSheetIndex,
+							id = 987654336f
 						});
 						location.localSound("FishHit");
 					}
@@ -1502,6 +1514,8 @@ namespace StardewValley.Tools
 			isReeling = false;
 			isCasting = false;
 			isTimingCast = false;
+			treasureCaught = false;
+			showingTreasure = false;
 			doneWithAnimation = false;
 			pullingOutOfWater = false;
 			fromFishPond = false;

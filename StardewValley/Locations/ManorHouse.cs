@@ -121,9 +121,9 @@ namespace StardewValley.Locations
 			return base.performAction(action, who, tileLocation);
 		}
 
-		protected override void resetLocalState()
+		public override void MakeMapModifications(bool force = false)
 		{
-			base.resetLocalState();
+			base.MakeMapModifications(force);
 			if (Game1.eventUp)
 			{
 				removeTile(4, 5, "Buildings");
@@ -138,6 +138,11 @@ namespace StardewValley.Locations
 				setMapTile(4, 3, 110, "Front", null, 2);
 				setMapTile(4, 6, 604, "Back", null);
 			}
+		}
+
+		protected override void resetLocalState()
+		{
+			base.resetLocalState();
 		}
 
 		public void CheckLostAndFound()

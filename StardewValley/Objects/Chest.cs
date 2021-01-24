@@ -324,9 +324,27 @@ namespace StardewValley.Objects
 					Farmer player = t.getLastFarmerToUse();
 					if (player != null)
 					{
-						Vector2 c = player.GetToolLocation() / 64f;
-						c.X = (int)c.X;
-						c.Y = (int)c.Y;
+						Vector2 c = base.TileLocation;
+						if (c.X == 0f && c.Y == 0f)
+						{
+							bool found = false;
+							foreach (KeyValuePair<Vector2, Object> pair in location.objects.Pairs)
+							{
+								if (pair.Value == this)
+								{
+									c.X = (int)pair.Key.X;
+									c.Y = (int)pair.Key.Y;
+									found = true;
+									break;
+								}
+							}
+							if (!found)
+							{
+								c = player.GetToolLocation() / 64f;
+								c.X = (int)c.X;
+								c.Y = (int)c.Y;
+							}
+						}
 						GetMutex().RequestLock(delegate
 						{
 							clearNulls();

@@ -194,9 +194,6 @@ namespace StardewValley
 		private bool emoteFading;
 
 		[XmlIgnore]
-		public bool hasMoved;
-
-		[XmlIgnore]
 		private readonly NetBool _willDestroyObjectsUnderfoot = new NetBool(value: true);
 
 		[XmlIgnore]
@@ -282,7 +279,6 @@ namespace StardewValley
 			{
 				if (position.Value != value)
 				{
-					hasMoved = true;
 					position.Set(value);
 				}
 			}

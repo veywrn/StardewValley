@@ -234,6 +234,10 @@ namespace StardewValley
 					(found_item as Object).Quality = quality;
 				}
 			}
+			if (found_item == null)
+			{
+				throw new Exception("Invalid item name '" + item_name + "' encountered while generating a bundle.");
+			}
 			found_item.Stack = count;
 			return found_item;
 		}

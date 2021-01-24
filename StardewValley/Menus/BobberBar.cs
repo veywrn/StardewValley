@@ -125,6 +125,7 @@ namespace StardewValley.Menus
 		public BobberBar(int whichFish, float fishSize, bool treasure, int bobber)
 			: base(0, 0, 96, 636)
 		{
+			whichBobber = bobber;
 			handledFishResult = false;
 			this.treasure = treasure;
 			treasureAppearTimer = Game1.random.Next(1000, 3000);
@@ -198,7 +199,6 @@ namespace StardewValley.Menus
 			{
 				reelSound = Game1.soundBank.GetCue("fastReel");
 			}
-			whichBobber = bobber;
 			Game1.setRichPresence("fishing", Game1.currentLocation.Name);
 		}
 

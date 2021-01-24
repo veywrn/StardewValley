@@ -122,6 +122,8 @@ namespace StardewValley.Locations
 			if (map != null)
 			{
 				ApplyMapOverride("Island_N_Trader", (Microsoft.Xna.Framework.Rectangle?)null, (Microsoft.Xna.Framework.Rectangle?)new Microsoft.Xna.Framework.Rectangle(32, 64, 9, 10));
+				removeTemporarySpritesWithIDLocal(8989f);
+				removeTemporarySpritesWithIDLocal(8988f);
 				temporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(276, 1985, 12, 11), new Vector2(33.45f, 70.33f) * 64f + new Vector2(-16f, -32f), flipped: false, 0f, Color.White)
 				{
 					delayBeforeAnimationStart = 10,
@@ -995,9 +997,9 @@ namespace StardewValley.Locations
 			return base.isTileOccupiedForPlacement(tileLocation, toPlace);
 		}
 
-		protected override void resetLocalState()
+		public override void MakeMapModifications(bool force = false)
 		{
-			base.resetLocalState();
+			base.MakeMapModifications(force);
 			if (bridgeFixed.Value)
 			{
 				ApplyFixedBridge();
@@ -1009,6 +1011,20 @@ namespace StardewValley.Locations
 			if (traderActivated.Value)
 			{
 				ApplyIslandTraderHut();
+			}
+			if (boulderRemoved.Value)
+			{
+				ApplyBoulderRemove();
+			}
+		}
+
+		protected override void resetLocalState()
+		{
+			base.resetLocalState();
+			if (traderActivated.Value)
+			{
+				removeTemporarySpritesWithIDLocal(8989f);
+				removeTemporarySpritesWithIDLocal(8988f);
 				temporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(276, 1985, 12, 11), new Vector2(33.45f, 70.33f) * 64f + new Vector2(-16f, -32f), flipped: false, 0f, Color.White)
 				{
 					delayBeforeAnimationStart = 10,
@@ -1039,10 +1055,6 @@ namespace StardewValley.Locations
 			if (caveOpened.Value && !Game1.player.hasOrWillReceiveMail("islandNorthCaveOpened"))
 			{
 				Game1.addMailForTomorrow("islandNorthCaveOpened", noLetter: true);
-			}
-			if (boulderRemoved.Value)
-			{
-				ApplyBoulderRemove();
 			}
 			suspensionBridges.Clear();
 			SuspensionBridge bridge = new SuspensionBridge(38, 39);

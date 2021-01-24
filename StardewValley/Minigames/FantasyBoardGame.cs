@@ -149,14 +149,14 @@ namespace StardewValley.Minigames
 				{
 					offset = new Vector2(Game1.random.Next(-2, 2), Game1.random.Next(-2, 2));
 				}
-				b.Draw(border, offset + new Vector2(Game1.graphics.GraphicsDevice.Viewport.Width / 2 - borderSourceWidth * 4 / 2, Game1.graphics.GraphicsDevice.Viewport.Height / 2 - borderSourceHeight * 4 / 2 - 128), new Rectangle(0, 0, borderSourceWidth, borderSourceHeight), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0f);
-				b.Draw(slides, offset + new Vector2(Game1.graphics.GraphicsDevice.Viewport.Width / 2 - slideSourceWidth * 4 / 2, Game1.graphics.GraphicsDevice.Viewport.Height / 2 - slideSourceHeight * 4 / 2 - 128), new Rectangle(whichSlide % 2 * slideSourceWidth, whichSlide / 2 * slideSourceHeight, slideSourceWidth, slideSourceHeight), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.01f);
+				b.Draw(border, offset + new Vector2(Game1.viewport.Width / 2 - borderSourceWidth * 4 / 2, Game1.viewport.Height / 2 - borderSourceHeight * 4 / 2 - 128), new Rectangle(0, 0, borderSourceWidth, borderSourceHeight), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0f);
+				b.Draw(slides, offset + new Vector2(Game1.viewport.Width / 2 - slideSourceWidth * 4 / 2, Game1.viewport.Height / 2 - slideSourceHeight * 4 / 2 - 128), new Rectangle(whichSlide % 2 * slideSourceWidth, whichSlide / 2 * slideSourceHeight, slideSourceWidth, slideSourceHeight), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.01f);
 			}
 			else
 			{
 				string s = Game1.content.LoadString("Strings\\StringsFromCSFiles:FantasyBoardGame.cs.11980", grade);
 				float yOffset = (float)Math.Sin(endTimer / 1000) * 8f;
-				Game1.drawWithBorder(s, Game1.textColor, Color.Purple, new Vector2((float)(Game1.graphics.GraphicsDevice.Viewport.Width / 2) - Game1.dialogueFont.MeasureString(s).X / 2f, yOffset + (float)(Game1.graphics.GraphicsDevice.Viewport.Height / 2)));
+				Game1.drawWithBorder(s, Game1.textColor, Color.Purple, new Vector2((float)(Game1.viewport.Width / 2) - Game1.dialogueFont.MeasureString(s).X / 2f, yOffset + (float)(Game1.viewport.Height / 2)));
 			}
 			b.End();
 			if (Game1.activeClickableMenu != null)

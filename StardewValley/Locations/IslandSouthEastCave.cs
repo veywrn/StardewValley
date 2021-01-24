@@ -52,6 +52,22 @@ namespace StardewValley.Locations
 			base.updateMap();
 		}
 
+		public override void MakeMapModifications(bool force = false)
+		{
+			base.MakeMapModifications(force);
+			if (isPirateNight())
+			{
+				setTileProperty(19, 9, "Buildings", "Action", "MessageSpeech Pirates1");
+				setTileProperty(20, 9, "Buildings", "Action", "MessageSpeech Pirates2");
+				setTileProperty(26, 17, "Buildings", "Action", "MessageSpeech Pirates3");
+				setTileProperty(23, 8, "Buildings", "Action", "MessageSpeech Pirates4");
+				setTileProperty(27, 5, "Buildings", "Action", "MessageSpeech Pirates5");
+				setTileProperty(32, 6, "Buildings", "Action", "MessageSpeech Pirates6");
+				setTileProperty(30, 8, "Buildings", "Action", "DartsGame");
+				setTileProperty(33, 8, "Buildings", "Action", "Bartender");
+			}
+		}
+
 		protected override void resetLocalState()
 		{
 			wasPirateCaveOnLoad = isPirateNight();
@@ -80,14 +96,6 @@ namespace StardewValley.Locations
 					_parrots.AddBird(Game1.random.Next(0, 4));
 				}
 				Game1.changeMusicTrack("PIRATE_THEME", track_interruptable: true, Game1.MusicContext.SubLocation);
-				setTileProperty(19, 9, "Buildings", "Action", "MessageSpeech Pirates1");
-				setTileProperty(20, 9, "Buildings", "Action", "MessageSpeech Pirates2");
-				setTileProperty(26, 17, "Buildings", "Action", "MessageSpeech Pirates3");
-				setTileProperty(23, 8, "Buildings", "Action", "MessageSpeech Pirates4");
-				setTileProperty(27, 5, "Buildings", "Action", "MessageSpeech Pirates5");
-				setTileProperty(32, 6, "Buildings", "Action", "MessageSpeech Pirates6");
-				setTileProperty(30, 8, "Buildings", "Action", "DartsGame");
-				setTileProperty(33, 8, "Buildings", "Action", "Bartender");
 			}
 			if (Game1.currentSeason == "winter")
 			{

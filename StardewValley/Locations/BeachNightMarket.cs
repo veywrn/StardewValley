@@ -281,13 +281,26 @@ namespace StardewValley.Locations
 			removeTemporarySpritesWithIDLocal(778f);
 		}
 
-		protected override void resetLocalState()
+		public override void MakeMapModifications(bool force = false)
 		{
-			base.resetLocalState();
+			base.MakeMapModifications(force);
+			if (force)
+			{
+				hasShownCCUpgrade = false;
+			}
 			if ((bool)(Game1.getLocationFromName("Beach") as Beach).bridgeFixed || NetWorldState.checkAnywhereForWorldStateID("beachBridgeFixed"))
 			{
 				Beach.fixBridge(this);
 			}
+			if (Game1.MasterPlayer.mailReceived.Contains("communityUpgradeShortcuts"))
+			{
+				Beach.showCommunityUpgradeShortcuts(this, ref hasShownCCUpgrade);
+			}
+		}
+
+		protected override void resetLocalState()
+		{
+			base.resetLocalState();
 			if (Game1.timeOfDay >= 1700)
 			{
 				Game1.changeMusicTrack("night_market");
@@ -299,10 +312,6 @@ namespace StardewValley.Locations
 			shopClosedTexture = Game1.temporaryContent.Load<Texture2D>("LooseSprites\\temporary_sprites_1");
 			temporarySprites.Add(new EmilysParrot(new Vector2(2968f, 2056f)));
 			paintingMailKey = "NightMarketYear" + Game1.year + "Day" + getDayOfNightMarket() + "_paintingSold";
-			if (Game1.MasterPlayer.mailReceived.Contains("communityUpgradeShortcuts"))
-			{
-				Beach.showCommunityUpgradeShortcuts(this, ref hasShownCCUpgrade);
-			}
 		}
 
 		public override void performTenMinuteUpdate(int timeOfDay)

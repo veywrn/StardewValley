@@ -43,6 +43,10 @@ namespace StardewValley
 			{
 				new_value -= 120;
 			}
+			else if (new_value > 120)
+			{
+				return;
+			}
 			if (new_value > 0)
 			{
 				SetCount(Math.Min(Math.Max(new_value, currentCount.Value), GetMaxCount()));

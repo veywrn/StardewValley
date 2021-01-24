@@ -275,6 +275,7 @@ namespace StardewValley.Monsters
 			base.Name = "Prismatic Slime";
 			base.Health = 1000;
 			damageToFarmer.Value = 35;
+			hasSpecialItem.Value = false;
 		}
 
 		public override void reloadSprite()

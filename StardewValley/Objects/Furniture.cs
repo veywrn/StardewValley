@@ -1412,9 +1412,21 @@ namespace StardewValley.Objects
 		{
 			int tilesWide = defaultSourceRect.Width / 16;
 			int tilesHigh = defaultSourceRect.Height / 16;
+			if (tilesWide >= 7)
+			{
+				return 0.5f;
+			}
+			if (tilesWide >= 6)
+			{
+				return 0.66f;
+			}
 			if (tilesWide >= 5)
 			{
 				return 0.75f;
+			}
+			if (tilesHigh >= 5)
+			{
+				return 0.8f;
 			}
 			if (tilesHigh >= 3)
 			{

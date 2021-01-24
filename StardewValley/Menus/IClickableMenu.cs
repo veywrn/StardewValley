@@ -717,7 +717,7 @@ namespace StardewValley.Menus
 			b.Draw(Game1.mouseCursors, new Vector2(2436f, Game1.uiViewport.Height - 592), new Rectangle(0, Game1.currentSeason.Equals("winter") ? 1035 : ((Game1.isRaining || Game1.isDarkOut()) ? 886 : 737), 639, 148), Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0.08f);
 			if (Game1.isRaining)
 			{
-				b.Draw(Game1.staminaRect, Utility.xTileToMicrosoftRectangle(Game1.uiViewport), Color.Blue * 0.2f);
+				b.Draw(Game1.staminaRect, new Rectangle(0, 0, Game1.uiViewport.Width, Game1.uiViewport.Height), Color.Blue * 0.2f);
 			}
 		}
 

@@ -19,12 +19,9 @@ Community edition. Different steps may be necessary for other environments.
     - GalaxyCSharp.dll
     - GalaxyCSharpGlue.dll
     - Lidgren.Network.dll
-    - Netcode.dll
     - steam_api.dll
     - Steamworks.NET.dll
     - xTile.dll
-    - (pre 1.5) CSteamworks.dll
-    - (pre 1.5) GalaxyPeer.dll
 
 1.  Copy the following libraries from XNA 4.0 to `lib`:
     - Microsoft.Xna.Framework.dll

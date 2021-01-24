@@ -164,7 +164,7 @@ namespace StardewValley
 
 		public const byte errorLogMode = 11;
 
-		public static readonly string version = "1.5.1";
+		public static readonly string version = "1.5.4";
 
 		public const float keyPollingThreshold = 650f;
 
@@ -233,6 +233,12 @@ namespace StardewValley
 		public GameLocation instanceGameLocation;
 
 		public static IDisplayDevice mapDisplayDevice;
+
+		[NonInstancedStatic]
+		public static Microsoft.Xna.Framework.Rectangle safeAreaBounds = default(Microsoft.Xna.Framework.Rectangle);
+
+		[NonInstancedStatic]
+		public static bool shouldDrawSafeAreaBounds = false;
 
 		public static xTile.Dimensions.Rectangle viewport;
 
@@ -990,7 +996,8 @@ namespace StardewValley
 
 		public bool isDrawing;
 
-		public bool isRenderingScreenBuffer;
+		[NonInstancedStatic]
+		public static bool isRenderingScreenBuffer = false;
 
 		protected bool _lastDrewMouseCursor;
 
@@ -2459,12 +2466,12 @@ namespace StardewValley
 			localMultiplayerWindow.Height = (int)Math.Ceiling((float)h * current_screen_split.W);
 			try
 			{
-				int sw = Math.Min(4096, (int)Math.Ceiling((float)localMultiplayerWindow.Width * (1f / options.zoomLevel)));
-				int sh = Math.Min(4096, (int)Math.Ceiling((float)localMultiplayerWindow.Height * (1f / options.zoomLevel)));
+				int sw = Math.Min(GameRunner.MaxTextureSize, (int)Math.Ceiling((float)localMultiplayerWindow.Width * (1f / options.zoomLevel)));
+				int sh = Math.Min(GameRunner.MaxTextureSize, (int)Math.Ceiling((float)localMultiplayerWindow.Height * (1f / options.zoomLevel)));
 				screen = new RenderTarget2D(graphics.GraphicsDevice, sw, sh, mipMap: false, SurfaceFormat.Color, DepthFormat.None, 0, RenderTargetUsage.PreserveContents);
 				screen.Name = "Screen";
-				int uw = Math.Min(4096, (int)Math.Ceiling((float)localMultiplayerWindow.Width / options.uiScale));
-				int uh = Math.Min(4096, (int)Math.Ceiling((float)localMultiplayerWindow.Height / options.uiScale));
+				int uw = Math.Min(GameRunner.MaxTextureSize, (int)Math.Ceiling((float)localMultiplayerWindow.Width / options.uiScale));
+				int uh = Math.Min(GameRunner.MaxTextureSize, (int)Math.Ceiling((float)localMultiplayerWindow.Height / options.uiScale));
 				uiScreen = new RenderTarget2D(graphics.GraphicsDevice, uw, uh, mipMap: false, SurfaceFormat.Color, DepthFormat.None, 0, RenderTargetUsage.PreserveContents);
 				uiScreen.Name = "UI Screen";
 			}
@@ -2530,16 +2537,7 @@ namespace StardewValley
 				{
 					skip = true;
 				}
-				if (game1.instanceIndex > 0)
-				{
-					activeClickableMenu = new FarmhandMenu(multiplayer.InitClient(new LidgrenClient("localhost")));
-					activeClickableMenu.populateClickableComponentList();
-					if (options.SnappyMenus)
-					{
-						activeClickableMenu.snapToDefaultClickableComponent();
-					}
-				}
-				else
+				if (game1.instanceIndex <= 0)
 				{
 					activeClickableMenu = new TitleMenu();
 					if (skip)
@@ -2672,8 +2670,12 @@ namespace StardewValley
 				wind = soundBank.GetCue("wind");
 				chargeUpSound = soundBank.GetCue("toolCharge");
 			}
-			screen = new RenderTarget2D(graphics.GraphicsDevice, graphics.GraphicsDevice.Viewport.Width, graphics.GraphicsDevice.Viewport.Height, mipMap: false, SurfaceFormat.Color, DepthFormat.None, 0, RenderTargetUsage.PreserveContents);
-			allocateLightmap(graphics.GraphicsDevice.Viewport.Width, graphics.GraphicsDevice.Viewport.Height);
+			int width2 = graphics.GraphicsDevice.Viewport.Width;
+			int height2 = graphics.GraphicsDevice.Viewport.Height;
+			width2 = Math.Min(GameRunner.MaxTextureSize, (int)Math.Ceiling((float)width2 * (1f / options.zoomLevel)));
+			height2 = Math.Min(GameRunner.MaxTextureSize, (int)Math.Ceiling((float)height2 * (1f / options.zoomLevel)));
+			screen = new RenderTarget2D(graphics.GraphicsDevice, width2, height2, mipMap: false, SurfaceFormat.Color, DepthFormat.None, 0, RenderTargetUsage.PreserveContents);
+			allocateLightmap(width2, height2);
 			AmbientLocationSounds.InitShared();
 			previousViewportPosition = Vector2.Zero;
 			PushUIMode();
@@ -3262,6 +3264,44 @@ namespace StardewValley
 			case SaveGame.SaveFixes.LeoChildrenFix:
 				Utility.FixChildNameCollisions();
 				break;
+			case SaveGame.SaveFixes.Leo6HeartGermanFix:
+				if (Utility.HasAnyPlayerSeenEvent(6497428) && !MasterPlayer.hasOrWillReceiveMail("leoMoved"))
+				{
+					addMailForTomorrow("leoMoved", noLetter: true, sendToEveryone: true);
+					player.team.requestLeoMove.Fire();
+				}
+				break;
+			case SaveGame.SaveFixes.BirdieQuestRemovedFix:
+				foreach (Farmer who in getAllFarmers())
+				{
+					if (who.hasQuest(130))
+					{
+						foreach (Quest quest in who.questLog)
+						{
+							if ((int)quest.id == 130)
+							{
+								quest.canBeCancelled.Value = true;
+							}
+						}
+					}
+					if (who.hasOrWillReceiveMail("birdieQuestBegun") && !who.hasOrWillReceiveMail("birdieQuestFinished") && !who.hasQuest(130))
+					{
+						who.addQuest(130);
+					}
+				}
+				break;
+			case SaveGame.SaveFixes.SkippedSummit:
+				if (MasterPlayer.mailReceived.Contains("Farm_Eternal"))
+				{
+					foreach (Farmer who2 in getAllFarmers())
+					{
+						if (who2.mailReceived.Contains("Summit_event") && !who2.songsHeard.Contains("end_credits"))
+						{
+							who2.mailReceived.Remove("Summit_event");
+						}
+					}
+				}
+				break;
 			}
 		}
 
@@ -3632,7 +3672,7 @@ namespace StardewValley
 			currentCursorTile = Vector2.Zero;
 			if (!loadedGame)
 			{
-				lastAppliedSaveFix = SaveGame.SaveFixes.LeoChildrenFix;
+				lastAppliedSaveFix = SaveGame.SaveFixes.SkippedSummit;
 			}
 			resetVariables();
 			chanceToRainTomorrow = 0.0;
@@ -4562,7 +4602,6 @@ namespace StardewValley
 										UpdateChatBox();
 										return;
 									}
-									PushUIMode();
 									if (currentPadState.IsConnected && currentPadState.IsButtonDown(Buttons.X) && !oldPadState.IsButtonDown(Buttons.X))
 									{
 										currentMinigame.receiveRightClick(getMouseX(), getMouseY());
@@ -4592,7 +4631,6 @@ namespace StardewValley
 									{
 										currentMinigame.leftClickHeld(0, 0);
 									}
-									PopUIMode();
 								}
 								if (currentMinigame == null)
 								{
@@ -5455,6 +5493,22 @@ namespace StardewValley
 			oldPadState = padState;
 		}
 
+		public static void AdjustScreenScale(float offset)
+		{
+		}
+
+		public void ShowScreenScaleMenu()
+		{
+			if (activeClickableMenu != null && !(activeClickableMenu is ScreenSizeAdjustMenu))
+			{
+				activeClickableMenu.SetChildMenu(new ScreenSizeAdjustMenu());
+			}
+			else if (activeClickableMenu == null)
+			{
+				activeClickableMenu = new ScreenSizeAdjustMenu();
+			}
+		}
+
 		public bool ShowLocalCoopJoinMenu()
 		{
 			if (!base.IsMainInstance)
@@ -5962,6 +6016,19 @@ namespace StardewValley
 						pauseTime = 1E+10f;
 						fadeToBlackAlpha = 1f;
 						player.CanMove = false;
+					}
+				}
+				return;
+			}
+			if (game1.instanceIndex > 0)
+			{
+				if (activeClickableMenu == null && ticks > 1)
+				{
+					activeClickableMenu = new FarmhandMenu(multiplayer.InitClient(new LidgrenClient("localhost")));
+					activeClickableMenu.populateClickableComponentList();
+					if (options.SnappyMenus)
+					{
+						activeClickableMenu.snapToDefaultClickableComponent();
 					}
 				}
 				return;
@@ -8959,7 +9026,7 @@ namespace StardewValley
 
 		public static void UpdateFarmPerfection()
 		{
-			if (!MasterPlayer.mailReceived.Contains("Farm_Eternal") && MasterPlayer.hasCompletedCommunityCenter() && player.team.farmPerfect.Value)
+			if (!MasterPlayer.mailReceived.Contains("Farm_Eternal") && (MasterPlayer.hasCompletedCommunityCenter() || Utility.hasFinishedJojaRoute()) && player.team.farmPerfect.Value)
 			{
 				addMorningFluffFunction(delegate
 				{
@@ -10153,6 +10220,16 @@ namespace StardewValley
 						tileY = target_building.getPointForHumanDoor().Y + 1;
 					}
 				}
+			}
+			if (locationRequest.Name == "IslandSouth" && tileX <= 15 && tileY <= 6)
+			{
+				tileX = 21;
+				tileY = 43;
+			}
+			if (locationRequest.Name.StartsWith("VolcanoDungeon"))
+			{
+				warp_offset_x = 0;
+				warp_offset_y = 0;
 			}
 			if (player.isRidingHorse() && currentLocation != null)
 			{
@@ -12206,11 +12283,11 @@ namespace StardewValley
 					{
 						nonUIRenderTarget = null;
 					}
-					graphics.GraphicsDevice.SetRenderTarget(game1.uiScreen);
+					SetRenderTarget(game1.uiScreen);
 				}
-				if (game1.isRenderingScreenBuffer)
+				if (isRenderingScreenBuffer)
 				{
-					graphics.GraphicsDevice.SetRenderTarget(null);
+					SetRenderTarget(null);
 				}
 			}
 			xTile.Dimensions.Rectangle ui_viewport_rect = new xTile.Dimensions.Rectangle(0, 0, (int)Math.Ceiling((float)viewport.Width * options.zoomLevel / options.uiScale), (int)Math.Ceiling((float)viewport.Height * options.zoomLevel / options.uiScale));
@@ -12232,20 +12309,28 @@ namespace StardewValley
 				{
 					if (nonUIRenderTarget != null && !nonUIRenderTarget.IsDisposed)
 					{
-						graphics.GraphicsDevice.SetRenderTarget(nonUIRenderTarget);
+						SetRenderTarget(nonUIRenderTarget);
 					}
 					else
 					{
-						graphics.GraphicsDevice.SetRenderTarget(null);
+						SetRenderTarget(null);
 					}
 				}
-				if (game1.isRenderingScreenBuffer)
+				if (isRenderingScreenBuffer)
 				{
-					graphics.GraphicsDevice.SetRenderTarget(null);
+					SetRenderTarget(null);
 				}
 			}
 			nonUIRenderTarget = null;
 			uiMode = false;
+		}
+
+		public static void SetRenderTarget(RenderTarget2D target)
+		{
+			if (!isRenderingScreenBuffer)
+			{
+				graphics.GraphicsDevice.SetRenderTarget(target);
+			}
 		}
 
 		public static void InUIMode(Action action)
@@ -17208,9 +17293,9 @@ namespace StardewValley
 			}
 			if (uiScreen != null)
 			{
-				base.GraphicsDevice.SetRenderTarget(uiScreen);
+				SetRenderTarget(uiScreen);
 				base.GraphicsDevice.Clear(Microsoft.Xna.Framework.Color.Transparent);
-				base.GraphicsDevice.SetRenderTarget(target_screen);
+				SetRenderTarget(target_screen);
 			}
 			GameTime time = gameTime;
 			DebugTools.BeforeGameDraw(this, ref time);
@@ -17244,6 +17329,11 @@ namespace StardewValley
 			{
 				return true;
 			}
+			return false;
+		}
+
+		public static bool ShouldShowOnscreenUsernames()
+		{
 			return false;
 		}
 
@@ -17282,7 +17372,7 @@ namespace StardewValley
 			}
 			if (target_screen != null)
 			{
-				base.GraphicsDevice.SetRenderTarget(target_screen);
+				SetRenderTarget(target_screen);
 			}
 			if (IsSaving)
 			{
@@ -17346,7 +17436,7 @@ namespace StardewValley
 				PushUIMode();
 				drawOverlays(spriteBatch);
 				PopUIMode();
-				base.GraphicsDevice.SetRenderTarget(target_screen);
+				SetRenderTarget(target_screen);
 				return;
 			}
 			if (showingEndOfNightStuff)
@@ -17401,7 +17491,7 @@ namespace StardewValley
 				}
 				if (drawLighting)
 				{
-					base.GraphicsDevice.SetRenderTarget(lightmap);
+					SetRenderTarget(lightmap);
 					base.GraphicsDevice.Clear(Microsoft.Xna.Framework.Color.White * 0f);
 					Matrix lighting_matrix = Matrix.Identity;
 					if (useUnscaledLighting)
@@ -17445,7 +17535,7 @@ namespace StardewValley
 						}
 					}
 					spriteBatch.End();
-					base.GraphicsDevice.SetRenderTarget(target_screen);
+					SetRenderTarget(target_screen);
 				}
 				if (bloomDay && bloom != null)
 				{
@@ -17709,16 +17799,20 @@ namespace StardewValley
 						spriteBatch.Draw(staminaRect, new Microsoft.Xna.Framework.Rectangle(startingX, (int)y, graphics.GraphicsDevice.Viewport.Width, 1), Microsoft.Xna.Framework.Color.Red * 0.5f);
 					}
 				}
+				if (ShouldShowOnscreenUsernames() && currentLocation != null)
+				{
+					currentLocation.DrawFarmerUsernames(spriteBatch);
+				}
 				if (currentBillboard != 0 && !takingMapScreenshot)
 				{
 					drawBillboard();
 				}
 				if (!eventUp && farmEvent == null && currentBillboard == 0 && gameMode == 3 && !takingMapScreenshot && isOutdoorMapSmallerThanViewport())
 				{
-					spriteBatch.Draw(fadeToBlackRect, new Microsoft.Xna.Framework.Rectangle(0, 0, -Math.Min(viewport.X, 4096), graphics.GraphicsDevice.Viewport.Height), Microsoft.Xna.Framework.Color.Black);
-					spriteBatch.Draw(fadeToBlackRect, new Microsoft.Xna.Framework.Rectangle(-viewport.X + currentLocation.map.Layers[0].LayerWidth * 64, 0, Math.Min(4096, graphics.GraphicsDevice.Viewport.Width - (-viewport.X + currentLocation.map.Layers[0].LayerWidth * 64)), graphics.GraphicsDevice.Viewport.Height), Microsoft.Xna.Framework.Color.Black);
-					spriteBatch.Draw(fadeToBlackRect, new Microsoft.Xna.Framework.Rectangle(0, 0, graphics.GraphicsDevice.Viewport.Width, -Math.Min(viewport.Y, 4096)), Microsoft.Xna.Framework.Color.Black);
-					spriteBatch.Draw(fadeToBlackRect, new Microsoft.Xna.Framework.Rectangle(0, -viewport.Y + currentLocation.map.Layers[0].LayerHeight * 64, graphics.GraphicsDevice.Viewport.Width, Math.Min(4096, graphics.GraphicsDevice.Viewport.Height - (-viewport.Y + currentLocation.map.Layers[0].LayerHeight * 64))), Microsoft.Xna.Framework.Color.Black);
+					spriteBatch.Draw(fadeToBlackRect, new Microsoft.Xna.Framework.Rectangle(0, 0, -Math.Min(viewport.X, GameRunner.MaxTextureSize), graphics.GraphicsDevice.Viewport.Height), Microsoft.Xna.Framework.Color.Black);
+					spriteBatch.Draw(fadeToBlackRect, new Microsoft.Xna.Framework.Rectangle(-viewport.X + currentLocation.map.Layers[0].LayerWidth * 64, 0, Math.Min(GameRunner.MaxTextureSize, graphics.GraphicsDevice.Viewport.Width - (-viewport.X + currentLocation.map.Layers[0].LayerWidth * 64)), graphics.GraphicsDevice.Viewport.Height), Microsoft.Xna.Framework.Color.Black);
+					spriteBatch.Draw(fadeToBlackRect, new Microsoft.Xna.Framework.Rectangle(0, 0, graphics.GraphicsDevice.Viewport.Width, -Math.Min(viewport.Y, GameRunner.MaxTextureSize)), Microsoft.Xna.Framework.Color.Black);
+					spriteBatch.Draw(fadeToBlackRect, new Microsoft.Xna.Framework.Rectangle(0, -viewport.Y + currentLocation.map.Layers[0].LayerHeight * 64, graphics.GraphicsDevice.Viewport.Width, Math.Min(GameRunner.MaxTextureSize, graphics.GraphicsDevice.Viewport.Height - (-viewport.Y + currentLocation.map.Layers[0].LayerHeight * 64))), Microsoft.Xna.Framework.Color.Black);
 				}
 				spriteBatch.End();
 				PushUIMode();
@@ -17938,7 +18032,7 @@ namespace StardewValley
 
 		protected virtual void renderScreenBuffer(RenderTarget2D target_screen)
 		{
-			base.GraphicsDevice.SetRenderTarget(null);
+			graphics.GraphicsDevice.SetRenderTarget(null);
 			if (!takingMapScreenshot && !LocalMultiplayer.IsLocalMultiplayer() && (target_screen == null || !target_screen.IsContentLost))
 			{
 				if (ShouldDrawOnBuffer() && target_screen != null)
@@ -17966,7 +18060,7 @@ namespace StardewValley
 			{
 				return;
 			}
-			base.GraphicsDevice.SetRenderTarget(null);
+			graphics.GraphicsDevice.SetRenderTarget(null);
 			if (screen == null || !screen.IsContentLost)
 			{
 				Viewport old_viewport = base.GraphicsDevice.Viewport;
@@ -18244,11 +18338,11 @@ namespace StardewValley
 					PopUIMode();
 					if (ShouldDrawOnBuffer())
 					{
-						base.GraphicsDevice.SetRenderTarget(screen);
+						SetRenderTarget(screen);
 					}
 					else
 					{
-						base.GraphicsDevice.SetRenderTarget(null);
+						SetRenderTarget(null);
 					}
 					spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, null);
 				}
@@ -18312,7 +18406,7 @@ namespace StardewValley
 				{
 					spriteBatch.End();
 					PushUIMode();
-					base.GraphicsDevice.SetRenderTarget(uiScreen);
+					SetRenderTarget(uiScreen);
 					spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, null);
 				}
 				if (currentMinigame != null)
@@ -19585,9 +19679,9 @@ namespace StardewValley
 
 		public void _PerformRemoveNormalItemFromWorldOvernight(int parent_sheet_index)
 		{
-			foreach (GameLocation k in locations)
+			foreach (GameLocation l in locations)
 			{
-				_RecursiveRemoveThisNormalItemLocation(k, parent_sheet_index);
+				_RecursiveRemoveThisNormalItemLocation(l, parent_sheet_index);
 			}
 			foreach (MineShaft mine in MineShaft.activeMines)
 			{
@@ -19597,11 +19691,19 @@ namespace StardewValley
 			{
 				_RecursiveRemoveThisNormalItemLocation(level, parent_sheet_index);
 			}
-			for (int j = 0; j < player.team.returnedDonations.Count; j++)
+			for (int k = 0; k < player.team.returnedDonations.Count; k++)
 			{
-				if (_RecursiveRemoveThisNormalItemItem(player.team.returnedDonations[j], parent_sheet_index))
+				if (_RecursiveRemoveThisNormalItemItem(player.team.returnedDonations[k], parent_sheet_index))
 				{
-					player.team.returnedDonations.RemoveAt(j);
+					player.team.returnedDonations.RemoveAt(k);
+					k--;
+				}
+			}
+			for (int j = 0; j < player.team.junimoChest.Count; j++)
+			{
+				if (_RecursiveRemoveThisNormalItemItem(player.team.junimoChest[j], parent_sheet_index))
+				{
+					player.team.junimoChest.RemoveAt(j);
 					j--;
 				}
 			}
@@ -19620,12 +19722,26 @@ namespace StardewValley
 
 		protected virtual void _PerformRemoveNormalItemFromFarmerOvernight(Farmer farmer, int parent_sheet_index)
 		{
-			for (int i = 0; i < farmer.items.Count; i++)
+			for (int j = 0; j < farmer.items.Count; j++)
 			{
-				if (_RecursiveRemoveThisNormalItemItem(farmer.items[i], parent_sheet_index))
+				if (_RecursiveRemoveThisNormalItemItem(farmer.items[j], parent_sheet_index))
 				{
-					farmer.items[i] = null;
+					farmer.items[j] = null;
 				}
+			}
+			for (int i = 0; i < farmer.itemsLostLastDeath.Count; i++)
+			{
+				if (_RecursiveRemoveThisNormalItemItem(farmer.itemsLostLastDeath[i], parent_sheet_index))
+				{
+					farmer.itemsLostLastDeath.RemoveAt(i);
+					i--;
+				}
+			}
+			if (farmer.recoveredItem != null && _RecursiveRemoveThisNormalItemItem(farmer.recoveredItem, parent_sheet_index))
+			{
+				farmer.recoveredItem = null;
+				farmer.mailbox.Remove("MarlonRecovery");
+				farmer.mailForTomorrow.Remove("MarlonRecovery");
 			}
 		}
 
@@ -19638,6 +19754,12 @@ namespace StardewValley
 			if (this_item is Object)
 			{
 				Object o = this_item as Object;
+				if (o.heldObject.Value != null && _RecursiveRemoveThisNormalItemItem(o.heldObject.Value, parent_sheet_index))
+				{
+					o.heldObject.Value = null;
+					o.readyForHarvest.Value = false;
+					o.showNextIndex.Value = false;
+				}
 				if (o is StorageFurniture)
 				{
 					bool removed_item2 = false;

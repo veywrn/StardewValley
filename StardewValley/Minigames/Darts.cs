@@ -708,10 +708,12 @@ namespace StardewValley.Minigames
 			screenWidth = 320;
 			screenHeight = 320;
 			float pixel_zoom_adjustment = 1f / Game1.options.zoomLevel;
-			pixelScale = Math.Min(5f, Math.Min((float)Game1.graphics.GraphicsDevice.Viewport.Width * pixel_zoom_adjustment / (float)screenWidth, (float)Game1.graphics.GraphicsDevice.Viewport.Height * pixel_zoom_adjustment / (float)screenHeight));
+			int viewport_width = Game1.game1.localMultiplayerWindow.Width;
+			int viewport_height = Game1.game1.localMultiplayerWindow.Height;
+			pixelScale = Math.Min(5f, Math.Min((float)viewport_width * pixel_zoom_adjustment / (float)screenWidth, (float)viewport_height * pixel_zoom_adjustment / (float)screenHeight));
 			float snap = 0.1f;
 			pixelScale = (float)(int)(pixelScale / snap) * snap;
-			upperLeft = new Vector2((float)(Game1.graphics.GraphicsDevice.Viewport.Width / 2) * pixel_zoom_adjustment, (float)(Game1.graphics.GraphicsDevice.Viewport.Height / 2) * pixel_zoom_adjustment);
+			upperLeft = new Vector2((float)(viewport_width / 2) * pixel_zoom_adjustment, (float)(viewport_height / 2) * pixel_zoom_adjustment);
 			upperLeft.X -= (float)(screenWidth / 2) * pixelScale;
 			upperLeft.Y -= (float)(screenHeight / 2) * pixelScale;
 			dartBoardCenter = new Vector2(160f, 160f);

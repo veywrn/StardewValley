@@ -133,6 +133,7 @@ namespace StardewValley.BellsAndWhistles
 			case "Smallmouth Bass":
 			case "Star Shards":
 			case "Tea Leaves":
+			case "Clay":
 			case "Pickles":
 				return word;
 			default:

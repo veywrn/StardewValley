@@ -63,21 +63,13 @@ namespace StardewValley.Locations
 			};
 		}
 
-		protected override void resetLocalState()
+		public override void MakeMapModifications(bool force = false)
 		{
-			base.resetLocalState();
-			if (Game1.getMusicTrackName().ToLower().Contains("ambient"))
-			{
-				Game1.changeMusicTrack("none");
-			}
+			base.MakeMapModifications(force);
 			if ((bool)witchStatueGone || Game1.MasterPlayer.mailReceived.Contains("witchStatueGone"))
 			{
 				removeTile(54, 35, "Buildings");
 				removeTile(54, 34, "Front");
-			}
-			if (!Game1.IsWinter)
-			{
-				AmbientLocationSounds.addSound(new Vector2(15f, 56f), 0);
 			}
 			if (Game1.MasterPlayer.mailReceived.Contains("Farm_Eternal"))
 			{
@@ -85,6 +77,19 @@ namespace StardewValley.Locations
 				removeTile(25, 34, "Buildings");
 				removeTile(24, 35, "Buildings");
 				removeTile(25, 35, "Buildings");
+			}
+		}
+
+		protected override void resetLocalState()
+		{
+			base.resetLocalState();
+			if (Game1.getMusicTrackName().ToLower().Contains("ambient"))
+			{
+				Game1.changeMusicTrack("none");
+			}
+			if (!Game1.IsWinter)
+			{
+				AmbientLocationSounds.addSound(new Vector2(15f, 56f), 0);
 			}
 		}
 

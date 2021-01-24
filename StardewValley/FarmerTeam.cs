@@ -300,20 +300,27 @@ namespace StardewValley
 
 		public virtual void OnRequestLeoMoveEvent()
 		{
-			if (Game1.IsMasterGame)
+			if (!Game1.IsMasterGame)
 			{
-				Game1.player.team.requestAddCharacterEvent.Fire("Leo");
-				NPC leo = Game1.getCharacterFromName("Leo");
-				if (leo != null)
+				return;
+			}
+			Game1.player.team.requestAddCharacterEvent.Fire("Leo");
+			NPC leo = Game1.getCharacterFromName("Leo");
+			if (leo != null)
+			{
+				leo.DefaultMap = "LeoTreeHouse";
+				leo.DefaultPosition = new Vector2(5f, 4f) * 64f;
+				leo.faceDirection(2);
+				leo.InvalidateMasterSchedule();
+				if (leo.Schedule != null)
 				{
-					leo.DefaultMap = "LeoTreeHouse";
-					leo.DefaultPosition = new Vector2(5f, 4f) * 64f;
-					leo.faceDirection(2);
-					leo.InvalidateMasterSchedule();
-					Game1.warpCharacter(leo, Game1.getLocationFromName("Mountain"), new Vector2(16f, 8f));
-					leo.Halt();
-					leo.ignoreScheduleToday = false;
+					leo.Schedule = null;
 				}
+				leo.controller = null;
+				leo.temporaryController = null;
+				Game1.warpCharacter(leo, Game1.getLocationFromName("Mountain"), new Vector2(16f, 8f));
+				leo.Halt();
+				leo.ignoreScheduleToday = false;
 			}
 		}
 

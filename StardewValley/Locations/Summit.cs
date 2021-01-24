@@ -271,13 +271,14 @@ namespace StardewValley.Locations
 			wind.Play();
 			globalWind = 0f;
 			windGust = 0.001f;
-			if (!Game1.player.mailReceived.Contains("Summit_event") && Game1.MasterPlayer.mailReceived.Contains("Farm_Eternal"))
+			if (!Game1.player.mailReceived.Contains("Summit_event") && Game1.MasterPlayer.mailReceived.Contains("Farm_Eternal") && getSummitEvent() != "")
 			{
-				Game1.player.mailReceived.Add("Summit_event");
-				if (getSummitEvent() != "")
+				if (!Game1.player.songsHeard.Contains("end_credits"))
 				{
-					startEvent(new Event(getSummitEvent()));
+					Game1.player.songsHeard.Add("end_credits");
 				}
+				Game1.player.mailReceived.Add("Summit_event");
+				startEvent(new Event(getSummitEvent()));
 			}
 		}
 
@@ -297,7 +298,7 @@ namespace StardewValley.Locations
 			try
 			{
 				sb.Append("winter_day_ambient/-1000 -1000/farmer 9 23 0 ");
-				if (Game1.player.isMarried() && Game1.player.getSpouse().Name != "Krobus")
+				if (Game1.player.isMarried() && Game1.player.getSpouse() != null && Game1.player.getSpouse().Name != "Krobus")
 				{
 					sb.Append(Game1.player.getSpouse().Name + " 11 13 0/skippable/viewport 10 17 clamp true/pause 2000/viewport move 0 -1 4000/move farmer 0 -10 0/move farmer 1 0 0/pause 2000/speak " + Game1.player.getSpouse().Name + " \"" + GetSummitDialogue("ExtraDialogue", "SummitEvent_Intro_Spouse") + "\"/viewport move 0 -1 4000/pause 5000/speak " + Game1.player.getSpouse().Name + " \"" + GetSummitDialogue("ExtraDialogue", "SummitEvent_Intro2_Spouse" + (sayGrufferSummitIntro(Game1.player.getSpouse()) ? "_Gruff" : "")) + "\"/pause 400/emote farmer 56/pause 2000/speak " + Game1.player.getSpouse().Name + " \"" + GetSummitDialogue("ExtraDialogue", "SummitEvent_Dialogue1_Spouse") + "\"/pause 2000/faceDirection " + Game1.player.getSpouse().Name + " 3/faceDirection farmer 1/pause 1000/speak " + Game1.player.getSpouse().Name + " \"" + GetSummitDialogue("ExtraDialogue", "SummitEvent_Dialogue2_Spouse") + "\"/pause 2000/faceDirection " + Game1.player.getSpouse().Name + " 0/faceDirection farmer 0/pause 2000/speak " + Game1.player.getSpouse().Name + " \"" + GetSummitDialogue("ExtraDialogue", ("SummitEvent_Dialogue3_" + Game1.player.getSpouse().Name) ?? "") + "\"/emote farmer 20/pause 500/faceDirection farmer 1/faceDirection " + Game1.player.getSpouse().Name + " 3/pause 1500/animate farmer false true 100 101/showKissFrame " + Game1.player.getSpouse().Name + "/playSound dwop/positionOffset farmer 8 0/positionOffset " + Game1.player.getSpouse().Name + " -4 0/specificTemporarySprite heart 11 12/pause 10");
 				}

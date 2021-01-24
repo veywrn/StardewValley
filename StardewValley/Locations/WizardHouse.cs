@@ -46,6 +46,15 @@ namespace StardewValley.Locations
 			base.cleanupBeforePlayerExit();
 		}
 
+		public override void MakeMapModifications(bool force = false)
+		{
+			base.MakeMapModifications(force);
+			if (Game1.player.eventsSeen.Contains(418172))
+			{
+				setMapTileIndex(2, 12, 2143, "Front", 1);
+			}
+		}
+
 		protected override void resetLocalState()
 		{
 			base.resetLocalState();
@@ -85,10 +94,6 @@ namespace StardewValley.Locations
 				lightRadius = 1f,
 				scale = 2f
 			});
-			if (Game1.player.eventsSeen.Contains(418172))
-			{
-				setMapTileIndex(2, 12, 2143, "Front", 1);
-			}
 		}
 	}
 }

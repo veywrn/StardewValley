@@ -276,7 +276,7 @@ namespace StardewValley
 
 		protected static string _formatForFuzzySearch(string term)
 		{
-			return term.Trim().ToLowerInvariant().Replace(" ", "")
+			string formatted_term = term.Trim().ToLowerInvariant().Replace(" ", "")
 				.Replace("(", "")
 				.Replace(")", "")
 				.Replace("'", "")
@@ -284,6 +284,11 @@ namespace StardewValley
 				.Replace("!", "")
 				.Replace("?", "")
 				.Replace("-", "");
+			if (formatted_term.Length == 0)
+			{
+				return term.Trim().ToLowerInvariant().Replace(" ", "");
+			}
+			return formatted_term;
 		}
 
 		public static Item fuzzyItemSearch(string query, int stack_count = 1)
@@ -3328,6 +3333,19 @@ namespace StardewValley
 			return highest_friendship_points;
 		}
 
+		public static int GetAllPlayerReachedBottomOfMines()
+		{
+			int highest_value = 0;
+			foreach (Farmer farmer in Game1.getAllFarmers())
+			{
+				if (farmer.timesReachedMineBottom > highest_value)
+				{
+					highest_value = farmer.timesReachedMineBottom;
+				}
+			}
+			return highest_value;
+		}
+
 		public static int GetAllPlayerDeepestMineLevel()
 		{
 			int highest_value = 0;
@@ -3505,7 +3523,7 @@ namespace StardewValley
 				all_unlocked_crafting_recipes = GetAllPlayerUnlockedCraftingRecipes();
 				all_unlocked_cooking_recipes = GetAllPlayerUnlockedCookingRecipes();
 			}
-			if ((forQuest && (MineShaft.lowestLevelReached > 40 || GetAllPlayerDeepestMineLevel() >= 1)) || (!forQuest && (Game1.player.deepestMineLevel > 40 || Game1.player.timesReachedMineBottom >= 1)))
+			if ((forQuest && (MineShaft.lowestLevelReached > 40 || GetAllPlayerReachedBottomOfMines() >= 1)) || (!forQuest && (Game1.player.deepestMineLevel > 40 || Game1.player.timesReachedMineBottom >= 1)))
 			{
 				possibleItems.AddRange(new int[5]
 				{
@@ -3516,7 +3534,7 @@ namespace StardewValley
 					422
 				});
 			}
-			if ((forQuest && (MineShaft.lowestLevelReached > 80 || GetAllPlayerDeepestMineLevel() >= 1)) || (!forQuest && (Game1.player.deepestMineLevel > 80 || Game1.player.timesReachedMineBottom >= 1)))
+			if ((forQuest && (MineShaft.lowestLevelReached > 80 || GetAllPlayerReachedBottomOfMines() >= 1)) || (!forQuest && (Game1.player.deepestMineLevel > 80 || Game1.player.timesReachedMineBottom >= 1)))
 			{
 				possibleItems.AddRange(new int[3]
 				{
@@ -5277,7 +5295,7 @@ namespace StardewValley
 			{
 				foreach (Building building in (location as BuildableGameLocation).buildings)
 				{
-					if (building.performActiveObjectDropInAction(Game1.player, probe: true))
+					if (building.occupiesTile(tileLocation) && building.performActiveObjectDropInAction(Game1.player, probe: true))
 					{
 						return true;
 					}
@@ -6659,12 +6677,67 @@ namespace StardewValley
 				{
 					return new SoundInTheNightEvent(1);
 				}
-				if (random.NextDouble() < 0.008 && Game1.year > 1)
+				if (random.NextDouble() < 0.005)
 				{
+					return new SoundInTheNightEvent(3);
+				}
+				if (random.NextDouble() < 0.008 && Game1.year > 1 && !Game1.MasterPlayer.mailReceived.Contains("Got_Capsule"))
+				{
+					Game1.MasterPlayer.mailReceived.Add("Got_Capsule");
 					return new SoundInTheNightEvent(0);
 				}
-				return (random.NextDouble() < 0.008) ? new SoundInTheNightEvent(3) : null;
+				return null;
 			});
+		}
+
+		public static bool hasFinishedJojaRoute()
+		{
+			bool foundJoja = false;
+			if (Game1.player.mailReceived.Contains("jojaVault"))
+			{
+				foundJoja = true;
+			}
+			else if (!Game1.player.mailReceived.Contains("ccVault"))
+			{
+				return false;
+			}
+			if (Game1.player.mailReceived.Contains("jojaPantry"))
+			{
+				foundJoja = true;
+			}
+			else if (!Game1.player.mailReceived.Contains("ccPantry"))
+			{
+				return false;
+			}
+			if (Game1.player.mailReceived.Contains("jojaBoilerRoom"))
+			{
+				foundJoja = true;
+			}
+			else if (!Game1.player.mailReceived.Contains("ccBoilerRoom"))
+			{
+				return false;
+			}
+			if (Game1.player.mailReceived.Contains("jojaCraftsRoom"))
+			{
+				foundJoja = true;
+			}
+			else if (!Game1.player.mailReceived.Contains("ccCraftsRoom"))
+			{
+				return false;
+			}
+			if (Game1.player.mailReceived.Contains("jojaFishTank"))
+			{
+				foundJoja = true;
+			}
+			else if (!Game1.player.mailReceived.Contains("ccFishTank"))
+			{
+				return false;
+			}
+			if (foundJoja || Game1.player.mailReceived.Contains("JojaMember"))
+			{
+				return true;
+			}
+			return false;
 		}
 
 		public static FarmEvent pickPersonalFarmEvent()
@@ -8138,6 +8211,14 @@ namespace StardewValley
 				_recursiveIterateItem(farmer.hat.Value, action);
 				_recursiveIterateItem(farmer.leftRing.Value, action);
 				_recursiveIterateItem(farmer.rightRing.Value, action);
+				foreach (Item item5 in farmer.itemsLostLastDeath)
+				{
+					_recursiveIterateItem(item5, action);
+				}
+				if (farmer.recoveredItem != null)
+				{
+					_recursiveIterateItem(farmer.recoveredItem, action);
+				}
 			}
 			foreach (Item item3 in Game1.player.team.returnedDonations)
 			{
@@ -8173,7 +8254,17 @@ namespace StardewValley
 				{
 					if (o2 is Chest)
 					{
-						foreach (Item item12 in (o2 as Chest).items)
+						foreach (Item item13 in (o2 as Chest).items)
+						{
+							if (item13 != null)
+							{
+								action(item13);
+							}
+						}
+					}
+					if (o2.heldObject.Value != null && o2.heldObject.Value is Chest)
+					{
+						foreach (Item item12 in (o2.heldObject.Value as Chest).items)
 						{
 							if (item12 != null)
 							{
@@ -8181,20 +8272,20 @@ namespace StardewValley
 							}
 						}
 					}
-					if (o2.heldObject.Value != null && o2.heldObject.Value is Chest)
-					{
-						foreach (Item item11 in (o2.heldObject.Value as Chest).items)
-						{
-							if (item11 != null)
-							{
-								action(item11);
-							}
-						}
-					}
 				}
 				if (i is FarmHouse)
 				{
-					foreach (Item item10 in (i as FarmHouse).fridge.Value.items)
+					foreach (Item item11 in (i as FarmHouse).fridge.Value.items)
+					{
+						if (item11 != null)
+						{
+							action(item11);
+						}
+					}
+				}
+				else if (i is IslandFarmHouse)
+				{
+					foreach (Item item10 in (i as IslandFarmHouse).fridge.Value.items)
 					{
 						if (item10 != null)
 						{
@@ -8652,7 +8743,14 @@ namespace StardewValley
 			{
 				if (it != null && it.canStackWith(i) && it.getRemainingStackSpace() > 0)
 				{
-					i.Stack = it.addToStack(i);
+					if (i is Object)
+					{
+						(i as Object).stack.Value = it.addToStack(i);
+					}
+					else
+					{
+						i.Stack = it.addToStack(i);
+					}
 					if (i.Stack <= 0)
 					{
 						return null;
@@ -8670,7 +8768,14 @@ namespace StardewValley
 					}
 					list[j] = i.getOne();
 					list[j].Stack = i.maximumStackSize();
-					i.Stack -= i.maximumStackSize();
+					if (i is Object)
+					{
+						(i as Object).stack.Value -= i.maximumStackSize();
+					}
+					else
+					{
+						i.Stack -= i.maximumStackSize();
+					}
 				}
 			}
 			while (listMaxSpace != -1 && list.Count < listMaxSpace)
@@ -8679,7 +8784,14 @@ namespace StardewValley
 				{
 					Item tmp = i.getOne();
 					tmp.Stack = i.maximumStackSize();
-					i.Stack -= i.maximumStackSize();
+					if (i is Object)
+					{
+						(i as Object).stack.Value -= i.maximumStackSize();
+					}
+					else
+					{
+						i.Stack -= i.maximumStackSize();
+					}
 					list.Add(tmp);
 					continue;
 				}

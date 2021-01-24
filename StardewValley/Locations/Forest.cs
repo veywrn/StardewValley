@@ -98,6 +98,15 @@ namespace StardewValley.Locations
 			{
 				characters.Remove(getCharacterFromName("TrashBear"));
 			}
+		}
+
+		public override void MakeMapModifications(bool force = false)
+		{
+			base.MakeMapModifications(force);
+			if (force)
+			{
+				hasShownCCUpgrade = false;
+			}
 			if (NetWorldState.checkAnywhereForWorldStateID("trashBearDone"))
 			{
 				removeSewerTrash();
@@ -437,7 +446,7 @@ namespace StardewValley.Locations
 			if (bobberTile.Y > 108f && !Game1.player.mailReceived.Contains("caughtIridiumKrobus"))
 			{
 				Game1.player.mailReceived.Add("caughtIridiumKrobus");
-				return new Furniture(2428, Vector2.Zero);
+				return new Furniture(2396, Vector2.Zero);
 			}
 			return base.getFish(millisecondsAfterNibble, bait, waterDepth, who, baitPotency, bobberTile, locationName);
 		}

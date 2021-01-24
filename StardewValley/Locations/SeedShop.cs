@@ -146,6 +146,10 @@ namespace StardewValley.Locations
 				price2 = obj.salePrice();
 				price_multiplier = 1f;
 			}
+			else if (obj.isSapling())
+			{
+				price_multiplier *= Game1.MasterPlayer.difficultyModifier;
+			}
 			if (item_season != null && item_season != Game1.currentSeason)
 			{
 				if (!Game1.MasterPlayer.hasOrWillReceiveMail("PierreStocklist"))

@@ -1472,7 +1472,6 @@ namespace StardewValley
 			{
 				greenhouseUnlocked.Value = true;
 			}
-			ClearGreenhouseGrassTiles();
 			houseSource.Value = new Microsoft.Xna.Framework.Rectangle(0, 144 * (((int)Game1.MasterPlayer.houseUpgradeLevel == 3) ? 2 : ((int)Game1.MasterPlayer.houseUpgradeLevel)), 160, 144);
 			int i = characters.Count - 1;
 			while (true)
@@ -1495,20 +1494,26 @@ namespace StardewValley
 			Game1.warpCharacter(characters[i], characters[i].getSpouse().homeLocation.Value, farmHouse.getKitchenStandingSpot());
 		}
 
+		public override void MakeMapModifications(bool force = false)
+		{
+			base.MakeMapModifications(force);
+			ClearGreenhouseGrassTiles();
+			if (Game1.MasterPlayer.isMarried() && Game1.MasterPlayer.spouse != null)
+			{
+				addSpouseOutdoorArea(Game1.MasterPlayer.spouse);
+			}
+			_UpdateWaterBowl();
+		}
+
 		protected override void resetLocalState()
 		{
 			base.resetLocalState();
 			hasSeenGrandpaNote = Game1.player.hasOrWillReceiveMail("hasSeenGrandpaNote");
 			frameHouseColor = null;
-			_UpdateWaterBowl();
 			if (!Game1.player.mailReceived.Contains("button_tut_2"))
 			{
 				Game1.player.mailReceived.Add("button_tut_2");
 				Game1.onScreenMenus.Add(new ButtonTutorialMenu(1));
-			}
-			if (Game1.MasterPlayer.isMarried() && Game1.MasterPlayer.spouse != null)
-			{
-				addSpouseOutdoorArea(Game1.MasterPlayer.spouse);
 			}
 			for (int k = characters.Count - 1; k >= 0; k--)
 			{
@@ -1596,10 +1601,6 @@ namespace StardewValley
 
 		public virtual int GetSpouseOutdoorAreaSpritesheetIndex()
 		{
-			if (Game1.whichFarm == 6)
-			{
-				return 2;
-			}
 			return 1;
 		}
 

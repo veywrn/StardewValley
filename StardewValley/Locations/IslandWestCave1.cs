@@ -147,6 +147,12 @@ namespace StardewValley.Locations
 			netPhase.Value = 3;
 		}
 
+		public override void MakeMapModifications(bool force = false)
+		{
+			base.MakeMapModifications(force);
+			UpdateActivationTiles();
+		}
+
 		protected override void resetLocalState()
 		{
 			base.resetLocalState();
@@ -228,16 +234,30 @@ namespace StardewValley.Locations
 				if (isActivated.Value || completed.Value)
 				{
 					Game1.currentLightSources.Add(new LightSource(1, new Vector2(6.5f, 1f) * 64f, 2f, Color.Black, 99, LightSource.LightContext.None, 0L));
+				}
+				else
+				{
+					Utility.removeLightSource(99);
+				}
+				UpdateActivationTiles();
+				if (completed.Value)
+				{
+					addCompletionTorches();
+				}
+			}
+		}
+
+		public virtual void UpdateActivationTiles()
+		{
+			if (map != null && Game1.gameMode != 6 && Game1.currentLocation == this)
+			{
+				if (isActivated.Value || completed.Value)
+				{
 					setMapTileIndex(6, 1, 33, "Buildings");
 				}
 				else
 				{
 					setMapTileIndex(6, 1, 31, "Buildings");
-					Utility.removeLightSource(99);
-				}
-				if (completed.Value)
-				{
-					addCompletionTorches();
 				}
 			}
 		}

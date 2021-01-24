@@ -92,38 +92,29 @@ namespace StardewValley
 			}
 			if (minimumLikeLevel.Value > LikeLevels.None)
 			{
-				switch (npc.getGiftTasteForThisItem(item))
+				int like_level = npc.getGiftTasteForThisItem(item);
+				LikeLevels gift_like_level = LikeLevels.None;
+				switch (like_level)
 				{
 				case 6:
-					if (minimumLikeLevel.Value < LikeLevels.Hated)
-					{
-						return;
-					}
+					gift_like_level = LikeLevels.Hated;
 					break;
 				case 4:
-					if (minimumLikeLevel.Value < LikeLevels.Disliked)
-					{
-						return;
-					}
+					gift_like_level = LikeLevels.Disliked;
 					break;
 				case 8:
-					if (minimumLikeLevel.Value < LikeLevels.Neutral)
-					{
-						return;
-					}
+					gift_like_level = LikeLevels.Neutral;
 					break;
 				case 2:
-					if (minimumLikeLevel.Value < LikeLevels.Liked)
-					{
-						return;
-					}
+					gift_like_level = LikeLevels.Liked;
 					break;
 				case 0:
-					if (minimumLikeLevel.Value < LikeLevels.Loved)
-					{
-						return;
-					}
+					gift_like_level = LikeLevels.Loved;
 					break;
+				}
+				if (gift_like_level < minimumLikeLevel.Value)
+				{
+					return;
 				}
 			}
 			IncrementCount(1);

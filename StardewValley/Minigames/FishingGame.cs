@@ -370,7 +370,7 @@ namespace StardewValley.Minigames
 				return;
 			}
 			b.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, null);
-			Vector2 position = new Vector2(Game1.graphics.GraphicsDevice.Viewport.Width / 2 - 128, Game1.graphics.GraphicsDevice.Viewport.Height / 2 - 64);
+			Vector2 position = new Vector2(Game1.viewport.Width / 2 - 128, Game1.viewport.Height / 2 - 64);
 			if (showResultsTimer <= 11000)
 			{
 				Game1.drawWithBorder(Game1.content.LoadString("Strings\\StringsFromCSFiles:FishingGame.cs.10444", score), Game1.textColor, (showResultsTimer <= 7000 && perfectionBonus > 0) ? Color.Lime : Color.White, position);
@@ -425,8 +425,8 @@ namespace StardewValley.Minigames
 
 		public void changeScreenSize()
 		{
-			Game1.viewport.X = location.Map.Layers[0].LayerWidth * 64 / 2 - (int)((float)(Game1.graphics.GraphicsDevice.Viewport.Width / 2) / Game1.options.zoomLevel);
-			Game1.viewport.Y = location.Map.Layers[0].LayerHeight * 64 / 2 - (int)((float)(Game1.graphics.GraphicsDevice.Viewport.Height / 2) / Game1.options.zoomLevel);
+			Game1.viewport.X = location.Map.Layers[0].LayerWidth * 64 / 2 - (int)((float)(Game1.game1.localMultiplayerWindow.Width / 2) / Game1.options.zoomLevel);
+			Game1.viewport.Y = location.Map.Layers[0].LayerHeight * 64 / 2 - (int)((float)(Game1.game1.localMultiplayerWindow.Height / 2) / Game1.options.zoomLevel);
 		}
 
 		public void unload()

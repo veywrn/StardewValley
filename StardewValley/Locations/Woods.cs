@@ -317,6 +317,12 @@ namespace StardewValley.Locations
 			}
 		}
 
+		public override void MakeMapModifications(bool force = false)
+		{
+			base.MakeMapModifications(force);
+			updateStatueEyes();
+		}
+
 		protected override void resetLocalState()
 		{
 			_ambientLightColor = new Color(150, 120, 50);
@@ -355,7 +361,6 @@ namespace StardewValley.Locations
 			{
 				Game1.changeMusicTrack("woodsTheme");
 			}
-			updateStatueEyes();
 		}
 
 		private void updateStatueEyes()

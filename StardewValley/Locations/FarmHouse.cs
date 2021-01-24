@@ -1013,9 +1013,23 @@ namespace StardewValley.Locations
 			}
 		}
 
+		public override void MakeMapModifications(bool force = false)
+		{
+			base.MakeMapModifications(force);
+			updateFarmLayout();
+			setWallpapers();
+			setFloors();
+			if (owner.getSpouse() != null && owner.getSpouse().name.Equals("Sebastian") && Game1.netWorldState.Value.hasWorldStateID("sebastianFrog"))
+			{
+				Vector2 spot = new Vector2((upgradeLevel == 1) ? 30 : 36, (upgradeLevel == 1) ? 7 : 16);
+				removeTile((int)spot.X, (int)spot.Y - 1, "Front");
+				removeTile((int)spot.X + 1, (int)spot.Y - 1, "Front");
+				removeTile((int)spot.X + 2, (int)spot.Y - 1, "Front");
+			}
+		}
+
 		protected override void resetLocalState()
 		{
-			updateFarmLayout();
 			base.resetLocalState();
 			if (owner.isMarried() && owner.spouse != null && owner.spouse.Equals("Emily") && Game1.player.eventsSeen.Contains(463391))
 			{
@@ -1027,8 +1041,6 @@ namespace StardewValley.Locations
 				}
 				temporarySprites.Add(new EmilysParrot(parrotSpot));
 			}
-			setWallpapers();
-			setFloors();
 			if (Game1.player.currentLocation == null || (!Game1.player.currentLocation.Equals(this) && !Game1.player.currentLocation.name.Value.StartsWith("Cellar")))
 			{
 				switch (this.upgradeLevel)
@@ -1087,6 +1099,7 @@ namespace StardewValley.Locations
 				}
 				if (whichQuilt != -1 && !Game1.player.mailReceived.Contains("pennyRefurbished"))
 				{
+					List<Object> objectsPickedUp = new List<Object>();
 					foreach (Furniture f in furniture)
 					{
 						if (f is BedFurniture)
@@ -1111,6 +1124,7 @@ namespace StardewValley.Locations
 								{
 									Vector2 tile_location = bed_furniture.TileLocation;
 									bed_furniture.performRemoveAction(bed_furniture.tileLocation, this);
+									objectsPickedUp.Add(bed_furniture);
 									Guid guid = furniture.GuidOf(bed_furniture);
 									furniture.Remove(guid);
 									furniture.Add(new BedFurniture(bed_index, new Vector2(tile_location.X, tile_location.Y)));
@@ -1122,7 +1136,6 @@ namespace StardewValley.Locations
 					Game1.player.mailReceived.Add("pennyRefurbished");
 					Microsoft.Xna.Framework.Rectangle roomToRedecorate2 = Microsoft.Xna.Framework.Rectangle.Empty;
 					roomToRedecorate2 = ((this.upgradeLevel >= 2) ? new Microsoft.Xna.Framework.Rectangle(23, 10, 11, 13) : new Microsoft.Xna.Framework.Rectangle(20, 1, 8, 10));
-					List<Object> objectsPickedUp = new List<Object>();
 					for (int x = roomToRedecorate2.X; x <= roomToRedecorate2.Right; x++)
 					{
 						for (int y = roomToRedecorate2.Y; y <= roomToRedecorate2.Bottom; y++)
@@ -1163,9 +1176,6 @@ namespace StardewValley.Locations
 				return;
 			}
 			Vector2 spot = new Vector2((this.upgradeLevel == 1) ? 30 : 36, (this.upgradeLevel == 1) ? 7 : 16);
-			removeTile((int)spot.X, (int)spot.Y - 1, "Front");
-			removeTile((int)spot.X + 1, (int)spot.Y - 1, "Front");
-			removeTile((int)spot.X + 2, (int)spot.Y - 1, "Front");
 			temporarySprites.Add(new TemporaryAnimatedSprite
 			{
 				texture = Game1.mouseCursors,

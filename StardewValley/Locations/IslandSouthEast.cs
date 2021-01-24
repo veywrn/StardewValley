@@ -115,9 +115,9 @@ namespace StardewValley.Locations
 			}
 		}
 
-		protected override void resetLocalState()
+		public override void MakeMapModifications(bool force = false)
 		{
-			base.resetLocalState();
+			base.MakeMapModifications(force);
 			if (Game1.IsRainingHere(this))
 			{
 				setMapTile(16, 27, 3, "Back", "", 2);
@@ -136,10 +136,8 @@ namespace StardewValley.Locations
 				setMapTile(24, 27, 39, "Back", "");
 				setMapTile(26, 27, 39, "Back", "");
 			}
-			mermaidSprites = Game1.temporaryContent.Load<Texture2D>("LooseSprites\\temporary_sprites_1");
 			if (IslandSouthEastCave.isPirateNight())
 			{
-				Game1.changeMusicTrack("PIRATE_THEME(muffled)", track_interruptable: true, Game1.MusicContext.SubLocation);
 				setMapTileIndex(29, 18, 36, "Buildings", 2);
 				setTileProperty(29, 18, "Buildings", "Passable", "T");
 				setMapTileIndex(29, 19, 68, "Buildings", 2);
@@ -148,10 +146,6 @@ namespace StardewValley.Locations
 				setTileProperty(30, 18, "Buildings", "Passable", "T");
 				setMapTileIndex(30, 19, 131, "Buildings", 2);
 				setTileProperty(30, 19, "Buildings", "Passable", "T");
-				if (!hasLightSource(797))
-				{
-					sharedLights.Add(797, new LightSource(1, new Vector2(30.5f, 18.5f) * 64f, 4f, LightSource.LightContext.None, 0L));
-				}
 			}
 			else
 			{
@@ -163,6 +157,20 @@ namespace StardewValley.Locations
 				setTileProperty(30, 18, "Buildings", "Passable", "T");
 				setMapTileIndex(30, 19, 67, "Buildings", 2);
 				setTileProperty(30, 19, "Buildings", "Passable", "T");
+			}
+		}
+
+		protected override void resetLocalState()
+		{
+			base.resetLocalState();
+			mermaidSprites = Game1.temporaryContent.Load<Texture2D>("LooseSprites\\temporary_sprites_1");
+			if (IslandSouthEastCave.isPirateNight())
+			{
+				Game1.changeMusicTrack("PIRATE_THEME(muffled)", track_interruptable: true, Game1.MusicContext.SubLocation);
+				if (!hasLightSource(797))
+				{
+					sharedLights.Add(797, new LightSource(1, new Vector2(30.5f, 18.5f) * 64f, 4f, LightSource.LightContext.None, 0L));
+				}
 			}
 			if (Game1.currentSeason == "winter" && !Game1.IsRainingHere(this) && Game1.isDarkOut())
 			{

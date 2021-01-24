@@ -459,6 +459,11 @@ namespace StardewValley.Locations
 
 		public override void UpdateWhenCurrentLocation(GameTime time)
 		{
+			ICue main_player_music = Game1.currentSong;
+			if (!Game1.game1.IsMainInstance)
+			{
+				main_player_music = GameRunner.instance.gameInstances[0].instanceCurrentSong;
+			}
 			base.UpdateWhenCurrentLocation(time);
 			if (stopWatch == null)
 			{
@@ -470,27 +475,27 @@ namespace StardewValley.Locations
 				{
 					stopWatch.Stop();
 				}
-				if (Game1.getMusicTrackName().Equals("mermaidSong") && !Game1.currentSong.IsPaused)
+				if (main_player_music != null && main_player_music.Name.Equals("mermaidSong") && !main_player_music.IsPaused && main_player_music.IsPlaying)
 				{
-					Game1.currentSong.Pause();
+					main_player_music.Pause();
 				}
 			}
 			else
 			{
-				if (stopWatch != null && !stopWatch.IsRunning && Game1.getMusicTrackName().Equals("mermaidSong") && Game1.currentSong.IsPaused)
+				if (stopWatch != null && !stopWatch.IsRunning && main_player_music != null && main_player_music.Name.Equals("mermaidSong") && main_player_music.IsPaused)
 				{
 					stopWatch.Start();
 				}
-				if (Game1.getMusicTrackName().Equals("mermaidSong") && Game1.currentSong.IsPaused)
+				if (main_player_music != null && main_player_music.Name.Equals("mermaidSong") && main_player_music.IsPaused)
 				{
-					Game1.currentSong.Resume();
+					main_player_music.Resume();
 				}
 			}
 			if (Game1.shouldTimePass())
 			{
 				float num = showTimer;
 				showTimer += time.ElapsedGameTime.Milliseconds;
-				if (((Game1.currentSong != null && Game1.getMusicTrackName().Equals("mermaidSong") && Game1.currentSong.IsPlaying) || (Game1.options.musicVolumeLevel <= 0f && Game1.options.ambientVolumeLevel <= 0f)) && !stopWatch.IsRunning)
+				if (((main_player_music != null && main_player_music.Name.Equals("mermaidSong") && main_player_music.IsPlaying) || (Game1.options.musicVolumeLevel <= 0f && Game1.options.ambientVolumeLevel <= 0f)) && !stopWatch.IsRunning)
 				{
 					stopWatch.Start();
 				}

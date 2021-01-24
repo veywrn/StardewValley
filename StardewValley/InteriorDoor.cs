@@ -104,6 +104,13 @@ namespace StardewValley
 			{
 				Sprite.paused = false;
 				Sprite.resetEnd();
+			}
+		}
+
+		public virtual void ApplyMapModifications()
+		{
+			if (base.Value)
+			{
 				openDoorTiles();
 			}
 			else

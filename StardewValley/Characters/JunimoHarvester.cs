@@ -504,7 +504,7 @@ namespace StardewValley.Characters
 				}
 				else if (alpha > 0f && controller == null)
 				{
-					if ((base.addedSpeed > 0 || base.speed > 2 || isCharging) && Game1.IsMasterGame)
+					if ((base.addedSpeed > 0 || base.speed > 3 || isCharging) && Game1.IsMasterGame)
 					{
 						destroy = true;
 					}
