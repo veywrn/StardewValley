@@ -177,7 +177,7 @@ namespace StardewValley.Locations
 		public override void drawAboveAlwaysFrontLayer(SpriteBatch b)
 		{
 			base.drawAboveAlwaysFrontLayer(b);
-			for (float x = -512f + steamPosition.X; x < (float)Game1.graphics.GraphicsDevice.Viewport.Width + 256f; x += 256f)
+			for (float x = -1000f * Game1.options.zoomLevel + steamPosition.X; x < (float)Game1.graphics.GraphicsDevice.Viewport.Width + 256f; x += 256f)
 			{
 				for (float y = -256f + steamPosition.Y; y < (float)(Game1.graphics.GraphicsDevice.Viewport.Height + 128); y += 256f)
 				{
@@ -226,6 +226,11 @@ namespace StardewValley.Locations
 			steamPosition = new Vector2(0f, 0f);
 			steamAnimation = Game1.temporaryContent.Load<Texture2D>("LooseSprites\\steamAnimation");
 			Game1.ambientLight = new Color(250, 140, 160);
+		}
+
+		public override void MakeMapModifications(bool force = false)
+		{
+			base.MakeMapModifications(force);
 			if (Game1.getCharacterFromName("Krobus").isMarried())
 			{
 				setMapTileIndex(31, 17, 84, "Buildings", 1);

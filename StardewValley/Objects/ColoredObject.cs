@@ -65,8 +65,10 @@ namespace StardewValley.Objects
 				}
 				if (drawStackNumber != 0 && (int)quality > 0)
 				{
-					float yOffset = ((int)quality < 2) ? 0f : (((float)Math.Cos((double)Game1.currentGameTime.TotalGameTime.Milliseconds * Math.PI / 512.0) + 1f) * 0.05f);
-					spriteBatch.Draw(Game1.mouseCursors, location + new Vector2(12f, 52f + yOffset), new Rectangle(338 + ((int)quality - 1) * 8, 400, 8, 8), Color.White * transparency, 0f, new Vector2(4f, 4f), 3f * scaleSize * (1f + yOffset), SpriteEffects.None, layerDepth);
+					Rectangle quality_rect = ((int)quality < 4) ? new Rectangle(338 + ((int)quality - 1) * 8, 400, 8, 8) : new Rectangle(346, 392, 8, 8);
+					Texture2D quality_sheet = Game1.mouseCursors;
+					float yOffset = ((int)quality < 4) ? 0f : (((float)Math.Cos((double)Game1.currentGameTime.TotalGameTime.Milliseconds * Math.PI / 512.0) + 1f) * 0.05f);
+					spriteBatch.Draw(quality_sheet, location + new Vector2(12f, 52f + yOffset), quality_rect, Color.White * transparency, 0f, new Vector2(4f, 4f), 3f * scaleSize * (1f + yOffset), SpriteEffects.None, layerDepth);
 				}
 			}
 			if ((bool)isRecipe)

@@ -101,6 +101,10 @@ namespace StardewValley.Locations
 					return new Object(159, 1);
 				}
 			}
+			if (using_magic_bait && bobberTile.X < 12f && bobberTile.Y > 31f && waterDepth >= 3 && Game1.random.NextDouble() < 0.1 + (double)(bobberAddition * 1.5f))
+			{
+				return new Object(798 + Game1.random.Next(3), 1);
+			}
 			return base.getFish(millisecondsAfterNibble, bait, waterDepth, who, baitPotency, bobberTile, locationName);
 		}
 
@@ -290,6 +294,23 @@ namespace StardewValley.Locations
 			}
 		}
 
+		public override void MakeMapModifications(bool force = false)
+		{
+			base.MakeMapModifications(force);
+			if (force)
+			{
+				hasShownCCUpgrade = false;
+			}
+			if ((bool)bridgeFixed)
+			{
+				fixBridge(this);
+			}
+			if (Game1.MasterPlayer.mailReceived.Contains("communityUpgradeShortcuts"))
+			{
+				showCommunityUpgradeShortcuts(this, ref hasShownCCUpgrade);
+			}
+		}
+
 		protected override void resetLocalState()
 		{
 			base.resetLocalState();
@@ -317,14 +338,6 @@ namespace StardewValley.Locations
 			if (Game1.isRaining && Game1.timeOfDay < 1900)
 			{
 				oldMariner = new NPC(new AnimatedSprite("Characters\\Mariner", 0, 16, 32), new Vector2(80f, 5f) * 64f, 2, "Old Mariner");
-			}
-			if ((bool)bridgeFixed)
-			{
-				fixBridge(this);
-			}
-			if (Game1.MasterPlayer.mailReceived.Contains("communityUpgradeShortcuts"))
-			{
-				showCommunityUpgradeShortcuts(this, ref hasShownCCUpgrade);
 			}
 		}
 

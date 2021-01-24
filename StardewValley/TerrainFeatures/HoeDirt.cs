@@ -137,6 +137,12 @@ namespace StardewValley.TerrainFeatures
 		[XmlIgnore]
 		public NetInt nearWaterForPaddy = new NetInt(-1);
 
+		private byte drawSum;
+
+		private int sourceRectPosition;
+
+		private int wateredRectPosition;
+
 		private Texture2D texture;
 
 		private static readonly NeighborLoc[] _offsets = new NeighborLoc[4]
@@ -769,7 +775,7 @@ namespace StardewValley.TerrainFeatures
 			if (crop != null)
 			{
 				crop.newDay(state, fertilizer, (int)tileLocation.X, (int)tileLocation.Y, environment);
-				if ((bool)environment.isOutdoors && Game1.GetSeasonForLocation(environment).Equals("winter") && crop != null && !crop.isWildSeedCrop() && (int)crop.indexOfHarvest != 771 && !environment.IsGreenhouse && !environment.SeedsIgnoreSeasonsHere())
+				if ((bool)environment.isOutdoors && Game1.GetSeasonForLocation(environment).Equals("winter") && crop != null && !crop.isWildSeedCrop() && (int)crop.indexOfHarvest != 771 && (int)crop.indexOfHarvest != 889 && !environment.IsGreenhouse && !environment.SeedsIgnoreSeasonsHere())
 				{
 					destroyCrop(tileLocation, showAnimation: false, environment);
 				}
@@ -840,10 +846,15 @@ namespace StardewValley.TerrainFeatures
 
 		public override void draw(SpriteBatch spriteBatch, Vector2 tileLocation)
 		{
+			DrawOptimized(spriteBatch, spriteBatch, spriteBatch, tileLocation);
+		}
+
+		public void DrawOptimized(SpriteBatch dirt_batch, SpriteBatch fert_batch, SpriteBatch crop_batch, Vector2 tileLocation)
+		{
 			int state = this.state.Value;
-			if (state != 2)
+			if (state != 2 && (dirt_batch != null || fert_batch != null))
 			{
-				if (texture == null)
+				if (dirt_batch != null && texture == null)
 				{
 					texture = ((Game1.currentLocation.Name.Equals("Mountain") || Game1.currentLocation.Name.Equals("Mine") || (Game1.currentLocation is MineShaft && (Game1.currentLocation as MineShaft).shouldShowDarkHoeDirt()) || Game1.currentLocation is VolcanoDungeon) ? darkTexture : lightTexture);
 					if ((Game1.GetSeasonForLocation(Game1.currentLocation).Equals("winter") && !(Game1.currentLocation is Desert) && !Game1.currentLocation.IsGreenhouse && !Game1.currentLocation.SeedsIgnoreSeasonsHere() && !(Game1.currentLocation is MineShaft)) || (Game1.currentLocation is MineShaft && (Game1.currentLocation as MineShaft).shouldUseSnowTextureHoeDirt()))
@@ -851,25 +862,28 @@ namespace StardewValley.TerrainFeatures
 						texture = snowTexture;
 					}
 				}
-				byte drawSum = (byte)(neighborMask & 0xF);
-				int sourceRectPosition = drawGuide[drawSum];
-				int wateredRectPosition = drawGuide[wateredNeighborMask];
 				Vector2 drawPos = Game1.GlobalToLocal(Game1.viewport, new Vector2(tileLocation.X * 64f, tileLocation.Y * 64f));
-				spriteBatch.Draw(texture, drawPos, new Rectangle(sourceRectPosition % 4 * 16, sourceRectPosition / 4 * 16, 16, 16), c, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1E-08f);
-				if (state == 1)
+				if (dirt_batch != null)
 				{
-					spriteBatch.Draw(texture, drawPos, new Rectangle(wateredRectPosition % 4 * 16 + (paddyWaterCheck(Game1.currentLocation, tileLocation) ? 128 : 64), wateredRectPosition / 4 * 16, 16, 16), c, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1.2E-08f);
+					dirt_batch.Draw(texture, drawPos, new Rectangle(sourceRectPosition % 4 * 16, sourceRectPosition / 4 * 16, 16, 16), c, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1E-08f);
+					if (state == 1)
+					{
+						dirt_batch.Draw(texture, drawPos, new Rectangle(wateredRectPosition % 4 * 16 + (paddyWaterCheck(Game1.currentLocation, tileLocation) ? 128 : 64), wateredRectPosition / 4 * 16, 16, 16), c, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1.2E-08f);
+					}
 				}
-				int fertilizer = this.fertilizer.Value;
-				if (fertilizer != 0)
+				if (fert_batch != null)
 				{
-					Rectangle fertilizer_rect = GetFertilizerSourceRect(fertilizer);
-					spriteBatch.Draw(Game1.mouseCursors, drawPos, fertilizer_rect, Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1.9E-08f);
+					int fertilizer = this.fertilizer.Value;
+					if (fertilizer != 0)
+					{
+						Rectangle fertilizer_rect = GetFertilizerSourceRect(fertilizer);
+						fert_batch.Draw(Game1.mouseCursors, drawPos, fertilizer_rect, Color.White, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1.9E-08f);
+					}
 				}
 			}
-			if (crop != null)
+			if (crop != null && crop_batch != null)
 			{
-				crop.draw(spriteBatch, tileLocation, (state == 1 && (int)crop.currentPhase == 0 && crop.shouldDrawDarkWhenWatered()) ? (new Color(180, 100, 200) * 1f) : Color.White, shakeRotation);
+				crop.draw(crop_batch, tileLocation, (state == 1 && (int)crop.currentPhase == 0 && crop.shouldDrawDarkWhenWatered()) ? (new Color(180, 100, 200) * 1f) : Color.White, shakeRotation);
 			}
 		}
 
@@ -957,7 +971,9 @@ namespace StardewValley.TerrainFeatures
 							i.feature.wateredNeighborMask = (byte)(i.feature.wateredNeighborMask & ~i.invDirection);
 						}
 					}
+					i.feature.UpdateDrawSums();
 				}
+				UpdateDrawSums();
 			}
 		}
 
@@ -980,8 +996,17 @@ namespace StardewValley.TerrainFeatures
 					{
 						i.feature.wateredNeighborMask = (byte)(i.feature.wateredNeighborMask & ~i.invDirection);
 					}
+					i.feature.UpdateDrawSums();
 				}
+				UpdateDrawSums();
 			}
+		}
+
+		public virtual void UpdateDrawSums()
+		{
+			drawSum = (byte)(neighborMask & 0xF);
+			sourceRectPosition = drawGuide[drawSum];
+			wateredRectPosition = drawGuide[wateredNeighborMask];
 		}
 
 		public void OnNeighborAdded(byte direction)

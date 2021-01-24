@@ -146,6 +146,14 @@ namespace StardewValley
 			}
 		}
 
+		public void MakeMapModifications()
+		{
+			foreach (InteriorDoor door in Doors)
+			{
+				door.ApplyMapModifications();
+			}
+		}
+
 		public void CleanUpLocalState()
 		{
 			foreach (InteriorDoor door in Doors)

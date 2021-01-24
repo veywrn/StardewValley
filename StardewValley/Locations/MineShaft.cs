@@ -151,13 +151,17 @@ namespace StardewValley.Locations
 			{
 				if (Game1.netWorldState.Value.LowestMineLevelForOrder >= 0)
 				{
+					if (Game1.netWorldState.Value.LowestMineLevelForOrder == 120)
+					{
+						return Math.Max(Game1.netWorldState.Value.LowestMineLevelForOrder, Game1.netWorldState.Value.LowestMineLevelForOrder);
+					}
 					return Game1.netWorldState.Value.LowestMineLevelForOrder;
 				}
 				return Game1.netWorldState.Value.LowestMineLevel;
 			}
 			set
 			{
-				if (Game1.netWorldState.Value.LowestMineLevelForOrder >= 0)
+				if (Game1.netWorldState.Value.LowestMineLevelForOrder >= 0 && value <= 120)
 				{
 					Game1.netWorldState.Value.LowestMineLevelForOrder = value;
 				}
@@ -370,6 +374,11 @@ namespace StardewValley.Locations
 					base.Map.LoadTileSheets(Game1.mapDisplayDevice);
 				}
 			};
+		}
+
+		public override bool AllowMapModificationsInResetState()
+		{
+			return true;
 		}
 
 		protected override LocalizedContentManager getMapLoader()
@@ -1242,7 +1251,7 @@ namespace StardewValley.Locations
 							else if (mineRandom.NextDouble() <= monsterChance && getDistanceFromStart(k, i) > 5f)
 							{
 								Monster monsterToAdd2 = BuffMonsterIfNecessary(getMonsterForThisLevel(mineLevel, k, i));
-								if (monsterToAdd2 is GreenSlime && !spawned_prismatic_jelly && Game1.random.NextDouble() <= 0.008 && Game1.player.team.SpecialOrderActive("Wizard2"))
+								if (monsterToAdd2 is GreenSlime && !spawned_prismatic_jelly && Game1.random.NextDouble() <= 0.012 + Game1.player.team.AverageDailyLuck() / 10.0 && Game1.player.team.SpecialOrderActive("Wizard2"))
 								{
 									(monsterToAdd2 as GreenSlime).makePrismatic();
 									spawned_prismatic_jelly = true;
@@ -1966,7 +1975,7 @@ namespace StardewValley.Locations
 
 		public static Item getTreasureRoomItem()
 		{
-			switch (Game1.random.Next(25))
+			switch (Game1.random.Next(26))
 			{
 			case 0:
 				return new Object(288, 5);
@@ -2018,6 +2027,8 @@ namespace StardewValley.Locations
 				return new Hat(65);
 			case 24:
 				return new Object(Vector2.Zero, 272);
+			case 25:
+				return new Hat(83);
 			default:
 				return new Object(288, 5);
 			}
@@ -2026,6 +2037,10 @@ namespace StardewValley.Locations
 		public static Item getSpecialItemForThisMineLevel(int level, int x, int y)
 		{
 			Random r = new Random(level + (int)Game1.stats.DaysPlayed + x + y * 10000);
+			if (Game1.mine == null)
+			{
+				return new Object(388, 1);
+			}
 			if (Game1.mine.GetAdditionalDifficulty() > 0)
 			{
 				if (r.NextDouble() < 0.02)
@@ -2663,6 +2678,10 @@ namespace StardewValley.Locations
 
 		public override string checkForBuriedItem(int xLocation, int yLocation, bool explosion, bool detectOnly, Farmer who)
 		{
+			if (isQuarryArea)
+			{
+				return "";
+			}
 			if (Game1.random.NextDouble() < 0.15)
 			{
 				int objectIndex = 330;

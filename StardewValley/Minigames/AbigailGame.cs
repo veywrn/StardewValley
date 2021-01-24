@@ -2389,7 +2389,7 @@ namespace StardewValley.Minigames
 				abigailPortraitTimer = 6000;
 				AbigailDialogue = sayWhat;
 				abigailPortraitExpression = whichExpression;
-				abigailPortraitYposition = (int)((float)Game1.graphics.GraphicsDevice.Viewport.Height / Game1.options.zoomLevel);
+				abigailPortraitYposition = (int)((float)Game1.viewport.Height / Game1.options.zoomLevel);
 				Game1.playSound("dwop");
 			}
 		}
@@ -2656,7 +2656,7 @@ namespace StardewValley.Minigames
 			if (abigailPortraitTimer > 0)
 			{
 				abigailPortraitTimer -= time.ElapsedGameTime.Milliseconds;
-				if (abigailPortraitTimer > 1000 && abigailPortraitYposition > (int)((float)Game1.graphics.GraphicsDevice.Viewport.Height / Game1.options.zoomLevel) - 256)
+				if (abigailPortraitTimer > 1000 && abigailPortraitYposition > (int)((float)Game1.viewport.Height / Game1.options.zoomLevel) - 256)
 				{
 					abigailPortraitYposition -= 16;
 				}
@@ -3467,9 +3467,12 @@ namespace StardewValley.Minigames
 							playerDie();
 							break;
 						}
-						addGuts(monsters[i].position.Location, monsters[i].type);
-						monsters.RemoveAt(i);
-						Game1.playSound("Cowboy_monsterDie");
+						if (monsters[i].type != -2)
+						{
+							addGuts(monsters[i].position.Location, monsters[i].type);
+							monsters.RemoveAt(i);
+							Game1.playSound("Cowboy_monsterDie");
+						}
 					}
 					if (playingWithAbigail && i < monsters.Count && monsters[i].position.Intersects(player2BoundingBox) && player2invincibletimer <= 0)
 					{
@@ -4449,7 +4452,7 @@ namespace StardewValley.Minigames
 			if (onStartMenu)
 			{
 				b.Draw(Game1.staminaRect, new Rectangle((int)topLeftScreenCoordinate.X, (int)topLeftScreenCoordinate.Y, 16 * TileSize, 16 * TileSize), Game1.staminaRect.Bounds, Color.Black, 0f, Vector2.Zero, SpriteEffects.None, 0.97f);
-				b.Draw(Game1.mouseCursors, new Vector2(Game1.graphics.GraphicsDevice.Viewport.TitleSafeArea.Width / 2 - 3 * TileSize, topLeftScreenCoordinate.Y + (float)(5 * TileSize)), new Rectangle(128, 1744, 96, 56), Color.White, 0f, Vector2.Zero, 3f, SpriteEffects.None, 1f);
+				b.Draw(Game1.mouseCursors, new Vector2(Game1.viewport.Width / 2 - 3 * TileSize, topLeftScreenCoordinate.Y + (float)(5 * TileSize)), new Rectangle(128, 1744, 96, 56), Color.White, 0f, Vector2.Zero, 3f, SpriteEffects.None, 1f);
 			}
 			else if ((gameOver || gamerestartTimer > 0) && !endCutscene)
 			{
@@ -4495,11 +4498,11 @@ namespace StardewValley.Minigames
 				case 2:
 				case 3:
 				{
-					for (int j = 0; j < 16; j++)
+					for (int k = 0; k < 16; k++)
 					{
-						for (int k = 0; k < 16; k++)
+						for (int l = 0; l < 16; l++)
 						{
-							b.Draw(Game1.mouseCursors, topLeftScreenCoordinate + new Vector2(j, k) * 16f * 3f + new Vector2(0f, newMapPosition - 16 * TileSize), new Rectangle(464 + 16 * map[j, k] + ((map[j, k] == 5 && cactusDanceTimer > 800f) ? 16 : 0), 1680 - world * 16, 16, 16), Color.White, 0f, Vector2.Zero, 3f, SpriteEffects.None, 0f);
+							b.Draw(Game1.mouseCursors, topLeftScreenCoordinate + new Vector2(k, l) * 16f * 3f + new Vector2(0f, newMapPosition - 16 * TileSize), new Rectangle(464 + 16 * map[k, l] + ((map[k, l] == 5 && cactusDanceTimer > 800f) ? 16 : 0), 1680 - world * 16, 16, 16), Color.White, 0f, Vector2.Zero, 3f, SpriteEffects.None, 0f);
 						}
 					}
 					b.Draw(Game1.mouseCursors, topLeftScreenCoordinate + new Vector2(6 * TileSize, 3 * TileSize), new Rectangle(288, 1697, 64, 80), Color.White, 0f, Vector2.Zero, 3f, SpriteEffects.None, 0.01f);
@@ -4598,13 +4601,13 @@ namespace StardewValley.Minigames
 				{
 					powerup.draw(b);
 				}
-				foreach (CowboyBullet p in bullets)
+				foreach (CowboyBullet p2 in bullets)
 				{
-					b.Draw(Game1.mouseCursors, topLeftScreenCoordinate + new Vector2(p.position.X, p.position.Y), new Rectangle(518, 1760 + (bulletDamage - 1) * 4, 4, 4), Color.White, 0f, Vector2.Zero, 3f, SpriteEffects.None, 0.9f);
+					b.Draw(Game1.mouseCursors, topLeftScreenCoordinate + new Vector2(p2.position.X, p2.position.Y), new Rectangle(518, 1760 + (bulletDamage - 1) * 4, 4, 4), Color.White, 0f, Vector2.Zero, 3f, SpriteEffects.None, 0.9f);
 				}
-				foreach (CowboyBullet p2 in enemyBullets)
+				foreach (CowboyBullet p in enemyBullets)
 				{
-					b.Draw(Game1.mouseCursors, topLeftScreenCoordinate + new Vector2(p2.position.X, p2.position.Y), new Rectangle(523, 1760, 5, 5), Color.White, 0f, Vector2.Zero, 3f, SpriteEffects.None, 0.9f);
+					b.Draw(Game1.mouseCursors, topLeftScreenCoordinate + new Vector2(p.position.X, p.position.Y), new Rectangle(523, 1760, 5, 5), Color.White, 0f, Vector2.Zero, 3f, SpriteEffects.None, 0.9f);
 				}
 				if (shopping)
 				{
@@ -4666,9 +4669,9 @@ namespace StardewValley.Minigames
 					b.DrawString(Game1.smallFont, "x" + Math.Max(lives, 0), topLeftScreenCoordinate - new Vector2(TileSize, -TileSize - TileSize / 4 - 18), Color.White);
 					b.Draw(Game1.mouseCursors, topLeftScreenCoordinate - new Vector2(TileSize * 2, -TileSize * 2 - 18), new Rectangle(272, 1808, 16, 16), Color.White, 0f, Vector2.Zero, 3f, SpriteEffects.None, 0.5f);
 					b.DrawString(Game1.smallFont, "x" + coins, topLeftScreenCoordinate - new Vector2(TileSize, -TileSize * 2 - TileSize / 4 - 18), Color.White);
-					for (int l = 0; l < whichWave + whichRound * 12; l++)
+					for (int j = 0; j < whichWave + whichRound * 12; j++)
 					{
-						b.Draw(Game1.mouseCursors, topLeftScreenCoordinate + new Vector2(TileSize * 16 + 3, l * 3 * 6), new Rectangle(512, 1760, 5, 5), Color.White, 0f, Vector2.Zero, 3f, SpriteEffects.None, 0.5f);
+						b.Draw(Game1.mouseCursors, topLeftScreenCoordinate + new Vector2(TileSize * 16 + 3, j * 3 * 6), new Rectangle(512, 1760, 5, 5), Color.White, 0f, Vector2.Zero, 3f, SpriteEffects.None, 0.5f);
 					}
 					b.Draw(Game1.mouseCursors, new Vector2((int)topLeftScreenCoordinate.X, (int)topLeftScreenCoordinate.Y - TileSize / 2 - 12), new Rectangle(595, 1748, 9, 11), Color.White, 0f, Vector2.Zero, 3f, SpriteEffects.None, 0.5f);
 					if (!shootoutLevel)
@@ -4677,7 +4680,7 @@ namespace StardewValley.Minigames
 					}
 					if (betweenWaveTimer > 0 && whichWave == 0 && !scrollingMap)
 					{
-						Vector2 pos = new Vector2(Game1.graphics.GraphicsDevice.Viewport.Width / 2 - 120, Game1.graphics.GraphicsDevice.Viewport.Height - 144 - 3);
+						Vector2 pos = new Vector2(Game1.viewport.Width / 2 - 120, Game1.viewport.Height - 144 - 3);
 						if (!Game1.options.gamepadControls)
 						{
 							b.Draw(Game1.mouseCursors, pos, new Rectangle(352, 1648, 80, 48), Color.White, 0f, Vector2.Zero, 3f, SpriteEffects.None, 0.99f);
@@ -4711,7 +4714,7 @@ namespace StardewValley.Minigames
 			}
 			if (fadethenQuitTimer > 0)
 			{
-				b.Draw(Game1.staminaRect, new Rectangle(0, 0, Game1.graphics.GraphicsDevice.Viewport.Width, Game1.graphics.GraphicsDevice.Viewport.Height), Game1.staminaRect.Bounds, Color.Black * (1f - (float)fadethenQuitTimer / 2000f), 0f, Vector2.Zero, SpriteEffects.None, 1f);
+				b.Draw(Game1.staminaRect, new Rectangle(0, 0, Game1.viewport.Width, Game1.viewport.Height), Game1.staminaRect.Bounds, Color.Black * (1f - (float)fadethenQuitTimer / 2000f), 0f, Vector2.Zero, SpriteEffects.None, 1f);
 			}
 			if (abigailPortraitTimer > 0)
 			{
@@ -4728,7 +4731,7 @@ namespace StardewValley.Minigames
 
 		public void changeScreenSize()
 		{
-			topLeftScreenCoordinate = new Vector2(Game1.graphics.GraphicsDevice.Viewport.Width / 2 - 384, Game1.graphics.GraphicsDevice.Viewport.Height / 2 - 384);
+			topLeftScreenCoordinate = new Vector2(Game1.viewport.Width / 2 - 384, Game1.viewport.Height / 2 - 384);
 		}
 
 		public void unload()

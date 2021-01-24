@@ -29,7 +29,7 @@ namespace StardewValley.Objects
 
 		protected override bool loadDisplayFields()
 		{
-			displayName = "Combined Ring";
+			base.loadDisplayFields();
 			description = "";
 			foreach (Ring ring in combinedRings)
 			{
@@ -79,6 +79,15 @@ namespace StardewValley.Objects
 				count += ring.GetEffectsOfRingMultiplier(ring_index);
 			}
 			return count;
+		}
+
+		public override void onDayUpdate(Farmer who, GameLocation location)
+		{
+			foreach (Ring combinedRing in combinedRings)
+			{
+				combinedRing.onDayUpdate(who, location);
+			}
+			base.onDayUpdate(who, location);
 		}
 
 		public override void onEquip(Farmer who, GameLocation location)

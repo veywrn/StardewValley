@@ -363,6 +363,9 @@ namespace StardewValley
 		public bool wasInhabited;
 
 		[XmlIgnore]
+		protected bool _madeMapModifications;
+
+		[XmlIgnore]
 		public ModDataDictionary modData = new ModDataDictionary();
 
 		public readonly NetCollection<Furniture> furniture = new NetCollection<Furniture>();
@@ -608,6 +611,102 @@ namespace StardewValley
 			if (!Game1.IsMasterGame && cached_data.ContainsKey(NameOrUniqueName))
 			{
 				cached_data.Remove(NameOrUniqueName);
+			}
+		}
+
+		public virtual void MakeMapModifications(bool force = false)
+		{
+			if (force)
+			{
+				_appliedMapOverrides.Clear();
+			}
+			interiorDoors.MakeMapModifications();
+			switch ((string)name)
+			{
+			case "Sunroom":
+			{
+				string imageSource = map.TileSheets[1].ImageSource;
+				Path.GetFileName(imageSource);
+				string imageDir = Path.GetDirectoryName(imageSource);
+				if (string.IsNullOrWhiteSpace(imageDir))
+				{
+					imageDir = "Maps";
+				}
+				map.TileSheets[1].ImageSource = Path.Combine(imageDir, "CarolineGreenhouseTiles" + ((Game1.IsRainingHere(this) || Game1.timeOfDay > Game1.getTrulyDarkTime()) ? "_rainy" : ""));
+				map.DisposeTileSheets(Game1.mapDisplayDevice);
+				map.LoadTileSheets(Game1.mapDisplayDevice);
+				break;
+			}
+			case "AbandonedJojaMart":
+				if (!Game1.MasterPlayer.hasOrWillReceiveMail("ccMovieTheater"))
+				{
+					StaticTile[] tileFrames = CommunityCenter.getJunimoNoteTileFrames(0, map);
+					string layer = "Buildings";
+					Point position = new Point(8, 8);
+					map.GetLayer(layer).Tiles[position.X, position.Y] = new AnimatedTile(map.GetLayer(layer), tileFrames, 70L);
+				}
+				else
+				{
+					removeTile(8, 8, "Buildings");
+				}
+				break;
+			case "WitchSwamp":
+				if (Game1.MasterPlayer.mailReceived.Contains("henchmanGone"))
+				{
+					removeTile(20, 29, "Buildings");
+				}
+				else
+				{
+					setMapTileIndex(20, 29, 10, "Buildings");
+				}
+				break;
+			case "WitchHut":
+				if (Game1.player.mailReceived.Contains("hasPickedUpMagicInk"))
+				{
+					setMapTileIndex(4, 11, 113, "Buildings");
+					map.GetLayer("Buildings").Tiles[4, 11].Properties.Remove("Action");
+				}
+				break;
+			case "HaleyHouse":
+				if (Game1.player.eventsSeen.Contains(463391) && (Game1.player.spouse == null || !Game1.player.spouse.Equals("Emily")))
+				{
+					setMapTileIndex(14, 4, 2173, "Buildings");
+					setMapTileIndex(14, 3, 2141, "Buildings");
+					setMapTileIndex(14, 3, 219, "Back");
+				}
+				break;
+			case "Saloon":
+				if (NetWorldState.checkAnywhereForWorldStateID("saloonSportsRoom"))
+				{
+					refurbishMapPortion(new Microsoft.Xna.Framework.Rectangle(32, 1, 7, 9), "RefurbishedSaloonRoom", Point.Zero);
+					Game1.currentLightSources.Add(new LightSource(1, new Vector2(33f, 7f) * 64f, 4f, LightSource.LightContext.None, 0L));
+					Game1.currentLightSources.Add(new LightSource(1, new Vector2(36f, 7f) * 64f, 4f, LightSource.LightContext.None, 0L));
+					Game1.currentLightSources.Add(new LightSource(1, new Vector2(34f, 5f) * 64f, 4f, LightSource.LightContext.None, 0L));
+				}
+				break;
+			case "Backwoods":
+				if (Game1.netWorldState.Value.hasWorldStateID("golemGrave"))
+				{
+					ApplyMapOverride("Backwoods_GraveSite");
+				}
+				if (Game1.MasterPlayer.mailReceived.Contains("communityUpgradeShortcuts") && !_appliedMapOverrides.Contains("Backwoods_Staircase"))
+				{
+					ApplyMapOverride("Backwoods_Staircase");
+					LargeTerrainFeature blockingBush = null;
+					foreach (LargeTerrainFeature t in largeTerrainFeatures)
+					{
+						if (t.tilePosition.Equals(new Vector2(37f, 16f)))
+						{
+							blockingBush = t;
+							break;
+						}
+					}
+					if (blockingBush != null)
+					{
+						largeTerrainFeatures.Remove(blockingBush);
+					}
+				}
+				break;
 			}
 		}
 
@@ -1369,7 +1468,7 @@ namespace StardewValley
 
 		public virtual bool isCollidingPosition(Microsoft.Xna.Framework.Rectangle position, xTile.Dimensions.Rectangle viewport, bool isFarmer, int damagesFarmer, bool glider, Character character)
 		{
-			if (character == null || character.willDestroyObjectsUnderfoot)
+			if (!Game1.eventUp && (character == null || character.willDestroyObjectsUnderfoot))
 			{
 				foreach (Furniture f in furniture)
 				{
@@ -1990,7 +2089,7 @@ namespace StardewValley
 
 		public virtual void checkForMusic(GameTime time)
 		{
-			if (Game1.getMusicTrackName() == "IslandMusic" && Game1.currentLocation != null && Game1.currentLocation.GetLocationContext() != LocationContext.Island)
+			if (!Game1.startedJukeboxMusic && Game1.getMusicTrackName() == "IslandMusic" && Game1.currentLocation != null && Game1.currentLocation.GetLocationContext() != LocationContext.Island)
 			{
 				Game1.changeMusicTrack("none", track_interruptable: true);
 			}
@@ -3307,6 +3406,7 @@ namespace StardewValley
 
 		public virtual void DayUpdate(int dayOfMonth)
 		{
+			netAudio.StopPlaying("fuse");
 			SelectRandomMiniJukeboxTrack();
 			if (critters != null)
 			{
@@ -3372,12 +3472,12 @@ namespace StardewValley
 				}
 			}
 			List<KeyValuePair<Vector2, Object>> objects_to_remove = new List<KeyValuePair<Vector2, Object>>();
-			for (int m = objects.Count() - 1; m >= 0; m--)
+			for (int l = objects.Count() - 1; l >= 0; l--)
 			{
-				objects.Pairs.ElementAt(m).Value.DayUpdate(this);
-				if (objects.Pairs.ElementAt(m).Value.destroyOvernight)
+				objects.Pairs.ElementAt(l).Value.DayUpdate(this);
+				if (objects.Pairs.ElementAt(l).Value.destroyOvernight)
 				{
-					objects_to_remove.Add(objects.Pairs.ElementAt(m));
+					objects_to_remove.Add(objects.Pairs.ElementAt(l));
 				}
 			}
 			foreach (KeyValuePair<Vector2, Object> kvp in objects_to_remove)
@@ -3399,11 +3499,16 @@ namespace StardewValley
 			{
 				if (Game1.dayOfMonth % 7 == 0 && !(this is Farm))
 				{
-					for (int l = objects.Count() - 1; l >= 0; l--)
+					Microsoft.Xna.Framework.Rectangle ignoreRectangle = new Microsoft.Xna.Framework.Rectangle(0, 0, 0, 0);
+					if (this is IslandWest)
 					{
-						if ((bool)objects.Pairs.ElementAt(l).Value.isSpawnedObject)
+						ignoreRectangle = new Microsoft.Xna.Framework.Rectangle(31, 3, 77, 66);
+					}
+					for (int m = objects.Count() - 1; m >= 0; m--)
+					{
+						if ((bool)objects.Pairs.ElementAt(m).Value.isSpawnedObject && !ignoreRectangle.Contains(Utility.Vector2ToPoint(objects.Pairs.ElementAt(m).Key)))
 						{
-							objects.Remove(objects.Pairs.ElementAt(l).Key);
+							objects.Remove(objects.Pairs.ElementAt(m).Key);
 						}
 					}
 					numberOfSpawnedObjectsOnMap = 0;
@@ -3469,7 +3574,7 @@ namespace StardewValley
 								treeType = 8;
 								break;
 							}
-							if (treeType != -1 && !terrainFeatures.ContainsKey(tile) && !objects.ContainsKey(tile))
+							if (treeType != -1 && GetFurnitureAt(tile) == null && !terrainFeatures.ContainsKey(tile) && !objects.ContainsKey(tile))
 							{
 								terrainFeatures.Add(tile, new Tree(treeType, 2));
 							}
@@ -4098,7 +4203,6 @@ namespace StardewValley
 				Game1.changeMusicTrack("sad_kid", track_interruptable: true, Game1.MusicContext.SubLocation);
 				break;
 			case "Sunroom":
-			{
 				Game1.ambientLight = new Color(0, 0, 0);
 				AmbientLocationSounds.addSound(new Vector2(3f, 4f), 0);
 				if (largeTerrainFeatures.Count == 0)
@@ -4109,16 +4213,6 @@ namespace StardewValley
 					b.health = 99f;
 					largeTerrainFeatures.Add(b);
 				}
-				string imageSource = map.TileSheets[1].ImageSource;
-				Path.GetFileName(imageSource);
-				string imageDir = Path.GetDirectoryName(imageSource);
-				if (string.IsNullOrWhiteSpace(imageDir))
-				{
-					imageDir = "Maps";
-				}
-				map.TileSheets[1].ImageSource = Path.Combine(imageDir, "CarolineGreenhouseTiles" + ((Game1.IsRainingHere(this) || Game1.timeOfDay > Game1.getTrulyDarkTime()) ? "_rainy" : ""));
-				map.DisposeTileSheets(Game1.mapDisplayDevice);
-				map.LoadTileSheets(Game1.mapDisplayDevice);
 				if (!Game1.IsRainingHere(this))
 				{
 					Game1.changeMusicTrack("SunRoom", track_interruptable: false, Game1.MusicContext.SubLocation);
@@ -4130,14 +4224,10 @@ namespace StardewValley
 					}
 				}
 				break;
-			}
 			case "AbandonedJojaMart":
 				if (!Game1.MasterPlayer.hasOrWillReceiveMail("ccMovieTheater"))
 				{
-					StaticTile[] tileFrames = CommunityCenter.getJunimoNoteTileFrames(0, map);
-					string layer = "Buildings";
 					Point position = new Point(8, 8);
-					map.GetLayer(layer).Tiles[position.X, position.Y] = new AnimatedTile(map.GetLayer(layer), tileFrames, 70L);
 					Game1.currentLightSources.Add(new LightSource(4, new Vector2(position.X * 64, position.Y * 64), 1f, LightSource.LightContext.None, 0L));
 					temporarySprites.Add(new TemporaryAnimatedSprite(6, new Vector2(position.X * 64, position.Y * 64), Color.White)
 					{
@@ -4177,27 +4267,8 @@ namespace StardewValley
 						characters.Add(new Junimo(new Vector2(8f, 7f) * 64f, 6));
 					}
 				}
-				else
-				{
-					removeTile(8, 8, "Buildings");
-				}
-				break;
-			case "WitchSwamp":
-				if (Game1.MasterPlayer.mailReceived.Contains("henchmanGone"))
-				{
-					removeTile(20, 29, "Buildings");
-				}
-				else
-				{
-					setMapTileIndex(20, 29, 10, "Buildings");
-				}
 				break;
 			case "WitchHut":
-				if (Game1.player.mailReceived.Contains("hasPickedUpMagicInk"))
-				{
-					setMapTileIndex(4, 11, 113, "Buildings");
-					map.GetLayer("Buildings").Tiles[4, 11].Properties.Remove("Action");
-				}
 				if (Game1.player.mailReceived.Contains("cursed_doll") && !farmers.Any())
 				{
 					characters.Clear();
@@ -4242,9 +4313,6 @@ namespace StardewValley
 			case "HaleyHouse":
 				if (Game1.player.eventsSeen.Contains(463391) && (Game1.player.spouse == null || !Game1.player.spouse.Equals("Emily")))
 				{
-					setMapTileIndex(14, 4, 2173, "Buildings");
-					setMapTileIndex(14, 3, 2141, "Buildings");
-					setMapTileIndex(14, 3, 219, "Back");
 					temporarySprites.Add(new EmilysParrot(new Vector2(912f, 160f)));
 				}
 				break;
@@ -4651,13 +4719,6 @@ namespace StardewValley
 						id = 777f
 					});
 				}
-				if (NetWorldState.checkAnywhereForWorldStateID("saloonSportsRoom"))
-				{
-					refurbishMapPortion(new Microsoft.Xna.Framework.Rectangle(32, 1, 7, 9), "RefurbishedSaloonRoom", Point.Zero);
-					Game1.currentLightSources.Add(new LightSource(1, new Vector2(33f, 7f) * 64f, 4f, LightSource.LightContext.None, 0L));
-					Game1.currentLightSources.Add(new LightSource(1, new Vector2(36f, 7f) * 64f, 4f, LightSource.LightContext.None, 0L));
-					Game1.currentLightSources.Add(new LightSource(1, new Vector2(34f, 5f) * 64f, 4f, LightSource.LightContext.None, 0L));
-				}
 				if (Game1.dayOfMonth % 7 == 0 && NetWorldState.checkAnywhereForWorldStateID("saloonSportsRoom") && Game1.timeOfDay < 1500)
 				{
 					Texture2D tempTxture = Game1.temporaryContent.Load<Texture2D>("LooseSprites\\temporary_sprites_1");
@@ -4774,29 +4835,6 @@ namespace StardewValley
 					});
 				}
 				break;
-			case "Backwoods":
-				if (Game1.netWorldState.Value.hasWorldStateID("golemGrave"))
-				{
-					ApplyMapOverride("Backwoods_GraveSite");
-				}
-				if (Game1.MasterPlayer.mailReceived.Contains("communityUpgradeShortcuts") && !_appliedMapOverrides.Contains("Backwoods_Staircase"))
-				{
-					ApplyMapOverride("Backwoods_Staircase");
-					LargeTerrainFeature blockingBush = null;
-					foreach (LargeTerrainFeature t in largeTerrainFeatures)
-					{
-						if (t.tilePosition.Equals(new Vector2(37f, 16f)))
-						{
-							blockingBush = t;
-							break;
-						}
-					}
-					if (blockingBush != null)
-					{
-						largeTerrainFeatures.Remove(blockingBush);
-					}
-				}
-				break;
 			}
 		}
 
@@ -4825,11 +4863,17 @@ namespace StardewValley
 			Game1.updateWeatherIcon();
 			Game1.hooks.OnGameLocation_ResetForPlayerEntry(this, delegate
 			{
+				_madeMapModifications = false;
 				if (!farmers.Any() && !HasFarmerWatchingBroadcastEventReturningHere())
 				{
 					resetSharedState();
 				}
 				resetLocalState();
+				if (!_madeMapModifications)
+				{
+					_madeMapModifications = true;
+					MakeMapModifications();
+				}
 			});
 			Microsoft.Xna.Framework.Rectangle player_bounds = Game1.player.GetBoundingBox();
 			foreach (Furniture f in furniture)
@@ -7234,12 +7278,13 @@ namespace StardewValley
 
 		public void lockedDoorWarp(string[] actionParams)
 		{
+			bool town_key_applies = Game1.player.HasTownKey;
 			if (AreStoresClosedForFestival() && Name != "Desert" && GetLocationContext() == LocationContext.Default)
 			{
 				Game1.drawObjectDialogue(Game1.parseText(Game1.content.LoadString("Strings\\Locations:FestivalDay_DoorLocked")));
 				return;
 			}
-			if (actionParams[3].Equals("SeedShop") && Game1.shortDayNameFromDayOfSeason(Game1.dayOfMonth).Equals("Wed") && !Utility.HasAnyPlayerSeenEvent(191393))
+			if (actionParams[3].Equals("SeedShop") && Game1.shortDayNameFromDayOfSeason(Game1.dayOfMonth).Equals("Wed") && !Utility.HasAnyPlayerSeenEvent(191393) && !town_key_applies)
 			{
 				Game1.drawObjectDialogue(Game1.parseText(Game1.content.LoadString("Strings\\Locations:SeedShop_LockedWed")));
 				return;
@@ -7249,7 +7294,6 @@ namespace StardewValley
 			{
 				openTime = 800;
 			}
-			bool town_key_applies = Game1.player.HasTownKey;
 			if (town_key_applies)
 			{
 				if (town_key_applies && Name == "Desert")
@@ -10871,7 +10915,10 @@ namespace StardewValley
 					List<string> all_season_fish = new List<string>();
 					for (int l = 0; l < 4; l++)
 					{
-						all_season_fish.AddRange(locationData[nameToUse].Split('/')[4 + l].Split(' '));
+						if (locationData[nameToUse].Split('/')[4 + l].Split(' ').Length > 1)
+						{
+							all_season_fish.AddRange(locationData[nameToUse].Split('/')[4 + l].Split(' '));
+						}
 					}
 					rawFishData = all_season_fish.ToArray();
 				}
@@ -10962,7 +11009,7 @@ namespace StardewValley
 			{
 				whichFish = 145;
 			}
-			if (Game1.random.NextDouble() <= 0.15 && Game1.player.team.SpecialOrderRuleActive("DROP_QI_BEANS"))
+			if (!Game1.isFestival() && Game1.random.NextDouble() <= 0.15 && Game1.player.team.SpecialOrderRuleActive("DROP_QI_BEANS"))
 			{
 				whichFish = 890;
 			}
@@ -11257,6 +11304,11 @@ namespace StardewValley
 			}
 		}
 
+		public virtual bool AllowMapModificationsInResetState()
+		{
+			return false;
+		}
+
 		public void setMapTile(int tileX, int tileY, int index, string layer, string action, int whichTileSheet = 0)
 		{
 			map.GetLayer(layer).Tiles[tileX, tileY] = new StaticTile(map.GetLayer(layer), map.TileSheets[whichTileSheet], BlendMode.Alpha, index);
@@ -11341,7 +11393,7 @@ namespace StardewValley
 
 		public void OnStoneDestroyed(int indexOfStone, int x, int y, Farmer who)
 		{
-			if (Game1.random.NextDouble() <= 0.02 && Game1.player.team.SpecialOrderRuleActive("DROP_QI_BEANS"))
+			if (who != null && Game1.random.NextDouble() <= 0.02 && Game1.player.team.SpecialOrderRuleActive("DROP_QI_BEANS"))
 			{
 				Game1.createMultipleObjectDebris(890, x, y, 1, who.UniqueMultiplayerID, this);
 			}
@@ -12218,15 +12270,18 @@ namespace StardewValley
 					}
 				}
 			}
-			Furniture.isDrawingLocationFurniture = true;
-			foreach (Furniture f in furniture)
+			if (!Game1.eventUp || this is Farm || this is FarmHouse)
 			{
-				if (f.furniture_type.Value == 12)
+				Furniture.isDrawingLocationFurniture = true;
+				foreach (Furniture f in furniture)
 				{
-					f.draw(b, -1, -1);
+					if (f.furniture_type.Value == 12)
+					{
+						f.draw(b, -1, -1);
+					}
 				}
+				Furniture.isDrawingLocationFurniture = false;
 			}
-			Furniture.isDrawingLocationFurniture = false;
 		}
 
 		public TemporaryAnimatedSprite getTemporarySpriteByID(int id)
@@ -12347,6 +12402,20 @@ namespace StardewValley
 			}
 		}
 
+		public virtual void DrawFarmerUsernames(SpriteBatch b)
+		{
+			if (!shouldHideCharacters() && Game1.currentMinigame == null && (currentEvent == null || currentEvent.isFestival || currentEvent.farmerActors.Count == 0))
+			{
+				foreach (Farmer farmer in farmers)
+				{
+					if (!Game1.multiplayer.isDisconnecting(farmer.UniqueMultiplayerID))
+					{
+						farmer.DrawUsername(b);
+					}
+				}
+			}
+		}
+
 		public virtual void draw(SpriteBatch b)
 		{
 			foreach (MapSeat mapSeat in mapSeats)
@@ -12430,15 +12499,18 @@ namespace StardewValley
 			{
 				orePanAnimation.draw(b);
 			}
-			Furniture.isDrawingLocationFurniture = true;
-			foreach (Furniture f in furniture)
+			if (!Game1.eventUp || this is Farm || this is FarmHouse)
 			{
-				if (f.furniture_type.Value != 12)
+				Furniture.isDrawingLocationFurniture = true;
+				foreach (Furniture f in furniture)
 				{
-					f.draw(b, -1, -1);
+					if (f.furniture_type.Value != 12)
+					{
+						f.draw(b, -1, -1);
+					}
 				}
+				Furniture.isDrawingLocationFurniture = false;
 			}
-			Furniture.isDrawingLocationFurniture = false;
 			if (showDropboxIndicator && !Game1.eventUp)
 			{
 				float yOffset = 4f * (float)Math.Round(Math.Sin(Game1.currentGameTime.TotalGameTime.TotalMilliseconds / 250.0), 2);
@@ -12475,6 +12547,7 @@ namespace StardewValley
 			{
 				drawLightGlows(b);
 			}
+			DrawFarmerUsernames(b);
 		}
 
 		public virtual void drawLightGlows(SpriteBatch b)
@@ -13106,52 +13179,7 @@ namespace StardewValley
 
 		private bool checkJojaCompletePrerequisite()
 		{
-			bool foundJoja = false;
-			if (Game1.player.mailReceived.Contains("jojaVault"))
-			{
-				foundJoja = true;
-			}
-			else if (!Game1.player.mailReceived.Contains("ccVault"))
-			{
-				return false;
-			}
-			if (Game1.player.mailReceived.Contains("jojaPantry"))
-			{
-				foundJoja = true;
-			}
-			else if (!Game1.player.mailReceived.Contains("ccPantry"))
-			{
-				return false;
-			}
-			if (Game1.player.mailReceived.Contains("jojaBoilerRoom"))
-			{
-				foundJoja = true;
-			}
-			else if (!Game1.player.mailReceived.Contains("ccBoilerRoom"))
-			{
-				return false;
-			}
-			if (Game1.player.mailReceived.Contains("jojaCraftsRoom"))
-			{
-				foundJoja = true;
-			}
-			else if (!Game1.player.mailReceived.Contains("ccCraftsRoom"))
-			{
-				return false;
-			}
-			if (Game1.player.mailReceived.Contains("jojaFishTank"))
-			{
-				foundJoja = true;
-			}
-			else if (!Game1.player.mailReceived.Contains("ccFishTank"))
-			{
-				return false;
-			}
-			if (foundJoja || Game1.player.mailReceived.Contains("JojaMember"))
-			{
-				return true;
-			}
-			return false;
+			return Utility.hasFinishedJojaRoute();
 		}
 
 		private bool checkEventsSeenPreconditions(string[] eventIDs)
@@ -13395,7 +13423,7 @@ namespace StardewValley
 					}
 					if (treeType != -1)
 					{
-						if (!terrainFeatures.ContainsKey(tile) && !objects.ContainsKey(tile))
+						if (GetFurnitureAt(tile) == null && !terrainFeatures.ContainsKey(tile) && !objects.ContainsKey(tile))
 						{
 							terrainFeatures.Add(tile, new Tree(treeType, 5));
 						}

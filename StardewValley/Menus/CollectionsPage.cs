@@ -221,6 +221,9 @@ namespace StardewValley.Menus
 					case "Cheese Cauli.":
 						last_minute_1_5_hack_name = "Cheese Cauliflower";
 						break;
+					case "Cheese Cauliflower":
+						last_minute_1_5_hack_name = "Cheese Cauli.";
+						break;
 					case "Vegetable Medley":
 						last_minute_1_5_hack_name = "Vegetable Stew";
 						break;
@@ -700,6 +703,9 @@ namespace StardewValley.Menus
 						{
 						case "Cheese Cauli.":
 							last_minute_1_5_hack_name = "Cheese Cauliflower";
+							break;
+						case "Cheese Cauliflower":
+							last_minute_1_5_hack_name = "Cheese Cauli.";
 							break;
 						case "Vegetable Medley":
 							last_minute_1_5_hack_name = "Vegetable Stew";

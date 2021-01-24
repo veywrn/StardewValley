@@ -60,6 +60,9 @@ namespace StardewValley
 			OstrichIncubatorFragility,
 			FixBotchedBundleData,
 			LeoChildrenFix,
+			Leo6HeartGermanFix,
+			BirdieQuestRemovedFix,
+			SkippedSummit,
 			MAX
 		}
 
@@ -1267,7 +1270,7 @@ namespace StardewValley
 				Game1.doMorningStuff();
 			}
 			int current_save_fix = (int)Game1.lastAppliedSaveFix;
-			while (current_save_fix < 32)
+			while (current_save_fix < 35)
 			{
 				if (Enum.IsDefined(typeof(SaveFixes), current_save_fix))
 				{

@@ -334,6 +334,10 @@ namespace StardewValley.Buildings
 							{
 								Game1.drawObjectDialogue(Game1.content.LoadString("Strings\\Buildings:WrongFishTypeCoral", heldFishName2));
 							}
+							else if (Game1.content.GetCurrentLanguage() == LocalizedContentManager.LanguageCode.de)
+							{
+								Game1.drawObjectDialogue(Game1.content.LoadString("Strings\\Buildings:WrongFishType", heldFishName2, Game1.objectInformation[fishType].Split('/')[4]));
+							}
 							else
 							{
 								Game1.drawObjectDialogue(Game1.content.LoadString("Strings\\Buildings:WrongFishType", heldFishName2.ToLower(), Game1.objectInformation[fishType].Split('/')[4].ToLower()));

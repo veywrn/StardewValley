@@ -2185,17 +2185,15 @@ namespace StardewValley.Minigames
 		public void changeScreenSize()
 		{
 			float pixel_zoom_adjustment = 1f / Game1.options.zoomLevel;
-			Viewport vp = Game1.graphics.GraphicsDevice.Viewport;
-			Rectangle cb = Game1.game1.Window.ClientBounds;
-			Vector2 bb = new Vector2(Game1.graphics.PreferredBackBufferWidth, Game1.graphics.PreferredBackBufferHeight);
-			float x = bb.X;
-			Vector2 tmp = new Vector2(y: bb.Y / 2f, x: x / 2f) * pixel_zoom_adjustment;
+			Rectangle vp = Game1.game1.localMultiplayerWindow;
+			float num = vp.Width;
+			Vector2 tmp = new Vector2(y: (float)vp.Height / 2f, x: num / 2f) * pixel_zoom_adjustment;
 			tmp.X -= gameWidth / 2 * 4;
 			tmp.Y -= gameHeight / 2 * 4;
 			if (upperLeft != tmp)
 			{
 				upperLeft = tmp;
-				Console.WriteLine("CraneGame.changeScreenSize(); vp={0}, cb={1}, bb={2}, zl={3}, upperLeft={4}", vp, cb, bb, Game1.options.zoomLevel, upperLeft);
+				Console.WriteLine("CraneGame.changeScreenSize(); vp={0}, zl={1}, upperLeft={2}", vp, Game1.options.zoomLevel, upperLeft);
 			}
 		}
 

@@ -596,27 +596,24 @@ namespace StardewValley
 
 		public void animateOnce(AnimationFrame[] animation, endOfAnimationBehavior endOfBehaviorFunction = null)
 		{
-			if (!PauseForSingleAnimation)
+			currentSingleAnimation = -1;
+			CurrentFrame = currentSingleAnimation;
+			PauseForSingleAnimation = true;
+			oldFrame = CurrentFrame;
+			oldInterval = interval;
+			currentSingleAnimationInterval = 100f;
+			timer = 0f;
+			currentAnimation.Clear();
+			currentAnimation.AddRange(animation);
+			CurrentFrame = base.CurrentAnimation[0].frame;
+			currentAnimationFrames = base.CurrentAnimation.Count;
+			currentAnimationIndex = 0;
+			interval = CurrentAnimationFrame.milliseconds;
+			loopThisAnimation = false;
+			endOfAnimationFunction = endOfBehaviorFunction;
+			if (currentAnimationFrames > 0 && base.CurrentAnimation[0].frameStartBehavior != null)
 			{
-				currentSingleAnimation = -1;
-				CurrentFrame = currentSingleAnimation;
-				PauseForSingleAnimation = true;
-				oldFrame = CurrentFrame;
-				oldInterval = interval;
-				currentSingleAnimationInterval = 100f;
-				timer = 0f;
-				currentAnimation.Clear();
-				currentAnimation.AddRange(animation);
-				CurrentFrame = base.CurrentAnimation[0].frame;
-				currentAnimationFrames = base.CurrentAnimation.Count;
-				currentAnimationIndex = 0;
-				interval = CurrentAnimationFrame.milliseconds;
-				loopThisAnimation = false;
-				endOfAnimationFunction = endOfBehaviorFunction;
-				if (currentAnimationFrames > 0 && base.CurrentAnimation[0].frameStartBehavior != null)
-				{
-					base.CurrentAnimation[0].frameStartBehavior(owner);
-				}
+				base.CurrentAnimation[0].frameStartBehavior(owner);
 			}
 		}
 
@@ -629,6 +626,10 @@ namespace StardewValley
 
 		public void animateOnce(int whichAnimation, float animationInterval, int numberOfFrames, endOfAnimationBehavior endOfBehaviorFunction, bool flip, bool secondaryArm, bool backwards)
 		{
+			if (whichAnimation != currentSingleAnimation)
+			{
+				PauseForSingleAnimation = false;
+			}
 			if (PauseForSingleAnimation || freezeUntilDialogueIsOver)
 			{
 				return;

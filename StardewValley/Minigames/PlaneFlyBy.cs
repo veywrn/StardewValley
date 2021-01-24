@@ -16,11 +16,11 @@ namespace StardewValley.Minigames
 
 		public int millisecondsSinceStart;
 
-		public int backgroundPosition = -2560 + Game1.graphics.GraphicsDevice.Viewport.Height;
+		public int backgroundPosition = -2560 + (int)((float)Game1.game1.localMultiplayerWindow.Height / Game1.options.zoomLevel);
 
 		public int smokeTimer = 500;
 
-		public Vector2 robotPosition = new Vector2(Game1.graphics.GraphicsDevice.Viewport.Width, Game1.graphics.GraphicsDevice.Viewport.Height / 2) * 1f / Game1.options.zoomLevel;
+		public Vector2 robotPosition = new Vector2(Game1.game1.localMultiplayerWindow.Width, Game1.game1.localMultiplayerWindow.Height / 2) * 1f / Game1.options.zoomLevel;
 
 		public List<TemporaryAnimatedSprite> tempSprites = new List<TemporaryAnimatedSprite>();
 
@@ -123,8 +123,8 @@ namespace StardewValley.Minigames
 		public void changeScreenSize()
 		{
 			float pixel_zoom_adjustment = 1f / Game1.options.zoomLevel;
-			backgroundPosition = 2560 - (int)((float)Game1.graphics.GraphicsDevice.Viewport.Height * pixel_zoom_adjustment);
-			robotPosition = new Vector2(Game1.graphics.GraphicsDevice.Viewport.Width / 2, Game1.graphics.GraphicsDevice.Viewport.Height) * pixel_zoom_adjustment;
+			backgroundPosition = 2560 - (int)((float)Game1.game1.localMultiplayerWindow.Height * pixel_zoom_adjustment);
+			robotPosition = new Vector2(Game1.game1.localMultiplayerWindow.Width / 2, Game1.game1.localMultiplayerWindow.Height) * pixel_zoom_adjustment;
 		}
 
 		public void unload()

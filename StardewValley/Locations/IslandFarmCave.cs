@@ -227,6 +227,7 @@ namespace StardewValley.Locations
 			}
 			else if (response == "inProgress")
 			{
+				Game1.player.freezePause = 0;
 				Game1.drawObjectDialogue(Game1.content.LoadString("Strings\\Locations:Gourmand_InProgress"));
 			}
 			else

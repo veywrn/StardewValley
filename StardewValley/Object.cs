@@ -1810,7 +1810,6 @@ namespace StardewValley
 				break;
 			case 784:
 			case 785:
-			case 786:
 				if (Game1.dayOfMonth == 1 && !season.Equals("spring") && (bool)location.isOutdoors)
 				{
 					base.ParentSheetIndex++;
@@ -3099,9 +3098,9 @@ namespace StardewValley
 
 		public virtual bool isForage(GameLocation location)
 		{
-			if (base.Category != -79 && base.Category != -81 && base.Category != -80 && base.Category != -75 && !(location is Beach))
+			if (base.Category != -79 && base.Category != -81 && base.Category != -80 && base.Category != -75 && !(location is Beach) && (int)parentSheetIndex != 430)
 			{
-				return (int)parentSheetIndex == 430;
+				return base.Category == -23;
 			}
 			return true;
 		}
@@ -3464,7 +3463,7 @@ namespace StardewValley
 					int value = 0;
 					for (int i = 0; i < buffs.Length; i++)
 					{
-						if (buffs[i] != "0" && int.TryParse(buffs[i], out value))
+						if (i != 9 && buffs[i] != "0" && int.TryParse(buffs[i], out value))
 						{
 							value += buff_bonus;
 							buffs[i] = value.ToString();
@@ -4521,7 +4520,7 @@ namespace StardewValley
 						heldObject.Value.displayName = loadDisplayName();
 						heldObject.Value.Price = Convert.ToInt32(Game1.objectInformation[340].Split('/')[1]) + honeyPriceAddition;
 						heldObject.Value.preservedParentSheetIndex.Value = honey_type;
-						if (Game1.currentSeason.Equals("winter"))
+						if (Game1.GetSeasonForLocation(Game1.currentLocation).Equals("winter"))
 						{
 							heldObject.Value = null;
 							readyForHarvest.Value = false;
@@ -4875,6 +4874,7 @@ namespace StardewValley
 					showNextIndex.Value = ((int)parentSheetIndex == 96);
 					if ((int)minutesUntilReady <= 0)
 					{
+						performRemoveAction(tileLocation, environment);
 						environment.objects.Remove(tileLocation);
 						environment.objects.Add(tileLocation, new Object(tileLocation, 98));
 						if (!Game1.MasterPlayer.mailReceived.Contains("Capsule_Broken"))
@@ -5403,33 +5403,33 @@ namespace StardewValley
 				{
 					index = base.ParentSheetIndex - base.ParentSheetIndex % 4;
 				}
-				return new Object(tileLocation, index)
-				{
-					IsRecipe = isRecipe,
-					name = name,
-					DisplayName = DisplayName,
-					SpecialVariable = base.SpecialVariable
-				};
+				Object @object = new Object(tileLocation, index);
+				@object.IsRecipe = isRecipe;
+				@object.name = name;
+				@object.DisplayName = DisplayName;
+				@object.SpecialVariable = base.SpecialVariable;
+				@object._GetOneFrom(this);
+				return @object;
 			}
-			Object @object = new Object(tileLocation, parentSheetIndex, 1);
-			@object.Scale = scale;
-			@object.Quality = quality;
-			@object.IsSpawnedObject = isSpawnedObject;
-			@object.IsRecipe = isRecipe;
-			@object.Stack = 1;
-			@object.SpecialVariable = base.SpecialVariable;
-			@object.Price = price;
-			@object.name = name;
-			@object.DisplayName = DisplayName;
-			@object.HasBeenInInventory = base.HasBeenInInventory;
-			@object.HasBeenPickedUpByFarmer = HasBeenPickedUpByFarmer;
-			@object.uses.Value = uses.Value;
-			@object.questItem.Value = questItem;
-			@object.questId.Value = questId;
-			@object.preserve.Value = preserve.Value;
-			@object.preservedParentSheetIndex.Value = preservedParentSheetIndex.Value;
-			@object._GetOneFrom(this);
-			return @object;
+			Object object2 = new Object(tileLocation, parentSheetIndex, 1);
+			object2.Scale = scale;
+			object2.Quality = quality;
+			object2.IsSpawnedObject = isSpawnedObject;
+			object2.IsRecipe = isRecipe;
+			object2.Stack = 1;
+			object2.SpecialVariable = base.SpecialVariable;
+			object2.Price = price;
+			object2.name = name;
+			object2.DisplayName = DisplayName;
+			object2.HasBeenInInventory = base.HasBeenInInventory;
+			object2.HasBeenPickedUpByFarmer = HasBeenPickedUpByFarmer;
+			object2.uses.Value = uses.Value;
+			object2.questItem.Value = questItem;
+			object2.questId.Value = questId;
+			object2.preserve.Value = preserve.Value;
+			object2.preservedParentSheetIndex.Value = preservedParentSheetIndex.Value;
+			object2._GetOneFrom(this);
+			return object2;
 		}
 
 		public override void _GetOneFrom(Item source)
@@ -6140,12 +6140,12 @@ namespace StardewValley
 						Game1.showRedMessage(Game1.content.LoadString("Strings\\StringsFromCSFiles:Object.cs.13053"));
 						return false;
 					}
-					if (!(location is FarmHouse))
+					if (!(location is FarmHouse) && !(location is IslandFarmHouse))
 					{
 						Game1.showRedMessage(Game1.content.LoadString("Strings\\StringsFromCSFiles:Object.cs.13053"));
 						return false;
 					}
-					if ((location as FarmHouse).upgradeLevel < 1)
+					if (location is FarmHouse && (location as FarmHouse).upgradeLevel < 1)
 					{
 						Game1.showRedMessage(Game1.content.LoadString("Strings\\UI:MiniFridge_NoKitchen"));
 						return false;
@@ -6571,7 +6571,7 @@ namespace StardewValley
 			default:
 			{
 				float salePrice = (int)((float)((int)price * 2) * (1f + (float)(int)quality * 0.25f));
-				if ((int)category == -74)
+				if ((int)category == -74 || isSapling())
 				{
 					salePrice = (int)Math.Max(1f, salePrice * Game1.MasterPlayer.difficultyModifier);
 				}

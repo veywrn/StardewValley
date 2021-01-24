@@ -43,7 +43,7 @@ namespace StardewValley.Objects
 		{
 			base.DayUpdate(location);
 			hoeDirt.Value.dayUpdate(location, tileLocation);
-			if (Game1.isRaining && (bool)location.isOutdoors)
+			if (Game1.IsRainingHere(location) && (bool)location.isOutdoors)
 			{
 				hoeDirt.Value.state.Value = 1;
 			}

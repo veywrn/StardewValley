@@ -666,17 +666,15 @@ namespace StardewValley.Locations
 			return new Point(0, 0);
 		}
 
-		protected override void resetLocalState()
+		public override void MakeMapModifications(bool force = false)
 		{
-			base.resetLocalState();
-			if (Utility.doesMasterPlayerHaveMailReceivedButNotMailForTomorrow("ccBoilerRoom"))
+			base.MakeMapModifications(force);
+			if (force)
 			{
-				minecartSteam = new TemporaryAnimatedSprite(27, new Vector2(6856f, 5008f), Color.White)
-				{
-					totalNumberOfLoops = 999999,
-					interval = 60f,
-					flipped = true
-				};
+				isShowingSpecialOrdersBoard = false;
+				isShowingUpgradedPamHouse = false;
+				isShowingDestroyedJoja = false;
+				ccRefurbished = false;
 			}
 			if (Game1.MasterPlayer.mailReceived.Contains("ccIsComplete") || Game1.MasterPlayer.mailReceived.Contains("JojaMember") || Game1.MasterPlayer.hasCompletedCommunityCenter())
 			{
@@ -684,6 +682,7 @@ namespace StardewValley.Locations
 			}
 			if (!isShowingSpecialOrdersBoard && SpecialOrder.IsSpecialOrdersBoardUnlocked())
 			{
+				isShowingSpecialOrdersBoard = true;
 				LargeTerrainFeature bush = null;
 				do
 				{
@@ -711,20 +710,9 @@ namespace StardewValley.Locations
 					ApplyMapOverride("Town-TrashGone", (Microsoft.Xna.Framework.Rectangle?)null, (Microsoft.Xna.Framework.Rectangle?)new Microsoft.Xna.Framework.Rectangle(57, 68, 17, 5));
 				}
 				ApplyMapOverride("Town-DogHouse", (Microsoft.Xna.Framework.Rectangle?)null, (Microsoft.Xna.Framework.Rectangle?)new Microsoft.Xna.Framework.Rectangle(51, 65, 5, 6));
-				if (!Game1.isRaining && new Random((int)Game1.uniqueIDForThisGame + (int)Game1.stats.DaysPlayed).NextDouble() < 0.2)
-				{
-					base.TemporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(348, 1916, 12, 20), 999f, 1, 999999, new Vector2(53f, 67f) * 64f + new Vector2(3f, 2f) * 4f, flicker: false, flipped: false, 0.98f, 0f, Color.White, 4f, 0f, 0f, 0f)
-					{
-						id = 1f
-					});
-				}
 			}
 			if (Utility.doesMasterPlayerHaveMailReceivedButNotMailForTomorrow("ccMovieTheater"))
 			{
-				if ((long)Game1.player.team.theaterBuildDate < 0)
-				{
-					Game1.player.team.theaterBuildDate.Value = Game1.Date.TotalDays;
-				}
 				if (Utility.doesMasterPlayerHaveMailReceivedButNotMailForTomorrow("ccMovieTheaterJoja"))
 				{
 					Microsoft.Xna.Framework.Rectangle rect2 = new Microsoft.Xna.Framework.Rectangle(46, 10, 15, 16);
@@ -734,6 +722,50 @@ namespace StardewValley.Locations
 				{
 					Microsoft.Xna.Framework.Rectangle rect = new Microsoft.Xna.Framework.Rectangle(84, 41, 27, 15);
 					ApplyMapOverride("Town-Theater", rect, rect);
+				}
+			}
+			else if (Utility.HasAnyPlayerSeenEvent(191393))
+			{
+				showDestroyedJoja();
+				if (Utility.doesMasterPlayerHaveMailReceivedButNotMailForTomorrow("abandonedJojaMartAccessible"))
+				{
+					crackOpenAbandonedJojaMartDoor();
+				}
+			}
+			if (Game1.MasterPlayer.mailReceived.Contains("pamHouseUpgrade"))
+			{
+				showImprovedPamHouse();
+			}
+			if (Game1.MasterPlayer.mailReceived.Contains("communityUpgradeShortcuts"))
+			{
+				showTownCommunityUpgradeShortcuts();
+			}
+		}
+
+		protected override void resetLocalState()
+		{
+			base.resetLocalState();
+			if (Utility.doesMasterPlayerHaveMailReceivedButNotMailForTomorrow("ccBoilerRoom"))
+			{
+				minecartSteam = new TemporaryAnimatedSprite(27, new Vector2(6856f, 5008f), Color.White)
+				{
+					totalNumberOfLoops = 999999,
+					interval = 60f,
+					flipped = true
+				};
+			}
+			if (NetWorldState.checkAnywhereForWorldStateID("trashBearDone") && (currentEvent == null || currentEvent.id != 777111) && !Game1.isRaining && new Random((int)Game1.uniqueIDForThisGame + (int)Game1.stats.DaysPlayed).NextDouble() < 0.2)
+			{
+				base.TemporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(348, 1916, 12, 20), 999f, 1, 999999, new Vector2(53f, 67f) * 64f + new Vector2(3f, 2f) * 4f, flicker: false, flipped: false, 0.98f, 0f, Color.White, 4f, 0f, 0f, 0f)
+				{
+					id = 1f
+				});
+			}
+			if (Utility.doesMasterPlayerHaveMailReceivedButNotMailForTomorrow("ccMovieTheater"))
+			{
+				if ((long)Game1.player.team.theaterBuildDate < 0)
+				{
+					Game1.player.team.theaterBuildDate.Value = Game1.Date.TotalDays;
 				}
 				Point offset = GetTheaterTileOffset();
 				MovieTheater.AddMoviePoster(this, (91 + offset.X) * 64 + 32, (48 + offset.Y) * 64 + 64);
@@ -752,22 +784,6 @@ namespace StardewValley.Locations
 				Game1.currentLightSources.Add(new LightSource(4, (new Vector2(98f, 51f) + vector_offset) * 64f, 1f, LightSource.LightContext.None, 0L));
 				Game1.currentLightSources.Add(new LightSource(4, (new Vector2(92f, 51f) + vector_offset) * 64f, 1f, LightSource.LightContext.None, 0L));
 				Game1.currentLightSources.Add(new LightSource(4, (new Vector2(94f, 51f) + vector_offset) * 64f, 1f, LightSource.LightContext.None, 0L));
-			}
-			else if (Utility.HasAnyPlayerSeenEvent(191393))
-			{
-				showDestroyedJoja();
-				if (Utility.doesMasterPlayerHaveMailReceivedButNotMailForTomorrow("abandonedJojaMartAccessible"))
-				{
-					crackOpenAbandonedJojaMartDoor();
-				}
-			}
-			if (Game1.MasterPlayer.mailReceived.Contains("pamHouseUpgrade"))
-			{
-				showImprovedPamHouse();
-			}
-			if (Game1.MasterPlayer.mailReceived.Contains("communityUpgradeShortcuts"))
-			{
-				showTownCommunityUpgradeShortcuts();
 			}
 			if (!Game1.currentSeason.Equals("winter"))
 			{

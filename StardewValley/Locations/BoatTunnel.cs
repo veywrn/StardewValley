@@ -81,6 +81,15 @@ namespace StardewValley.Locations
 		{
 		}
 
+		public override void cleanupBeforePlayerExit()
+		{
+			if (Game1.player.controller != null)
+			{
+				Game1.player.controller = null;
+			}
+			base.cleanupBeforePlayerExit();
+		}
+
 		public virtual bool GateFinishedAnimating()
 		{
 			if (_gateDirection < 0)
@@ -591,6 +600,12 @@ namespace StardewValley.Locations
 				return new Furniture(2418, Vector2.Zero);
 			}
 			return base.getFish(millisecondsAfterNibble, bait, waterDepth, who, baitPotency, bobberTile, locationName);
+		}
+
+		public override void MakeMapModifications(bool force = false)
+		{
+			base.MakeMapModifications(force);
+			UpdateGateTileProperty();
 		}
 
 		protected override void resetLocalState()

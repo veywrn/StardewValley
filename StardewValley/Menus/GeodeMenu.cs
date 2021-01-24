@@ -324,15 +324,7 @@ namespace StardewValley.Menus
 					{
 						geodeTreasure = Utility.getTreasureFromGeode(geodeSpot.item);
 					}
-					if ((int)geodeSpot.item.parentSheetIndex == 275)
-					{
-						Game1.player.foundArtifact(geodeTreasure.parentSheetIndex, 1);
-					}
-					else if (geodeTreasure is Object && (geodeTreasure as Object).Type.Contains("Mineral"))
-					{
-						Game1.player.foundMineral(geodeTreasure.parentSheetIndex);
-					}
-					else if (geodeTreasure is Object && (geodeTreasure as Object).Type.Contains("Arch") && !Game1.player.hasOrWillReceiveMail("artifactFound"))
+					if ((int)geodeSpot.item.parentSheetIndex != 275 && (!(geodeTreasure is Object) || !(geodeTreasure as Object).Type.Contains("Mineral")) && geodeTreasure is Object && (geodeTreasure as Object).Type.Contains("Arch") && !Game1.player.hasOrWillReceiveMail("artifactFound"))
 					{
 						geodeTreasure = new Object(390, 5);
 					}

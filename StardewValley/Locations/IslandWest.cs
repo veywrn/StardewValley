@@ -672,6 +672,19 @@ namespace StardewValley.Locations
 			}
 		}
 
+		public override void MakeMapModifications(bool force = false)
+		{
+			base.MakeMapModifications(force);
+			if (farmhouseRestored.Value)
+			{
+				ApplyFarmHouseRestore();
+			}
+			if (farmObelisk.Value)
+			{
+				ApplyFarmObeliskBuild();
+			}
+		}
+
 		protected override void resetLocalState()
 		{
 			base.resetLocalState();
@@ -691,14 +704,6 @@ namespace StardewValley.Locations
 			if (sandDuggy.Value != null)
 			{
 				sandDuggy.Value.ResetForPlayerEntry();
-			}
-			if (farmhouseRestored.Value)
-			{
-				ApplyFarmHouseRestore();
-			}
-			if (farmObelisk.Value)
-			{
-				ApplyFarmObeliskBuild();
 			}
 			NPC i = getCharacterFromName("Birdie");
 			if (i != null)

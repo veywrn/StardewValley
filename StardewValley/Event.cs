@@ -6228,7 +6228,7 @@ namespace StardewValley
 				});
 				location.TemporarySprites.Add(new TemporaryAnimatedSprite("Characters\\KrobusRaven", new Microsoft.Xna.Framework.Rectangle(0, 32, 32, 32), 30f, 5, 999999, new Vector2(Game1.viewport.Width, (float)Game1.viewport.Height * 0.33f), flicker: false, flipped: false, 0.9f, 0f, Color.White, 4f, 0f, 0f, 0f, local: true)
 				{
-					motion = new Vector2(-3f, 0f),
+					motion = new Vector2(-2.5f, 0f),
 					yPeriodic = true,
 					yPeriodicLoopTime = 2800f,
 					yPeriodicRange = 16f,
@@ -6237,16 +6237,16 @@ namespace StardewValley
 				location.TemporarySprites.Add(new TemporaryAnimatedSprite("Characters\\KrobusRaven", new Microsoft.Xna.Framework.Rectangle(0, 64, 32, 39), 100f, 4, 999999, new Vector2(Game1.viewport.Width, (float)Game1.viewport.Height * 0.33f), flicker: false, flipped: false, 0.9f, 0f, Color.White, 4f, 0f, 0f, 0f, local: true)
 				{
 					pingPong = true,
-					motion = new Vector2(-4f, 0f),
+					motion = new Vector2(-3f, 0f),
 					yPeriodic = true,
 					yPeriodicLoopTime = 2000f,
 					yPeriodicRange = 16f,
 					delayBeforeAnimationStart = 15000,
 					startSound = "fireball"
 				});
-				location.TemporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(276, 1886, 35, 29), 9999f, 1, 999999, new Vector2(Game1.graphics.GraphicsDevice.Viewport.Width, (float)Game1.viewport.Height * 0.33f), flicker: false, flipped: false, 1f, 0f, Color.White, 4f, 0f, 0f, 0f)
+				location.TemporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(276, 1886, 35, 29), 9999f, 1, 999999, new Vector2(Game1.viewport.Width, (float)Game1.viewport.Height * 0.33f), flicker: false, flipped: false, 1f, 0f, Color.White, 4f, 0f, 0f, 0f)
 				{
-					motion = new Vector2(-4f, 0f),
+					motion = new Vector2(-3f, 0f),
 					yPeriodic = true,
 					yPeriodicLoopTime = 2200f,
 					yPeriodicRange = 32f,
@@ -6255,7 +6255,7 @@ namespace StardewValley
 				});
 				for (int i3 = 0; i3 < 12; i3++)
 				{
-					location.TemporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(16, 594, 16, 12), 100f, 2, 999999, new Vector2(Game1.graphics.GraphicsDevice.Viewport.Width, (float)Game1.viewport.Height * 0.33f + (float)Game1.random.Next(-128, 128)), flicker: false, flipped: false, 1f, 0f, Color.White, 4f, 0f, 0f, 0f)
+					location.TemporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(16, 594, 16, 12), 100f, 2, 999999, new Vector2(Game1.viewport.Width, (float)Game1.viewport.Height * 0.33f + (float)Game1.random.Next(-128, 128)), flicker: false, flipped: false, 1f, 0f, Color.White, 4f, 0f, 0f, 0f)
 					{
 						motion = new Vector2(-2f, 0f),
 						yPeriodic = true,
@@ -6271,7 +6271,7 @@ namespace StardewValley
 				{
 					for (int i2 = 0; i2 < 3; i2++)
 					{
-						location.TemporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(639, 785, 16, 16), 100f, 4, 999999, new Vector2(Game1.graphics.GraphicsDevice.Viewport.Width, (float)Game1.viewport.Height * 0.33f + (float)Game1.random.Next(-128, 128)), flicker: false, flipped: false, 1f, 0f, Color.White, 4f, 0f, 0f, 0f)
+						location.TemporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(639, 785, 16, 16), 100f, 4, 999999, new Vector2(Game1.viewport.Width, (float)Game1.viewport.Height * 0.33f + (float)Game1.random.Next(-128, 128)), flicker: false, flipped: false, 1f, 0f, Color.White, 4f, 0f, 0f, 0f)
 						{
 							motion = new Vector2(-2f, 0f),
 							yPeriodic = true,
@@ -6284,7 +6284,7 @@ namespace StardewValley
 					}
 					whenToStart2 += 5000;
 				}
-				if (Game1.year <= 1)
+				if (Game1.year <= 2)
 				{
 					location.TemporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors2", new Microsoft.Xna.Framework.Rectangle(150, 259, 9, 9), 10f, 4, 9999999, new Vector2(Game1.viewport.Width + 4, (float)Game1.viewport.Height * 0.33f + 44f), flicker: false, flipped: false, 0.9f, 0f, Color.White, 4f, 0f, 0f, 0f, local: true)
 					{
@@ -6305,7 +6305,7 @@ namespace StardewValley
 					});
 					whenToStart2 += 5000;
 				}
-				else if (Game1.year <= 2)
+				else if (Game1.year <= 3)
 				{
 					location.TemporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors2", new Microsoft.Xna.Framework.Rectangle(150, 259, 9, 9), 10f, 4, 9999999, new Vector2(Game1.viewport.Width + 4, (float)Game1.viewport.Height * 0.33f + 44f), flicker: false, flipped: false, 0.9f, 0f, Color.White, 4f, 0f, 0f, 0f, local: true)
 					{
@@ -7724,16 +7724,16 @@ namespace StardewValley
 					accelerationChange = new Vector2(0f, -0.0001f)
 				};
 				location.temporarySprites.Add(parent2);
-				for (int i11 = 0; i11 < 420; i11++)
+				for (int i9 = 0; i9 < 420; i9++)
 				{
 					location.TemporarySprites.Add(new TemporaryAnimatedSprite("TileSheets\\animations", new Microsoft.Xna.Framework.Rectangle(Game1.random.Next(4) * 64, 320, 64, 64), new Vector2(Game1.random.Next(96), 136f), flipped: false, 0.01f, Color.White * 0.75f)
 					{
 						layerDepth = 1f,
-						delayBeforeAnimationStart = i11 * 10,
+						delayBeforeAnimationStart = i9 * 10,
 						animationLength = 1,
 						currentNumberOfLoops = 0,
 						interval = 9999f,
-						motion = new Vector2(Game1.random.Next(-100, 100) / (i11 + 20), 0.25f + (float)i11 / 100f),
+						motion = new Vector2(Game1.random.Next(-100, 100) / (i9 + 20), 0.25f + (float)i9 / 100f),
 						parentSprite = parent2
 					});
 				}
@@ -7751,11 +7751,11 @@ namespace StardewValley
 				break;
 			case "maruTelescope":
 			{
-				for (int i12 = 0; i12 < 9; i12++)
+				for (int i10 = 0; i10 < 9; i10++)
 				{
 					location.TemporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(256, 1680, 16, 16), 80f, 5, 0, new Vector2(Game1.random.Next(1, 28), Game1.random.Next(1, 20)) * 64f, flicker: false, flipped: false, 1f, 0f, Color.White, 4f, 0f, 0f, 0f)
 					{
-						delayBeforeAnimationStart = 8000 + i12 * Game1.random.Next(2000),
+						delayBeforeAnimationStart = 8000 + i10 * Game1.random.Next(2000),
 						motion = new Vector2(4f, 4f)
 					});
 				}
@@ -7785,7 +7785,7 @@ namespace StardewValley
 				break;
 			case "abbyManyBats":
 			{
-				for (int i9 = 0; i9 < 100; i9++)
+				for (int i11 = 0; i11 < 100; i11++)
 				{
 					location.TemporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(640, 1664, 16, 16), 80f, 4, 9999, new Vector2(23f, 9f) * 64f, flicker: false, flipped: false, 1f, 0.003f, Color.White, 4f, 0f, 0f, 0f)
 					{
@@ -7793,16 +7793,16 @@ namespace StardewValley
 						xPeriodicLoopTime = Game1.random.Next(1500, 2500),
 						xPeriodicRange = Game1.random.Next(64, 192),
 						motion = new Vector2(Game1.random.Next(-2, 3), Game1.random.Next(-8, -4)),
-						delayBeforeAnimationStart = i9 * 30,
-						startSound = ((i9 % 10 == 0 || Game1.random.NextDouble() < 0.1) ? "batScreech" : null)
+						delayBeforeAnimationStart = i11 * 30,
+						startSound = ((i11 % 10 == 0 || Game1.random.NextDouble() < 0.1) ? "batScreech" : null)
 					});
 				}
-				for (int i10 = 0; i10 < 100; i10++)
+				for (int i12 = 0; i12 < 100; i12++)
 				{
 					location.TemporarySprites.Add(new TemporaryAnimatedSprite("LooseSprites\\Cursors", new Microsoft.Xna.Framework.Rectangle(640, 1664, 16, 16), 80f, 4, 9999, new Vector2(23f, 9f) * 64f, flicker: false, flipped: false, 1f, 0.003f, Color.White, 4f, 0f, 0f, 0f)
 					{
 						motion = new Vector2(Game1.random.Next(-4, 5), Game1.random.Next(-8, -4)),
-						delayBeforeAnimationStart = 10 + i10 * 30
+						delayBeforeAnimationStart = 10 + i12 * 30
 					});
 				}
 				break;
@@ -9381,20 +9381,20 @@ namespace StardewValley
 							500,
 							1
 						});
-						switch (new Random((int)Game1.uniqueIDForThisGame + Game1.year + 19).Next(5))
+						switch (new Random((int)Game1.uniqueIDForThisGame + Game1.year * 17 + 19).Next(5))
 						{
 						case 0:
-							stock2.Add(new Object(251, 1), new int[2]
+							stock2.Add(new Object(253, 1), new int[2]
 							{
 								400,
-								2
+								1
 							});
 							break;
 						case 1:
 							stock2.Add(new Object(215, 1), new int[2]
 							{
 								250,
-								2
+								1
 							});
 							break;
 						case 2:
@@ -9578,6 +9578,10 @@ namespace StardewValley
 									case "F":
 										item = Furniture.GetFurnitureInstance(index);
 										break;
+									}
+									if (item is Object && (item as Object).Category == -74)
+									{
+										price = (int)Math.Max(1f, (float)price * Game1.MasterPlayer.difficultyModifier);
 									}
 									if ((!(item is Object) || !(item as Object).isRecipe || !who.knowsRecipe(item.Name)) && item != null)
 									{

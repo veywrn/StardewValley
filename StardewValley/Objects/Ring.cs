@@ -50,6 +50,9 @@ namespace StardewValley.Objects
 		protected int? _lightSourceID;
 
 		[XmlIgnore]
+		public bool zeroStack;
+
+		[XmlIgnore]
 		public override string DisplayName
 		{
 			get
@@ -71,10 +74,22 @@ namespace StardewValley.Objects
 		{
 			get
 			{
+				if (zeroStack)
+				{
+					return 0;
+				}
 				return 1;
 			}
 			set
 			{
+				if (value == 0)
+				{
+					zeroStack = true;
+				}
+				else
+				{
+					zeroStack = false;
+				}
 			}
 		}
 
@@ -94,6 +109,14 @@ namespace StardewValley.Objects
 			base.ParentSheetIndex = indexInTileSheet;
 			uniqueID.Value = Game1.year + Game1.dayOfMonth + Game1.timeOfDay + (int)indexInTileSheet + Game1.player.getTileX() + (int)Game1.stats.MonstersKilled + (int)Game1.stats.itemsCrafted;
 			loadDisplayFields();
+		}
+
+		public virtual void onDayUpdate(Farmer who, GameLocation location)
+		{
+			if (indexInTileSheet.Value == 859)
+			{
+				onEquip(who, location);
+			}
 		}
 
 		public virtual void onEquip(Farmer who, GameLocation location)
@@ -405,13 +428,13 @@ namespace StardewValley.Objects
 				Utility.drawTextWithShadow(spriteBatch, Game1.content.LoadString("Strings\\UI:ItemHover_DefenseBonus", 5 * GetEffectsOfRingMultiplier(810)), font, new Vector2(x + 16 + 52, y + 16 + 12), Game1.textColor * 0.9f * alpha);
 				y += (int)Math.Max(font.MeasureString("TT").Y, 48f);
 			}
-			else if (GetsEffectOfRing(887))
+			if (GetsEffectOfRing(887))
 			{
 				Utility.drawWithShadow(spriteBatch, Game1.mouseCursors, new Vector2(x + 16 + 4, y + 16 + 4), new Rectangle(150, 428, 10, 10), Color.White, 0f, Vector2.Zero, 4f, flipped: false, 1f);
 				Utility.drawTextWithShadow(spriteBatch, Game1.content.LoadString("Strings\\UI:ItemHover_ImmunityBonus", 4 * GetEffectsOfRingMultiplier(887)), font, new Vector2(x + 16 + 52, y + 16 + 12), Game1.textColor * 0.9f * alpha);
 				y += (int)Math.Max(font.MeasureString("TT").Y, 48f);
 			}
-			else if (GetsEffectOfRing(859))
+			if (GetsEffectOfRing(859))
 			{
 				Utility.drawWithShadow(spriteBatch, Game1.mouseCursors, new Vector2(x + 16 + 4, y + 16 + 4), new Rectangle(50, 428, 10, 10), Color.White, 0f, Vector2.Zero, 4f, flipped: false, 1f);
 				Utility.drawTextWithShadow(spriteBatch, "+" + Game1.content.LoadString("Strings\\UI:ItemHover_Buff4", GetEffectsOfRingMultiplier(859)), font, new Vector2(x + 16 + 52, y + 16 + 12), Game1.textColor * 0.9f * alpha);

@@ -50,6 +50,7 @@ namespace StardewValley.Tools
 				who.Halt();
 				who.faceDirection(2);
 				who.CanMove = false;
+				who.freezePause = 2000;
 				Game1.flashAlpha = 1f;
 				DelayedAction.fadeAfterDelay(wandWarpForReal, 1000);
 				new Rectangle(who.GetBoundingBox().X, who.GetBoundingBox().Y, 64, 64).Inflate(192, 192);

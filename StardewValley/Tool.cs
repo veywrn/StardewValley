@@ -115,6 +115,9 @@ namespace StardewValley
 		[XmlElement("enchantments")]
 		public readonly NetList<BaseEnchantment, NetRef<BaseEnchantment>> enchantments = new NetList<BaseEnchantment, NetRef<BaseEnchantment>>();
 
+		[XmlElement("previousEnchantments")]
+		public readonly NetStringList previousEnchantments = new NetStringList();
+
 		[XmlIgnore]
 		public string description
 		{
@@ -338,7 +341,7 @@ namespace StardewValley
 
 		protected virtual void initNetFields()
 		{
-			base.NetFields.AddFields(initialParentTileIndex, currentParentTileIndex, indexOfMenuItemView, stackable, instantUse, upgradeLevel, numAttachmentSlots, attachments, enchantments, isEfficient, animationSpeedModifier);
+			base.NetFields.AddFields(initialParentTileIndex, currentParentTileIndex, indexOfMenuItemView, stackable, instantUse, upgradeLevel, numAttachmentSlots, attachments, enchantments, isEfficient, animationSpeedModifier, previousEnchantments);
 		}
 
 		protected abstract string loadDisplayName();
@@ -1241,6 +1244,8 @@ namespace StardewValley
 				destination.enchantments.Add(enchantment.GetOne());
 				enchantment.GetOne().ApplyTo(destination);
 			}
+			destination.previousEnchantments.Clear();
+			destination.previousEnchantments.AddRange(source.previousEnchantments);
 		}
 
 		public int GetTotalForgeLevels(bool for_unforge = false)
@@ -1491,6 +1496,11 @@ namespace StardewValley
 				}
 				if (count_towards_stats && !enchantment.IsForge())
 				{
+					previousEnchantments.Insert(0, enchantment.GetName());
+					while (previousEnchantments.Count > 2)
+					{
+						previousEnchantments.RemoveAt(previousEnchantments.Count - 1);
+					}
 					Game1.stats.incrementStat("timesEnchanted", 1);
 				}
 				return true;

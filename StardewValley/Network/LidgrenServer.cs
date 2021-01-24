@@ -216,7 +216,7 @@ namespace StardewValley.Network
 		private void sendVersionInfo(NetIncomingMessage message)
 		{
 			NetOutgoingMessage response = server.CreateMessage();
-			response.Write("1.5.1");
+			response.Write("1.5.4");
 			response.Write("StardewValley");
 			server.SendDiscoveryResponse(response, message.SenderEndPoint);
 			if (bandwidthLogger != null)

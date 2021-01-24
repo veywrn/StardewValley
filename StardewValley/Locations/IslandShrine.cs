@@ -160,13 +160,18 @@ namespace StardewValley.Locations
 		protected override void resetLocalState()
 		{
 			base.resetLocalState();
-			if (puzzleFinished.Value)
-			{
-				ApplyFinishedTiles();
-			}
 			if (Game1.IsMasterGame)
 			{
 				AddMissingPedestals();
+			}
+		}
+
+		public override void MakeMapModifications(bool force = false)
+		{
+			base.MakeMapModifications(force);
+			if (puzzleFinished.Value)
+			{
+				ApplyFinishedTiles();
 			}
 		}
 

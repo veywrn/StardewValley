@@ -53,7 +53,9 @@ namespace StardewValley.Minigames
 		public void changeScreenSize()
 		{
 			float pixel_zoom_adjustment = 1f / Game1.options.zoomLevel;
-			centerOfScreen = pixel_zoom_adjustment * new Vector2(Game1.graphics.GraphicsDevice.Viewport.Width / 2, Game1.graphics.GraphicsDevice.Viewport.Height / 2);
+			centerOfScreen = pixel_zoom_adjustment * new Vector2(Game1.game1.localMultiplayerWindow.Width / 2, Game1.game1.localMultiplayerWindow.Height / 2);
+			centerOfScreen.X = (int)centerOfScreen.X;
+			centerOfScreen.Y = (int)centerOfScreen.Y;
 			cometColorOrigin = centerOfScreen + pixel_zoom_adjustment * new Vector2(-71 * zoom, 71 * zoom);
 		}
 
@@ -183,14 +185,14 @@ namespace StardewValley.Minigames
 			b.Draw(Game1.staminaRect, new Rectangle(0, 0, Game1.graphics.GraphicsDevice.Viewport.Width, (int)centerOfScreen.Y - 71 * zoom), Game1.staminaRect.Bounds, Color.Black, 0f, Vector2.Zero, SpriteEffects.None, 0.96f);
 			b.Draw(Game1.staminaRect, new Rectangle((int)centerOfScreen.X + 71 * zoom, 0, Game1.graphics.GraphicsDevice.Viewport.Width - ((int)centerOfScreen.X + 71 * zoom), Game1.graphics.GraphicsDevice.Viewport.Height), Game1.staminaRect.Bounds, Color.Black, 0f, Vector2.Zero, SpriteEffects.None, 0.96f);
 			b.Draw(Game1.staminaRect, new Rectangle((int)centerOfScreen.X - 71 * zoom, (int)centerOfScreen.Y + 71 * zoom, Game1.graphics.GraphicsDevice.Viewport.Width, Game1.graphics.GraphicsDevice.Viewport.Height - ((int)centerOfScreen.Y + 71 * zoom)), Game1.staminaRect.Bounds, Color.Black, 0f, Vector2.Zero, SpriteEffects.None, 0.96f);
-			float height = SpriteText.getHeightOfString(currentString, Game1.graphics.GraphicsDevice.Viewport.Width);
+			float height = SpriteText.getHeightOfString(currentString, Game1.game1.localMultiplayerWindow.Width);
 			float text_draw_y = (int)centerOfScreen.Y + 79 * zoom;
-			if (text_draw_y + height > (float)Game1.graphics.GraphicsDevice.Viewport.Height)
+			if (text_draw_y + height > (float)Game1.viewport.Height)
 			{
-				text_draw_y += (float)Game1.graphics.GraphicsDevice.Viewport.Height - (text_draw_y + height);
+				text_draw_y += (float)Game1.viewport.Height - (text_draw_y + height);
 			}
-			SpriteText.drawStringHorizontallyCenteredAt(b, currentString, (int)centerOfScreen.X, (int)text_draw_y, currentStringCharacter, -1, 99999, 1f, 0.99f, junimoText: false, 3, Game1.graphics.GraphicsDevice.Viewport.Width);
-			b.Draw(Game1.staminaRect, new Rectangle(0, 0, Game1.graphics.GraphicsDevice.Viewport.Width, Game1.graphics.GraphicsDevice.Viewport.Height), Game1.staminaRect.Bounds, Color.Black * fade, 0f, Vector2.Zero, SpriteEffects.None, 1f);
+			SpriteText.drawStringHorizontallyCenteredAt(b, currentString, (int)centerOfScreen.X, (int)text_draw_y, currentStringCharacter, -1, 99999, 1f, 0.99f, junimoText: false, 3, Game1.game1.localMultiplayerWindow.Width);
+			b.Draw(Game1.staminaRect, new Rectangle(0, 0, Game1.viewport.Width, Game1.viewport.Height), Game1.staminaRect.Bounds, Color.Black * fade, 0f, Vector2.Zero, SpriteEffects.None, 1f);
 			b.End();
 		}
 

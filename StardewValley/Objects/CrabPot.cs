@@ -63,7 +63,7 @@ namespace StardewValley.Objects
 
 		protected void addOverlayTilesIfNecessary(GameLocation location, int tile_x, int tile_y, List<Vector2> tiles)
 		{
-			if (location.getTileIndexAt(tile_x, tile_y, "Buildings") >= 0 && location.doesTileHaveProperty(tile_x, tile_y + 1, "Back", "Water") == null)
+			if (location == Game1.currentLocation && location.getTileIndexAt(tile_x, tile_y, "Buildings") >= 0 && location.doesTileHaveProperty(tile_x, tile_y + 1, "Back", "Water") == null)
 			{
 				tiles.Add(new Vector2(tile_x, tile_y));
 			}
@@ -71,26 +71,32 @@ namespace StardewValley.Objects
 
 		public void addOverlayTiles(GameLocation location)
 		{
-			foreach (Vector2 tile in getOverlayTiles(location))
+			if (location == Game1.currentLocation)
 			{
-				if (!Game1.crabPotOverlayTiles.ContainsKey(tile))
+				foreach (Vector2 tile in getOverlayTiles(location))
 				{
-					Game1.crabPotOverlayTiles[tile] = 0;
+					if (!Game1.crabPotOverlayTiles.ContainsKey(tile))
+					{
+						Game1.crabPotOverlayTiles[tile] = 0;
+					}
+					Game1.crabPotOverlayTiles[tile]++;
 				}
-				Game1.crabPotOverlayTiles[tile]++;
 			}
 		}
 
 		public void removeOverlayTiles(GameLocation location)
 		{
-			foreach (Vector2 tile in getOverlayTiles(location))
+			if (location == Game1.currentLocation)
 			{
-				if (!Game1.crabPotOverlayTiles.ContainsKey(tile))
+				foreach (Vector2 tile in getOverlayTiles(location))
 				{
-					Game1.crabPotOverlayTiles[tile]--;
-					if (Game1.crabPotOverlayTiles[tile] <= 0)
+					if (Game1.crabPotOverlayTiles.ContainsKey(tile))
 					{
-						Game1.crabPotOverlayTiles.Remove(tile);
+						Game1.crabPotOverlayTiles[tile]--;
+						if (Game1.crabPotOverlayTiles[tile] <= 0)
+						{
+							Game1.crabPotOverlayTiles.Remove(tile);
+						}
 					}
 				}
 			}
@@ -199,10 +205,15 @@ namespace StardewValley.Objects
 			{
 				return false;
 			}
-			if (dropIn.Category == -21 && bait.Value == null && !who.professions.Contains(11))
+			Farmer owner_farmer = Game1.getFarmer(owner);
+			if (dropIn.Category == -21 && bait.Value == null && (owner_farmer == null || !owner_farmer.professions.Contains(11)))
 			{
 				if (!probe)
 				{
+					if (who != null)
+					{
+						owner.Value = who.UniqueMultiplayerID;
+					}
 					bait.Value = (dropIn.getOne() as Object);
 					who.currentLocation.playSound("Ship");
 					lidFlapping = true;

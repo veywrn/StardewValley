@@ -845,14 +845,14 @@ namespace StardewValley.Menus
 						}
 					}
 				}
-				if (heldItem is Object && (int)(heldItem as Object).parentSheetIndex == 326)
+				if (heldItem is Object && Utility.IsNormalObjectAtParentSheetIndex(heldItem as Object, 326))
 				{
 					heldItem = null;
 					Game1.player.canUnderstandDwarves = true;
 					poof = new TemporaryAnimatedSprite("TileSheets\\animations", new Rectangle(0, 320, 64, 64), 50f, 8, 0, new Vector2(x - x % 64 + 16, y - y % 64 + 16), flicker: false, flipped: false);
 					Game1.playSound("fireball");
 				}
-				else if (heldItem is Object && (int)(heldItem as Object).parentSheetIndex == 102)
+				else if (heldItem is Object && Utility.IsNormalObjectAtParentSheetIndex(heldItem as Object, 102))
 				{
 					heldItem = null;
 					Game1.player.foundArtifact(102, 1);

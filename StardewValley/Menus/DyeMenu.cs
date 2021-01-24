@@ -274,6 +274,7 @@ namespace StardewValley.Menus
 			}
 			if (heldItem == null || (heldItem.canBeTrashed() && GetPotIndex(heldItem) == index))
 			{
+				bool force_remove = false;
 				if (dye_pot.item != null && heldItem != null && dye_pot.item.canStackWith(heldItem))
 				{
 					heldItem.Stack++;
@@ -284,9 +285,14 @@ namespace StardewValley.Menus
 				dye_pot.item = ((heldItem == null) ? null : heldItem.getOne());
 				if (heldItem != null)
 				{
+					int old_stack = heldItem.Stack;
 					heldItem.Stack--;
+					if (old_stack == heldItem.Stack && old_stack == 1)
+					{
+						force_remove = true;
+					}
 				}
-				if (heldItem != null && heldItem.Stack <= 0)
+				if (heldItem != null && ((heldItem.Stack <= 0) | force_remove))
 				{
 					heldItem = old_item;
 				}

@@ -108,6 +108,10 @@ namespace StardewValley
 
 		private Rectangle coloredSourceRect;
 
+		private static Vector2 origin = new Vector2(8f, 24f);
+
+		private static Vector2 smallestTileSizeOrigin = new Vector2(8f, 8f);
+
 		public NetFields NetFields
 		{
 			get;
@@ -571,7 +575,10 @@ namespace StardewValley
 					}
 					else if ((int)indexOfHarvest == 771)
 					{
-						Game1.player.currentLocation.playSound("cut");
+						if (soil != null && soil.currentLocation != null)
+						{
+							soil.currentLocation.playSound("cut");
+						}
 						if (r.NextDouble() < 0.1)
 						{
 							Object mixedSeeds_item = new Object(770, 1);
@@ -813,11 +820,10 @@ namespace StardewValley
 				}
 				else
 				{
-					b.Draw(Game1.mouseCursors, position, sourceRect, Color.White, 0f, new Vector2(8f, 8f), 4f, SpriteEffects.None, layerDepth);
+					b.Draw(Game1.mouseCursors, position, sourceRect, Color.White, 0f, smallestTileSizeOrigin, 4f, SpriteEffects.None, layerDepth);
 				}
 				return;
 			}
-			Vector2 origin = new Vector2(8f, 24f);
 			SpriteEffects effect = flip ? SpriteEffects.FlipHorizontally : SpriteEffects.None;
 			b.Draw(Game1.cropSpriteSheet, position, sourceRect, toTint, rotation, origin, 4f, effect, layerDepth);
 			Color tintColor = this.tintColor.Value;

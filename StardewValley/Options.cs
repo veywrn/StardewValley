@@ -184,6 +184,8 @@ namespace StardewValley
 
 		public const int defaultLightingQuality = 32;
 
+		public const float defaultSplitScreenZoomLevel = 1f;
+
 		public bool autoRun;
 
 		public bool dialogueTyping;
@@ -592,7 +594,8 @@ namespace StardewValley
 			rumble = true;
 			fullscreen = false;
 			pinToolbarToggle = false;
-			desiredBaseZoomLevel = 1f;
+			baseZoomLevel = 1f;
+			localCoopBaseZoomLevel = 1f;
 			if (Game1.options == this)
 			{
 				Game1.forceSnapOnNextViewportUpdate = true;

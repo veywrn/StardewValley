@@ -3593,7 +3593,7 @@ namespace StardewValley
 				}
 			}
 			string day_name = Game1.shortDayNameFromDayOfSeason(Game1.dayOfMonth);
-			if (base.Name == "Pierre" && Game1.isLocationAccessible("CommunityCenter") && day_name == "Wed")
+			if (base.Name == "Pierre" && (Game1.isLocationAccessible("CommunityCenter") || Game1.player.HasTownKey) && day_name == "Wed")
 			{
 				day_name = "Sat";
 			}
@@ -4837,7 +4837,7 @@ namespace StardewValley
 				}
 				try
 				{
-					split = Game1.content.Load<Dictionary<string, string>>("Characters\\schedules\\" + base.Name)[newKey2].Split('/');
+					split = getMasterScheduleRawData()[newKey2].Split('/');
 				}
 				catch (Exception)
 				{
@@ -5021,7 +5021,7 @@ namespace StardewValley
 				}
 				if (changeScheduleForLocationAccessibility(ref location, ref xLocation, ref yLocation, ref localFacingDirection))
 				{
-					if (Game1.content.Load<Dictionary<string, string>>("Characters\\schedules\\" + base.Name).ContainsKey("default"))
+					if (getMasterScheduleRawData().ContainsKey("default"))
 					{
 						return parseMasterSchedule(getMasterScheduleEntry("default"));
 					}

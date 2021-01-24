@@ -227,6 +227,9 @@ namespace StardewValley
 
 		public readonly NetInt timeWentToBed = new NetInt();
 
+		[XmlIgnore]
+		public bool hasMoved;
+
 		public readonly NetBool sleptInTemporaryBed = new NetBool();
 
 		[XmlIgnore]
@@ -244,6 +247,9 @@ namespace StardewValley
 
 		[XmlElement("biteChime")]
 		public NetInt biteChime = new NetInt(-1);
+
+		[XmlIgnore]
+		public float usernameDisplayTime;
 
 		[XmlIgnore]
 		protected NetRef<Item> _recoveredItem = new NetRef<Item>();
@@ -3616,6 +3622,14 @@ namespace StardewValley
 				}
 			}
 			ClearBuffs();
+			if (leftRing.Value != null)
+			{
+				leftRing.Value.onDayUpdate(this, base.currentLocation);
+			}
+			if (rightRing.Value != null)
+			{
+				rightRing.Value.onDayUpdate(this, base.currentLocation);
+			}
 			bobber = "";
 			float oldStamina = Stamina;
 			Stamina = MaxStamina;
@@ -4439,7 +4453,7 @@ namespace StardewValley
 
 		public virtual void BeginSitting(ISittable furniture)
 		{
-			if (furniture == null || bathingClothes.Value || swimming.Value || isRidingHorse())
+			if (furniture == null || bathingClothes.Value || swimming.Value || isRidingHorse() || !CanMove || UsingTool || base.IsEmoting)
 			{
 				return;
 			}
@@ -4642,6 +4656,10 @@ namespace StardewValley
 				return true;
 			}
 			if (Utility.IsNormalObjectAtParentSheetIndex(item, 73))
+			{
+				return true;
+			}
+			if (Utility.IsNormalObjectAtParentSheetIndex(item, 930))
 			{
 				return true;
 			}
@@ -6093,6 +6111,33 @@ namespace StardewValley
 			}
 		}
 
+		public virtual void DrawUsername(SpriteBatch b)
+		{
+			if (!Game1.IsMultiplayer || Game1.multiplayer == null || LocalMultiplayer.IsLocalMultiplayer(is_local_only: true) || usernameDisplayTime <= 0f)
+			{
+				return;
+			}
+			string username2 = null;
+			username2 = Game1.multiplayer.getUserName(UniqueMultiplayerID);
+			if (username2 == null)
+			{
+				return;
+			}
+			Vector2 string_size = Game1.smallFont.MeasureString(username2);
+			Vector2 draw_origin = getLocalPosition(Game1.viewport) + new Vector2(32f, -104f) - string_size / 2f;
+			for (int x = -1; x <= 1; x++)
+			{
+				for (int y = -1; y <= 1; y++)
+				{
+					if (x != 0 || y != 0)
+					{
+						b.DrawString(Game1.smallFont, username2, draw_origin + new Vector2(x, y) * 2f, Color.Black, 0f, Vector2.Zero, 1f, SpriteEffects.None, 0.9999f);
+					}
+				}
+			}
+			b.DrawString(Game1.smallFont, username2, draw_origin, Color.White, 0f, Vector2.Zero, 1f, SpriteEffects.None, 1f);
+		}
+
 		public static void drinkGlug(Farmer who)
 		{
 			Color c = Color.LightBlue;
@@ -6739,6 +6784,17 @@ namespace StardewValley
 			}
 			position.UpdateExtrapolation(getMovementSpeed());
 			position.Field.InterpolationEnabled = !currentLocationRef.IsChanging();
+			if (Game1.ShouldShowOnscreenUsernames() && Game1.mouseCursorTransparency > 0f && base.currentLocation == Game1.currentLocation && Game1.currentMinigame == null && Game1.activeClickableMenu == null)
+			{
+				Vector2 local_position = getLocalPosition(Game1.viewport);
+				Microsoft.Xna.Framework.Rectangle bounding_rect = new Microsoft.Xna.Framework.Rectangle(0, 0, 128, 192);
+				bounding_rect.X = (int)(local_position.X + 32f - (float)(bounding_rect.Width / 2));
+				bounding_rect.Y = (int)(local_position.Y - (float)bounding_rect.Height + 48f);
+				if (bounding_rect.Contains(Game1.getMouseX(ui_scale: false), Game1.getMouseY(ui_scale: false)))
+				{
+					usernameDisplayTime = 1f;
+				}
+			}
 			if (_lastSelectedItem != CurrentItem)
 			{
 				if (_lastSelectedItem != null)
@@ -7425,6 +7481,14 @@ namespace StardewValley
 
 		private void updateCommon(GameTime time, GameLocation location)
 		{
+			if (usernameDisplayTime > 0f)
+			{
+				usernameDisplayTime -= (float)time.ElapsedGameTime.TotalSeconds;
+				if (usernameDisplayTime < 0f)
+				{
+					usernameDisplayTime = 0f;
+				}
+			}
 			if (jitterStrength > 0f)
 			{
 				jitter = new Vector2((float)Game1.random.Next(-(int)(jitterStrength * 100f), (int)((jitterStrength + 1f) * 100f)) / 100f, (float)Game1.random.Next(-(int)(jitterStrength * 100f), (int)((jitterStrength + 1f) * 100f)) / 100f);
@@ -8000,6 +8064,7 @@ namespace StardewValley
 
 		public void behaviorOnMovement(int direction)
 		{
+			hasMoved = true;
 		}
 
 		public void OnEmoteAnimationEnd(Farmer farmer)
@@ -8605,7 +8670,12 @@ namespace StardewValley
 						"0"
 					};
 					consumed.ModifyItemBuffs(whatToBuff);
-					Buff buff = new Buff(Convert.ToInt32(whatToBuff[0]), Convert.ToInt32(whatToBuff[1]), Convert.ToInt32(whatToBuff[2]), Convert.ToInt32(whatToBuff[3]), Convert.ToInt32(whatToBuff[4]), Convert.ToInt32(whatToBuff[5]), Convert.ToInt32(whatToBuff[6]), Convert.ToInt32(whatToBuff[7]), Convert.ToInt32(whatToBuff[8]), Convert.ToInt32(whatToBuff[9]), Convert.ToInt32(whatToBuff[10]), (whatToBuff.Length > 11) ? Convert.ToInt32(whatToBuff[11]) : 0, (objectDescription.Length > 8) ? Convert.ToInt32(objectDescription[8]) : (-1), objectDescription[0], objectDescription[4]);
+					int duration = (objectDescription.Length > 8) ? Convert.ToInt32(objectDescription[8]) : (-1);
+					if (consumed.Quality != 0)
+					{
+						duration = (int)((float)duration * 1.5f);
+					}
+					Buff buff = new Buff(Convert.ToInt32(whatToBuff[0]), Convert.ToInt32(whatToBuff[1]), Convert.ToInt32(whatToBuff[2]), Convert.ToInt32(whatToBuff[3]), Convert.ToInt32(whatToBuff[4]), Convert.ToInt32(whatToBuff[5]), Convert.ToInt32(whatToBuff[6]), Convert.ToInt32(whatToBuff[7]), Convert.ToInt32(whatToBuff[8]), Convert.ToInt32(whatToBuff[9]), Convert.ToInt32(whatToBuff[10]), (whatToBuff.Length > 11) ? Convert.ToInt32(whatToBuff[11]) : 0, duration, objectDescription[0], objectDescription[4]);
 					if (Utility.IsNormalObjectAtParentSheetIndex(consumed, 921))
 					{
 						buff.which = 28;
@@ -8693,7 +8763,7 @@ namespace StardewValley
 
 		public void doEmote(int whichEmote)
 		{
-			if (!isEmoting)
+			if (!Game1.eventUp && !isEmoting)
 			{
 				isEmoting = true;
 				currentEmote = whichEmote;

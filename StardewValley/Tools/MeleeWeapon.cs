@@ -1,6 +1,7 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Netcode;
+using StardewValley.Menus;
 using StardewValley.Monsters;
 using StardewValley.Projectiles;
 using System;
@@ -262,7 +263,7 @@ namespace StardewValley.Tools
 				addedScale = 0f;
 			}
 			spriteBatch.Draw(Tool.weaponsTexture, location + (((int)type == 1) ? new Vector2(38f, 25f) : new Vector2(32f, 32f)), Game1.getSourceRectForStandardTileSheet(Tool.weaponsTexture, base.IndexOfMenuItemView, 16, 16), color * transparency, 0f, new Vector2(8f, 8f), 4f * (scaleSize + addedScale), SpriteEffects.None, layerDepth);
-			if (coolDownLevel > 0f && drawShadow && !drawing_as_debris && !isScythe())
+			if (coolDownLevel > 0f && drawShadow && !drawing_as_debris && !isScythe() && (Game1.activeClickableMenu == null || !(Game1.activeClickableMenu is ShopMenu) || scaleSize != 1f))
 			{
 				spriteBatch.Draw(Game1.staminaRect, new Rectangle((int)location.X, (int)location.Y + (64 - (int)(coolDownLevel * 64f)), 64, (int)(coolDownLevel * 64f)), Color.Red * 0.66f);
 			}

@@ -49,14 +49,9 @@ namespace StardewValley.Locations
 			}
 		}
 
-		protected override void resetLocalState()
+		public override void MakeMapModifications(bool force = false)
 		{
-			base.resetLocalState();
-			if (!Game1.player.mailReceived.Contains("button_tut_1"))
-			{
-				Game1.player.mailReceived.Add("button_tut_1");
-				Game1.onScreenMenus.Add(new ButtonTutorialMenu(0));
-			}
+			base.MakeMapModifications(force);
 			if (!(this is FarmHouse))
 			{
 				setWallpapers();
@@ -65,6 +60,16 @@ namespace StardewValley.Locations
 			if (getTileIndexAt(Game1.player.getTileX(), Game1.player.getTileY(), "Buildings") != -1)
 			{
 				Game1.player.position.Y += 64f;
+			}
+		}
+
+		protected override void resetLocalState()
+		{
+			base.resetLocalState();
+			if (!Game1.player.mailReceived.Contains("button_tut_1"))
+			{
+				Game1.player.mailReceived.Add("button_tut_1");
+				Game1.onScreenMenus.Add(new ButtonTutorialMenu(0));
 			}
 		}
 

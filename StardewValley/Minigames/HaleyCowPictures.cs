@@ -32,7 +32,7 @@ namespace StardewValley.Minigames
 			content = Game1.content.CreateTemporary();
 			pictures = (Game1.currentSeason.Equals("winter") ? content.Load<Texture2D>("LooseSprites\\cowPhotosWinter") : content.Load<Texture2D>("LooseSprites\\cowPhotos"));
 			float pixel_zoom_adjustment = 1f / Game1.options.zoomLevel;
-			centerOfScreen = new Vector2(Game1.graphics.GraphicsDevice.Viewport.Width / 2, Game1.graphics.GraphicsDevice.Viewport.Height / 2) * pixel_zoom_adjustment;
+			centerOfScreen = new Vector2(Game1.game1.localMultiplayerWindow.Width / 2, Game1.game1.localMultiplayerWindow.Height / 2) * pixel_zoom_adjustment;
 		}
 
 		public bool overrideFreeMouseMovement()
@@ -135,7 +135,7 @@ namespace StardewValley.Minigames
 		public void changeScreenSize()
 		{
 			float pixel_zoom_adjustment = 1f / Game1.options.zoomLevel;
-			centerOfScreen = new Vector2(Game1.graphics.GraphicsDevice.Viewport.Width / 2, Game1.graphics.GraphicsDevice.Viewport.Height / 2) * pixel_zoom_adjustment;
+			centerOfScreen = new Vector2(Game1.game1.localMultiplayerWindow.Width / 2, Game1.game1.localMultiplayerWindow.Height / 2) * pixel_zoom_adjustment;
 		}
 
 		public void unload()

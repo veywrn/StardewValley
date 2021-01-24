@@ -320,7 +320,7 @@ namespace StardewValley
 
 		public static string kicked = "KICKED";
 
-		public const string protocolVersion = "1.5.1";
+		public const string protocolVersion = "1.5.4";
 
 		public readonly NetLogger logging = new NetLogger();
 

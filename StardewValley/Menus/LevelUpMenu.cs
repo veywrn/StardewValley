@@ -77,6 +77,7 @@ namespace StardewValley.Menus
 			{
 				myID = 101
 			};
+			RepositionOkButton();
 		}
 
 		public LevelUpMenu(int skill, int level)
@@ -231,7 +232,20 @@ namespace StardewValley.Menus
 		{
 			xPositionOnScreen = Game1.uiViewport.Width / 2 - width / 2;
 			yPositionOnScreen = Game1.uiViewport.Height / 2 - height / 2;
+			RepositionOkButton();
+		}
+
+		public virtual void RepositionOkButton()
+		{
 			okButton.bounds = new Rectangle(xPositionOnScreen + width + 4, yPositionOnScreen + height - 64 - IClickableMenu.borderWidth, 64, 64);
+			if (okButton.bounds.Right > Game1.uiViewport.Width)
+			{
+				okButton.bounds.X = Game1.uiViewport.Width - 64;
+			}
+			if (okButton.bounds.Bottom > Game1.uiViewport.Height)
+			{
+				okButton.bounds.Y = Game1.uiViewport.Height - 64;
+			}
 		}
 
 		public override void receiveLeftClick(int x, int y, bool playSound = true)
@@ -745,7 +759,7 @@ namespace StardewValley.Menus
 
 		public override void receiveKeyPress(Keys key)
 		{
-			if (Game1.options.SnappyMenus && ((!Game1.options.doesInputListContain(Game1.options.cancelButton, key) && !Game1.options.doesInputListContain(Game1.options.menuButton, key)) || !isProfessionChooser))
+			if ((!Game1.options.doesInputListContain(Game1.options.cancelButton, key) && !Game1.options.doesInputListContain(Game1.options.menuButton, key)) || !isProfessionChooser)
 			{
 				base.receiveKeyPress(key);
 			}

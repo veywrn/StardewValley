@@ -180,6 +180,10 @@ namespace StardewValley.Menus
 				{
 					Game1.gameMode = 0;
 				}
+				else if (!Game1.game1.IsMainInstance)
+				{
+					Game1.gameMode = 0;
+				}
 				UpdateButtons();
 				if (Game1.options.SnappyMenus)
 				{
@@ -295,6 +299,7 @@ namespace StardewValley.Menus
 			};
 			if (LocalMultiplayer.IsLocalMultiplayer())
 			{
+				Game1.currentSong = Game1.soundBank.GetCue("spring_day_ambient");
 				action();
 			}
 			else

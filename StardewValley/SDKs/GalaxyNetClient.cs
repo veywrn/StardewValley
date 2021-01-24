@@ -38,7 +38,7 @@ namespace StardewValley.SDKs
 
 		protected override void connectImpl()
 		{
-			client = new GalaxySocket("1.5.1");
+			client = new GalaxySocket("1.5.4");
 			GalaxyInstance.User().GetGalaxyID();
 			client.JoinLobby(lobbyId, onReceiveError);
 		}

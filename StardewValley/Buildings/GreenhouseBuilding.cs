@@ -1,5 +1,6 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using System;
 using xTile;
 using xTile.Dimensions;
 using xTile.Layers;
@@ -166,34 +167,37 @@ namespace StardewValley.Buildings
 		{
 			Map map = GetFarm().Map;
 			Layer back_layer = map.GetLayer("Back");
-			TileSheet tilesheet = map.TileSheets[1];
-			if (Game1.whichFarm == 6)
+			TileSheet tilesheet = map.GetTileSheet("untitled tile sheet");
+			if (tilesheet == null)
 			{
-				tilesheet = map.TileSheets[2];
+				tilesheet = map.TileSheets[Math.Min(1, map.TileSheets.Count - 1)];
 			}
-			Vector2 vector_draw_position3 = Vector2.Zero;
-			Location draw_location = new Location(0, 0);
-			StaticTile tile2 = new StaticTile(back_layer, tilesheet, BlendMode.Alpha, 812);
-			if (CanDrawEntranceTiles())
+			if (tilesheet != null)
 			{
-				float draw_layer = 0f;
-				vector_draw_position3 = Game1.GlobalToLocal(Game1.viewport, new Vector2((int)tileX + humanDoor.Value.X - 1, (int)tileY + humanDoor.Value.Y + 1) * 64f);
-				draw_location.X = (int)vector_draw_position3.X;
-				draw_location.Y = (int)vector_draw_position3.Y;
-				Game1.mapDisplayDevice.DrawTile(tile2, draw_location, draw_layer);
-				draw_location.X += 64;
-				Game1.mapDisplayDevice.DrawTile(tile2, draw_location, draw_layer);
-				draw_location.X += 64;
-				Game1.mapDisplayDevice.DrawTile(tile2, draw_location, draw_layer);
-				tile2 = new StaticTile(back_layer, tilesheet, BlendMode.Alpha, 838);
-				vector_draw_position3 = Game1.GlobalToLocal(Game1.viewport, new Vector2((int)tileX + humanDoor.Value.X - 1, (int)tileY + humanDoor.Value.Y + 2) * 64f);
-				draw_location.X = (int)vector_draw_position3.X;
-				draw_location.Y = (int)vector_draw_position3.Y;
-				Game1.mapDisplayDevice.DrawTile(tile2, draw_location, draw_layer);
-				draw_location.X += 64;
-				Game1.mapDisplayDevice.DrawTile(tile2, draw_location, draw_layer);
-				draw_location.X += 64;
-				Game1.mapDisplayDevice.DrawTile(tile2, draw_location, draw_layer);
+				Vector2 vector_draw_position3 = Vector2.Zero;
+				Location draw_location = new Location(0, 0);
+				StaticTile tile2 = new StaticTile(back_layer, tilesheet, BlendMode.Alpha, 812);
+				if (CanDrawEntranceTiles())
+				{
+					float draw_layer = 0f;
+					vector_draw_position3 = Game1.GlobalToLocal(Game1.viewport, new Vector2((int)tileX + humanDoor.Value.X - 1, (int)tileY + humanDoor.Value.Y + 1) * 64f);
+					draw_location.X = (int)vector_draw_position3.X;
+					draw_location.Y = (int)vector_draw_position3.Y;
+					Game1.mapDisplayDevice.DrawTile(tile2, draw_location, draw_layer);
+					draw_location.X += 64;
+					Game1.mapDisplayDevice.DrawTile(tile2, draw_location, draw_layer);
+					draw_location.X += 64;
+					Game1.mapDisplayDevice.DrawTile(tile2, draw_location, draw_layer);
+					tile2 = new StaticTile(back_layer, tilesheet, BlendMode.Alpha, 838);
+					vector_draw_position3 = Game1.GlobalToLocal(Game1.viewport, new Vector2((int)tileX + humanDoor.Value.X - 1, (int)tileY + humanDoor.Value.Y + 2) * 64f);
+					draw_location.X = (int)vector_draw_position3.X;
+					draw_location.Y = (int)vector_draw_position3.Y;
+					Game1.mapDisplayDevice.DrawTile(tile2, draw_location, draw_layer);
+					draw_location.X += 64;
+					Game1.mapDisplayDevice.DrawTile(tile2, draw_location, draw_layer);
+					draw_location.X += 64;
+					Game1.mapDisplayDevice.DrawTile(tile2, draw_location, draw_layer);
+				}
 			}
 		}
 
